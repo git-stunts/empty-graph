@@ -1,6 +1,14 @@
 import GraphNode from '../entities/GraphNode.js';
 
 /**
+ * ASCII Record Separator (0x1E) - Used as delimiter in git log parsing.
+ * This control character cannot appear in normal text, preventing injection.
+ * @see https://en.wikipedia.org/wiki/C0_and_C1_control_codes#Field_separators
+ * @const {string}
+ */
+const RECORD_SEPARATOR = '\x1E';
+
+/**
  * Domain service for graph database operations.
  */
 export default class GraphService {
@@ -31,12 +39,19 @@ export default class GraphService {
   /**
    * Async generator for streaming nodes.
    * Essential for processing millions of nodes without OOM.
+   * @param {Object} options
+   * @param {string} options.ref - Git ref to start from
+   * @param {number} [options.limit=1000000] - Maximum nodes to yield (1 to 10,000,000)
+   * @throws {Error} If limit is invalid
    */
   async *iterateNodes({ ref, limit = 1000000 }) {
-    // Use Record Separator character
-    const separator = '\x1E';
-    const format = ['%H', '%an', '%ad', '%P', `%B${separator}`].join('%n');
-    
+    // Validate limit to prevent DoS attacks
+    if (typeof limit !== 'number' || limit < 1 || limit > 10000000) {
+      throw new Error(`Invalid limit: ${limit}. Must be between 1 and 10,000,000`);
+    }
+
+    const format = ['%H', '%an', '%ad', '%P', `%B${RECORD_SEPARATOR}`].join('%n');
+
     const stream = await this.persistence.logNodesStream({ ref, limit, format });
     
     let buffer = '';
@@ -46,9 +61,9 @@ export default class GraphService {
       buffer += typeof chunk === 'string' ? chunk : decoder.decode(chunk);
       
       let splitIndex;
-      while ((splitIndex = buffer.indexOf(`${separator}\n`)) !== -1) {
+      while ((splitIndex = buffer.indexOf(`${RECORD_SEPARATOR}\n`)) !== -1) {
         const block = buffer.slice(0, splitIndex);
-        buffer = buffer.slice(splitIndex + separator.length + 1);
+        buffer = buffer.slice(splitIndex + RECORD_SEPARATOR.length + 1);
         
         const node = this._parseNode(block);
         if (node) yield node;

@@ -18,18 +18,31 @@ export default class BitmapIndexService {
     return idMap[sha];
   }
 
+  /**
+   * Loads a shard with graceful degradation.
+   * If the shard cannot be loaded (missing OID, corrupt data), returns an empty structure.
+   * @param {string} path - Shard path
+   * @param {string} format - 'json' or 'bitmap'
+   * @returns {Promise<Object|RoaringBitmap32>}
+   * @private
+   */
   async _getOrLoadShard(path, format) {
     if (this.loadedShards.has(path)) return this.loadedShards.get(path);
     const oid = this.shardOids.get(path);
     if (!oid) return format === 'json' ? {} : new RoaringBitmap32();
 
-    const buffer = await this.persistence.readBlob(oid);
-    const data = format === 'json' 
+    try {
+      const buffer = await this.persistence.readBlob(oid);
+      const data = format === 'json'
         ? JSON.parse(new TextDecoder().decode(buffer))
         : RoaringBitmap32.deserialize(buffer, true);
 
-    this.loadedShards.set(path, data);
-    return data;
+      this.loadedShards.set(path, data);
+      return data;
+    } catch (err) {
+      console.warn(`Failed to load shard ${path}: ${err.message}. Returning empty.`);
+      return format === 'json' ? {} : new RoaringBitmap32();
+    }
   }
 
   setup(shardOids) {

@@ -18,16 +18,9 @@ export default class GitGraphAdapter extends GraphPersistencePort {
   }
 
   async commitNode({ message, parents = [], sign = false }) {
-    const args = ['commit-tree', this.emptyTree];
-    
-    parents.forEach((p) => {
-      args.push('-p', p);
-    });
-
-    if (sign) {
-      args.push('-S');
-    }
-    args.push('-m', message);
+    const parentArgs = parents.flatMap(p => ['-p', p]);
+    const signArgs = sign ? ['-S'] : [];
+    const args = ['commit-tree', this.emptyTree, ...parentArgs, ...signArgs, '-m', message];
 
     return await this.plumbing.execute({ args });
   }
@@ -50,21 +43,25 @@ export default class GitGraphAdapter extends GraphPersistencePort {
    * Validates that a ref is safe to use in git commands.
    * Prevents command injection via malicious ref names.
    * @param {string} ref - The ref to validate
-   * @throws {Error} If ref contains invalid characters
+   * @throws {Error} If ref contains invalid characters, is too long, or starts with -/--
    * @private
    */
   _validateRef(ref) {
     if (!ref || typeof ref !== 'string') {
       throw new Error('Ref must be a non-empty string');
     }
+    // Prevent buffer overflow attacks with extremely long refs
+    if (ref.length > 1024) {
+      throw new Error(`Ref too long: ${ref.length} chars. Maximum is 1024`);
+    }
     // Allow alphanumeric, /, -, _, and ^~. (common git ref patterns)
     const validRefPattern = /^[a-zA-Z0-9_/-]+(\^|\~|\.\.|\.)*$/;
     if (!validRefPattern.test(ref)) {
-      throw new Error(`Invalid ref format: ${ref}. Only alphanumeric characters, /, -, _, ^, ~, and . are allowed.`);
+      throw new Error(`Invalid ref format: ${ref}. Only alphanumeric characters, /, -, _, ^, ~, and . are allowed. See https://github.com/git-stunts/empty-graph#ref-validation`);
     }
     // Prevent git option injection
     if (ref.startsWith('-') || ref.startsWith('--')) {
-      throw new Error(`Invalid ref: ${ref}. Refs cannot start with - or --`);
+      throw new Error(`Invalid ref: ${ref}. Refs cannot start with - or --. See https://github.com/git-stunts/empty-graph#security`);
     }
   }
 

@@ -46,7 +46,7 @@ const childSha = await graph.createNode({
 });
 
 // Read data
-const data = await graph.readNode(childSha);
+const message = await graph.readNode(childSha);
 
 // List linear history (small graphs)
 const nodes = await graph.listNodes({ ref: childSha, limit: 50 });
@@ -54,6 +54,25 @@ const nodes = await graph.listNodes({ ref: childSha, limit: 50 });
 // Stream large graphs (millions of nodes)
 for await (const node of graph.iterateNodes({ ref: childSha })) {
   console.log(node.message);
+}
+```
+
+## Choosing the Right Method
+
+| Scenario | Method | Reason |
+|----------|--------|--------|
+| < 1,000 nodes | `listNodes()` | Returns array, easier to work with |
+| > 1,000 nodes | `iterateNodes()` | Streams results, constant memory |
+| Single node lookup | `readNode()` | O(1) direct access |
+
+```javascript
+// Example: Processing small graphs
+const recentNodes = await graph.listNodes({ ref: 'HEAD', limit: 100 });
+recentNodes.forEach(node => console.log(node.message));
+
+// Example: Processing large graphs (memory-safe)
+for await (const node of graph.iterateNodes({ ref: 'HEAD' })) {
+  await processNode(node); // Handle millions of nodes without OOM
 }
 ```
 
@@ -95,6 +114,12 @@ Reads a node's message.
 - `sha` (string): Commit SHA to read
 
 **Returns:** `Promise<string>` - The node's message
+
+**Example:**
+```javascript
+const message = await graph.readNode(childSha);
+console.log(message); // "Second Entry"
+```
 
 #### `async listNodes({ ref, limit = 50 })`
 
@@ -172,9 +197,36 @@ Immutable entity representing a graph node.
      └────────────────────┘
 ```
 
+## Error Handling
+
+Common errors and solutions:
+
+### Invalid Ref Format
+```javascript
+// ❌ Error: Invalid ref format: --upload-pack
+// ✅ Solution: Refs must be alphanumeric, /, -, _, ^, ~, or .
+const nodes = await graph.listNodes({ ref: 'main' });
+```
+
+### GraphNode Validation Error
+```javascript
+// ❌ Error: GraphNode requires a valid sha string
+// ✅ Solution: Ensure createNode returned a valid SHA
+const sha = await graph.createNode({ message: 'data' });
+const message = await graph.readNode(sha);
+```
+
+### Ref Too Long
+```javascript
+// ❌ Error: Ref too long: 2048 chars. Maximum is 1024
+// ✅ Solution: Use shorter branch names or commit SHAs
+const nodes = await graph.listNodes({ ref: 'abc123def' }); // Use SHA instead
+```
+
 ## Security
 
 - **Ref Validation**: All refs validated against strict patterns to prevent injection
+- **Length Limits**: Refs cannot exceed 1024 characters
 - **No Arbitrary Commands**: Only whitelisted Git plumbing commands
 - **Delimiter Safety**: Uses ASCII Record Separator (`\x1E`) to prevent message collision
 - **Streaming Only**: No unbounded memory usage
