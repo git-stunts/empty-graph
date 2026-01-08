@@ -12,22 +12,24 @@ describe('CacheRebuildService', () => {
       writeBlob: vi.fn().mockResolvedValue('blob-oid'),
       writeTree: vi.fn().mockResolvedValue('tree-oid'),
     };
+
+    // Mock iterateNodes as an async generator
     mockGraphService = {
-      listNodes: vi.fn().mockResolvedValue([
-        new GraphNode({ sha: 'sha1', message: 'msg1' }),
-        new GraphNode({ sha: 'sha2', message: 'msg2' })
-      ])
+      async *iterateNodes({ ref, limit }) {
+        yield new GraphNode({ sha: 'sha1', author: 'test', date: '2026-01-08', message: 'msg1', parents: [] });
+        yield new GraphNode({ sha: 'sha2', author: 'test', date: '2026-01-08', message: 'msg2', parents: ['sha1'] });
+      }
     };
-    service = new CacheRebuildService({ 
-      persistence: mockPersistence, 
-      graphService: mockGraphService 
+
+    service = new CacheRebuildService({
+      persistence: mockPersistence,
+      graphService: mockGraphService
     });
   });
 
   it('rebuilds the index and persists it', async () => {
     const treeOid = await service.rebuild('main');
-    
-    expect(mockGraphService.listNodes).toHaveBeenCalledWith({ ref: 'main', limit: 100000 });
+
     expect(mockPersistence.writeBlob).toHaveBeenCalled();
     expect(mockPersistence.writeTree).toHaveBeenCalled();
     expect(treeOid).toBe('tree-oid');

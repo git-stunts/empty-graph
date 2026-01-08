@@ -7,10 +7,18 @@ describe('GraphService', () => {
   let mockPersistence;
 
   beforeEach(() => {
+    // Create an async iterable stream for logNodesStream
+    const mockStream = {
+      async *[Symbol.asyncIterator]() {
+        yield 'sha1\nauthor1\ndate1\n\nmsg1\x1E\n';
+      }
+    };
+
     mockPersistence = {
       commitNode: vi.fn().mockResolvedValue('new-sha'),
       showNode: vi.fn().mockResolvedValue('node-content'),
       logNodes: vi.fn().mockResolvedValue('sha1\nauthor1\ndate1\nmsg1\n--NODE-END--\n'),
+      logNodesStream: vi.fn().mockResolvedValue(mockStream),
     };
     service = new GraphService({ persistence: mockPersistence });
   });

@@ -37,11 +37,35 @@ export default class GitGraphAdapter extends GraphPersistencePort {
   }
 
   async logNodes({ ref, limit = 50, format }) {
+    this._validateRef(ref);
     return await this.plumbing.execute({ args: ['log', `-${limit}`, `--format=${format}`, ref] });
   }
 
   async logNodesStream({ ref, limit = 1000000, format }) {
+    this._validateRef(ref);
     return await this.plumbing.executeStream({ args: ['log', `-${limit}`, `--format=${format}`, ref] });
+  }
+
+  /**
+   * Validates that a ref is safe to use in git commands.
+   * Prevents command injection via malicious ref names.
+   * @param {string} ref - The ref to validate
+   * @throws {Error} If ref contains invalid characters
+   * @private
+   */
+  _validateRef(ref) {
+    if (!ref || typeof ref !== 'string') {
+      throw new Error('Ref must be a non-empty string');
+    }
+    // Allow alphanumeric, /, -, _, and ^~. (common git ref patterns)
+    const validRefPattern = /^[a-zA-Z0-9_/-]+(\^|\~|\.\.|\.)*$/;
+    if (!validRefPattern.test(ref)) {
+      throw new Error(`Invalid ref format: ${ref}. Only alphanumeric characters, /, -, _, ^, ~, and . are allowed.`);
+    }
+    // Prevent git option injection
+    if (ref.startsWith('-') || ref.startsWith('--')) {
+      throw new Error(`Invalid ref: ${ref}. Refs cannot start with - or --`);
+    }
   }
 
   async writeBlob(content) {

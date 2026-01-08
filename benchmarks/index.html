@@ -3,15 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>The Git-Mind 900: Monotone Spline Probe</title>
+    <title>The Git-Mind 900: GSAP Motion Probe</title>
     <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/MotionPathPlugin.min.js"></script>
     <style>
         body { font-family: -apple-system, system-ui, sans-serif; background: #0f0f0f; color: #e0e0e0; margin: 0; padding: 40px; display: flex; flex-direction: column; align-items: center; }
         .chart-container { background: #1a1a1a; padding: 30px; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.8); border: 1px solid #333; width: 900px; margin-bottom: 40px; position: relative; }
         
-        .line { fill: none; stroke-width: 4; stroke-linecap: round; opacity: 0.8; }
-        .line-scan { stroke: #ff4757; filter: drop-shadow(0 0 8px rgba(255, 71, 87, 0.5)); }
-        .line-build { stroke: #ffa502; filter: drop-shadow(0 0 8px rgba(255, 165, 2, 0.5)); }
+        .line { fill: none; stroke-width: 4; stroke-linecap: round; opacity: 0.6; }
+        .line-scan { stroke: #ff4757; filter: drop-shadow(0 0 8px rgba(255, 71, 87, 0.5)); opacity: 0.9; }
+        .line-build { stroke: #ffa502; filter: drop-shadow(0 0 8px rgba(255, 165, 2, 0.5)); opacity: 0.2; }
         .line-load { stroke: #5352ed; filter: drop-shadow(0 0 8px rgba(83, 82, 237, 0.5)); }
         .line-lookup { stroke: #2ed573; filter: drop-shadow(0 0 8px rgba(46, 213, 115, 0.5)); }
         
@@ -26,11 +28,10 @@
         h1 { margin: 0 0 10px 0; color: #ffa502; font-size: 32px; letter-spacing: 2px; }
         p { color: #666; margin-bottom: 40px; font-style: italic; }
 
-        table { width: 900px; border-collapse: collapse; background: #1a1a1a; border-radius: 8px; overflow: hidden; border: 1px solid #333; margin-top: 20px; }
-        th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #333; }
-        th { background: #252525; color: #ffa502; text-transform: uppercase; font-size: 12px; letter-spacing: 1px; }
-        tr:hover { background: #222; }
-        
+        /* Payoff Markers */
+        .payoff-line { stroke: #ffa502; stroke-width: 2px; stroke-dasharray: 8,4; opacity: 0.5; }
+        .payoff-label { fill: #ffa502; font-weight: 900; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
+
         .tooltip {
             position: absolute;
             background: rgba(10, 10, 10, 0.98);
@@ -49,39 +50,27 @@
         .speedup-badge { background: #2ed573; color: #000; padding: 2px 8px; border-radius: 4px; font-weight: 900; font-size: 11px; }
         .mouse-line { stroke: #ffa502; stroke-width: 1px; stroke-dasharray: 4,4; opacity: 0.5; }
 
-        .spinning-skateboard { display: inline-block; animation: spin 2s linear infinite; transform-origin: center; }
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .skater-container { pointer-events: none; }
     </style>
 </head>
 <body>
-    <h1><span class="spinning-skateboard">🛹</span> THE GIT-MIND 900</h1>
-    <p>O(N) vs O(1) Vector Space Sampling (Monotone Cubic Splines)</p>
+    <h1>🛹 THE GIT-MIND 900</h1>
+    <p>Watch the 900: Grinding the Complexity Curve.</p>
 
     <div class="chart-container" id="container">
         <div id="chart"></div>
         <div id="tooltip" class="tooltip"></div>
         <div class="legend">
-            <div class="legend-item"><div class="box" style="background: #ff4757;"></div> <span><b>Scan Time</b> (O(N) Git Log)</span></div>
-            <div class="legend-item"><div class="box" style="background: #ffa502;"></div> <span><b>Build Time</b> (O(N) Rebuild)</span></div>
-            <div class="legend-item"><div class="box" style="background: #5352ed;"></div> <span><b>Load Time</b> (O(1) Shard Load)</span></div>
-            <div class="legend-item"><div class="box" style="background: #2ed573;"></div> <span><b>Lookup Time</b> (O(1) Bitmap)</span></div>
+            <div class="legend-item"><div class="box" style="background: #ff4757;"></div> <span><b>Legacy</b> (Log Walk)</span></div>
+            <div class="legend-item"><div class="box" style="background: #5352ed;"></div> <span><b>Stunt</b> (Cold Load)</span></div>
+            <div class="legend-item"><div class="box" style="background: #2ed573;"></div> <span><b>Lookup</b> (O(1) Bitmap)</span></div>
+            <div class="legend-item"><div class="box" style="background: rgba(255,165,2,0.2);"></div> <span><b>Build</b> (One-time)</span></div>
         </div>
     </div>
 
-    <table id="data-table">
-        <thead>
-            <tr>
-                <th>Nodes</th>
-                <th>Scan Time</th>
-                <th>Build Time</th>
-                <th>Load Time</th>
-                <th>Lookup Time</th>
-            </tr>
-        </thead>
-        <tbody></tbody>
-    </table>
-
     <script>
+        gsap.registerPlugin(MotionPathPlugin);
+
         const data = [
           { "nodeCount": 1000, "scanTimeMs": 6.80, "buildTimeMs": 701.19, "loadTimeMs": 551.04, "lookupTimeMs": 0.0045 },
           { "nodeCount": 5000, "scanTimeMs": 27.62, "buildTimeMs": 666.35, "loadTimeMs": 475.21, "lookupTimeMs": 0.0028 },
@@ -94,23 +83,10 @@
           { "nodeCount": 1000000, "scanTimeMs": 5809.20, "buildTimeMs": 16278.89, "loadTimeMs": 925.60, "lookupTimeMs": 0.0148 }
         ];
 
-        const formatTime = (v) => {
-            if (v < 0.01) return v.toFixed(4) + " ms";
-            if (v < 1000) return v.toFixed(2) + " ms";
-            return (v/1000).toFixed(2) + " s";
-        };
+        const inflectionX = 155172;
+        const formatTime = (v) => v < 0.01 ? v.toFixed(4) + " ms" : v < 1000 ? v.toFixed(2) + " ms" : (v/1000).toFixed(2) + " s";
 
-        const tbody = d3.select("#data-table tbody");
-        data.filter(d => [1000, 10000, 100000, 1000000].includes(d.nodeCount)).forEach(d => {
-            const tr = tbody.append("tr");
-            tr.append("td").style("color", "#fff").text(d3.format(",")(d.nodeCount));
-            tr.append("td").style("color", "#ff4757").text(formatTime(d.scanTimeMs));
-            tr.append("td").style("color", "#ffa502").text(formatTime(d.buildTimeMs));
-            tr.append("td").style("color", "#5352ed").text(formatTime(d.loadTimeMs));
-            tr.append("td").style("color", "#2ed573").text(formatTime(d.lookupTimeMs));
-        });
-
-        const margin = {top: 20, right: 50, bottom: 60, left: 80},
+        const margin = {top: 40, right: 50, bottom: 60, left: 80},
               width = 900 - margin.left - margin.right,
               height = 500 - margin.top - margin.bottom;
 
@@ -120,30 +96,66 @@
             .append("g").attr("transform", `translate(${margin.left},${margin.top})`);
 
         const x = d3.scaleLog().domain([1000, 1000000]).range([0, width]);
-        const y = d3.scaleLinear().domain([0, 18000]).range([height, 0]);
+        const y = d3.scaleLinear().domain([0, 7000]).range([height, 0]);
 
         svg.append("g").attr("class", "grid").attr("transform", `translate(0,${height})`).call(d3.axisBottom(x).ticks(4).tickSize(-height).tickFormat(""));
         svg.append("g").attr("class", "grid").call(d3.axisLeft(y).ticks(10).tickSize(-width).tickFormat(""));
         svg.append("g").attr("transform", `translate(0,${height})`).attr("class", "axis").call(d3.axisBottom(x).ticks(4, d3.format(".0s")));
         svg.append("g").attr("class", "axis").call(d3.axisLeft(y).tickFormat(d => d >= 1000 ? (d/1000).toFixed(0) + "s" : d + "ms"));
 
+        // Inflection Line
+        svg.append("line").attr("class", "payoff-line").attr("x1", x(inflectionX)).attr("y1", 0).attr("x2", x(inflectionX)).attr("y2", height);
+        svg.append("text").attr("class", "payoff-label").attr("x", x(inflectionX)).attr("y", -15).attr("text-anchor", "middle").text("Payoff Point");
+
         const keys = ["scanTimeMs", "buildTimeMs", "loadTimeMs", "lookupTimeMs"];
         const colors = ["#ff4757", "#ffa502", "#5352ed", "#2ed573"];
 
-        keys.forEach((key, i) => {
+        const pathNodes = keys.map((key, i) => {
             const line = d3.line().x(d => x(d.nodeCount)).y(d => y(d[key])).curve(d3.curveMonotoneX);
-            svg.append("path").datum(data).attr("class", "line").style("stroke", colors[i]).attr("d", line);
+            return svg.append("path").datum(data).attr("class", "line").attr("id", `path-${i}`).style("stroke", colors[i]).attr("d", line).node();
         });
 
-        // PIXEL-PERFECT INTERPOLATOR
-        // We extract the path definitions and use getPointAtLength for absolute visual accuracy
-        const pathElements = keys.map((key, i) => {
-            const line = d3.line().x(d => x(d.nodeCount)).y(d => y(d[key])).curve(d3.curveMonotoneX);
-            const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-            path.setAttribute("d", line(data));
-            return path;
+        // GSAP SKATEBOARD STUNT
+        const skater = svg.append("text")
+            .attr("id", "skater")
+            .attr("font-size", "34px")
+            .attr("dominant-baseline", "central")
+            .attr("text-anchor", "middle")
+            .style("opacity", "0") // Hidden initially
+            .text("🛹");
+
+        const tl = gsap.timeline({ 
+            paused: true, 
+            onStart: () => gsap.set("#skater", { opacity: 1 }),
+            onComplete: () => gsap.set("#skater", { opacity: 0 })
         });
 
+        // Phase 1: Grind the Legacy Wall
+        tl.to("#skater", {
+            duration: 4,
+            ease: "power2.in",
+            motionPath: {
+                path: "#path-0",
+                autoRotate: true
+            }
+        })
+        // Phase 2: Kickflip at the end and vanish
+        .to("#skater", {
+            rotation: "+=360",
+            duration: 0.5,
+            scale: 1.5,
+            yoyo: true,
+            repeat: 1
+        });
+
+        // Click to Shred
+        svg.on("click", function() {
+            if (!tl.isActive()) {
+                tl.restart();
+            }
+        });
+
+        // Interactive Probe
         const mouseG = svg.append("g").attr("class", "mouse-over-effects");
         const mouseLine = mouseG.append("path").attr("class", "mouse-line").style("opacity", "0");
         const mouseDots = mouseG.selectAll('.mouse-per-line').data(keys).enter().append("circle").attr("r", 6).style("stroke", (d, i) => colors[i]).style("fill", "none").style("stroke-width", "2px").style("opacity", "0");
@@ -163,10 +175,9 @@
             .on('mousemove', function(event) {
                 const mouseX = d3.pointer(event)[0];
                 const xVal = x.invert(mouseX);
-
                 mouseLine.attr("d", () => `M${mouseX},${height} L${mouseX},0`);
 
-                const sampledValues = pathElements.map(path => {
+                const sampledValues = pathNodes.map(path => {
                     let beginning = 0, end = path.getTotalLength(), target = null;
                     while (true) {
                         target = Math.floor((beginning + end) / 2);
@@ -180,7 +191,6 @@
                 });
 
                 mouseDots.attr("cx", mouseX).attr("cy", (d, i) => y(sampledValues[i]));
-
                 const speedup = sampledValues[0] / sampledValues[3];
 
                 d3.select("#tooltip")
@@ -189,12 +199,10 @@
                             <span>${d3.format(",.0f")(xVal)} Nodes</span>
                             <span class="speedup-badge">${d3.format(",.0f")(speedup)}X SPEEDUP</span>
                         </div>
-                        ${keys.map((key, i) => `
-                            <div class="tooltip-row">
-                                <span style="color:${colors[i]}">● ${key.split('T')[0].toUpperCase()}:</span>
-                                <span>${formatTime(sampledValues[i])}</span>
-                            </div>
-                        `).join('')}
+                        <div class="tooltip-row"><span style="color:${colors[0]}">● Legacy Scan:</span> <span>${formatTime(sampledValues[0])}</span></div>
+                        <div class="tooltip-row"><span style="color:${colors[1]}">● Build Index:</span> <span>${formatTime(sampledValues[1])}</span></div>
+                        <div class="tooltip-row"><span style="color:${colors[2]}">● Stunt Load:</span> <span>${formatTime(sampledValues[2])}</span></div>
+                        <div class="tooltip-row"><span style="color:${colors[3]}">● Stunt Lookup:</span> <span>${formatTime(sampledValues[3])}</span></div>
                     `)
                     .style("left", (event.pageX + 20) + "px")
                     .style("top", (event.pageY - 40) + "px");
