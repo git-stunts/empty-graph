@@ -25,6 +25,16 @@ export default class GraphPersistencePort {
    * @param {Object} options
    * @param {string} options.ref
    * @param {number} [options.limit]
+   * @returns {Promise<any>} A stream of log output.
+   */
+  async logNodesStream(_options) {
+    throw new Error('Not implemented');
+  }
+
+  /**
+   * @param {Object} options
+   * @param {string} options.ref
+   * @param {number} [options.limit]
    * @returns {Promise<string>} The raw log output.
    */
   async logNodes(_options) {

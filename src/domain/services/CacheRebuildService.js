@@ -11,14 +11,16 @@ export default class CacheRebuildService {
 
   async rebuild(ref) {
     const index = new BitmapIndexService();
-    const nodes = await this.graphService.listNodes({ ref, limit: 1000000 });
-
-    for (const node of nodes) {
+    
+    // 1. Scan history (Streaming O(N))
+    for await (const node of this.graphService.iterateNodes({ ref, limit: 1000000 })) {
       index.getId(node.sha);
       for (const parentSha of node.parents) {
         index.addEdge(parentSha, node.sha);
       }
     }
+
+    // 2. Serialize to Blobs
 
     const treeStructure = index.serialize();
     const flatEntries = [];

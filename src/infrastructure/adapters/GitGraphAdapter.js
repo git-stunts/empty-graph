@@ -40,6 +40,10 @@ export default class GitGraphAdapter extends GraphPersistencePort {
     return await this.plumbing.execute({ args: ['log', `-${limit}`, `--format=${format}`, ref] });
   }
 
+  async logNodesStream({ ref, limit = 1000000, format }) {
+    return await this.plumbing.executeStream({ args: ['log', `-${limit}`, `--format=${format}`, ref] });
+  }
+
   async writeBlob(content) {
     return await this.plumbing.execute({
       args: ['hash-object', '-w', '--stdin'],
