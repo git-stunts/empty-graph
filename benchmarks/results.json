@@ -1,0 +1,34 @@
+[
+  {
+    "nodeCount": 100,
+    "genTimeMs": 684.730875,
+    "scanTimeMs": 0.406708999999978,
+    "buildTimeMs": 13.417957999999999,
+    "loadTimeMs": 11.934665999999993,
+    "lookupTimeMs": 0.02154099999995651
+  },
+  {
+    "nodeCount": 500,
+    "genTimeMs": 3221.5772500000003,
+    "scanTimeMs": 0.2239159999999174,
+    "buildTimeMs": 12.022999999999683,
+    "loadTimeMs": 10.248792000000321,
+    "lookupTimeMs": 0.0039999999999054126
+  },
+  {
+    "nodeCount": 1000,
+    "genTimeMs": 6298.480334,
+    "scanTimeMs": 0.20170899999902758,
+    "buildTimeMs": 11.806083999999828,
+    "loadTimeMs": 11.043208999999479,
+    "lookupTimeMs": 0.006124999999883585
+  },
+  {
+    "nodeCount": 2000,
+    "genTimeMs": 12603.909833000002,
+    "scanTimeMs": 0.1964170000028389,
+    "buildTimeMs": 11.77941699999792,
+    "loadTimeMs": 10.679041999999754,
+    "lookupTimeMs": 0.0066250000018044375
+  }
+]

@@ -55,6 +55,15 @@ export default class GraphPersistencePort {
   }
 
   /**
+   * Reads a tree and returns a map of path -> content.
+   * @param {string} treeOid
+   * @returns {Promise<Record<string, Buffer>>}
+   */
+  async readTree(_treeOid) {
+    throw new Error('Not implemented');
+  }
+
+  /**
    * @param {string} oid
    * @returns {Promise<Buffer>}
    */

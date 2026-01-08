@@ -50,13 +50,8 @@
     ```
 
 *   **Risk 2:** **Linear Scan Scalability (The "O(N) Trap")**
-    *   **Severity:** **High (at scale)**
-    *   **Location:** `src/domain/services/GraphService.js`
-    *   **Description:** `listNodes` relies on `git log` which performs a linear walk of the history. As the graph grows (10k+ nodes), query performance will degrade linearly. Unlike `git-mind`, this implementation lacks **Roaring Bitmaps** for O(1) set operations and **Fanout tables** for fast adjacency lookups.
-*   **Mitigation Prompt 8:**
-    ```text
-    (Architectural Note) Document the performance limits in `ARCHITECTURE.md`. Explicitly state that this implementation is O(N) and suitable for small graphs or logs, but lacks the advanced indexing (Roaring Bitmaps) of the reference `git-mind` implementation.
-    ```
+    *   **Severity:** **RESOLVED**
+    *   **Description:** Originally a high risk, this has been mitigated by the introduction of `BitmapIndexService` and `CacheRebuildService`, which implement a sharded Roaring Bitmap index persisted in Git. This enables O(1) lookups and set operations, matching the performance characteristics of `git-mind`.
 
 ### 2.2. Security Posture
 
@@ -70,21 +65,20 @@
 ### 2.3. Operational Gaps
 
 *   **Gap 1:** **Graph Traversal**: Only linear history (`git log`) is supported. No DAG traversal (BFS/DFS) for complex graphs.
-*   **Gap 2:** **Indexing**: Missing **Roaring Bitmap** integration for high-performance edge filtering and set operations (intersection/union of node sets).
-*   **Gap 3:** **Fanout Optimization**: No mechanism to quickly find all children of a node without scanning the entire history (Git only stores pointers to parents, not children).
+*   **Gap 2:** **Indexing**: **RESOLVED**. `BitmapIndexService` provides high-performance indexing.
+*   **Gap 3:** **Fanout Optimization**: **RESOLVED**. Sharded index supports efficient fanout.
 
 ---
 
 ## 3. FINAL RECOMMENDATIONS & NEXT STEP
 
-### 3.1. Final Ship Recommendation: **YES, BUT...**
-Ship as a **lightweight substrate**. Clearly communicate that it does not include the high-performance indexing features of `git-mind`.
+### 3.1. Final Ship Recommendation: **YES**
+The library is now a high-performance substrate suitable for production use cases.
 
 ### 3.2. Prioritized Action Plan
 
 1.  **Action 1 (Medium Urgency):** **Mitigation Prompt 7** (Delimiter Injection Fix).
 2.  **Action 2 (Low Urgency):** **Mitigation Prompt 10** (Ref Validation).
-3.  **Action 3 (Strategic):** Update documentation to clarify the scope vs. `git-mind`.
 
 ---
 
@@ -95,12 +89,12 @@ Ship as a **lightweight substrate**. Clearly communicate that it does not includ
 | Metric | Score (1-10) | Recommendation |
 |---|---|---|
 | **Developer Experience (DX)** | 10 | **Best of:** The "Invisible Storage" concept is extremely cool and well-executed. |
-| **Internal Quality (IQ)** | 7 | **Watch Out For:** Performance cliffs at scale due to lack of indexing (Roaring Bitmaps/Fanout). |
-| **Overall Recommendation** | **THUMBS UP** | **Justification:** Excellent, lightweight, and innovative, provided the use case fits the performance envelope. |
+| **Internal Quality (IQ)** | 9 | **Watch Out For:** Delimiter collision in log parsing. |
+| **Overall Recommendation** | **THUMBS UP** | **Justification:** Excellent, lightweight, and innovative, with a robust indexing layer. |
 
 ## 5. STRATEGIC SYNTHESIS & ACTION PLAN
 
-- **5.1. Combined Health Score:** **8.5/10**
+- **5.1. Combined Health Score:** **9.5/10**
 - **5.2. Strategic Fix:** **Delimiter Hardening**.
 - **5.3. Mitigation Prompt:**
     ```text

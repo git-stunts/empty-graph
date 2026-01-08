@@ -54,6 +54,27 @@ export default class GitGraphAdapter extends GraphPersistencePort {
     });
   }
 
+  async readTree(treeOid) {
+    // 1. List tree
+    const output = await this.plumbing.execute({
+      args: ['ls-tree', '-r', treeOid]
+    });
+    
+    // 2. Parse entries: "100644 blob <oid>\t<path>"
+    const files = {};
+    const lines = output.trim().split('\n');
+    
+    // Parallel fetch (careful with concurrency limits in real world, but for stunts ok)
+    await Promise.all(lines.map(async (line) => {
+      if (!line) return;
+      const [meta, path] = line.split('\t');
+      const [, , oid] = meta.split(' ');
+      files[path] = await this.readBlob(oid);
+    }));
+
+    return files;
+  }
+
   async readBlob(oid) {
     const stream = await this.plumbing.executeStream({
       args: ['cat-file', 'blob', oid]

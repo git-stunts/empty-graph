@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Git-Mind 900: Benchmark Visualization</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        body { font-family: -apple-system, sans-serif; background: #1a1a1a; color: #fff; margin: 40px; }
+        .chart-container { background: #2a2a2a; padding: 20px; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
+        .line-scan { fill: none; stroke: #ff4757; stroke-width: 3; }
+        .line-lookup { fill: none; stroke: #2ed573; stroke-width: 3; }
+        .axis path, .axis line { stroke: #888; }
+        .legend { font-size: 14px; margin-top: 20px; display: flex; gap: 20px; }
+        .legend-item { display: flex; align-items: center; gap: 8px; }
+        .box { width: 12px; height: 12px; border-radius: 2px; }
+        h1 { margin-bottom: 10px; color: #ffa502; }
+        p { color: #888; margin-bottom: 30px; }
+    </style>
+</head>
+<body>
+    <h1>🛹 THE GIT-MIND 900</h1>
+    <p>O(N) Linear Scan vs O(1) Sharded Roaring Bitmap Index</p>
+
+    <div class="chart-container">
+        <div id="chart"></div>
+        <div class="legend">
+            <div class="legend-item"><div class="box" style="background: #ff4757;"></div> O(N) Git Log Scan</div>
+            <div class="legend-item"><div class="box" style="background: #2ed573;"></div> O(1) Bitmap Lookup</div>
+        </div>
+    </div>
+
+    <script>
+        d3.json("results.json").then(data => {
+            const margin = {top: 20, right: 30, bottom: 50, left: 60},
+                  width = 800 - margin.left - margin.right,
+                  height = 400 - margin.top - margin.bottom;
+
+            const svg = d3.select("#chart")
+                .append("svg")
+                .attr("width", width + margin.left + margin.right)
+                .attr("height", height + margin.top + margin.bottom)
+                .append("g")
+                .attr("transform", `translate(${margin.left},${margin.top})`);
+
+            const x = d3.scaleLinear()
+                .domain(d3.extent(data, d => d.nodeCount))
+                .range([0, width]);
+
+            svg.append("g")
+                .attr("transform", `translate(0,${height})`)
+                .attr("class", "axis")
+                .call(d3.axisBottom(x).ticks(5).tickFormat(d => d + " nodes"));
+
+            const y = d3.scaleLinear()
+                .domain([0, d3.max(data, d => Math.max(d.scanTimeMs, d.lookupTimeMs))])
+                .range([height, 0]);
+
+            svg.append("g")
+                .attr("class", "axis")
+                .call(d3.axisLeft(y).tickFormat(d => d + "ms"));
+
+            // Linear Scan Line
+            const line1 = d3.line()
+                .x(d => x(d.nodeCount))
+                .y(d => y(d.scanTimeMs))
+                .curve(d3.curveMonotoneX);
+
+            svg.append("path")
+                .datum(data)
+                .attr("class", "line-scan")
+                .attr("d", line1);
+
+            // Bitmap Lookup Line
+            const line2 = d3.line()
+                .x(d => x(d.nodeCount))
+                .y(d => y(d.lookupTimeMs))
+                .curve(d3.curveMonotoneX);
+
+            svg.append("path")
+                .datum(data)
+                .attr("class", "line-lookup")
+                .attr("d", line2);
+        });
+    </script>
+</body>
+</html>
