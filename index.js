@@ -5,11 +5,15 @@
 import GraphService from './src/domain/services/GraphService.js';
 import GitGraphAdapter from './src/infrastructure/adapters/GitGraphAdapter.js';
 import GraphNode from './src/domain/entities/GraphNode.js';
+import BitmapIndexService from './src/domain/services/BitmapIndexService.js';
+import CacheRebuildService from './src/domain/services/CacheRebuildService.js';
 
 export {
   GraphService,
   GitGraphAdapter,
-  GraphNode
+  GraphNode,
+  BitmapIndexService,
+  CacheRebuildService
 };
 
 /**
@@ -23,6 +27,7 @@ export default class EmptyGraph {
   constructor({ plumbing }) {
     const persistence = new GitGraphAdapter({ plumbing });
     this.service = new GraphService({ persistence });
+    this.rebuildService = new CacheRebuildService({ persistence, graphService: this.service });
   }
 
   async createNode(options) {
@@ -35,5 +40,9 @@ export default class EmptyGraph {
 
   async listNodes(options) {
     return this.service.listNodes(options);
+  }
+
+  async rebuildIndex(ref) {
+    return this.rebuildService.rebuild(ref);
   }
 }
