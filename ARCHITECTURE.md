@@ -1,27 +1,59 @@
 # Architecture: @git-stunts/empty-graph
 
-A graph database substrate using Git commits pointing to the empty tree.
+A graph database substrate living entirely within Git commits, using the "Empty Tree" pattern for invisible storage and Roaring Bitmaps for high-performance indexing.
 
 ## 🧱 Core Concepts
 
-### Domain Layer (`src/domain/`)
-- **Entities**: `GraphNode` represents a commit in the graph with its metadata and data (message).
-- **Services**: `GraphService` manages node creation, retrieval, and history listing.
+### 1. The "Invisible" Graph
+Nodes are represented by **Git Commits**.
+- **SHA**: The Node ID.
+- **Message**: The Node Payload.
+- **Tree**: The "Empty Tree" (SHA: `4b825dc642cb6eb9a060e54bf8d69288fbee4904`).
+- **Parents**: Graph Edges (Directed).
 
-### Ports Layer (`src/ports/`)
-- **GraphPersistencePort**: Defines the interface for commit-tree and log operations.
+Because they point to the Empty Tree, these commits introduce **no files** into the repository. They float in the object database, visible only to `git log` and this tool.
 
-### Infrastructure Layer (`src/infrastructure/`)
-- **GitGraphAdapter**: Implementation using `@git-stunts/plumbing`.
+### 2. High-Performance Indexing (The "Stunt")
+To avoid O(N) graph traversals, we maintain a secondary index structure persisted as a Git Tree.
 
-## 📂 Directory Structure
+#### Components:
+- **`BitmapIndexService`**: Manages the index.
+- **`RoaringBitmap32`**: Used for O(1) set operations and storage.
+- **Sharding**: Bitmaps are sharded by OID prefix (e.g., `00`, `01`... `ff`) to allow partial loading.
 
+#### Index Structure (Git Tree):
+```text
+/
+├── meta/
+│   └── ids.json       # Maps 40-char SHAs to 32-bit Integers
+└── shards/
+    ├── fwd_xx.bitmap  # Forward Edge Map (Node -> Parents)
+    └── rev_xx.bitmap  # Reverse Edge Map (Node -> Children)
 ```
-src/
-├── domain/
-│   ├── entities/       # GraphNode
-│   └── services/       # GraphService
-├── infrastructure/
-│   └── adapters/       # GitGraphAdapter
-└── ports/              # GraphPersistencePort
-```
+
+### 3. Hexagonal Architecture
+
+#### Domain Layer (`src/domain/`)
+- **Entities**: `GraphNode` (Value Object).
+- **Services**: 
+    - `GraphService`: High-level graph operations.
+    - `BitmapIndexService`: Index management.
+    - `CacheRebuildService`: Rebuilds the index from the log.
+
+#### Infrastructure Layer (`src/infrastructure/`)
+- **Adapters**: `GitGraphAdapter` wraps `git` commands via `@git-stunts/plumbing`.
+
+#### Ports Layer (`src/ports/`)
+- **GraphPersistencePort**: Interface for Git operations (`writeBlob`, `writeTree`, `logNodes`).
+
+## 🚀 Performance
+
+- **Write**: O(1) (Append-only commit).
+- **Read (Unindexed)**: O(N) (Linear scan of `git log`).
+- **Read (Indexed)**: **O(1)** (Bitmap lookup).
+- **Rebuild**: O(N) (One-time scan to build the bitmap).
+
+## ⚠️ Constraints
+
+- **Delimiter**: Requires a safe delimiter for parsing `git log` output (mitigated by strict validation).
+- **ID Map Size**: The global `ids.json` map grows linearly with node count. For >10M nodes, this map itself should be sharded (Future Work).
