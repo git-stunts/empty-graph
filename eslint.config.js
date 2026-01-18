@@ -11,7 +11,9 @@ export default [
         Buffer: "readonly",
         console: "readonly",
         setTimeout: "readonly",
-        clearTimeout: "readonly"
+        clearTimeout: "readonly",
+        TextDecoder: "readonly",
+        TextEncoder: "readonly"
       }
     },
     rules: {
@@ -39,6 +41,37 @@ export default [
       "no-lonely-if": "error",
       "no-unneeded-ternary": "error",
       "one-var": ["error", "never"]
+    }
+  },
+  // Relaxed rules for test files
+  {
+    files: ["test/**/*.js", "test/**/*.test.js"],
+    languageOptions: {
+      globals: {
+        describe: "readonly",
+        it: "readonly",
+        expect: "readonly",
+        beforeEach: "readonly",
+        afterEach: "readonly",
+        beforeAll: "readonly",
+        afterAll: "readonly",
+        vi: "readonly",
+        bench: "readonly"
+      }
+    },
+    rules: {
+      "max-lines-per-function": "off",
+      "max-nested-callbacks": "off",
+      "no-console": "off"
+    }
+  },
+  // Relaxed rules for benchmarks
+  {
+    files: ["benchmarks/**/*.js"],
+    rules: {
+      "no-unused-vars": ["error", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }],
+      "no-console": "off",
+      "curly": "off"
     }
   }
 ];

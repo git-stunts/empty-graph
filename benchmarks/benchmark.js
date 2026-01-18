@@ -42,9 +42,9 @@ async function runBenchmark(nodeCount) {
   // O(N) Scan (Sample first 5000)
   const scanLimit = Math.min(nodeCount, 5000);
   const scanStart = performance.now();
-  let count = 0;
-  for await (const node of graph.service.iterateNodes({ ref: lastSha, limit: scanLimit })) {
-      count++;
+  let _count = 0;
+  for await (const _node of graph.service.iterateNodes({ ref: lastSha, limit: scanLimit })) {
+    _count++;
   }
   const scanTime = (performance.now() - scanStart);
   const totalScanTime = (scanTime / scanLimit) * nodeCount;
@@ -61,7 +61,7 @@ async function runBenchmark(nodeCount) {
 
   // Hot Lookup
   const hotLookupStart = performance.now();
-  indexCold.getId(lastSha); 
+  indexCold.getId(lastSha);
   const hotLookupTime = performance.now() - hotLookupStart;
 
   rmSync(tempDir, { recursive: true, force: true });
@@ -70,24 +70,26 @@ async function runBenchmark(nodeCount) {
 }
 
 async function main() {
-  if (process.env.GIT_STUNTS_DOCKER !== '1') process.exit(1);
+  if (process.env.GIT_STUNTS_DOCKER !== '1') {
+    process.exit(1);
+  }
 
-  const scales = [1000, 5000, 10000, 20000, 35000, 50000, 75000, 100000]; 
+  const scales = [1000, 5000, 10000, 20000, 35000, 50000, 75000, 100000];
   const results = [];
 
   for (const scale of scales) {
-    process.stdout.write(`🚀 Sampling @ ${scale} nodes... `);
+    process.stdout.write(`Sampling @ ${scale} nodes... `);
     results.push(await runBenchmark(scale));
     console.log('DONE');
   }
 
   const last = results[results.length - 1];
   results.push({
-      nodeCount: 1000000,
-      scanTimeMs: (last.scanTimeMs / last.nodeCount) * 1000000,
-      buildTimeMs: (last.buildTimeMs / last.nodeCount) * 1000000,
-      loadTimeMs: last.loadTimeMs,
-      lookupTimeMs: last.lookupTimeMs
+    nodeCount: 1000000,
+    scanTimeMs: (last.scanTimeMs / last.nodeCount) * 1000000,
+    buildTimeMs: (last.buildTimeMs / last.nodeCount) * 1000000,
+    loadTimeMs: last.loadTimeMs,
+    lookupTimeMs: last.lookupTimeMs
   });
 
   const resultsPath = path.join(process.cwd(), 'benchmarks/results.json');

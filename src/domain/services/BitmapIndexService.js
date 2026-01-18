@@ -62,7 +62,9 @@ export default class BitmapIndexService {
     const shard = await this._getOrLoadShard(shardPath, 'json');
 
     const encoded = shard[sha];
-    if (!encoded) return [];
+    if (!encoded) {
+      return [];
+    }
 
     // Decode base64 bitmap and extract IDs
     const buffer = Buffer.from(encoded, 'base64');
@@ -80,7 +82,9 @@ export default class BitmapIndexService {
    * @private
    */
   async _buildIdToShaMapping() {
-    if (this._idToShaCache) return this._idToShaCache;
+    if (this._idToShaCache) {
+      return this._idToShaCache;
+    }
 
     this._idToShaCache = [];
 
@@ -104,9 +108,13 @@ export default class BitmapIndexService {
    * @private
    */
   async _getOrLoadShard(path, format) {
-    if (this.loadedShards.has(path)) return this.loadedShards.get(path);
+    if (this.loadedShards.has(path)) {
+      return this.loadedShards.get(path);
+    }
     const oid = this.shardOids.get(path);
-    if (!oid) return format === 'json' ? {} : new RoaringBitmap32();
+    if (!oid) {
+      return format === 'json' ? {} : new RoaringBitmap32();
+    }
 
     try {
       const buffer = await this.persistence.readBlob(oid);
@@ -116,8 +124,8 @@ export default class BitmapIndexService {
 
       this.loadedShards.set(path, data);
       return data;
-    } catch (err) {
-      console.warn(`Failed to load shard ${path}: ${err.message}. Returning empty.`);
+    } catch {
+      // Graceful degradation: return empty shard on load failure
       return format === 'json' ? {} : new RoaringBitmap32();
     }
   }
@@ -142,12 +150,14 @@ export default class BitmapIndexService {
   static addEdge(srcSha, tgtSha, state) {
     const srcId = BitmapIndexService._getOrCreateId(srcSha, state);
     const tgtId = BitmapIndexService._getOrCreateId(tgtSha, state);
-    BitmapIndexService._addToBitmap(srcSha, tgtId, 'fwd', state);
-    BitmapIndexService._addToBitmap(tgtSha, srcId, 'rev', state);
+    BitmapIndexService._addToBitmap({ sha: srcSha, id: tgtId, type: 'fwd', state });
+    BitmapIndexService._addToBitmap({ sha: tgtSha, id: srcId, type: 'rev', state });
   }
 
   static _getOrCreateId(sha, state) {
-    if (state.shaToId.has(sha)) return state.shaToId.get(sha);
+    if (state.shaToId.has(sha)) {
+      return state.shaToId.get(sha);
+    }
     const id = state.idToSha.length;
     state.idToSha.push(sha);
     state.shaToId.set(sha, id);
@@ -157,12 +167,19 @@ export default class BitmapIndexService {
   /**
    * Adds an ID to a node's bitmap.
    * Key is now `${type}_${fullSha}` for per-node bitmaps.
+   * @param {Object} opts - Options object
+   * @param {string} opts.sha - The SHA to use as key
+   * @param {number} opts.id - The ID to add to the bitmap
+   * @param {string} opts.type - 'fwd' or 'rev'
+   * @param {Object} opts.state - The rebuild state
    * @private
    */
-  static _addToBitmap(keySha, valueId, type, state) {
-    const key = `${type}_${keySha}`;
-    if (!state.bitmaps.has(key)) state.bitmaps.set(key, new RoaringBitmap32());
-    state.bitmaps.get(key).add(valueId);
+  static _addToBitmap({ sha, id, type, state }) {
+    const key = `${type}_${sha}`;
+    if (!state.bitmaps.has(key)) {
+      state.bitmaps.set(key, new RoaringBitmap32());
+    }
+    state.bitmaps.get(key).add(id);
   }
 
   /**
@@ -180,7 +197,9 @@ export default class BitmapIndexService {
     const idShards = {};
     for (const [sha, id] of state.shaToId) {
       const prefix = sha.substring(0, 2);
-      if (!idShards[prefix]) idShards[prefix] = {};
+      if (!idShards[prefix]) {
+        idShards[prefix] = {};
+      }
       idShards[prefix][sha] = id;
     }
     for (const [prefix, map] of Object.entries(idShards)) {
@@ -193,7 +212,9 @@ export default class BitmapIndexService {
       const [type, sha] = [key.substring(0, 3), key.substring(4)];
       const prefix = sha.substring(0, 2);
 
-      if (!bitmapShards[type][prefix]) bitmapShards[type][prefix] = {};
+      if (!bitmapShards[type][prefix]) {
+        bitmapShards[type][prefix] = {};
+      }
       // Encode bitmap as base64 for JSON storage
       bitmapShards[type][prefix][sha] = bitmap.serialize(true).toString('base64');
     }

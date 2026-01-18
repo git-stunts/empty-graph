@@ -64,6 +64,7 @@ for await (const node of graph.iterateNodes({ ref: childSha })) {
 | < 1,000 nodes | `listNodes()` | Returns array, easier to work with |
 | > 1,000 nodes | `iterateNodes()` | Streams results, constant memory |
 | Single node lookup | `readNode()` | O(1) direct access |
+| Find parents/children | `getParents()` / `getChildren()` | O(1) with bitmap index |
 
 ```javascript
 // Example: Processing small graphs
@@ -74,6 +75,12 @@ recentNodes.forEach(node => console.log(node.message));
 for await (const node of graph.iterateNodes({ ref: 'HEAD' })) {
   await processNode(node); // Handle millions of nodes without OOM
 }
+
+// Example: O(1) relationship queries with bitmap index
+const treeOid = await graph.rebuildIndex('HEAD');
+await graph.loadIndex(treeOid);
+const parents = await graph.getParents(someSha);
+const children = await graph.getChildren(someSha);
 ```
 
 ## API Reference
@@ -150,6 +157,86 @@ Async generator for streaming large graphs.
 // Process 10 million nodes without OOM
 for await (const node of graph.iterateNodes({ ref: 'HEAD' })) {
   // Process each node
+}
+```
+
+#### `async rebuildIndex(ref)`
+
+Rebuilds the bitmap index for fast O(1) parent/child lookups.
+
+**Parameters:**
+- `ref` (string): Git ref to rebuild the index from
+
+**Returns:** `Promise<string>` - OID of the created index tree
+
+**Example:**
+```javascript
+const treeOid = await graph.rebuildIndex('HEAD');
+// Store treeOid for later use with loadIndex()
+```
+
+#### `async loadIndex(treeOid)`
+
+Loads a pre-built bitmap index for O(1) queries.
+
+**Parameters:**
+- `treeOid` (string): OID of the index tree (from `rebuildIndex()`)
+
+**Returns:** `Promise<void>`
+
+**Example:**
+```javascript
+const treeOid = await graph.rebuildIndex('HEAD');
+await graph.loadIndex(treeOid);
+// Now getParents() and getChildren() are available
+```
+
+#### `async getParents(sha)`
+
+Gets parent SHAs for a node using the bitmap index. Requires `loadIndex()` to be called first.
+
+**Parameters:**
+- `sha` (string): The node's SHA
+
+**Returns:** `Promise<string[]>` - Array of parent SHAs
+
+**Throws:** `Error` if index is not loaded
+
+**Example:**
+```javascript
+await graph.loadIndex(indexOid);
+const parents = await graph.getParents(childSha);
+console.log(parents); // ['abc123...', 'def456...']
+```
+
+#### `async getChildren(sha)`
+
+Gets child SHAs for a node using the bitmap index. Requires `loadIndex()` to be called first.
+
+**Parameters:**
+- `sha` (string): The node's SHA
+
+**Returns:** `Promise<string[]>` - Array of child SHAs
+
+**Throws:** `Error` if index is not loaded
+
+**Example:**
+```javascript
+await graph.loadIndex(indexOid);
+const children = await graph.getChildren(parentSha);
+console.log(children); // ['abc123...']
+```
+
+#### `hasIndex`
+
+Property that indicates whether an index is currently loaded.
+
+**Returns:** `boolean`
+
+**Example:**
+```javascript
+if (!graph.hasIndex) {
+  await graph.loadIndex(savedTreeOid);
 }
 ```
 

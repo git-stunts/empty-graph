@@ -53,40 +53,56 @@ export default class GraphService {
     const format = ['%H', '%an', '%ad', '%P', `%B${RECORD_SEPARATOR}`].join('%n');
 
     const stream = await this.persistence.logNodesStream({ ref, limit, format });
-    
+
+    yield* this._parseNodeStream(stream);
+  }
+
+  /**
+   * Parses a node stream and yields GraphNode instances.
+   * @param {AsyncIterable} stream - The stream to parse
+   * @yields {GraphNode}
+   * @private
+   */
+  async *_parseNodeStream(stream) {
     let buffer = '';
     const decoder = new TextDecoder();
 
     for await (const chunk of stream) {
       buffer += typeof chunk === 'string' ? chunk : decoder.decode(chunk);
-      
+
       let splitIndex;
       while ((splitIndex = buffer.indexOf(`${RECORD_SEPARATOR}\n`)) !== -1) {
         const block = buffer.slice(0, splitIndex);
         buffer = buffer.slice(splitIndex + RECORD_SEPARATOR.length + 1);
-        
+
         const node = this._parseNode(block);
-        if (node) yield node;
+        if (node) {
+          yield node;
+        }
       }
     }
 
     // Last block
     if (buffer.trim()) {
       const node = this._parseNode(buffer);
-      if (node) yield node;
+      if (node) {
+        yield node;
+      }
     }
   }
 
   _parseNode(block) {
     const lines = block.trim().split('\n');
-    if (lines.length < 4) return null;
-    
+    if (lines.length < 4) {
+      return null;
+    }
+
     const sha = lines[0];
     const author = lines[1];
     const date = lines[2];
     const parents = lines[3] ? lines[3].split(' ') : [];
     const message = lines.slice(4).join('\n').trim();
-    
+
     return new GraphNode({ sha, author, date, message, parents });
   }
 }

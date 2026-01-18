@@ -15,7 +15,7 @@ describe('CacheRebuildService', () => {
 
     // Mock iterateNodes as an async generator
     mockGraphService = {
-      async *iterateNodes({ ref, limit }) {
+      async *iterateNodes({ ref: _ref, limit: _limit }) {
         yield new GraphNode({ sha: 'sha1', author: 'test', date: '2026-01-08', message: 'msg1', parents: [] });
         yield new GraphNode({ sha: 'sha2', author: 'test', date: '2026-01-08', message: 'msg2', parents: ['sha1'] });
       }

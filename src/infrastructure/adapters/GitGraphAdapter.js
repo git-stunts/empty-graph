@@ -55,7 +55,7 @@ export default class GitGraphAdapter extends GraphPersistencePort {
       throw new Error(`Ref too long: ${ref.length} chars. Maximum is 1024`);
     }
     // Allow alphanumeric, /, -, _, and ^~. (common git ref patterns)
-    const validRefPattern = /^[a-zA-Z0-9_/-]+(\^|\~|\.\.|\.)*$/;
+    const validRefPattern = /^[a-zA-Z0-9_/-]+(\^|~|\.\.|\.)*$/;
     if (!validRefPattern.test(ref)) {
       throw new Error(`Invalid ref format: ${ref}. Only alphanumeric characters, /, -, _, ^, ~, and . are allowed. See https://github.com/git-stunts/empty-graph#ref-validation`);
     }
@@ -96,7 +96,9 @@ export default class GitGraphAdapter extends GraphPersistencePort {
     const oids = {};
     const lines = output.trim().split('\n');
     for (const line of lines) {
-      if (!line) continue;
+      if (!line) {
+        continue;
+      }
       const [meta, path] = line.split('\t');
       const [, , oid] = meta.split(' ');
       oids[path] = oid;
