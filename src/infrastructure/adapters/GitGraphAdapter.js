@@ -6,7 +6,7 @@ import GraphPersistencePort from '../../ports/GraphPersistencePort.js';
 export default class GitGraphAdapter extends GraphPersistencePort {
   /**
    * @param {Object} options
-   * @param {import('../../../plumbing/index.js').default} options.plumbing
+   * @param {import('@git-stunts/plumbing').default} options.plumbing
    */
   constructor({ plumbing }) {
     super();
