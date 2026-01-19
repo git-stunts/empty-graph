@@ -25,7 +25,8 @@ export default class GitGraphAdapter extends GraphPersistencePort {
     const signArgs = sign ? ['-S'] : [];
     const args = ['commit-tree', this.emptyTree, ...parentArgs, ...signArgs, '-m', message];
 
-    return await this.plumbing.execute({ args });
+    const oid = await this.plumbing.execute({ args });
+    return oid.trim();
   }
 
   async showNode(sha) {
@@ -84,17 +85,19 @@ export default class GitGraphAdapter extends GraphPersistencePort {
   }
 
   async writeBlob(content) {
-    return await this.plumbing.execute({
+    const oid = await this.plumbing.execute({
       args: ['hash-object', '-w', '--stdin'],
       input: content,
     });
+    return oid.trim();
   }
 
   async writeTree(entries) {
-    return await this.plumbing.execute({
+    const oid = await this.plumbing.execute({
       args: ['mktree'],
       input: `${entries.join('\n')}\n`,
     });
+    return oid.trim();
   }
 
   async readTree(treeOid) {
