@@ -154,6 +154,17 @@ export default class BitmapIndexService {
     BitmapIndexService._addToBitmap({ sha: tgtSha, id: srcId, type: 'rev', state });
   }
 
+  /**
+   * Registers a node in the rebuild state without adding edges.
+   * Useful for nodes with no parents (roots).
+   * @param {string} sha - The node's SHA
+   * @param {Object} state - The rebuild state
+   * @returns {number} The assigned numeric ID
+   */
+  static registerNode(sha, state) {
+    return BitmapIndexService._getOrCreateId(sha, state);
+  }
+
   static _getOrCreateId(sha, state) {
     if (state.shaToId.has(sha)) {
       return state.shaToId.get(sha);

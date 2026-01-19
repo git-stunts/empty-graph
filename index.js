@@ -25,7 +25,7 @@ const DEFAULT_INDEX_REF = 'refs/empty-graph/index';
 export default class EmptyGraph {
   /**
    * @param {Object} options
-   * @param {import('../plumbing/index.js').default} options.plumbing
+   * @param {import('@git-stunts/plumbing').default} options.plumbing
    */
   constructor({ plumbing }) {
     this._persistence = new GitGraphAdapter({ plumbing });

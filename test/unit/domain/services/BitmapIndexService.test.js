@@ -174,13 +174,13 @@ describe('BitmapIndexService', () => {
       it('initializes shard OID mappings from object', () => {
         const shardOids = {
           'meta_aa.json': 'oid-meta-aa',
-          'shards_fwd_aa.bitmap': 'oid-fwd-aa',
+          'shards_fwd_aa.json': 'oid-fwd-aa',
         };
 
         service.setup(shardOids);
 
         expect(service.shardOids.get('meta_aa.json')).toBe('oid-meta-aa');
-        expect(service.shardOids.get('shards_fwd_aa.bitmap')).toBe('oid-fwd-aa');
+        expect(service.shardOids.get('shards_fwd_aa.json')).toBe('oid-fwd-aa');
       });
 
       it('replaces previous shard mappings', () => {

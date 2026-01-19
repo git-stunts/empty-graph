@@ -154,7 +154,10 @@ export class BitmapIndexService {
   /** Add an edge to the rebuild state */
   static addEdge(srcSha: string, tgtSha: string, state: BitmapRebuildState): void;
 
-  /** Get or create a numeric ID for a SHA */
+  /** Register a node in the rebuild state without adding edges */
+  static registerNode(sha: string, state: BitmapRebuildState): number;
+
+  /** Get or create a numeric ID for a SHA (internal) */
   static _getOrCreateId(sha: string, state: BitmapRebuildState): number;
 
   /** Serialize the rebuild state to a tree of files */

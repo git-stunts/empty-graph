@@ -13,7 +13,7 @@ export default class CacheRebuildService {
     const state = BitmapIndexService.createRebuildState();
     
     for await (const node of this.graphService.iterateNodes({ ref, limit: 1000000 })) {
-      BitmapIndexService._getOrCreateId(node.sha, state);
+      BitmapIndexService.registerNode(node.sha, state);
       for (const parentSha of node.parents) {
         BitmapIndexService.addEdge(parentSha, node.sha, state);
       }

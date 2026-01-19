@@ -26,7 +26,7 @@ export default class GraphNode {
     this.message = message;
     this.author = author;
     this.date = date;
-    this.parents = parents;
+    this.parents = Object.freeze([...parents]);
     Object.freeze(this);
   }
 }

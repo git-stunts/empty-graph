@@ -4,19 +4,14 @@ RUN apt-get update && apt-get install -y git python3 make g++ && rm -rf /var/lib
 
 WORKDIR /app
 
-# Copy repo structure
-COPY plumbing packages/plumbing
-COPY empty-graph packages/empty-graph
+# Copy package files first for better caching
+COPY package*.json ./
 
-# Build plumbing
-WORKDIR /app/packages/plumbing
+# Install dependencies (Force native rebuild for roaring)
 RUN npm install
 
-# Build empty-graph (Force native rebuild for roaring)
-WORKDIR /app/packages/empty-graph
-RUN rm -rf node_modules
-RUN npm install
-RUN npm link ../plumbing
+# Copy source files
+COPY . .
 
 ENV GIT_STUNTS_DOCKER=1
 

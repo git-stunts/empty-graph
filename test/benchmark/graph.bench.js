@@ -1,11 +1,25 @@
 import { bench, describe, beforeAll } from 'vitest';
 import BitmapIndexService from '../../src/domain/services/BitmapIndexService.js';
 import GraphNode from '../../src/domain/entities/GraphNode.js';
+import GraphService from '../../src/domain/services/GraphService.js';
 
 /**
  * Domain-level benchmarks that run without Git.
  * These test the pure computational performance of the domain layer.
  */
+
+// Mock persistence for GraphService benchmarks
+const mockPersistence = {
+  commitNode: async () => 'mock-sha',
+  showNode: async () => 'mock-message',
+  logNodesStream: async function* () { yield ''; }
+};
+
+describe('GraphService', () => {
+  bench('service initialization', () => {
+    new GraphService({ persistence: mockPersistence });
+  });
+});
 
 describe('GraphNode', () => {
   const validProps = {
@@ -105,11 +119,11 @@ describe('BitmapIndexService - Query (O(1) lookup)', () => {
     const tree = BitmapIndexService.serialize(state);
 
     // Mock persistence that reads from our serialized tree
-    const mockPersistence = {
+    const blobReader = {
       readBlob: async (oid) => tree[oid]
     };
 
-    const index = new BitmapIndexService({ persistence: mockPersistence });
+    const index = new BitmapIndexService({ persistence: blobReader });
     // Setup with path -> path mapping (our mock uses path as oid)
     const shardOids = {};
     for (const path of Object.keys(tree)) {
@@ -169,11 +183,11 @@ describe('BitmapIndexService - ID Lookup', () => {
 
     const tree = BitmapIndexService.serialize(state);
 
-    const mockPersistence = {
+    const blobReader = {
       readBlob: async (oid) => tree[oid]
     };
 
-    index10000 = new BitmapIndexService({ persistence: mockPersistence });
+    index10000 = new BitmapIndexService({ persistence: blobReader });
     const shardOids = {};
     for (const path of Object.keys(tree)) {
       shardOids[path] = path;

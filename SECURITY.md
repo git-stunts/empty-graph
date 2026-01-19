@@ -15,7 +15,7 @@ This library inherits all security protections from `@git-stunts/plumbing`:
 
 The `GitGraphAdapter` validates all ref arguments to prevent injection attacks:
 
-- Refs must match the pattern: `^[a-zA-Z0-9_/-]+(\^|\~|\.\.|\.)*$`
+- Refs must match the pattern: `^[a-zA-Z0-9._/-]+((~\d*|\^\d*|\.\.[a-zA-Z0-9._/-]+)*)$`
 - Refs cannot start with `-` or `--` to prevent option injection
 - Invalid refs throw an error immediately
 
@@ -27,4 +27,4 @@ The `GitGraphAdapter` validates all ref arguments to prevent injection attacks:
 
 ## 🐞 Reporting a Vulnerability
 
-If you discover a security vulnerability, please send an e-mail to james@flyingrobots.dev.
+If you discover a security vulnerability, please send an e-mail to [james@flyingrobots.dev](mailto:james@flyingrobots.dev).
