@@ -248,4 +248,21 @@ export default class GitGraphAdapter extends GraphPersistencePort {
       throw new Error(`Limit too large: ${limit}. Maximum is 10,000,000`);
     }
   }
+
+  /**
+   * Pings the repository to verify accessibility.
+   * Uses `git rev-parse --git-dir` as a lightweight check.
+   * @returns {Promise<{ok: boolean, latencyMs: number}>} Health check result with latency
+   */
+  async ping() {
+    const start = Date.now();
+    try {
+      await this.plumbing.execute({ args: ['rev-parse', '--git-dir'] });
+      const latencyMs = Date.now() - start;
+      return { ok: true, latencyMs };
+    } catch {
+      const latencyMs = Date.now() - start;
+      return { ok: false, latencyMs };
+    }
+  }
 }

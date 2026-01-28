@@ -8,11 +8,15 @@ import GraphNode from './src/domain/entities/GraphNode.js';
 import BitmapIndexBuilder from './src/domain/services/BitmapIndexBuilder.js';
 import BitmapIndexReader from './src/domain/services/BitmapIndexReader.js';
 import IndexRebuildService from './src/domain/services/IndexRebuildService.js';
+import HealthCheckService, { HealthStatus } from './src/domain/services/HealthCheckService.js';
 import GraphPersistencePort from './src/ports/GraphPersistencePort.js';
 import IndexStoragePort from './src/ports/IndexStoragePort.js';
 import LoggerPort from './src/ports/LoggerPort.js';
+import ClockPort from './src/ports/ClockPort.js';
 import NoOpLogger from './src/infrastructure/adapters/NoOpLogger.js';
 import ConsoleLogger, { LogLevel } from './src/infrastructure/adapters/ConsoleLogger.js';
+import PerformanceClockAdapter from './src/infrastructure/adapters/PerformanceClockAdapter.js';
+import GlobalClockAdapter from './src/infrastructure/adapters/GlobalClockAdapter.js';
 import {
   IndexError,
   ShardLoadError,
@@ -28,6 +32,8 @@ export {
   BitmapIndexBuilder,
   BitmapIndexReader,
   IndexRebuildService,
+  HealthCheckService,
+  HealthStatus,
   GraphPersistencePort,
   IndexStoragePort,
   DEFAULT_MAX_MESSAGE_BYTES,
@@ -37,6 +43,11 @@ export {
   NoOpLogger,
   ConsoleLogger,
   LogLevel,
+
+  // Clock infrastructure
+  ClockPort,
+  PerformanceClockAdapter,
+  GlobalClockAdapter,
 
   // Error types for integrity failure handling
   IndexError,
@@ -102,10 +113,14 @@ export default class EmptyGraph {
    *   Defaults to 1MB (1048576 bytes). Messages exceeding this limit will be rejected.
    * @param {LoggerPort} [options.logger] - Logger for structured logging. Defaults to NoOpLogger (no logging).
    *   Use ConsoleLogger for structured JSON output.
+   * @param {ClockPort} [options.clock] - Clock for timing operations. Defaults to PerformanceClockAdapter (Node.js).
+   *   Use GlobalClockAdapter for Bun/Deno/Browser environments.
+   * @param {number} [options.healthCacheTtlMs=5000] - How long to cache health check results in milliseconds.
    */
-  constructor({ persistence, maxMessageBytes = DEFAULT_MAX_MESSAGE_BYTES, logger = new NoOpLogger() }) {
+  constructor({ persistence, maxMessageBytes = DEFAULT_MAX_MESSAGE_BYTES, logger = new NoOpLogger(), clock = new PerformanceClockAdapter(), healthCacheTtlMs = 5000 }) {
     this._persistence = persistence;
     this._logger = logger;
+    this._clock = clock;
     this.service = new GraphService({
       persistence: this._persistence,
       maxMessageBytes,
@@ -115,6 +130,12 @@ export default class EmptyGraph {
       graphService: this.service,
       storage: this._persistence,
       logger: this._logger.child({ component: 'IndexRebuildService' }),
+    });
+    this._healthService = new HealthCheckService({
+      persistence: this._persistence,
+      clock: this._clock,
+      cacheTtlMs: healthCacheTtlMs,
+      logger: this._logger.child({ component: 'HealthCheckService' }),
     });
     /** @type {BitmapIndexReader|null} */
     this._index = null;
@@ -205,6 +226,7 @@ export default class EmptyGraph {
   async loadIndex(treeOid) {
     this._index = await this.rebuildService.load(treeOid);
     this._indexOid = treeOid;
+    this._healthService.setIndexReader(this._index);
   }
 
   /**
@@ -290,5 +312,58 @@ export default class EmptyGraph {
    */
   get hasIndex() {
     return this._index !== null;
+  }
+
+  /**
+   * Gets detailed health information for all components.
+   *
+   * Results are cached for the configured TTL (default 5s) to prevent
+   * excessive health check calls under load.
+   *
+   * @returns {Promise<HealthResult>} Health status with component breakdown
+   * @example
+   * const health = await graph.getHealth();
+   * console.log(health.status); // 'healthy' | 'degraded' | 'unhealthy'
+   * console.log(health.components.repository.latencyMs);
+   *
+   * @typedef {Object} HealthResult
+   * @property {'healthy'|'degraded'|'unhealthy'} status - Overall health status
+   * @property {Object} components - Component health breakdown
+   * @property {string} [cachedAt] - ISO timestamp if result is cached
+   */
+  async getHealth() {
+    return this._healthService.getHealth();
+  }
+
+  /**
+   * K8s-style readiness probe: Can the service serve requests?
+   *
+   * Returns true only when all critical components are healthy.
+   * Use this to determine if the service should receive traffic.
+   *
+   * @returns {Promise<boolean>}
+   * @example
+   * if (await graph.isReady()) {
+   *   // Service is ready to handle requests
+   * }
+   */
+  async isReady() {
+    return this._healthService.isReady();
+  }
+
+  /**
+   * K8s-style liveness probe: Is the service alive?
+   *
+   * Returns true if the repository is accessible (even if degraded).
+   * A failed liveness check typically indicates the service needs restart.
+   *
+   * @returns {Promise<boolean>}
+   * @example
+   * if (!await graph.isAlive()) {
+   *   // Service needs restart
+   * }
+   */
+  async isAlive() {
+    return this._healthService.isAlive();
   }
 }

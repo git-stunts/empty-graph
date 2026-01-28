@@ -3,6 +3,64 @@
  */
 
 /**
+ * Result of a ping health check.
+ */
+export interface PingResult {
+  /** Whether the ping succeeded */
+  ok: boolean;
+  /** Latency in milliseconds */
+  latencyMs: number;
+}
+
+/**
+ * Health status of a repository component.
+ */
+export interface RepositoryHealth {
+  /** Repository status */
+  status: 'healthy' | 'unhealthy';
+  /** Ping latency in milliseconds */
+  latencyMs: number;
+}
+
+/**
+ * Health status of the index component.
+ */
+export interface IndexHealth {
+  /** Index status */
+  status: 'healthy' | 'degraded' | 'unhealthy';
+  /** Whether an index is loaded */
+  loaded: boolean;
+  /** Number of shards (if loaded) */
+  shardCount?: number;
+}
+
+/**
+ * Complete health check result.
+ */
+export interface HealthResult {
+  /** Overall health status */
+  status: 'healthy' | 'degraded' | 'unhealthy';
+  /** Component health breakdown */
+  components: {
+    /** Repository health */
+    repository: RepositoryHealth;
+    /** Index health */
+    index: IndexHealth;
+  };
+  /** ISO timestamp if result is cached */
+  cachedAt?: string;
+}
+
+/**
+ * Health status constants.
+ */
+export const HealthStatus: {
+  readonly HEALTHY: 'healthy';
+  readonly DEGRADED: 'degraded';
+  readonly UNHEALTHY: 'unhealthy';
+};
+
+/**
  * Options for creating a new graph node.
  */
 export interface CreateNodeOptions {
@@ -78,6 +136,8 @@ export abstract class GraphPersistencePort {
   abstract showNode(sha: string): Promise<string>;
   abstract logNodesStream(options: ListNodesOptions & { format: string }): Promise<AsyncIterable<Uint8Array | string>>;
   abstract logNodes(options: ListNodesOptions & { format: string }): Promise<string>;
+  /** Pings the repository to verify accessibility */
+  abstract ping(): Promise<PingResult>;
 }
 
 /**
@@ -111,6 +171,35 @@ export const LogLevel: {
 };
 
 export type LogLevelValue = 0 | 1 | 2 | 3 | 4;
+
+/**
+ * Port interface for time-related operations.
+ * @abstract
+ */
+export abstract class ClockPort {
+  /** Returns a high-resolution timestamp in milliseconds */
+  abstract now(): number;
+  /** Returns the current wall-clock time as an ISO string */
+  abstract timestamp(): string;
+}
+
+/**
+ * Clock adapter using Node.js performance API.
+ * Use this for Node.js environments.
+ */
+export class PerformanceClockAdapter extends ClockPort {
+  now(): number;
+  timestamp(): string;
+}
+
+/**
+ * Clock adapter using global performance API.
+ * Use this for Bun, Deno, and browser environments.
+ */
+export class GlobalClockAdapter extends ClockPort {
+  now(): number;
+  timestamp(): string;
+}
 
 /**
  * Port interface for structured logging operations.
@@ -190,6 +279,7 @@ export class GitGraphAdapter extends GraphPersistencePort implements IndexStorag
   updateRef(ref: string, oid: string): Promise<void>;
   readRef(ref: string): Promise<string | null>;
   deleteRef(ref: string): Promise<void>;
+  ping(): Promise<PingResult>;
 }
 
 /**
@@ -301,6 +391,49 @@ export class IndexRebuildService {
   load(treeOid: string): Promise<BitmapIndexReader>;
 }
 
+/**
+ * Service for performing health checks on the graph system.
+ *
+ * Follows hexagonal architecture by depending on ports, not adapters.
+ * Provides K8s-style probes (liveness vs readiness) and detailed component health.
+ */
+export class HealthCheckService {
+  constructor(options: {
+    /** Persistence port for repository checks */
+    persistence: GraphPersistencePort;
+    /** Clock port for timing operations */
+    clock: ClockPort;
+    /** How long to cache health results in milliseconds (default: 5000) */
+    cacheTtlMs?: number;
+    /** Logger for structured logging (default: NoOpLogger) */
+    logger?: LoggerPort;
+  });
+
+  /**
+   * Sets the index reader for index health checks.
+   * Call this when an index is loaded.
+   */
+  setIndexReader(reader: BitmapIndexReader | null): void;
+
+  /**
+   * K8s-style liveness probe: Is the service running?
+   * Returns true if the repository is accessible.
+   */
+  isAlive(): Promise<boolean>;
+
+  /**
+   * K8s-style readiness probe: Can the service serve requests?
+   * Returns true if all critical components are healthy.
+   */
+  isReady(): Promise<boolean>;
+
+  /**
+   * Gets detailed health information for all components.
+   * Results are cached for the configured TTL.
+   */
+  getHealth(): Promise<HealthResult>;
+}
+
 /** Default ref for storing the index OID */
 export const DEFAULT_INDEX_REF: string;
 
@@ -328,11 +461,15 @@ export default class EmptyGraph {
    * @param options.persistence Adapter implementing GraphPersistencePort & IndexStoragePort
    * @param options.maxMessageBytes Maximum allowed message size in bytes (default: 1048576)
    * @param options.logger Logger for structured logging (default: NoOpLogger)
+   * @param options.clock Clock for timing operations (default: PerformanceClockAdapter)
+   * @param options.healthCacheTtlMs How long to cache health check results in milliseconds (default: 5000)
    */
   constructor(options: {
     persistence: GraphPersistencePort & IndexStoragePort;
     maxMessageBytes?: number;
     logger?: LoggerPort;
+    clock?: ClockPort;
+    healthCacheTtlMs?: number;
   });
 
   /**
@@ -384,4 +521,22 @@ export default class EmptyGraph {
    * Gets child SHAs for a node using the bitmap index.
    */
   getChildren(sha: string): Promise<string[]>;
+
+  /**
+   * Gets detailed health information for all components.
+   * Results are cached for the configured TTL (default 5s).
+   */
+  getHealth(): Promise<HealthResult>;
+
+  /**
+   * K8s-style readiness probe: Can the service serve requests?
+   * Returns true only when all critical components are healthy.
+   */
+  isReady(): Promise<boolean>;
+
+  /**
+   * K8s-style liveness probe: Is the service alive?
+   * Returns true if the repository is accessible (even if degraded).
+   */
+  isAlive(): Promise<boolean>;
 }
