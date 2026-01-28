@@ -2,16 +2,53 @@ import roaring from 'roaring';
 const { RoaringBitmap32 } = roaring;
 
 /**
+ * Check if native Roaring bindings are available.
+ * Falls back to WASM/JS implementation if not, which is slower.
+ */
+const checkNativeBindings = () => {
+  try {
+    // RoaringBitmap32.isNativelyInstalled is available in roaring package
+    if (typeof RoaringBitmap32.isNativelyInstalled === 'function') {
+      return RoaringBitmap32.isNativelyInstalled();
+    }
+    // Fallback: check if the native addon exists
+    if (roaring.isNativelyInstalled !== undefined) {
+      return roaring.isNativelyInstalled;
+    }
+    return null; // Unknown
+  } catch {
+    return false;
+  }
+};
+
+/** @type {boolean|null} Whether native Roaring bindings are available (null = unknown) */
+export const NATIVE_ROARING_AVAILABLE = checkNativeBindings();
+
+// Emit warning once at module load if not native
+if (NATIVE_ROARING_AVAILABLE === false) {
+  console.warn(
+    '[@git-stunts/empty-graph] Native Roaring bindings not available. ' +
+    'Falling back to WASM/JS implementation. Performance may be degraded. ' +
+    'Run `npm rebuild roaring` or ensure native build dependencies are installed.'
+  );
+}
+
+/**
  * Builder for constructing bitmap indexes in memory.
  *
  * This is a pure domain class with no infrastructure dependencies.
  * Create an instance, add nodes and edges, then serialize to persist.
  *
+ * **Performance Note**: Uses Roaring Bitmaps for compression. Native bindings
+ * provide best performance. Check `NATIVE_ROARING_AVAILABLE` export if
+ * performance is critical.
+ *
  * @example
+ * import BitmapIndexBuilder, { NATIVE_ROARING_AVAILABLE } from './BitmapIndexBuilder.js';
+ * if (NATIVE_ROARING_AVAILABLE === false) {
+ *   console.warn('Consider installing native Roaring bindings for better performance');
+ * }
  * const builder = new BitmapIndexBuilder();
- * builder.registerNode('abc123');
- * builder.addEdge('parent-sha', 'child-sha');
- * const treeStructure = builder.serialize();
  */
 export default class BitmapIndexBuilder {
   /**
