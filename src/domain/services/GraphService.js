@@ -1,43 +1,71 @@
-import GraphNode from '../entities/GraphNode.js';
-
-/**
- * ASCII Record Separator (0x1E) - Delimits commit records in git log output.
- *
- * This control character cannot appear in normal text, preventing message injection.
- * The git log format produces records in this exact structure:
- *
- * ```
- * <SHA>\n
- * <author>\n
- * <date>\n
- * <parents (space-separated)>\n
- * <message body (may contain newlines)><RECORD_SEPARATOR>\n
- * ```
- *
- * @see https://en.wikipedia.org/wiki/C0_and_C1_control_codes#Field_separators
- * @const {string}
- */
-const RECORD_SEPARATOR = '\x1E';
+import GitLogParser, { RECORD_SEPARATOR } from './GitLogParser.js';
 
 /**
  * Domain service for graph database operations.
+ *
+ * Orchestrates graph operations using injected dependencies:
+ * - **persistence**: Adapter for git operations (commits, logs, refs)
+ * - **parser**: Parser for git log output streams
+ *
+ * @example
+ * // Production usage with defaults
+ * const service = new GraphService({ persistence: gitAdapter });
+ *
+ * @example
+ * // Testing with mock parser
+ * const mockParser = {
+ *   async *parse() { yield mockNode; }
+ * };
+ * const service = new GraphService({ persistence: mockPersistence, parser: mockParser });
  */
 export default class GraphService {
-  constructor({ persistence }) {
+  /**
+   * Creates a new GraphService instance.
+   *
+   * @param {Object} options - Configuration options
+   * @param {Object} options.persistence - Persistence adapter implementing GraphPersistencePort.
+   *   Required methods: commitNode, showNode, logNodesStream
+   * @param {GitLogParser} [options.parser=new GitLogParser()] - Parser for git log streams.
+   *   Defaults to GitLogParser. Inject a mock for testing.
+   */
+  constructor({ persistence, parser = new GitLogParser() }) {
     this.persistence = persistence;
+    this.parser = parser;
   }
 
+  /**
+   * Creates a new node in the graph.
+   *
+   * @param {Object} options - Node creation options
+   * @param {string} options.message - The commit message (required)
+   * @param {string[]} [options.parents=[]] - Parent commit SHAs
+   * @param {boolean} [options.sign=false] - Whether to GPG-sign the commit
+   * @returns {Promise<string>} The SHA of the newly created node
+   */
   async createNode({ message, parents = [], sign = false }) {
     return await this.persistence.commitNode({ message, parents, sign });
   }
 
+  /**
+   * Reads a node's message by SHA.
+   *
+   * @param {string} sha - The node's SHA
+   * @returns {Promise<string>} The node's commit message
+   */
   async readNode(sha) {
     return await this.persistence.showNode(sha);
   }
 
   /**
    * Lists nodes in history.
-   * Returns a promise that resolves to an array (for small lists).
+   *
+   * Collects all nodes from the async generator into an array.
+   * For large histories, use {@link iterateNodes} instead to avoid OOM.
+   *
+   * @param {Object} options - Query options
+   * @param {string} options.ref - Git ref to start from (e.g., 'main', 'HEAD', SHA)
+   * @param {number} [options.limit=50] - Maximum nodes to return
+   * @returns {Promise<GraphNode[]>} Array of graph nodes
    */
   async listNodes({ ref, limit = 50 }) {
     const nodes = [];
@@ -48,21 +76,22 @@ export default class GraphService {
   }
 
   /**
-   * Async generator for streaming nodes.
-   * Essential for processing millions of nodes without OOM.
+   * Async generator for streaming nodes from history.
    *
-   * **Log format contract**: Each record contains 5 fields separated by newlines:
-   * 1. SHA (40 hex chars)
-   * 2. Author name
-   * 3. Date string
-   * 4. Parent SHAs (space-separated, empty string for root commits)
-   * 5. Message body (may span multiple lines, terminated by RECORD_SEPARATOR)
+   * Essential for processing millions of nodes without OOM. Yields nodes
+   * one at a time as they are parsed from the git log stream.
    *
-   * @param {Object} options
-   * @param {string} options.ref - Git ref to start from
+   * @param {Object} options - Query options
+   * @param {string} options.ref - Git ref to start from (e.g., 'main', 'HEAD', SHA)
    * @param {number} [options.limit=1000000] - Maximum nodes to yield (1 to 10,000,000)
-   * @yields {GraphNode}
-   * @throws {Error} If limit is invalid
+   * @yields {GraphNode} Graph nodes parsed from git history
+   * @throws {Error} If limit is invalid (not a number, < 1, or > 10,000,000)
+   *
+   * @example
+   * // Stream through a large history
+   * for await (const node of service.iterateNodes({ ref: 'main', limit: 1000000 })) {
+   *   processNode(node);
+   * }
    */
   async *iterateNodes({ ref, limit = 1000000 }) {
     // Validate limit to prevent DoS attacks
@@ -74,85 +103,6 @@ export default class GraphService {
 
     const stream = await this.persistence.logNodesStream({ ref, limit, format });
 
-    yield* this._parseNodeStream(stream);
-  }
-
-  /**
-   * Parses a node stream and yields GraphNode instances.
-   * @param {AsyncIterable} stream - The stream to parse
-   * @yields {GraphNode}
-   * @private
-   */
-  async *_parseNodeStream(stream) {
-    let buffer = '';
-    const decoder = new TextDecoder('utf-8', { fatal: false });
-
-    for await (const chunk of stream) {
-      // Use stream: true to handle UTF-8 sequences split across chunks
-      buffer += typeof chunk === 'string' ? chunk : decoder.decode(chunk, { stream: true });
-
-      let splitIndex;
-      while ((splitIndex = buffer.indexOf(`${RECORD_SEPARATOR}\n`)) !== -1) {
-        const block = buffer.slice(0, splitIndex);
-        buffer = buffer.slice(splitIndex + RECORD_SEPARATOR.length + 1);
-
-        const node = this._parseNode(block);
-        if (node) {
-          yield node;
-        }
-      }
-    }
-
-    // Flush any remaining bytes in the decoder
-    buffer += decoder.decode();
-
-    // Last block
-    if (buffer.trim()) {
-      const node = this._parseNode(buffer);
-      if (node) {
-        yield node;
-      }
-    }
-  }
-
-  /**
-   * Parses a single node block into a GraphNode.
-   *
-   * Expected format (5 lines minimum):
-   * - Line 0: SHA
-   * - Line 1: Author
-   * - Line 2: Date
-   * - Line 3: Parents (space-separated, may be empty)
-   * - Lines 4+: Message body (preserved exactly, not trimmed)
-   *
-   * @param {string} block - Raw block text (without trailing RECORD_SEPARATOR)
-   * @returns {GraphNode|null} Parsed node or null if invalid
-   * @private
-   */
-  _parseNode(block) {
-    const lines = block.split('\n');
-    // Need at least 4 lines: SHA, author, date, parents
-    // Message (lines 4+) may be empty
-    if (lines.length < 4) {
-      return null;
-    }
-
-    const sha = lines[0];
-    if (!sha) {
-      return null;
-    }
-
-    const author = lines[1];
-    const date = lines[2];
-    const parents = lines[3] ? lines[3].split(' ').filter(Boolean) : [];
-    // Preserve message exactly as-is (may be empty, may have leading/trailing whitespace)
-    const message = lines.slice(4).join('\n');
-
-    // GraphNode requires non-empty message, return null for empty
-    if (!message) {
-      return null;
-    }
-
-    return new GraphNode({ sha, author, date, message, parents });
+    yield* this.parser.parse(stream);
   }
 }
