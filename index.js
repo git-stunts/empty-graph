@@ -9,6 +9,7 @@ import BitmapIndexBuilder from './src/domain/services/BitmapIndexBuilder.js';
 import BitmapIndexReader from './src/domain/services/BitmapIndexReader.js';
 import IndexRebuildService from './src/domain/services/IndexRebuildService.js';
 import HealthCheckService, { HealthStatus } from './src/domain/services/HealthCheckService.js';
+import TraversalService from './src/domain/services/TraversalService.js';
 import GraphPersistencePort from './src/ports/GraphPersistencePort.js';
 import IndexStoragePort from './src/ports/IndexStoragePort.js';
 import LoggerPort from './src/ports/LoggerPort.js';
@@ -23,6 +24,7 @@ import {
   ShardCorruptionError,
   ShardValidationError,
   StorageError,
+  TraversalError,
 } from './src/domain/errors/index.js';
 
 export {
@@ -34,6 +36,7 @@ export {
   IndexRebuildService,
   HealthCheckService,
   HealthStatus,
+  TraversalService,
   GraphPersistencePort,
   IndexStoragePort,
   DEFAULT_MAX_MESSAGE_BYTES,
@@ -55,6 +58,7 @@ export {
   ShardCorruptionError,
   ShardValidationError,
   StorageError,
+  TraversalError,
 };
 
 /** Default ref for storing the index OID */
@@ -141,6 +145,8 @@ export default class EmptyGraph {
     this._index = null;
     /** @type {string|null} */
     this._indexOid = null;
+    /** @type {TraversalService|null} */
+    this._traversal = null;
   }
 
   /**
@@ -312,6 +318,30 @@ export default class EmptyGraph {
    */
   get hasIndex() {
     return this._index !== null;
+  }
+
+  /**
+   * Gets the traversal service for graph traversal operations.
+   * Requires loadIndex() to be called first.
+   * @returns {TraversalService}
+   * @throws {Error} If index is not loaded
+   * @example
+   * await graph.loadIndex(treeOid);
+   * for await (const node of graph.traversal.bfs({ start: sha })) {
+   *   console.log(node.sha, node.depth);
+   * }
+   */
+  get traversal() {
+    if (!this._index) {
+      throw new Error('Index not loaded. Call loadIndex(treeOid) first.');
+    }
+    if (!this._traversal) {
+      this._traversal = new TraversalService({
+        indexReader: this._index,
+        logger: this._logger.child({ component: 'TraversalService' }),
+      });
+    }
+    return this._traversal;
   }
 
   /**

@@ -101,6 +101,97 @@ export interface RebuildOptions {
 }
 
 /**
+ * Direction for graph traversal.
+ */
+export type TraversalDirection = 'forward' | 'reverse';
+
+/**
+ * Node yielded during graph traversal.
+ */
+export interface TraversalNode {
+  /** The node's SHA */
+  sha: string;
+  /** Distance from start node */
+  depth: number;
+  /** SHA of the node that led to this one, or null for start */
+  parent: string | null;
+}
+
+/**
+ * Result of a path-finding operation.
+ */
+export interface PathResult {
+  /** Whether a path was found */
+  found: boolean;
+  /** Array of SHAs from source to target (empty if not found) */
+  path: string[];
+  /** Path length (-1 if not found) */
+  length: number;
+}
+
+/**
+ * Options for BFS/DFS traversal.
+ */
+export interface TraversalOptions {
+  /** Starting node SHA */
+  start: string;
+  /** Maximum nodes to visit (default: 100000) */
+  maxNodes?: number;
+  /** Maximum depth to traverse (default: 1000) */
+  maxDepth?: number;
+  /** Traversal direction (default: 'forward') */
+  direction?: TraversalDirection;
+}
+
+/**
+ * Options for ancestor/descendant traversal.
+ */
+export interface AncestorOptions {
+  /** Starting node SHA */
+  sha: string;
+  /** Maximum nodes to visit (default: 100000) */
+  maxNodes?: number;
+  /** Maximum depth to traverse (default: 1000) */
+  maxDepth?: number;
+}
+
+/**
+ * Options for path-finding operations.
+ */
+export interface PathOptions {
+  /** Source node SHA */
+  from: string;
+  /** Target node SHA */
+  to: string;
+  /** Maximum search depth (default: 1000) */
+  maxDepth?: number;
+}
+
+/**
+ * Options for finding common ancestors.
+ */
+export interface CommonAncestorsOptions {
+  /** Array of node SHAs */
+  shas: string[];
+  /** Maximum ancestors to return (default: 100) */
+  maxResults?: number;
+  /** Maximum depth to search (default: 1000) */
+  maxDepth?: number;
+}
+
+/**
+ * Options for topological sort.
+ */
+export interface TopologicalSortOptions {
+  /** Starting node SHA */
+  start: string;
+  /** Maximum nodes to yield (default: 100000) */
+  maxNodes?: number;
+  /** Direction determines dependency order (default: 'forward') */
+  direction?: TraversalDirection;
+}
+
+/**
  * Immutable entity representing a graph node.
  */
 export class GraphNode {
@@ -434,6 +525,83 @@ export class HealthCheckService {
   getHealth(): Promise<HealthResult>;
 }
 
+/**
+ * Service for graph traversal operations.
+ *
+ * Provides BFS, DFS, path finding, and topological sort algorithms
+ * using O(1) bitmap index lookups.
+ */
+export class TraversalService {
+  constructor(options: {
+    /** Index reader for O(1) lookups */
+    indexReader: BitmapIndexReader;
+    /** Logger for structured logging (default: NoOpLogger) */
+    logger?: LoggerPort;
+  });
+
+  /**
+   * Breadth-first traversal from a starting node.
+   */
+  bfs(options: TraversalOptions): AsyncGenerator<TraversalNode, void, unknown>;
+
+  /**
+   * Depth-first pre-order traversal from a starting node.
+   */
+  dfs(options: TraversalOptions): AsyncGenerator<TraversalNode, void, unknown>;
+
+  /**
+   * Yields all ancestors of a node (transitive closure going backwards).
+   */
+  ancestors(options: AncestorOptions): AsyncGenerator<TraversalNode, void, unknown>;
+
+  /**
+   * Yields all descendants of a node (transitive closure going forwards).
+   */
+  descendants(options: AncestorOptions): AsyncGenerator<TraversalNode, void, unknown>;
+
+  /**
+   * Finds ANY path between two nodes using BFS.
+   */
+  findPath(options: PathOptions): Promise<PathResult>;
+
+  /**
+   * Finds the shortest path between two nodes using bidirectional BFS.
+   */
+  shortestPath(options: PathOptions): Promise<PathResult>;
+
+  /**
+   * Checks if there is any path from one node to another.
+   */
+  isReachable(options: PathOptions): Promise<boolean>;
+
+  /**
+   * Finds common ancestors of multiple nodes.
+   */
+  commonAncestors(options: CommonAncestorsOptions): Promise<string[]>;
+
+  /**
+   * Yields nodes in topological order using Kahn's algorithm.
+   */
+  topologicalSort(options: TopologicalSortOptions): AsyncGenerator<TraversalNode, void, unknown>;
+}
+
+/**
+ * Error class for graph traversal operations.
+ */
+export class TraversalError extends Error {
+  /** Error name */
+  readonly name: 'TraversalError';
+  /** Error code for programmatic handling */
+  readonly code: string;
+  /** Serializable context for debugging */
+  readonly context: Record<string, unknown>;
+
+  constructor(message: string, options?: {
+    code?: string;
+    context?: Record<string, unknown>;
+  });
+}
+
 /** Default ref for storing the index OID */
 export const DEFAULT_INDEX_REF: string;
 
@@ -454,6 +622,9 @@ export default class EmptyGraph {
 
   /** The current index tree OID, or null if no index is loaded */
   readonly indexOid: string | null;
+
+  /** The traversal service for graph operations (requires loaded index) */
+  readonly traversal: TraversalService;
 
   /**
    * Creates a new EmptyGraph instance.

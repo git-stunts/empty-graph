@@ -142,12 +142,14 @@ console.log(`  ${children.length} children:`, children);
 
 ### `EmptyGraph`
 
-#### `constructor({ persistence })`
+#### `constructor({ persistence, clock?, healthCacheTtlMs? })`
 
 Creates a new EmptyGraph instance.
 
 **Parameters:**
 - `persistence` (GitGraphAdapter): Adapter implementing `GraphPersistencePort` & `IndexStoragePort`
+- `clock` (ClockPort, optional): Clock adapter for timing. Defaults to `PerformanceClockAdapter`
+- `healthCacheTtlMs` (number, optional): Health check cache TTL in milliseconds. Defaults to `5000`
 
 #### `async createNode({ message, parents = [], sign = false })`
 
@@ -348,6 +350,61 @@ if (!loaded) {
 const parents = await graph.getParents(someSha);
 ```
 
+#### `async getHealth()`
+
+Gets detailed health information for all components.
+
+**Returns:** `Promise<HealthResult>` - Health status with component breakdown
+
+**HealthResult:**
+- `status` ('healthy' | 'degraded' | 'unhealthy'): Overall health
+- `components.repository`: Repository health with `status` and `latencyMs`
+- `components.index`: Index health with `status`, `loaded`, and `shardCount`
+- `cachedAt` (string, optional): ISO timestamp if result is cached
+
+Results are cached for the configured TTL (default: 5 seconds).
+
+**Example:**
+```javascript
+const health = await graph.getHealth();
+console.log(health.status); // 'healthy' | 'degraded' | 'unhealthy'
+console.log(health.components.repository.latencyMs); // e.g., 1.23
+```
+
+#### `async isReady()`
+
+K8s-style readiness probe: Can the service serve requests?
+
+**Returns:** `Promise<boolean>` - True if all critical components are healthy
+
+Use this for Kubernetes readiness probes. A `false` result removes the pod from the load balancer.
+
+**Example:**
+```javascript
+// Express health endpoint
+app.get('/ready', async (req, res) => {
+  const ready = await graph.isReady();
+  res.status(ready ? 200 : 503).json({ ready });
+});
+```
+
+#### `async isAlive()`
+
+K8s-style liveness probe: Is the service running?
+
+**Returns:** `Promise<boolean>` - True if the repository is accessible
+
+Use this for Kubernetes liveness probes. A `false` result typically triggers a container restart.
+
+**Example:**
+```javascript
+// Express health endpoint
+app.get('/alive', async (req, res) => {
+  const alive = await graph.isAlive();
+  res.status(alive ? 200 : 503).json({ alive });
+});
+```
+
 ### `GraphNode`
 
 Immutable entity representing a graph node.
@@ -410,9 +467,13 @@ EmptyGraph follows hexagonal architecture (ports & adapters):
 | Domain | `IndexRebuildService` | Index building orchestration |
 | Domain | `BitmapIndexBuilder` | Pure in-memory index construction |
 | Domain | `BitmapIndexReader` | O(1) index queries |
+| Domain | `HealthCheckService` | K8s-style health probes |
 | Port | `GraphPersistencePort` | Graph storage contract |
 | Port | `IndexStoragePort` | Index storage contract |
+| Port | `ClockPort` | High-resolution timing abstraction |
 | Adapter | `GitGraphAdapter` | Git implementation of both ports |
+| Adapter | `PerformanceClockAdapter` | Node.js clock (uses `perf_hooks`) |
+| Adapter | `GlobalClockAdapter` | Bun/Deno/Browser clock (uses global `performance`) |
 
 ## Error Handling
 
