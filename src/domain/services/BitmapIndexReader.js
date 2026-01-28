@@ -1,5 +1,27 @@
 import roaring from 'roaring';
+import { createHash } from 'crypto';
+import { ShardLoadError, ShardCorruptionError, ShardValidationError } from '../errors/index.js';
+
 const { RoaringBitmap32 } = roaring;
+
+/**
+ * Shard format version for forward compatibility.
+ * Must match the version used by BitmapIndexBuilder.
+ * @const {number}
+ */
+const SHARD_VERSION = 1;
+
+/**
+ * Computes a SHA-256 checksum of the given data.
+ * Used to verify shard integrity on load.
+ *
+ * @param {Object} data - The data object to checksum
+ * @returns {string} Hex-encoded SHA-256 hash
+ */
+const computeChecksum = (data) => {
+  const json = JSON.stringify(data);
+  return createHash('sha256').update(json).digest('hex');
+};
 
 /**
  * Service for querying a loaded bitmap index.
@@ -8,19 +30,49 @@ const { RoaringBitmap32 } = roaring;
  * by lazily loading sharded bitmap data from storage. Shards are
  * cached after first access.
  *
+ * **Strict Mode**: When `strict: true` is passed to the constructor,
+ * the reader will throw errors on any shard validation failure:
+ * - {@link ShardCorruptionError} for invalid shard format
+ * - {@link ShardValidationError} for version or checksum mismatches
+ *
+ * In non-strict mode (default), validation failures are logged as warnings
+ * and an empty shard is returned for graceful degradation.
+ *
+ * **Note**: Storage errors (e.g., `storage.readBlob` failures) always throw
+ * {@link ShardLoadError} regardless of strict mode.
+ *
  * @example
+ * // Non-strict mode (default) - graceful degradation on validation errors
  * const reader = new BitmapIndexReader({ storage });
  * reader.setup(shardOids);
  * const parents = await reader.getParents('abc123...');
+ *
+ * @example
+ * // Strict mode - throws on any validation failure
+ * const strictReader = new BitmapIndexReader({ storage, strict: true });
+ * strictReader.setup(shardOids);
+ * try {
+ *   const parents = await strictReader.getParents('abc123...');
+ * } catch (err) {
+ *   if (err instanceof ShardValidationError) {
+ *     console.error('Shard validation failed:', err.field, err.expected, err.actual);
+ *   }
+ * }
+ *
+ * @throws {ShardLoadError} When storage.readBlob fails (always, regardless of strict mode)
+ * @throws {ShardCorruptionError} When shard format is invalid (strict mode only)
+ * @throws {ShardValidationError} When version or checksum validation fails (strict mode only)
  */
 export default class BitmapIndexReader {
   /**
    * Creates a BitmapIndexReader instance.
    * @param {Object} options
    * @param {import('../../ports/IndexStoragePort.js').default} options.storage - Storage adapter for reading index data
+   * @param {boolean} [options.strict=false] - If true, throw errors on validation failures; if false, log warnings and return empty shards
    */
-  constructor({ storage } = {}) {
+  constructor({ storage, strict = false } = {}) {
     this.storage = storage;
+    this.strict = strict;
     this.shardOids = new Map(); // path -> OID
     this.loadedShards = new Map(); // path -> Data
     this._idToShaCache = null; // Lazy-built reverse mapping
@@ -138,10 +190,57 @@ export default class BitmapIndexReader {
   }
 
   /**
-   * Loads a shard with graceful degradation.
+   * Validates a shard envelope for version and checksum integrity.
+   *
+   * @param {Object} envelope - The shard envelope to validate
+   * @param {string} path - Shard path (for error context)
+   * @param {string} oid - Object ID (for error context)
+   * @returns {Object} The validated data from the envelope
+   * @throws {ShardCorruptionError} If envelope format is invalid
+   * @throws {ShardValidationError} If version or checksum validation fails
+   * @private
+   */
+  _validateShard(envelope, path, oid) {
+    if (!envelope || typeof envelope !== 'object') {
+      throw new ShardCorruptionError('Invalid shard format', {
+        shardPath: path,
+        oid,
+        reason: 'not_an_object',
+      });
+    }
+    if (envelope.version !== SHARD_VERSION) {
+      throw new ShardValidationError('Version mismatch', {
+        shardPath: path,
+        expected: SHARD_VERSION,
+        actual: envelope.version,
+        field: 'version',
+      });
+    }
+    const actualChecksum = computeChecksum(envelope.data);
+    if (envelope.checksum !== actualChecksum) {
+      throw new ShardValidationError('Checksum mismatch', {
+        shardPath: path,
+        expected: envelope.checksum,
+        actual: actualChecksum,
+        field: 'checksum',
+      });
+    }
+    return envelope.data;
+  }
+
+  /**
+   * Loads a shard with validation and configurable error handling.
+   *
+   * In strict mode, throws on any validation failure.
+   * In non-strict mode, logs warnings and returns empty shards on validation failures.
+   * Storage errors always throw ShardLoadError regardless of mode.
+   *
    * @param {string} path - Shard path
    * @param {string} format - 'json' or 'bitmap'
    * @returns {Promise<Object|RoaringBitmap32>}
+   * @throws {ShardLoadError} When storage.readBlob fails
+   * @throws {ShardCorruptionError} When shard format is invalid (strict mode only)
+   * @throws {ShardValidationError} When version or checksum validation fails (strict mode only)
    * @private
    */
   async _getOrLoadShard(path, format) {
@@ -153,17 +252,63 @@ export default class BitmapIndexReader {
       return format === 'json' ? {} : new RoaringBitmap32();
     }
 
+    // Load the raw buffer from storage - always throw on storage errors
+    let buffer;
     try {
-      const buffer = await this.storage.readBlob(oid);
-      const data = format === 'json'
-        ? JSON.parse(new TextDecoder().decode(buffer))
-        : RoaringBitmap32.deserialize(buffer, true);
+      buffer = await this.storage.readBlob(oid);
+    } catch (cause) {
+      throw new ShardLoadError('Failed to load shard from storage', {
+        shardPath: path,
+        oid,
+        cause,
+      });
+    }
+
+    // Parse and validate the shard
+    try {
+      const envelope = JSON.parse(new TextDecoder().decode(buffer));
+
+      // Validate version and checksum
+      const validatedData = this._validateShard(envelope, path, oid);
+
+      // For JSON format, use the validated data directly
+      // For bitmap format, the data contains base64-encoded bitmaps (handled by caller)
+      const data = format === 'json' ? validatedData : validatedData;
 
       this.loadedShards.set(path, data);
       return data;
-    } catch {
-      // Graceful degradation: return empty shard on load failure
-      return format === 'json' ? {} : new RoaringBitmap32();
+    } catch (err) {
+      // Re-throw our custom errors in strict mode
+      if (err instanceof ShardCorruptionError || err instanceof ShardValidationError) {
+        if (this.strict) {
+          throw err;
+        }
+        // Non-strict mode: log warning and return empty shard
+        console.warn(
+          `[@git-stunts/empty-graph] Shard validation warning for ${path}: ${err.message}`,
+          { code: err.code, field: err.field, expected: err.expected, actual: err.actual }
+        );
+        return format === 'json' ? {} : new RoaringBitmap32();
+      }
+
+      // JSON parse errors become corruption errors
+      if (err instanceof SyntaxError) {
+        const corruptionError = new ShardCorruptionError('Failed to parse shard JSON', {
+          shardPath: path,
+          oid,
+          reason: 'parse_error',
+        });
+        if (this.strict) {
+          throw corruptionError;
+        }
+        console.warn(
+          `[@git-stunts/empty-graph] Shard parse warning for ${path}: ${err.message}`
+        );
+        return format === 'json' ? {} : new RoaringBitmap32();
+      }
+
+      // Unknown errors - re-throw
+      throw err;
     }
   }
 }

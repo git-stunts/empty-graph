@@ -58,9 +58,12 @@ describe('BitmapIndexBuilder', () => {
       builder.addEdge('aabbcc', 'aaddee');
 
       const tree = builder.serialize();
-      const fwdShard = JSON.parse(tree['shards_fwd_aa.json'].toString());
+      const envelope = JSON.parse(tree['shards_fwd_aa.json'].toString());
 
-      expect(typeof fwdShard['aabbcc']).toBe('string'); // base64 encoded
+      // Shard is wrapped in version/checksum envelope
+      expect(envelope.version).toBeDefined();
+      expect(envelope.checksum).toBeDefined();
+      expect(typeof envelope.data['aabbcc']).toBe('string'); // base64 encoded
     });
   });
 });

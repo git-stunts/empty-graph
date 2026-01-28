@@ -1,6 +1,15 @@
 import roaring from 'roaring';
 const { RoaringBitmap32 } = roaring;
 
+import ShardCorruptionError from '../errors/ShardCorruptionError.js';
+import ShardValidationError from '../errors/ShardValidationError.js';
+
+/**
+ * Current shard format version.
+ * @const {number}
+ */
+export const SHARD_VERSION = 1;
+
 /**
  * Default memory threshold before flushing (50MB).
  * @const {number}
@@ -19,6 +28,26 @@ const BYTES_PER_ID_MAPPING = 120;
  * @const {number}
  */
 const BITMAP_BASE_OVERHEAD = 64;
+
+/**
+ * Computes a fast 32-bit hash checksum of an object.
+ *
+ * Uses a simple hash algorithm (djb2-like) for speed.
+ * Not cryptographically secure, but sufficient for integrity checks.
+ *
+ * @param {Object} obj - The object to checksum
+ * @returns {string} Hexadecimal string representation of the hash
+ */
+function computeChecksum(obj) {
+  const str = JSON.stringify(obj);
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32-bit integer
+  }
+  return hash.toString(16);
+}
 
 /**
  * Streaming bitmap index builder with memory-bounded operation.
@@ -164,7 +193,12 @@ export default class StreamingBitmapIndexBuilder {
     for (const type of ['fwd', 'rev']) {
       for (const [prefix, shardData] of Object.entries(bitmapShards[type])) {
         const path = `shards_${type}_${prefix}.json`;
-        const buffer = Buffer.from(JSON.stringify(shardData));
+        const envelope = {
+          version: SHARD_VERSION,
+          checksum: computeChecksum(shardData),
+          data: shardData,
+        };
+        const buffer = Buffer.from(JSON.stringify(envelope));
         const oid = await this.storage.writeBlob(buffer);
 
         if (!this.flushedChunks.has(path)) {
@@ -222,7 +256,12 @@ export default class StreamingBitmapIndexBuilder {
     const metaEntries = await Promise.all(
       Object.entries(idShards).map(async ([prefix, map]) => {
         const path = `meta_${prefix}.json`;
-        const buffer = Buffer.from(JSON.stringify(map));
+        const envelope = {
+          version: SHARD_VERSION,
+          checksum: computeChecksum(map),
+          data: map,
+        };
+        const buffer = Buffer.from(JSON.stringify(envelope));
         const oid = await this.storage.writeBlob(buffer);
         return `100644 blob ${oid}\t${path}`;
       })
@@ -319,8 +358,13 @@ export default class StreamingBitmapIndexBuilder {
   /**
    * Merges multiple shard chunks by ORing their bitmaps together.
    *
+   * Validates version and checksum of each chunk before merging.
+   * Throws ShardValidationError on version mismatch or ShardCorruptionError on checksum mismatch.
+   *
    * @param {string[]} oids - Blob OIDs of chunks to merge
    * @returns {Promise<string>} OID of merged shard blob
+   * @throws {ShardValidationError} If a chunk has an unsupported version
+   * @throws {ShardCorruptionError} If a chunk's checksum does not match
    * @private
    */
   async _mergeChunks(oids) {
@@ -329,7 +373,32 @@ export default class StreamingBitmapIndexBuilder {
 
     for (const oid of oids) {
       const buffer = await this.storage.readBlob(oid);
-      const chunk = JSON.parse(buffer.toString('utf-8'));
+      const envelope = JSON.parse(buffer.toString('utf-8'));
+
+      // Validate version
+      if (envelope.version !== SHARD_VERSION) {
+        throw new ShardValidationError('Shard version mismatch', {
+          oid,
+          expected: SHARD_VERSION,
+          actual: envelope.version,
+          field: 'version',
+        });
+      }
+
+      // Validate checksum
+      const expectedChecksum = computeChecksum(envelope.data);
+      if (envelope.checksum !== expectedChecksum) {
+        throw new ShardCorruptionError('Shard checksum mismatch', {
+          oid,
+          reason: 'invalid_checksum',
+          context: {
+            expected: expectedChecksum,
+            actual: envelope.checksum,
+          },
+        });
+      }
+
+      const chunk = envelope.data;
 
       for (const [sha, base64Bitmap] of Object.entries(chunk)) {
         const bitmap = RoaringBitmap32.deserialize(Buffer.from(base64Bitmap, 'base64'), true);
@@ -349,7 +418,14 @@ export default class StreamingBitmapIndexBuilder {
       result[sha] = bitmap.serialize(true).toString('base64');
     }
 
-    const buffer = Buffer.from(JSON.stringify(result));
+    // Wrap merged result in envelope with version and checksum
+    const envelope = {
+      version: SHARD_VERSION,
+      checksum: computeChecksum(result),
+      data: result,
+    };
+
+    const buffer = Buffer.from(JSON.stringify(envelope));
     return this.storage.writeBlob(buffer);
   }
 }

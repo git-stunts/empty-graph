@@ -1,5 +1,26 @@
 import roaring from 'roaring';
+import { createHash } from 'crypto';
+
 const { RoaringBitmap32 } = roaring;
+
+/**
+ * Shard format version for forward compatibility.
+ * Increment when changing the shard structure.
+ * @const {number}
+ */
+export const SHARD_VERSION = 1;
+
+/**
+ * Computes a SHA-256 checksum of the given data.
+ * Used to verify shard integrity on load.
+ *
+ * @param {Object} data - The data object to checksum
+ * @returns {string} Hex-encoded SHA-256 hash
+ */
+const computeChecksum = (data) => {
+  const json = JSON.stringify(data);
+  return createHash('sha256').update(json).digest('hex');
+};
 
 /**
  * Check if native Roaring bindings are available.
@@ -16,7 +37,11 @@ const checkNativeBindings = () => {
       return roaring.isNativelyInstalled;
     }
     return null; // Unknown
-  } catch {
+  } catch (error) {
+    console.warn(
+      '[@git-stunts/empty-graph] Error checking native Roaring bindings:',
+      error.message
+    );
     return false;
   }
 };
@@ -98,14 +123,27 @@ export default class BitmapIndexBuilder {
    * Serializes the index to a tree structure of buffers.
    *
    * Output structure (sharded by SHA prefix for lazy loading):
-   * - `meta_XX.json`: {sha: id, ...} for SHAs with prefix XX
-   * - `shards_fwd_XX.json`: {sha: base64Bitmap, ...} for forward edges
-   * - `shards_rev_XX.json`: {sha: base64Bitmap, ...} for reverse edges
+   * - `meta_XX.json`: {version, checksum, data: {sha: id, ...}} for SHAs with prefix XX
+   * - `shards_fwd_XX.json`: {version, checksum, data: {sha: base64Bitmap, ...}} for forward edges
+   * - `shards_rev_XX.json`: {version, checksum, data: {sha: base64Bitmap, ...}} for reverse edges
+   *
+   * Each shard is wrapped in a version/checksum envelope for integrity verification.
    *
    * @returns {Record<string, Buffer>} Map of path → serialized content
    */
   serialize() {
     const tree = {};
+
+    /**
+     * Wraps data in a version/checksum envelope.
+     * @param {Object} data - The data to wrap
+     * @returns {Object} Envelope with version, checksum, and data
+     */
+    const wrapShard = (data) => ({
+      version: SHARD_VERSION,
+      checksum: computeChecksum(data),
+      data: data,
+    });
 
     // Serialize ID mappings (sharded by prefix)
     const idShards = {};
@@ -117,7 +155,7 @@ export default class BitmapIndexBuilder {
       idShards[prefix][sha] = id;
     }
     for (const [prefix, map] of Object.entries(idShards)) {
-      tree[`meta_${prefix}.json`] = Buffer.from(JSON.stringify(map));
+      tree[`meta_${prefix}.json`] = Buffer.from(JSON.stringify(wrapShard(map)));
     }
 
     // Serialize bitmaps (sharded by prefix, per-node within shard)
@@ -135,7 +173,7 @@ export default class BitmapIndexBuilder {
 
     for (const type of ['fwd', 'rev']) {
       for (const [prefix, shardData] of Object.entries(bitmapShards[type])) {
-        tree[`shards_${type}_${prefix}.json`] = Buffer.from(JSON.stringify(shardData));
+        tree[`shards_${type}_${prefix}.json`] = Buffer.from(JSON.stringify(wrapShard(shardData)));
       }
     }
 

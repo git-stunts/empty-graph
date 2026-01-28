@@ -1,5 +1,24 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import StreamingBitmapIndexBuilder from '../../../../src/domain/services/StreamingBitmapIndexBuilder.js';
+import StreamingBitmapIndexBuilder, { SHARD_VERSION } from '../../../../src/domain/services/StreamingBitmapIndexBuilder.js';
+
+/**
+ * Helper to create a valid shard envelope with checksum.
+ * Mirrors the computeChecksum function in StreamingBitmapIndexBuilder.
+ */
+function createMockEnvelope(data) {
+  const str = JSON.stringify(data);
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return {
+    version: SHARD_VERSION,
+    checksum: hash.toString(16),
+    data,
+  };
+}
 
 describe('StreamingBitmapIndexBuilder', () => {
   let mockStorage;
@@ -215,11 +234,24 @@ describe('StreamingBitmapIndexBuilder memory guard', () => {
     const memoryReadings = [];
     let maxMemorySeen = 0;
     const memoryThreshold = 5000; // 5KB threshold for test
+    const writtenBlobs = new Map();
+    let blobCounter = 0;
 
     const mockStorage = {
-      writeBlob: vi.fn().mockResolvedValue('blob-oid'),
+      writeBlob: vi.fn().mockImplementation(async (buffer) => {
+        const oid = `blob-${blobCounter++}`;
+        writtenBlobs.set(oid, buffer.toString('utf-8'));
+        return oid;
+      }),
       writeTree: vi.fn().mockResolvedValue('tree-oid'),
-      readBlob: vi.fn().mockResolvedValue(Buffer.from('{}')),
+      readBlob: vi.fn().mockImplementation(async (oid) => {
+        const content = writtenBlobs.get(oid);
+        if (content) {
+          return Buffer.from(content);
+        }
+        // Return valid empty envelope for any untracked blobs
+        return Buffer.from(JSON.stringify(createMockEnvelope({})));
+      }),
     };
 
     const builder = new StreamingBitmapIndexBuilder({
@@ -495,39 +527,22 @@ describe('StreamingBitmapIndexBuilder extreme stress tests', () => {
       // Finalize to merge all chunks
       await builder.finalize();
 
-      // Find the merged fwd shard for 'aa' prefix
-      const fwdAaEntries = [];
-      for (const [oid, content] of writtenBlobs) {
-        try {
-          const parsed = JSON.parse(content);
-          if (parsed[sourceNode]) {
-            fwdAaEntries.push({ oid, content: parsed });
-          }
-        } catch {
-          // Skip non-JSON blobs
-        }
-      }
-
       // The final tree should reference a merged shard
       expect(mockStorage.writeTree).toHaveBeenCalled();
       const treeEntries = mockStorage.writeTree.mock.calls[0][0];
       const fwdAaShard = treeEntries.find(e => e.includes('shards_fwd_aa'));
       expect(fwdAaShard).toBeDefined();
 
-      // Extract the final merged blob OID from tree entry
-      const oidsInTree = treeEntries.map(e => {
-        const match = e.match(/blob ([^\s]+)/);
-        return match ? match[1] : null;
-      }).filter(Boolean);
-
-      // Find the merged content for aa prefix
+      // Find the merged content for aa prefix (now wrapped in envelope)
       let mergedFwdContent = null;
       for (const entry of treeEntries) {
         if (entry.includes('shards_fwd_aa')) {
           const oidMatch = entry.match(/blob ([^\s]+)/);
           if (oidMatch) {
             const mergedOid = oidMatch[1];
-            mergedFwdContent = JSON.parse(writtenBlobs.get(mergedOid));
+            const envelope = JSON.parse(writtenBlobs.get(mergedOid));
+            // Extract data from envelope
+            mergedFwdContent = envelope.data;
           }
         }
       }
@@ -590,13 +605,14 @@ describe('StreamingBitmapIndexBuilder extreme stress tests', () => {
 
       await builder.finalize();
 
-      // Extract the merged 'aa' shard
+      // Extract the merged 'aa' shard (now wrapped in envelope)
       const treeEntries = mockStorage.writeTree.mock.calls[0][0];
       const fwdAaShard = treeEntries.find(e => e.includes('shards_fwd_aa'));
       expect(fwdAaShard).toBeDefined();
 
       const oidMatch = fwdAaShard.match(/blob ([^\s]+)/);
-      const mergedContent = JSON.parse(writtenBlobs.get(oidMatch[1]));
+      const envelope = JSON.parse(writtenBlobs.get(oidMatch[1]));
+      const mergedContent = envelope.data;
 
       // Verify all sources are present
       for (const source of sources) {
