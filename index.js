@@ -2,7 +2,7 @@
  * @fileoverview Empty Graph - A graph database substrate using Git commits pointing to the empty tree.
  */
 
-import GraphService from './src/domain/services/GraphService.js';
+import GraphService, { DEFAULT_MAX_MESSAGE_BYTES } from './src/domain/services/GraphService.js';
 import GitGraphAdapter from './src/infrastructure/adapters/GitGraphAdapter.js';
 import GraphNode from './src/domain/entities/GraphNode.js';
 import BitmapIndexBuilder from './src/domain/services/BitmapIndexBuilder.js';
@@ -19,7 +19,8 @@ export {
   BitmapIndexReader,
   IndexRebuildService,
   GraphPersistencePort,
-  IndexStoragePort
+  IndexStoragePort,
+  DEFAULT_MAX_MESSAGE_BYTES
 };
 
 /** Default ref for storing the index OID */
@@ -39,16 +40,22 @@ export const DEFAULT_INDEX_REF = 'refs/empty-graph/index';
  * const plumbing = new GitPlumbing({ cwd: './my-repo' });
  * const persistence = new GitGraphAdapter({ plumbing });
  * const graph = new EmptyGraph({ persistence });
+ *
+ * @example
+ * // With custom message size limit (512KB)
+ * const graph = new EmptyGraph({ persistence, maxMessageBytes: 524288 });
  */
 export default class EmptyGraph {
   /**
    * Creates a new EmptyGraph instance.
    * @param {Object} options
    * @param {GraphPersistencePort & IndexStoragePort} options.persistence - Adapter implementing both persistence ports
+   * @param {number} [options.maxMessageBytes=1048576] - Maximum allowed message size in bytes.
+   *   Defaults to 1MB (1048576 bytes). Messages exceeding this limit will be rejected.
    */
-  constructor({ persistence }) {
+  constructor({ persistence, maxMessageBytes = DEFAULT_MAX_MESSAGE_BYTES }) {
     this._persistence = persistence;
-    this.service = new GraphService({ persistence: this._persistence });
+    this.service = new GraphService({ persistence: this._persistence, maxMessageBytes });
     this.rebuildService = new IndexRebuildService({
       graphService: this.service,
       storage: this._persistence

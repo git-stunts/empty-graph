@@ -1,5 +1,8 @@
 import GitLogParser, { RECORD_SEPARATOR } from './GitLogParser.js';
 
+/** Default maximum message size in bytes (1MB) */
+export const DEFAULT_MAX_MESSAGE_BYTES = 1048576;
+
 /**
  * Domain service for graph database operations.
  *
@@ -17,6 +20,10 @@ import GitLogParser, { RECORD_SEPARATOR } from './GitLogParser.js';
  *   async *parse() { yield mockNode; }
  * };
  * const service = new GraphService({ persistence: mockPersistence, parser: mockParser });
+ *
+ * @example
+ * // Custom message size limit (512KB)
+ * const service = new GraphService({ persistence: gitAdapter, maxMessageBytes: 524288 });
  */
 export default class GraphService {
   /**
@@ -27,10 +34,13 @@ export default class GraphService {
    *   Required methods: commitNode, showNode, logNodesStream
    * @param {GitLogParser} [options.parser=new GitLogParser()] - Parser for git log streams.
    *   Defaults to GitLogParser. Inject a mock for testing.
+   * @param {number} [options.maxMessageBytes=1048576] - Maximum allowed message size in bytes.
+   *   Defaults to 1MB (1048576 bytes). Messages exceeding this limit will be rejected.
    */
-  constructor({ persistence, parser = new GitLogParser() }) {
+  constructor({ persistence, parser = new GitLogParser(), maxMessageBytes = DEFAULT_MAX_MESSAGE_BYTES }) {
     this.persistence = persistence;
     this.parser = parser;
+    this.maxMessageBytes = maxMessageBytes;
   }
 
   /**
@@ -41,8 +51,16 @@ export default class GraphService {
    * @param {string[]} [options.parents=[]] - Parent commit SHAs
    * @param {boolean} [options.sign=false] - Whether to GPG-sign the commit
    * @returns {Promise<string>} The SHA of the newly created node
+   * @throws {Error} If message size exceeds maxMessageBytes limit
    */
   async createNode({ message, parents = [], sign = false }) {
+    // Validate message size
+    const messageBytes = Buffer.byteLength(message, 'utf-8');
+    if (messageBytes > this.maxMessageBytes) {
+      throw new Error(
+        `Message size ${messageBytes} bytes exceeds maximum allowed ${this.maxMessageBytes} bytes`
+      );
+    }
     return await this.persistence.commitNode({ message, parents, sign });
   }
 

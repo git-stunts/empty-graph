@@ -62,6 +62,81 @@ describe('GraphService', () => {
     });
   });
 
+  describe('message size validation', () => {
+    it('accepts message at exactly the max size limit', async () => {
+      const maxBytes = 1000; // Use small limit for testing
+      const service = new GraphService({
+        persistence: mockPersistence,
+        maxMessageBytes: maxBytes
+      });
+
+      // Create message exactly at limit (accounting for UTF-8)
+      const message = 'a'.repeat(maxBytes);
+      await service.createNode({ message });
+
+      expect(mockPersistence.commitNode).toHaveBeenCalled();
+    });
+
+    it('rejects message exceeding max size limit', async () => {
+      const maxBytes = 1000;
+      const service = new GraphService({
+        persistence: mockPersistence,
+        maxMessageBytes: maxBytes
+      });
+
+      const message = 'a'.repeat(maxBytes + 1);
+
+      await expect(service.createNode({ message }))
+        .rejects.toThrow(/exceeds maximum/);
+    });
+
+    it('measures size in bytes not characters (UTF-8)', async () => {
+      const maxBytes = 100;
+      const service = new GraphService({
+        persistence: mockPersistence,
+        maxMessageBytes: maxBytes
+      });
+
+      // Each emoji is 4 bytes in UTF-8, so 26 emojis = 104 bytes > 100
+      const message = '🔥'.repeat(26);
+      expect(Buffer.byteLength(message, 'utf-8')).toBe(104);
+
+      await expect(service.createNode({ message }))
+        .rejects.toThrow(/104 bytes exceeds maximum.*100 bytes/);
+    });
+
+    it('uses default max size of 1MB when not specified', () => {
+      const service = new GraphService({ persistence: mockPersistence });
+      expect(service.maxMessageBytes).toBe(1048576);
+    });
+
+    it('allows custom max size configuration', () => {
+      const service = new GraphService({
+        persistence: mockPersistence,
+        maxMessageBytes: 5000000
+      });
+      expect(service.maxMessageBytes).toBe(5000000);
+    });
+
+    it('error message includes actual and max sizes', async () => {
+      const maxBytes = 500;
+      const service = new GraphService({
+        persistence: mockPersistence,
+        maxMessageBytes: maxBytes
+      });
+
+      const message = 'x'.repeat(600);
+
+      try {
+        await service.createNode({ message });
+        expect.fail('Should have thrown');
+      } catch (err) {
+        expect(err.message).toContain('600');
+        expect(err.message).toContain('500');
+      }
+    });
+  });
+
   describe('readNode()', () => {
     it('delegates to persistence.showNode', async () => {
       const content = await service.readNode('some-sha');
