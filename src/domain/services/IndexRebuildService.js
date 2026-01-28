@@ -1,16 +1,22 @@
 import BitmapIndexBuilder from './BitmapIndexBuilder.js';
 import BitmapIndexReader from './BitmapIndexReader.js';
+import StreamingBitmapIndexBuilder from './StreamingBitmapIndexBuilder.js';
 
 /**
  * Service for building and loading the bitmap index from the graph.
  *
  * This service orchestrates index creation by walking the graph and persisting
  * the resulting bitmap shards to storage via the IndexStoragePort.
+ *
+ * Supports two build modes:
+ * - **In-memory** (default): Fast, but requires O(N) memory
+ * - **Streaming**: Memory-bounded, flushes to storage periodically
  */
 export default class IndexRebuildService {
   /**
    * Creates an IndexRebuildService instance.
-   * @param {Object} options
+   *
+   * @param {Object} options - Configuration options
    * @param {import('./GraphService.js').default} options.graphService - Graph service for iterating nodes
    * @param {import('../../ports/IndexStoragePort.js').default} options.storage - Storage adapter for persisting index
    */
@@ -22,37 +28,77 @@ export default class IndexRebuildService {
   /**
    * Rebuilds the bitmap index by walking the graph from a ref.
    *
+   * **Build Modes**:
+   *
+   * *In-memory mode* (default, when `maxMemoryBytes` not specified):
+   * - Fastest option, single pass with bulk serialization at end
+   * - Memory: O(N) where N is number of nodes (~150-200MB for 1M nodes)
+   *
+   * *Streaming mode* (when `maxMemoryBytes` is specified):
+   * - Memory-bounded operation for very large graphs
+   * - Flushes bitmap data to storage when threshold exceeded
+   * - Merges chunks at finalization
+   * - More I/O operations, but constant memory ceiling
+   *
    * **Persistence**: Creates a Git tree containing sharded JSON blobs:
    * - `meta_XX.json`: SHA→ID mappings (256 shards by SHA prefix)
    * - `shards_fwd_XX.json`: Forward edge bitmaps (child lookups)
    * - `shards_rev_XX.json`: Reverse edge bitmaps (parent lookups)
    *
-   * **Memory cost**: O(N) where N is the number of nodes. Each node requires:
-   * - ~80 bytes for SHA→ID mapping
-   * - ~16-64 bytes per edge in bitmap form (compressed)
-   * - For 1M nodes with avg 1.5 parents: ~150-200MB peak RAM
-   *
-   * **Time complexity**: O(N) - single pass through the graph.
-   *
    * @param {string} ref - Git ref to start traversal from (e.g., 'HEAD', branch name, SHA)
    * @param {Object} [options] - Rebuild options
    * @param {number} [options.limit=10000000] - Maximum nodes to process (1 to 10,000,000)
+   * @param {number} [options.maxMemoryBytes] - Enable streaming mode with this memory threshold.
+   *   When bitmap memory exceeds this value, data is flushed to storage.
+   *   Recommended: 50-100MB for most systems. Minimum: 1MB.
+   * @param {Function} [options.onFlush] - Callback invoked on each flush (streaming mode only).
+   *   Receives { flushedBytes, totalFlushedBytes, flushCount }.
+   * @param {Function} [options.onProgress] - Callback invoked periodically during processing.
+   *   Receives { processedNodes, currentMemoryBytes }.
    * @returns {Promise<string>} OID of the created tree containing the index
    * @throws {Error} If ref is invalid or limit is out of range
+   *
    * @example
-   * // Rebuild index from HEAD
+   * // In-memory rebuild (default, fast)
    * const treeOid = await rebuildService.rebuild('HEAD');
    *
-   * // Rebuild with custom limit
-   * const treeOid = await rebuildService.rebuild('main', { limit: 100000 });
+   * @example
+   * // Streaming rebuild with 50MB memory limit
+   * const treeOid = await rebuildService.rebuild('HEAD', {
+   *   maxMemoryBytes: 50 * 1024 * 1024,
+   *   onFlush: ({ flushCount }) => console.log(`Flush #${flushCount}`),
+   * });
    */
-  async rebuild(ref, { limit = 10_000_000 } = {}) {
+  async rebuild(ref, { limit = 10_000_000, maxMemoryBytes, onFlush, onProgress } = {}) {
+    if (maxMemoryBytes !== undefined) {
+      return this._rebuildStreaming(ref, { limit, maxMemoryBytes, onFlush, onProgress });
+    }
+    return this._rebuildInMemory(ref, { limit, onProgress });
+  }
+
+  /**
+   * In-memory rebuild implementation (original behavior).
+   *
+   * @param {string} ref - Git ref to traverse from
+   * @param {Object} options - Options
+   * @param {number} options.limit - Maximum nodes
+   * @param {Function} [options.onProgress] - Progress callback
+   * @returns {Promise<string>} Tree OID
+   * @private
+   */
+  async _rebuildInMemory(ref, { limit, onProgress }) {
     const builder = new BitmapIndexBuilder();
+    let processedNodes = 0;
 
     for await (const node of this.graphService.iterateNodes({ ref, limit })) {
       builder.registerNode(node.sha);
       for (const parentSha of node.parents) {
         builder.addEdge(parentSha, node.sha);
+      }
+
+      processedNodes++;
+      if (onProgress && processedNodes % 10000 === 0) {
+        onProgress({ processedNodes, currentMemoryBytes: null });
       }
     }
 
@@ -60,7 +106,47 @@ export default class IndexRebuildService {
   }
 
   /**
-   * Persists a built index to storage.
+   * Streaming rebuild implementation with memory-bounded operation.
+   *
+   * @param {string} ref - Git ref to traverse from
+   * @param {Object} options - Options
+   * @param {number} options.limit - Maximum nodes
+   * @param {number} options.maxMemoryBytes - Memory threshold
+   * @param {Function} [options.onFlush] - Flush callback
+   * @param {Function} [options.onProgress] - Progress callback
+   * @returns {Promise<string>} Tree OID
+   * @private
+   */
+  async _rebuildStreaming(ref, { limit, maxMemoryBytes, onFlush, onProgress }) {
+    const builder = new StreamingBitmapIndexBuilder({
+      storage: this.storage,
+      maxMemoryBytes,
+      onFlush,
+    });
+
+    let processedNodes = 0;
+
+    for await (const node of this.graphService.iterateNodes({ ref, limit })) {
+      await builder.registerNode(node.sha);
+      for (const parentSha of node.parents) {
+        await builder.addEdge(parentSha, node.sha);
+      }
+
+      processedNodes++;
+      if (onProgress && processedNodes % 10000 === 0) {
+        const stats = builder.getMemoryStats();
+        onProgress({
+          processedNodes,
+          currentMemoryBytes: stats.estimatedBitmapBytes,
+        });
+      }
+    }
+
+    return builder.finalize();
+  }
+
+  /**
+   * Persists a built index to storage (in-memory builder only).
    *
    * Serializes the builder's state and writes each shard as a blob,
    * then creates a tree containing all shards.
@@ -93,11 +179,13 @@ export default class IndexRebuildService {
    * @param {string} treeOid - OID of the index tree (from rebuild() or a saved ref)
    * @returns {Promise<BitmapIndexReader>} Configured reader ready for O(1) queries
    * @throws {Error} If treeOid is invalid or tree cannot be read
+   *
    * @example
    * // Load from a known tree OID
    * const reader = await rebuildService.load(treeOid);
    * const parents = await reader.getParents(someSha);
    *
+   * @example
    * // Load from a saved ref
    * const savedOid = await storage.readRef('refs/empty-graph/index');
    * const reader = await rebuildService.load(savedOid);

@@ -1,0 +1,355 @@
+import roaring from 'roaring';
+const { RoaringBitmap32 } = roaring;
+
+/**
+ * Default memory threshold before flushing (50MB).
+ * @const {number}
+ */
+const DEFAULT_MAX_MEMORY_BYTES = 50 * 1024 * 1024;
+
+/**
+ * Estimated bytes per SHA→ID mapping entry.
+ * Accounts for: 40-char string (~80 bytes with overhead) + number (8 bytes) + Map overhead.
+ * @const {number}
+ */
+const BYTES_PER_ID_MAPPING = 120;
+
+/**
+ * Base overhead per RoaringBitmap32 instance (empty bitmap).
+ * @const {number}
+ */
+const BITMAP_BASE_OVERHEAD = 64;
+
+/**
+ * Streaming bitmap index builder with memory-bounded operation.
+ *
+ * Unlike {@link BitmapIndexBuilder}, this builder flushes bitmap data to storage
+ * periodically when memory usage exceeds a threshold. This enables indexing
+ * arbitrarily large graphs without OOM.
+ *
+ * **Memory Model**:
+ * - SHA→ID mappings are kept in memory (required for global ID consistency)
+ * - Bitmap data is flushed to storage when threshold exceeded
+ * - Flushed chunks are merged at finalization
+ *
+ * **Trade-offs**:
+ * - More I/O operations than in-memory builder
+ * - Requires storage adapter (not pure domain)
+ * - Merge step at finalization adds overhead
+ *
+ * @example
+ * const builder = new StreamingBitmapIndexBuilder({
+ *   storage: gitAdapter,
+ *   maxMemoryBytes: 100 * 1024 * 1024, // 100MB
+ * });
+ *
+ * for await (const node of nodes) {
+ *   await builder.registerNode(node.sha);
+ *   for (const parent of node.parents) {
+ *     await builder.addEdge(parent, node.sha);
+ *   }
+ * }
+ *
+ * const treeOid = await builder.finalize();
+ */
+export default class StreamingBitmapIndexBuilder {
+  /**
+   * Creates a new StreamingBitmapIndexBuilder instance.
+   *
+   * @param {Object} options - Configuration options
+   * @param {Object} options.storage - Storage adapter implementing IndexStoragePort.
+   *   Required methods: writeBlob, writeTree, readBlob
+   * @param {number} [options.maxMemoryBytes=52428800] - Maximum bitmap memory before flush (default 50MB).
+   *   Note: SHA→ID mappings are not counted against this limit as they must remain in memory.
+   * @param {Function} [options.onFlush] - Optional callback invoked on each flush.
+   *   Receives { flushedBytes, totalFlushedBytes, flushCount }.
+   */
+  constructor({ storage, maxMemoryBytes = DEFAULT_MAX_MEMORY_BYTES, onFlush }) {
+    if (!storage) {
+      throw new Error('StreamingBitmapIndexBuilder requires a storage adapter');
+    }
+
+    /** @type {Object} */
+    this.storage = storage;
+
+    /** @type {number} */
+    this.maxMemoryBytes = maxMemoryBytes;
+
+    /** @type {Function|undefined} */
+    this.onFlush = onFlush;
+
+    /** @type {Map<string, number>} SHA → numeric ID (kept in memory) */
+    this.shaToId = new Map();
+
+    /** @type {string[]} ID → SHA reverse mapping (kept in memory) */
+    this.idToSha = [];
+
+    /** @type {Map<string, RoaringBitmap32>} Current in-memory bitmaps */
+    this.bitmaps = new Map();
+
+    /** @type {number} Estimated bytes used by current bitmaps */
+    this.estimatedBitmapBytes = 0;
+
+    /** @type {Map<string, string[]>} path → array of blob OIDs (for multi-chunk shards) */
+    this.flushedChunks = new Map();
+
+    /** @type {number} Total bytes flushed to storage */
+    this.totalFlushedBytes = 0;
+
+    /** @type {number} Number of flush operations performed */
+    this.flushCount = 0;
+  }
+
+  /**
+   * Registers a node without adding edges.
+   *
+   * @param {string} sha - The node's SHA
+   * @returns {Promise<number>} The assigned numeric ID
+   */
+  async registerNode(sha) {
+    return this._getOrCreateId(sha);
+  }
+
+  /**
+   * Adds a directed edge from source to target node.
+   *
+   * May trigger a flush if memory threshold is exceeded after adding.
+   *
+   * @param {string} srcSha - Source node SHA (parent)
+   * @param {string} tgtSha - Target node SHA (child)
+   * @returns {Promise<void>}
+   */
+  async addEdge(srcSha, tgtSha) {
+    const srcId = this._getOrCreateId(srcSha);
+    const tgtId = this._getOrCreateId(tgtSha);
+
+    this._addToBitmap({ sha: srcSha, id: tgtId, type: 'fwd' });
+    this._addToBitmap({ sha: tgtSha, id: srcId, type: 'rev' });
+
+    // Check if we need to flush
+    if (this.estimatedBitmapBytes >= this.maxMemoryBytes) {
+      await this.flush();
+    }
+  }
+
+  /**
+   * Flushes current bitmap data to storage.
+   *
+   * Serializes all in-memory bitmaps, writes them as blobs, and clears
+   * the bitmap map. SHA→ID mappings are preserved.
+   *
+   * @returns {Promise<void>}
+   */
+  async flush() {
+    if (this.bitmaps.size === 0) {
+      return;
+    }
+
+    const flushedBytes = this.estimatedBitmapBytes;
+
+    // Serialize current bitmaps to shards
+    const bitmapShards = { fwd: {}, rev: {} };
+    for (const [key, bitmap] of this.bitmaps) {
+      const type = key.substring(0, 3);
+      const sha = key.substring(4);
+      const prefix = sha.substring(0, 2);
+
+      if (!bitmapShards[type][prefix]) {
+        bitmapShards[type][prefix] = {};
+      }
+      bitmapShards[type][prefix][sha] = bitmap.serialize(true).toString('base64');
+    }
+
+    // Write each shard as a blob and track the OID
+    for (const type of ['fwd', 'rev']) {
+      for (const [prefix, shardData] of Object.entries(bitmapShards[type])) {
+        const path = `shards_${type}_${prefix}.json`;
+        const buffer = Buffer.from(JSON.stringify(shardData));
+        const oid = await this.storage.writeBlob(buffer);
+
+        if (!this.flushedChunks.has(path)) {
+          this.flushedChunks.set(path, []);
+        }
+        this.flushedChunks.get(path).push(oid);
+      }
+    }
+
+    // Clear bitmaps and reset memory counter
+    this.bitmaps.clear();
+    this.totalFlushedBytes += flushedBytes;
+    this.estimatedBitmapBytes = 0;
+    this.flushCount++;
+
+    // Invoke callback if provided
+    if (this.onFlush) {
+      this.onFlush({
+        flushedBytes,
+        totalFlushedBytes: this.totalFlushedBytes,
+        flushCount: this.flushCount,
+      });
+    }
+  }
+
+  /**
+   * Finalizes the index and returns the tree OID.
+   *
+   * Performs the following:
+   * 1. Flushes any remaining bitmap data
+   * 2. Writes meta shards (SHA→ID mappings) in parallel
+   * 3. Merges multi-chunk shards by ORing bitmaps together in parallel
+   * 4. Creates and returns the final tree
+   *
+   * Meta shards and bitmap shards are processed in parallel using Promise.all
+   * since they are independent (prefix-based partitioning).
+   *
+   * @returns {Promise<string>} OID of the created tree containing the index
+   */
+  async finalize() {
+    // Flush any remaining bitmaps
+    await this.flush();
+
+    // Build meta shards (SHA→ID mappings)
+    const idShards = {};
+    for (const [sha, id] of this.shaToId) {
+      const prefix = sha.substring(0, 2);
+      if (!idShards[prefix]) {
+        idShards[prefix] = {};
+      }
+      idShards[prefix][sha] = id;
+    }
+
+    // Write meta shards in parallel
+    const metaEntries = await Promise.all(
+      Object.entries(idShards).map(async ([prefix, map]) => {
+        const path = `meta_${prefix}.json`;
+        const buffer = Buffer.from(JSON.stringify(map));
+        const oid = await this.storage.writeBlob(buffer);
+        return `100644 blob ${oid}\t${path}`;
+      })
+    );
+
+    // Process bitmap shards in parallel - merge chunks if necessary
+    const bitmapEntries = await Promise.all(
+      Array.from(this.flushedChunks.entries()).map(async ([path, oids]) => {
+        let finalOid;
+
+        if (oids.length === 1) {
+          // Single chunk, use as-is
+          finalOid = oids[0];
+        } else {
+          // Multiple chunks, need to merge
+          finalOid = await this._mergeChunks(oids);
+        }
+
+        return `100644 blob ${finalOid}\t${path}`;
+      })
+    );
+
+    const flatEntries = [...metaEntries, ...bitmapEntries];
+
+    return this.storage.writeTree(flatEntries);
+  }
+
+  /**
+   * Returns current memory statistics.
+   *
+   * @returns {Object} Memory statistics
+   * @returns {number} return.estimatedBitmapBytes - Current in-memory bitmap size
+   * @returns {number} return.estimatedMappingBytes - Estimated SHA→ID mapping size
+   * @returns {number} return.totalFlushedBytes - Total bytes written to storage
+   * @returns {number} return.flushCount - Number of flush operations
+   * @returns {number} return.nodeCount - Number of registered nodes
+   * @returns {number} return.bitmapCount - Number of in-memory bitmaps
+   */
+  getMemoryStats() {
+    return {
+      estimatedBitmapBytes: this.estimatedBitmapBytes,
+      estimatedMappingBytes: this.shaToId.size * BYTES_PER_ID_MAPPING,
+      totalFlushedBytes: this.totalFlushedBytes,
+      flushCount: this.flushCount,
+      nodeCount: this.shaToId.size,
+      bitmapCount: this.bitmaps.size,
+    };
+  }
+
+  /**
+   * Gets or creates a numeric ID for a SHA.
+   *
+   * @param {string} sha - The SHA to look up or register
+   * @returns {number} The numeric ID
+   * @private
+   */
+  _getOrCreateId(sha) {
+    if (this.shaToId.has(sha)) {
+      return this.shaToId.get(sha);
+    }
+    const id = this.idToSha.length;
+    this.idToSha.push(sha);
+    this.shaToId.set(sha, id);
+    return id;
+  }
+
+  /**
+   * Adds an ID to a node's bitmap and updates memory estimate.
+   *
+   * @param {Object} opts - Options
+   * @param {string} opts.sha - The SHA to use as key
+   * @param {number} opts.id - The ID to add to the bitmap
+   * @param {string} opts.type - 'fwd' or 'rev'
+   * @private
+   */
+  _addToBitmap({ sha, id, type }) {
+    const key = `${type}_${sha}`;
+    if (!this.bitmaps.has(key)) {
+      this.bitmaps.set(key, new RoaringBitmap32());
+      this.estimatedBitmapBytes += BITMAP_BASE_OVERHEAD;
+    }
+
+    const bitmap = this.bitmaps.get(key);
+    const sizeBefore = bitmap.size;
+    bitmap.add(id);
+    const sizeAfter = bitmap.size;
+
+    // Estimate ~4 bytes per new entry (Roaring compression varies)
+    if (sizeAfter > sizeBefore) {
+      this.estimatedBitmapBytes += 4;
+    }
+  }
+
+  /**
+   * Merges multiple shard chunks by ORing their bitmaps together.
+   *
+   * @param {string[]} oids - Blob OIDs of chunks to merge
+   * @returns {Promise<string>} OID of merged shard blob
+   * @private
+   */
+  async _mergeChunks(oids) {
+    // Load all chunks and merge bitmaps by SHA
+    const merged = {};
+
+    for (const oid of oids) {
+      const buffer = await this.storage.readBlob(oid);
+      const chunk = JSON.parse(buffer.toString('utf-8'));
+
+      for (const [sha, base64Bitmap] of Object.entries(chunk)) {
+        const bitmap = RoaringBitmap32.deserialize(Buffer.from(base64Bitmap, 'base64'), true);
+
+        if (!merged[sha]) {
+          merged[sha] = bitmap;
+        } else {
+          // OR the bitmaps together
+          merged[sha].orInPlace(bitmap);
+        }
+      }
+    }
+
+    // Serialize merged result
+    const result = {};
+    for (const [sha, bitmap] of Object.entries(merged)) {
+      result[sha] = bitmap.serialize(true).toString('base64');
+    }
+
+    const buffer = Buffer.from(JSON.stringify(result));
+    return this.storage.writeBlob(buffer);
+  }
+}
