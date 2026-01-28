@@ -1,69 +1,105 @@
 # Empty Graph Task List
 
-> Last updated: 2026-01-18
+> Last updated: 2026-01-28
 
-## Project Status: ~85% Complete
+## Project Status: ~95% Complete
 
-The write path is solid. **The index query path is now complete.** Test coverage is strong (65 tests).
+The core is solid. Index build/query path complete. **Graph traversal algorithms now implemented.** Health checks, structured logging, and comprehensive error handling all in place. Test coverage is excellent (252 tests).
 
-### Recent Progress (2026-01-18)
-- Fixed fundamental bitmap design flaw (per-prefix → per-node)
-- Implemented O(1) query API: `getParents()`, `getChildren()`
-- Added 61 new tests (GraphNode: 24, BitmapIndexService: 37)
-- Wired index loading to EmptyGraph facade
+### Recent Progress (2026-01-28)
+- Implemented TraversalService with 9 algorithms (BFS, DFS, ancestors, descendants, findPath, shortestPath, isReachable, commonAncestors, topologicalSort)
+- Full TypeScript declarations for traversal API
+- 27 new traversal tests
+
+### Previous Progress (2026-01-18 → 2026-01-27)
+- HealthCheckService with K8s-style probes (isAlive, isReady, getHealth)
+- Structured logging infrastructure (LoggerPort, ConsoleLogger, NoOpLogger)
+- Clock adapters (ClockPort, PerformanceClockAdapter, GlobalClockAdapter)
+- Message size validation and resource limits
+- Structured error hierarchy (IndexError, ShardLoadError, ShardCorruptionError, ShardValidationError, StorageError, TraversalError)
+- StreamingBitmapIndexBuilder for memory-bounded rebuilds
+- Comprehensive test coverage expansion (65 → 252 tests)
 
 ---
 
 ## 🔴 P0 - Critical Path (Blocking v1.0 Release)
 
 ### ✅ Index Query API (COMPLETED 2026-01-18)
-~~The `BitmapIndexService` can **build** indexes but there's no exposed API to **query** them.~~
-
 - [x] Add `getParents(sha)` → O(1) reverse edge lookup
 - [x] Add `getChildren(sha)` → O(1) forward edge lookup
-- [x] Wire `CacheRebuildService.load()` to the `EmptyGraph` facade
+- [x] Wire `IndexRebuildService.load()` to the `EmptyGraph` facade
 - [x] Add `readTreeOids()` to `GraphPersistencePort`
 
-**Note:** Fixed a fundamental design flaw - bitmaps were keyed by prefix (shared), now keyed by full SHA (per-node). See GIT_STUNTS_MATERIAL.md for details.
+### ✅ Graph Traversal (COMPLETED 2026-01-28)
+- [x] `bfs()` - Breadth-first traversal with depth/node limits
+- [x] `dfs()` - Depth-first pre-order traversal
+- [x] `ancestors()` - Transitive closure going backwards
+- [x] `descendants()` - Transitive closure going forwards
+- [x] `findPath()` - Find any path between two nodes
+- [x] `shortestPath()` - Bidirectional BFS for shortest path
+- [x] `isReachable()` - Boolean reachability check
+- [x] `commonAncestors()` - Find common ancestors of multiple nodes
+- [x] `topologicalSort()` - Kahn's algorithm for dependency order
 
-### ✅ Test Coverage - Domain Layer (COMPLETED 2026-01-18)
-- [x] `BitmapIndexService.test.js` - 37 tests covering sharding, serialize/deserialize, query methods
+**Note:** Traversal accessed via `graph.traversal` property (lazy instantiation). Requires loaded index.
+
+### ✅ Test Coverage - Domain Layer (COMPLETED)
+- [x] `BitmapIndexBuilder.test.js` - Sharding, serialize/deserialize, query methods
+- [x] `BitmapIndexBuilder.integrity.test.js` - Merkle-like properties, deterministic serialization
+- [x] `BitmapIndexReader.test.js` - Shard loading, validation, strict mode
 - [x] `GraphNode.test.js` - 24 tests covering validation, immutability, edge cases
+- [x] `TraversalService.test.js` - 27 tests covering all algorithms with diamond DAG
 
 ---
 
 ## 🟡 P1 - Important (Quality & Completeness)
 
-### Test Coverage - Edge Cases
-- [ ] `GraphService` - error handling, malformed log output, empty graphs
-- [ ] `CacheRebuildService` - large graphs, empty graphs, circular refs
-- [ ] Ref validation edge cases (unicode, control chars, path traversal)
+### ✅ Test Coverage - Edge Cases (COMPLETED)
+- [x] `GraphService` - error handling, message size validation, limit validation, UTF-8 edge cases
+- [x] `IndexRebuildService` - large graphs (10K chain, 1K-wide DAG), streaming mode, memory guarding
+- [x] `IndexRebuildService.deep.test.js` - Stack overflow prevention for deep graphs
+- [x] `IndexRebuildService.streaming.test.js` - Memory-bounded rebuilds with progress callbacks
+- [x] Ref validation edge cases - Comprehensive via GitLogParser adversarial tests (null bytes, emoji, control chars, path traversal)
+- [ ] Circular reference detection - Not explicitly tested (Git DAGs shouldn't have cycles, but worth validating)
 
-### Benchmark Suite
-- [ ] Replace stub `test/benchmark/graph.bench.js` with real benchmarks
-- [ ] Benchmark: createNode throughput
-- [ ] Benchmark: iterateNodes memory profile
-- [ ] Benchmark: bitmap index build time vs graph size
-- [ ] Benchmark: O(1) lookup vs O(N) scan comparison
+### ✅ Benchmark Suite (COMPLETED)
+`test/benchmark/graph.bench.js` is comprehensive, not a stub:
+- [x] Benchmark: createNode throughput (GraphNode creation)
+- [x] Benchmark: BitmapIndexService.Build (100, 1K, 10K edges)
+- [x] Benchmark: BitmapIndexService.Serialize (100, 1K, 10K edges)
+- [x] Benchmark: O(1) lookup vs iteration (1K, 10K node indexes)
+- [x] Benchmark: Memory profiling (50K edge builds)
+- [ ] Benchmark: iterateNodes memory profile for streaming 1M+ nodes
+- [ ] Benchmark: Traversal algorithm performance (BFS/DFS/shortestPath at scale)
 
-### Documentation
-- [ ] Add `rebuildIndex()` and `loadIndex()` to README API reference
-- [ ] Document the index tree structure in ARCHITECTURE.md
+### Documentation (PARTIAL)
+- [x] Add `rebuildIndex()` and `loadIndex()` to README API reference
+- [x] Document health check API in README
+- [ ] Add TraversalService methods to README API reference
+- [ ] Document the index tree structure in ARCHITECTURE.md (currently high-level only)
 - [ ] Add sequence diagrams for index rebuild flow
 
 ---
 
 ## 🟢 P2 - Nice to Have (Polish)
 
-### Developer Experience
-- [ ] Add TypeScript declarations (`.d.ts` files)
+### Developer Experience (PARTIAL)
+- [x] Add TypeScript declarations (`.d.ts` files) - Comprehensive index.d.ts exists
 - [ ] Add examples/ directory with runnable demos
-- [ ] Integration test suite (runs in Docker against real Git)
+- [x] Integration test suite (runs in Docker against real Git) - Docker test setup works
 
-### Performance Optimizations
+### ✅ Infrastructure (COMPLETED)
+- [x] Structured logging (LoggerPort, ConsoleLogger, NoOpLogger)
+- [x] Health checks (HealthCheckService with K8s probes)
+- [x] Clock adapters (ClockPort, PerformanceClockAdapter, GlobalClockAdapter)
+- [x] Message size validation (`maxMessageBytes` config)
+- [x] Structured error hierarchy (6 error classes)
+
+### Performance Optimizations (PARTIAL)
+- [x] Lazy shard loading in BitmapIndexReader
+- [x] StreamingBitmapIndexBuilder for memory-bounded index builds
 - [ ] Shard the global `ids.json` map for >10M nodes (noted in ARCHITECTURE.md)
-- [ ] Lazy shard loading benchmarks
-- [ ] Consider LRU cache for loaded shards
+- [ ] LRU cache for loaded shards (currently unbounded Map)
 
 ### API Enhancements
 - [ ] `graph.getNode(sha)` returning full `GraphNode` (not just message)
@@ -95,22 +131,37 @@ The write path is solid. **The index query path is now complete.** Test coverage
 
 ## 📝 Notes & Ideas
 
+### What Actually Got Built (vs Original Plan)
+
+The implementation evolved beyond the original tasklist:
+
+| Original Plan | What We Actually Built |
+|---------------|------------------------|
+| Basic O(1) lookups | Full traversal service with 9 algorithms |
+| - | HealthCheckService with K8s probes |
+| - | Structured logging infrastructure |
+| - | Clock port abstraction |
+| - | Message size validation |
+| - | 6-class error hierarchy |
+| - | Streaming index builder |
+| CacheRebuildService | Renamed to IndexRebuildService |
+
 ### Architectural Observations
 - The hex arch pays off: domain layer is 100% testable without Git
 - Roaring bitmap WASM bindings "just work" - no node-gyp hell
 - ASCII Record Separator (`\x1E`) was a great choice for log parsing
-- **Sharding ≠ Keying**: The original bitmap design conflated storage partitioning with lookup keying. Fixed by using full SHA as key, prefix only for file grouping.
+- Lazy instantiation pattern for TraversalService avoids circular deps
+- Bidirectional BFS for shortestPath is cleaner with alternating expansion than "expand smaller frontier"
 
-### Blog Material Candidates
-- The "invisible database" concept (commits to Empty Tree)
-- Streaming 10M nodes with async generators
-- Security-first ref validation pattern
-- "Stealing the soul" of git-mind's C architecture
+### Open Questions (Resolved)
+- ~~Should index tree OID be stored in a Git ref?~~ → Yes: `refs/empty-graph/index` (DEFAULT_INDEX_REF)
+- ~~How to handle index invalidation on new writes?~~ → Manual rebuild; incremental updates are P3
+- ~~Worth adding Zod validation at the port boundary?~~ → Deferred; current validation sufficient
 
-### Open Questions
-- Should index tree OID be stored in a Git ref? (e.g., `refs/empty-graph/index`)
-- How to handle index invalidation on new writes?
-- Worth adding Zod validation at the port boundary?
+### Open Questions (Still Open)
+- Should traversal methods accept refs as well as SHAs?
+- Worth adding `graph.traversal.walk()` for custom traversal logic?
+- How to handle very deep graphs in topologicalSort (stack depth)?
 
 ---
 
@@ -119,15 +170,26 @@ The write path is solid. **The index query path is now complete.** Test coverage
 - [x] Core hexagonal architecture
 - [x] `GraphNode` entity (immutable, validated)
 - [x] `GraphService` (create, read, list, iterate)
-- [x] `BitmapIndexService` (sharding, serialize)
-- [x] `CacheRebuildService` (build index from graph)
+- [x] `BitmapIndexBuilder` (sharding, serialize)
+- [x] `BitmapIndexReader` (O(1) queries, lazy loading)
+- [x] `StreamingBitmapIndexBuilder` (memory-bounded)
+- [x] `IndexRebuildService` (build index from graph)
+- [x] `TraversalService` (BFS, DFS, paths, topological sort)
+- [x] `HealthCheckService` (K8s probes, caching)
 - [x] `GitGraphAdapter` implementation
 - [x] `GraphPersistencePort` interface
-- [x] `EmptyGraph` facade
+- [x] `IndexStoragePort` interface
+- [x] `LoggerPort` + ConsoleLogger + NoOpLogger
+- [x] `ClockPort` + PerformanceClockAdapter + GlobalClockAdapter
+- [x] `EmptyGraph` facade with traversal getter
 - [x] Async generator streaming
-- [x] Security hardening (ref validation)
+- [x] Security hardening (ref validation, adversarial input tests)
+- [x] Message size validation
+- [x] Structured error hierarchy
 - [x] Docker test setup
+- [x] TypeScript declarations (index.d.ts)
 - [x] README with API docs
 - [x] ARCHITECTURE.md
 - [x] THE_STUNT.md
-- [x] D3.js benchmark visualization
+- [x] Comprehensive benchmark suite
+- [x] 252 passing tests
