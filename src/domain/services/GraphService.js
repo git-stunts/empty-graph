@@ -1,4 +1,6 @@
+import { performance } from 'perf_hooks';
 import GitLogParser, { RECORD_SEPARATOR } from './GitLogParser.js';
+import NoOpLogger from '../../infrastructure/adapters/NoOpLogger.js';
 
 /** Default maximum message size in bytes (1MB) */
 export const DEFAULT_MAX_MESSAGE_BYTES = 1048576;
@@ -9,6 +11,7 @@ export const DEFAULT_MAX_MESSAGE_BYTES = 1048576;
  * Orchestrates graph operations using injected dependencies:
  * - **persistence**: Adapter for git operations (commits, logs, refs)
  * - **parser**: Parser for git log output streams
+ * - **logger**: Logger for structured logging (optional)
  *
  * @example
  * // Production usage with defaults
@@ -24,6 +27,10 @@ export const DEFAULT_MAX_MESSAGE_BYTES = 1048576;
  * @example
  * // Custom message size limit (512KB)
  * const service = new GraphService({ persistence: gitAdapter, maxMessageBytes: 524288 });
+ *
+ * @example
+ * // With logging enabled
+ * const service = new GraphService({ persistence: gitAdapter, logger: consoleLogger });
  */
 export default class GraphService {
   /**
@@ -36,11 +43,14 @@ export default class GraphService {
    *   Defaults to GitLogParser. Inject a mock for testing.
    * @param {number} [options.maxMessageBytes=1048576] - Maximum allowed message size in bytes.
    *   Defaults to 1MB (1048576 bytes). Messages exceeding this limit will be rejected.
+   * @param {import('../../ports/LoggerPort.js').default} [options.logger] - Logger for structured logging.
+   *   Defaults to NoOpLogger (no logging). Inject ConsoleLogger or custom logger for output.
    */
-  constructor({ persistence, parser = new GitLogParser(), maxMessageBytes = DEFAULT_MAX_MESSAGE_BYTES }) {
+  constructor({ persistence, parser = new GitLogParser(), maxMessageBytes = DEFAULT_MAX_MESSAGE_BYTES, logger = new NoOpLogger() }) {
     this.persistence = persistence;
     this.parser = parser;
     this.maxMessageBytes = maxMessageBytes;
+    this.logger = logger;
   }
 
   /**
@@ -57,11 +67,26 @@ export default class GraphService {
     // Validate message size
     const messageBytes = Buffer.byteLength(message, 'utf-8');
     if (messageBytes > this.maxMessageBytes) {
+      this.logger.warn('Message size exceeds limit', {
+        operation: 'createNode',
+        messageBytes,
+        maxMessageBytes: this.maxMessageBytes,
+      });
       throw new Error(
         `Message size ${messageBytes} bytes exceeds maximum allowed ${this.maxMessageBytes} bytes`
       );
     }
-    return await this.persistence.commitNode({ message, parents, sign });
+    const startTime = performance.now();
+    const sha = await this.persistence.commitNode({ message, parents, sign });
+    const durationMs = performance.now() - startTime;
+    this.logger.debug('Node created', {
+      operation: 'createNode',
+      sha,
+      parentCount: parents.length,
+      messageBytes,
+      durationMs,
+    });
+    return sha;
   }
 
   /**
@@ -71,7 +96,16 @@ export default class GraphService {
    * @returns {Promise<string>} The node's commit message
    */
   async readNode(sha) {
-    return await this.persistence.showNode(sha);
+    const startTime = performance.now();
+    const message = await this.persistence.showNode(sha);
+    const durationMs = performance.now() - startTime;
+    this.logger.debug('Node read', {
+      operation: 'readNode',
+      sha,
+      messageBytes: Buffer.byteLength(message, 'utf-8'),
+      durationMs,
+    });
+    return message;
   }
 
   /**
@@ -114,8 +148,21 @@ export default class GraphService {
   async *iterateNodes({ ref, limit = 1000000 }) {
     // Validate limit to prevent DoS attacks
     if (typeof limit !== 'number' || limit < 1 || limit > 10000000) {
+      this.logger.warn('Invalid limit provided', {
+        operation: 'iterateNodes',
+        limit,
+        ref,
+      });
       throw new Error(`Invalid limit: ${limit}. Must be between 1 and 10,000,000`);
     }
+
+    this.logger.debug('Starting node iteration', {
+      operation: 'iterateNodes',
+      ref,
+      limit,
+    });
+
+    const startTime = performance.now();
 
     // Format: SHA, author, date, parents (newline-separated), then message, terminated by NUL
     // NUL bytes cannot appear in git commit messages, making this a safe unambiguous delimiter
@@ -123,6 +170,18 @@ export default class GraphService {
 
     const stream = await this.persistence.logNodesStream({ ref, limit, format });
 
-    yield* this.parser.parse(stream);
+    let yieldedCount = 0;
+    for await (const node of this.parser.parse(stream)) {
+      yieldedCount++;
+      yield node;
+    }
+
+    const durationMs = performance.now() - startTime;
+    this.logger.debug('Node iteration complete', {
+      operation: 'iterateNodes',
+      ref,
+      yieldedCount,
+      durationMs,
+    });
   }
 }

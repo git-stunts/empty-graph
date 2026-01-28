@@ -100,6 +100,69 @@ export abstract class IndexStoragePort {
 }
 
 /**
+ * Log levels in order of severity.
+ */
+export const LogLevel: {
+  readonly DEBUG: 0;
+  readonly INFO: 1;
+  readonly WARN: 2;
+  readonly ERROR: 3;
+  readonly SILENT: 4;
+};
+
+export type LogLevelValue = 0 | 1 | 2 | 3 | 4;
+
+/**
+ * Port interface for structured logging operations.
+ * @abstract
+ */
+export abstract class LoggerPort {
+  /** Log a debug-level message */
+  abstract debug(message: string, context?: Record<string, unknown>): void;
+  /** Log an info-level message */
+  abstract info(message: string, context?: Record<string, unknown>): void;
+  /** Log a warning-level message */
+  abstract warn(message: string, context?: Record<string, unknown>): void;
+  /** Log an error-level message */
+  abstract error(message: string, context?: Record<string, unknown>): void;
+  /** Create a child logger with additional base context */
+  abstract child(context: Record<string, unknown>): LoggerPort;
+}
+
+/**
+ * No-operation logger adapter.
+ * Discards all log messages. Zero overhead.
+ */
+export class NoOpLogger extends LoggerPort {
+  debug(message: string, context?: Record<string, unknown>): void;
+  info(message: string, context?: Record<string, unknown>): void;
+  warn(message: string, context?: Record<string, unknown>): void;
+  error(message: string, context?: Record<string, unknown>): void;
+  child(context: Record<string, unknown>): NoOpLogger;
+}
+
+/**
+ * Console logger adapter with structured JSON output.
+ * Supports log level filtering, timestamps, and child loggers.
+ */
+export class ConsoleLogger extends LoggerPort {
+  constructor(options?: {
+    /** Minimum log level to output (default: LogLevel.INFO) */
+    level?: LogLevelValue | 'debug' | 'info' | 'warn' | 'error' | 'silent';
+    /** Base context for all log entries */
+    context?: Record<string, unknown>;
+    /** Custom timestamp function (defaults to ISO string) */
+    timestampFn?: () => string;
+  });
+
+  debug(message: string, context?: Record<string, unknown>): void;
+  info(message: string, context?: Record<string, unknown>): void;
+  warn(message: string, context?: Record<string, unknown>): void;
+  error(message: string, context?: Record<string, unknown>): void;
+  child(context: Record<string, unknown>): ConsoleLogger;
+}
+
+/**
  * Git plumbing interface (from @git-stunts/plumbing).
  */
 export interface GitPlumbing {
@@ -133,7 +196,13 @@ export class GitGraphAdapter extends GraphPersistencePort implements IndexStorag
  * Domain service for graph database operations.
  */
 export class GraphService {
-  constructor(options: { persistence: GraphPersistencePort });
+  constructor(options: {
+    persistence: GraphPersistencePort;
+    /** Maximum allowed message size in bytes (default: 1048576) */
+    maxMessageBytes?: number;
+    /** Logger for structured logging (default: NoOpLogger) */
+    logger?: LoggerPort;
+  });
 
   createNode(options: CreateNodeOptions): Promise<string>;
   readNode(sha: string): Promise<string>;
@@ -170,7 +239,13 @@ export class BitmapIndexBuilder {
  * Provides O(1) lookups via lazy-loaded sharded bitmap data.
  */
 export class BitmapIndexReader {
-  constructor(options: { storage: IndexStoragePort });
+  constructor(options: {
+    storage: IndexStoragePort;
+    /** If true, throw on validation failures; if false, log and return empty (default: false) */
+    strict?: boolean;
+    /** Logger for structured logging (default: NoOpLogger) */
+    logger?: LoggerPort;
+  });
 
   /**
    * Configures the reader with shard OID mappings for lazy loading.
@@ -203,7 +278,12 @@ export class BitmapIndexReader {
  * Service for building and loading the bitmap index from the graph.
  */
 export class IndexRebuildService {
-  constructor(options: { graphService: GraphService; storage: IndexStoragePort });
+  constructor(options: {
+    graphService: GraphService;
+    storage: IndexStoragePort;
+    /** Logger for structured logging (default: NoOpLogger) */
+    logger?: LoggerPort;
+  });
 
   /**
    * Rebuilds the bitmap index by walking the graph from a ref.
@@ -246,8 +326,14 @@ export default class EmptyGraph {
    * Creates a new EmptyGraph instance.
    * @param options Configuration options
    * @param options.persistence Adapter implementing GraphPersistencePort & IndexStoragePort
+   * @param options.maxMessageBytes Maximum allowed message size in bytes (default: 1048576)
+   * @param options.logger Logger for structured logging (default: NoOpLogger)
    */
-  constructor(options: { persistence: GraphPersistencePort & IndexStoragePort });
+  constructor(options: {
+    persistence: GraphPersistencePort & IndexStoragePort;
+    maxMessageBytes?: number;
+    logger?: LoggerPort;
+  });
 
   /**
    * Creates a new graph node as a Git commit.

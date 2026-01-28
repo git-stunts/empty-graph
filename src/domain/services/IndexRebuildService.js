@@ -1,6 +1,8 @@
+import { performance } from 'perf_hooks';
 import BitmapIndexBuilder from './BitmapIndexBuilder.js';
 import BitmapIndexReader from './BitmapIndexReader.js';
 import StreamingBitmapIndexBuilder from './StreamingBitmapIndexBuilder.js';
+import NoOpLogger from '../../infrastructure/adapters/NoOpLogger.js';
 
 /**
  * Service for building and loading the bitmap index from the graph.
@@ -19,10 +21,13 @@ export default class IndexRebuildService {
    * @param {Object} options - Configuration options
    * @param {import('./GraphService.js').default} options.graphService - Graph service for iterating nodes
    * @param {import('../../ports/IndexStoragePort.js').default} options.storage - Storage adapter for persisting index
+   * @param {import('../../ports/LoggerPort.js').default} [options.logger] - Logger for structured logging.
+   *   Defaults to NoOpLogger (no logging).
    */
-  constructor({ graphService, storage }) {
+  constructor({ graphService, storage, logger = new NoOpLogger() }) {
     this.graphService = graphService;
     this.storage = storage;
+    this.logger = logger;
   }
 
   /**
@@ -70,10 +75,46 @@ export default class IndexRebuildService {
    * });
    */
   async rebuild(ref, { limit = 10_000_000, maxMemoryBytes, onFlush, onProgress } = {}) {
-    if (maxMemoryBytes !== undefined) {
-      return this._rebuildStreaming(ref, { limit, maxMemoryBytes, onFlush, onProgress });
+    const mode = maxMemoryBytes !== undefined ? 'streaming' : 'in-memory';
+    this.logger.info('Starting index rebuild', {
+      operation: 'rebuild',
+      ref,
+      limit,
+      mode,
+      maxMemoryBytes: maxMemoryBytes ?? null,
+    });
+
+    const startTime = performance.now();
+
+    try {
+      let treeOid;
+      if (maxMemoryBytes !== undefined) {
+        treeOid = await this._rebuildStreaming(ref, { limit, maxMemoryBytes, onFlush, onProgress });
+      } else {
+        treeOid = await this._rebuildInMemory(ref, { limit, onProgress });
+      }
+
+      const durationMs = performance.now() - startTime;
+      this.logger.info('Index rebuild complete', {
+        operation: 'rebuild',
+        ref,
+        mode,
+        treeOid,
+        durationMs,
+      });
+
+      return treeOid;
+    } catch (err) {
+      const durationMs = performance.now() - startTime;
+      this.logger.error('Index rebuild failed', {
+        operation: 'rebuild',
+        ref,
+        mode,
+        error: err.message,
+        durationMs,
+      });
+      throw err;
     }
-    return this._rebuildInMemory(ref, { limit, onProgress });
   }
 
   /**
@@ -218,9 +259,27 @@ export default class IndexRebuildService {
    * const reader = await rebuildService.load(savedOid);
    */
   async load(treeOid, { strict = true } = {}) {
+    this.logger.debug('Loading index', {
+      operation: 'load',
+      treeOid,
+      strict,
+    });
+
+    const startTime = performance.now();
     const shardOids = await this.storage.readTreeOids(treeOid);
-    const reader = new BitmapIndexReader({ storage: this.storage, strict });
+    const shardCount = Object.keys(shardOids).length;
+
+    const reader = new BitmapIndexReader({ storage: this.storage, strict, logger: this.logger.child({ component: 'BitmapIndexReader' }) });
     reader.setup(shardOids);
+
+    const durationMs = performance.now() - startTime;
+    this.logger.debug('Index loaded', {
+      operation: 'load',
+      treeOid,
+      shardCount,
+      durationMs,
+    });
+
     return reader;
   }
 }

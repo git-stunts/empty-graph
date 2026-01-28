@@ -10,6 +10,9 @@ import BitmapIndexReader from './src/domain/services/BitmapIndexReader.js';
 import IndexRebuildService from './src/domain/services/IndexRebuildService.js';
 import GraphPersistencePort from './src/ports/GraphPersistencePort.js';
 import IndexStoragePort from './src/ports/IndexStoragePort.js';
+import LoggerPort from './src/ports/LoggerPort.js';
+import NoOpLogger from './src/infrastructure/adapters/NoOpLogger.js';
+import ConsoleLogger, { LogLevel } from './src/infrastructure/adapters/ConsoleLogger.js';
 import {
   IndexError,
   ShardLoadError,
@@ -28,6 +31,12 @@ export {
   GraphPersistencePort,
   IndexStoragePort,
   DEFAULT_MAX_MESSAGE_BYTES,
+
+  // Logging infrastructure
+  LoggerPort,
+  NoOpLogger,
+  ConsoleLogger,
+  LogLevel,
 
   // Error types for integrity failure handling
   IndexError,
@@ -77,6 +86,12 @@ export const DEFAULT_INDEX_REF = 'refs/empty-graph/index';
  * @example
  * // With custom message size limit (512KB)
  * const graph = new EmptyGraph({ persistence, maxMessageBytes: 524288 });
+ *
+ * @example
+ * // With logging enabled
+ * import EmptyGraph, { GitGraphAdapter, ConsoleLogger, LogLevel } from '@git-stunts/empty-graph';
+ * const logger = new ConsoleLogger({ level: LogLevel.DEBUG });
+ * const graph = new EmptyGraph({ persistence, logger });
  */
 export default class EmptyGraph {
   /**
@@ -85,13 +100,21 @@ export default class EmptyGraph {
    * @param {GraphPersistencePort & IndexStoragePort} options.persistence - Adapter implementing both persistence ports
    * @param {number} [options.maxMessageBytes=1048576] - Maximum allowed message size in bytes.
    *   Defaults to 1MB (1048576 bytes). Messages exceeding this limit will be rejected.
+   * @param {LoggerPort} [options.logger] - Logger for structured logging. Defaults to NoOpLogger (no logging).
+   *   Use ConsoleLogger for structured JSON output.
    */
-  constructor({ persistence, maxMessageBytes = DEFAULT_MAX_MESSAGE_BYTES }) {
+  constructor({ persistence, maxMessageBytes = DEFAULT_MAX_MESSAGE_BYTES, logger = new NoOpLogger() }) {
     this._persistence = persistence;
-    this.service = new GraphService({ persistence: this._persistence, maxMessageBytes });
+    this._logger = logger;
+    this.service = new GraphService({
+      persistence: this._persistence,
+      maxMessageBytes,
+      logger: this._logger.child({ component: 'GraphService' }),
+    });
     this.rebuildService = new IndexRebuildService({
       graphService: this.service,
-      storage: this._persistence
+      storage: this._persistence,
+      logger: this._logger.child({ component: 'IndexRebuildService' }),
     });
     /** @type {BitmapIndexReader|null} */
     this._index = null;

@@ -5,6 +5,7 @@ const { RoaringBitmap32 } = roaring;
 
 import ShardCorruptionError from '../errors/ShardCorruptionError.js';
 import ShardValidationError from '../errors/ShardValidationError.js';
+import NoOpLogger from '../../infrastructure/adapters/NoOpLogger.js';
 
 /**
  * Current shard format version.
@@ -87,8 +88,10 @@ export default class StreamingBitmapIndexBuilder {
    *   Note: SHA→ID mappings are not counted against this limit as they must remain in memory.
    * @param {Function} [options.onFlush] - Optional callback invoked on each flush.
    *   Receives { flushedBytes, totalFlushedBytes, flushCount }.
+   * @param {import('../../ports/LoggerPort.js').default} [options.logger] - Logger for structured logging.
+   *   Defaults to NoOpLogger (no logging).
    */
-  constructor({ storage, maxMemoryBytes = DEFAULT_MAX_MEMORY_BYTES, onFlush }) {
+  constructor({ storage, maxMemoryBytes = DEFAULT_MAX_MEMORY_BYTES, onFlush, logger = new NoOpLogger() }) {
     if (!storage) {
       throw new Error('StreamingBitmapIndexBuilder requires a storage adapter');
     }
@@ -101,6 +104,9 @@ export default class StreamingBitmapIndexBuilder {
 
     /** @type {Function|undefined} */
     this.onFlush = onFlush;
+
+    /** @type {import('../../ports/LoggerPort.js').default} */
+    this.logger = logger;
 
     /** @type {Map<string, number>} SHA → numeric ID (kept in memory) */
     this.shaToId = new Map();
@@ -209,6 +215,13 @@ export default class StreamingBitmapIndexBuilder {
     this.estimatedBitmapBytes = 0;
     this.flushCount++;
 
+    this.logger.debug('Flushed bitmap data', {
+      operation: 'flush',
+      flushedBytes,
+      totalFlushedBytes: this.totalFlushedBytes,
+      flushCount: this.flushCount,
+    });
+
     // Invoke callback if provided
     if (this.onFlush) {
       this.onFlush({
@@ -234,6 +247,13 @@ export default class StreamingBitmapIndexBuilder {
    * @returns {Promise<string>} OID of the created tree containing the index
    */
   async finalize() {
+    this.logger.debug('Finalizing index', {
+      operation: 'finalize',
+      nodeCount: this.shaToId.size,
+      totalFlushedBytes: this.totalFlushedBytes,
+      flushCount: this.flushCount,
+    });
+
     // Flush any remaining bitmaps
     await this.flush();
 
@@ -281,7 +301,16 @@ export default class StreamingBitmapIndexBuilder {
 
     const flatEntries = [...metaEntries, ...bitmapEntries];
 
-    return this.storage.writeTree(flatEntries);
+    const treeOid = await this.storage.writeTree(flatEntries);
+
+    this.logger.debug('Index finalized', {
+      operation: 'finalize',
+      treeOid,
+      shardCount: flatEntries.length,
+      nodeCount: this.shaToId.size,
+    });
+
+    return treeOid;
   }
 
   /**

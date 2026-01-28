@@ -1,6 +1,7 @@
 import roaring from 'roaring';
 import { createHash } from 'crypto';
 import { ShardLoadError, ShardCorruptionError, ShardValidationError } from '../errors/index.js';
+import NoOpLogger from '../../infrastructure/adapters/NoOpLogger.js';
 
 const { RoaringBitmap32 } = roaring;
 
@@ -69,10 +70,13 @@ export default class BitmapIndexReader {
    * @param {Object} options
    * @param {import('../../ports/IndexStoragePort.js').default} options.storage - Storage adapter for reading index data
    * @param {boolean} [options.strict=false] - If true, throw errors on validation failures; if false, log warnings and return empty shards
+   * @param {import('../../ports/LoggerPort.js').default} [options.logger] - Logger for structured logging.
+   *   Defaults to NoOpLogger (no logging).
    */
-  constructor({ storage, strict = false } = {}) {
+  constructor({ storage, strict = false, logger = new NoOpLogger() } = {}) {
     this.storage = storage;
     this.strict = strict;
+    this.logger = logger;
     this.shardOids = new Map(); // path -> OID
     this.loadedShards = new Map(); // path -> Data
     this._idToShaCache = null; // Lazy-built reverse mapping
@@ -284,10 +288,16 @@ export default class BitmapIndexReader {
           throw err;
         }
         // Non-strict mode: log warning and return empty shard
-        console.warn(
-          `[@git-stunts/empty-graph] Shard validation warning for ${path}: ${err.message}`,
-          { code: err.code, field: err.field, expected: err.expected, actual: err.actual }
-        );
+        this.logger.warn('Shard validation warning', {
+          operation: 'loadShard',
+          shardPath: path,
+          oid,
+          error: err.message,
+          code: err.code,
+          field: err.field,
+          expected: err.expected,
+          actual: err.actual,
+        });
         return format === 'json' ? {} : new RoaringBitmap32();
       }
 
@@ -301,9 +311,12 @@ export default class BitmapIndexReader {
         if (this.strict) {
           throw corruptionError;
         }
-        console.warn(
-          `[@git-stunts/empty-graph] Shard parse warning for ${path}: ${err.message}`
-        );
+        this.logger.warn('Shard parse warning', {
+          operation: 'loadShard',
+          shardPath: path,
+          oid,
+          error: err.message,
+        });
         return format === 'json' ? {} : new RoaringBitmap32();
       }
 
