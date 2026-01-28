@@ -294,6 +294,130 @@ const children = await graph.getChildren(parentSha);
 console.log(children); // ['abc123...']
 ```
 
+### Graph Traversal
+
+The `graph.traversal` service provides graph traversal algorithms for exploring node relationships. Requires a loaded index (call `loadIndex()` first).
+
+#### `async *bfs({ start, maxDepth?, maxNodes?, direction? })`
+
+Breadth-first traversal from a starting node.
+
+**Example:**
+```javascript
+// BFS traversal
+for await (const node of graph.traversal.bfs({ start: sha, maxDepth: 5 })) {
+  console.log(node.sha, node.depth, node.parent);
+}
+```
+
+#### `async *dfs({ start, maxDepth?, maxNodes?, direction? })`
+
+Depth-first traversal from a starting node.
+
+**Example:**
+```javascript
+// DFS traversal
+for await (const node of graph.traversal.dfs({ start: sha })) {
+  console.log(node.sha);
+}
+```
+
+#### `async *ancestors({ sha, maxDepth?, maxNodes? })`
+
+Find all ancestors of a node (follows parent edges).
+
+**Example:**
+```javascript
+// Find all ancestors
+for await (const node of graph.traversal.ancestors({ sha })) {
+  console.log(node.sha);
+}
+```
+
+#### `async *descendants({ sha, maxDepth?, maxNodes? })`
+
+Find all descendants of a node (follows child edges).
+
+**Example:**
+```javascript
+// Find all descendants
+for await (const node of graph.traversal.descendants({ sha })) {
+  console.log(node.sha);
+}
+```
+
+#### `async findPath({ from, to, maxDepth?, maxNodes? })`
+
+Find any path between two nodes.
+
+**Returns:** `Promise<{ found: boolean, path: string[] }>`
+
+**Example:**
+```javascript
+// Find any path between nodes
+const result = await graph.traversal.findPath({ from: a, to: b });
+if (result.found) console.log(result.path); // ['a', 'x', 'y', 'b']
+```
+
+#### `async shortestPath({ from, to, maxDepth?, maxNodes? })`
+
+Find the shortest path between two nodes using bidirectional BFS.
+
+**Returns:** `Promise<{ found: boolean, path: string[], length: number }>`
+
+**Example:**
+```javascript
+// Find shortest path (bidirectional BFS)
+const shortest = await graph.traversal.shortestPath({ from: a, to: b });
+console.log(shortest.path, shortest.length);
+```
+
+#### `async isReachable({ from, to, maxDepth?, maxNodes? })`
+
+Check if one node can reach another.
+
+**Returns:** `Promise<boolean>`
+
+**Example:**
+```javascript
+// Check reachability
+const canReach = await graph.traversal.isReachable({ from: a, to: b });
+```
+
+#### `async commonAncestors({ shas, maxDepth?, maxNodes? })`
+
+Find common ancestors of multiple nodes.
+
+**Returns:** `Promise<string[]>` - Array of common ancestor SHAs
+
+**Example:**
+```javascript
+// Find common ancestors of multiple nodes
+const common = await graph.traversal.commonAncestors({ shas: [a, b, c] });
+```
+
+#### `async *topologicalSort({ start, maxDepth?, maxNodes? })`
+
+Topological sort starting from a node (dependencies before dependents).
+
+**Example:**
+```javascript
+// Topological sort
+for await (const node of graph.traversal.topologicalSort({ start: sha })) {
+  console.log(node.sha); // Dependencies before dependents
+}
+```
+
+#### Traversal Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `maxNodes` | 100000 | Maximum number of nodes to visit |
+| `maxDepth` | 1000 | Maximum traversal depth |
+| `direction` | `'forward'` | Traversal direction: `'forward'` (children) or `'reverse'` (parents). For `bfs`/`dfs` only. |
+
+All traversal generators are async and memory-efficient, suitable for large graphs with millions of nodes.
+
 #### `hasIndex`
 
 Property that indicates whether an index is currently loaded.

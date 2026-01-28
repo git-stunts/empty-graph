@@ -72,12 +72,12 @@ The core is solid. Index build/query path complete. **Graph traversal algorithms
 - [ ] Benchmark: iterateNodes memory profile for streaming 1M+ nodes
 - [ ] Benchmark: Traversal algorithm performance (BFS/DFS/shortestPath at scale)
 
-### Documentation (PARTIAL)
+### ✅ Documentation (COMPLETED 2026-01-28)
 - [x] Add `rebuildIndex()` and `loadIndex()` to README API reference
 - [x] Document health check API in README
-- [ ] Add TraversalService methods to README API reference
-- [ ] Document the index tree structure in ARCHITECTURE.md (currently high-level only)
-- [ ] Add sequence diagrams for index rebuild flow
+- [x] Add TraversalService methods to README API reference (9 methods with examples)
+- [x] Document the index tree structure in ARCHITECTURE.md (shard format, lazy loading, memory characteristics)
+- [x] Add sequence diagrams for index rebuild flow (3 Mermaid diagrams: rebuild, query, traversal)
 
 ---
 
