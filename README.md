@@ -315,6 +315,35 @@ const sha = await graph.createNode({
 });
 ```
 
+#### `async createNodes(nodes)`
+
+Creates multiple nodes in a single batch operation.
+
+**Parameters:**
+- `nodes` (array): Array of `{ message: string, parents?: string[] }` objects. Parents can use placeholder syntax: `$0`, `$1`, etc. to reference nodes created earlier in the same batch.
+
+**Returns:** `Promise<string[]>` - Array of created SHAs in same order as input
+
+**Validation:** All nodes are validated before any are created (fail-fast).
+
+**Example:**
+```javascript
+// Create a chain
+const [root, child, grandchild] = await graph.createNodes([
+  { message: 'Root node' },
+  { message: 'Child', parents: ['$0'] },
+  { message: 'Grandchild', parents: ['$1'] },
+]);
+
+// Create a DAG with merge
+const shas = await graph.createNodes([
+  { message: 'Root' },
+  { message: 'Branch A', parents: ['$0'] },
+  { message: 'Branch B', parents: ['$0'] },
+  { message: 'Merge', parents: ['$1', '$2'] },
+]);
+```
+
 #### `async readNode(sha)`
 
 Reads a node's message.

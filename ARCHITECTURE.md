@@ -103,7 +103,7 @@ Shards are loaded on-demand to minimize startup time and memory usage:
    - `shards_rev_ab.json` (to find parent IDs, if querying ancestry)
    - `shards_fwd_ab.json` (to find child IDs, if querying descendants)
 
-2. **In-memory caching**: Once loaded, shard contents are cached for subsequent queries to the same prefix.
+2. **In-memory caching**: Once loaded, shard contents are cached in an LRU (Least Recently Used) cache for subsequent queries. The cache size is configurable via `maxCachedShards` (default: 100 shards), providing bounded memory usage while keeping frequently-accessed shards hot.
 
 3. **Lazy reverse mapping**: The full ID→SHA reverse mapping is built lazily when the first edge query needs to resolve numeric IDs back to SHAs. This avoids loading all meta shards upfront.
 
