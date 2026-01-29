@@ -1,187 +1,107 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 700">
-  <defs>
-    <!-- Gradient for nodes -->
-    <linearGradient id="nodeGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
-    </linearGradient>
-
-    <!-- Different gradients for different event types -->
-    <linearGradient id="createGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" style="stop-color:#11998e;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#38ef7d;stop-opacity:1" />
-    </linearGradient>
-
-    <linearGradient id="actionGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
-    </linearGradient>
-
-    <linearGradient id="paymentGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" style="stop-color:#f093fb;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#f5576c;stop-opacity:1" />
-    </linearGradient>
-
-    <linearGradient id="completeGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" style="stop-color:#4facfe;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#00f2fe;stop-opacity:1" />
-    </linearGradient>
-
-    <!-- Arrow marker -->
-    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-      <polygon points="0 0, 10 3.5, 0 7" fill="#6b7280"/>
-    </marker>
-
-    <!-- Glow filter for nodes -->
-    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
-      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
-      <feMerge>
-        <feMergeNode in="coloredBlur"/>
-        <feMergeNode in="SourceGraphic"/>
-      </feMerge>
-    </filter>
-
-    <!-- Shadow filter -->
-    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="2" dy="4" stdDeviation="4" flood-color="#000" flood-opacity="0.15"/>
-    </filter>
-  </defs>
-
-  <!-- Background -->
-  <rect width="900" height="700" fill="#fafbfc"/>
-
-  <!-- Subtle grid pattern -->
-  <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-    <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#e5e7eb" stroke-width="0.5"/>
-  </pattern>
-  <rect width="900" height="700" fill="url(#grid)"/>
-
-  <!-- Title -->
-  <text x="450" y="45" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="24" font-weight="600" fill="#1f2937">
-    EMPTY GRAPH: Logical View
-  </text>
-  <text x="450" y="70" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="14" fill="#6b7280">
-    Events and Relationships (DAG Structure)
-  </text>
-
-  <!-- Edges (drawn first so nodes appear on top) -->
-  <!-- OrderCreated -> ItemAdded #1 -->
-  <path d="M 450 175 C 450 220, 280 220, 280 265"
-        fill="none" stroke="#6b7280" stroke-width="2.5" marker-end="url(#arrowhead)"/>
-
-  <!-- OrderCreated -> ItemAdded #2 -->
-  <path d="M 450 175 C 450 220, 620 220, 620 265"
-        fill="none" stroke="#6b7280" stroke-width="2.5" marker-end="url(#arrowhead)"/>
-
-  <!-- ItemAdded #1 -> PaymentReceived -->
-  <path d="M 280 345 C 280 390, 450 390, 450 415"
-        fill="none" stroke="#6b7280" stroke-width="2.5" marker-end="url(#arrowhead)"/>
-
-  <!-- ItemAdded #2 -> PaymentReceived -->
-  <path d="M 620 345 C 620 390, 450 390, 450 415"
-        fill="none" stroke="#6b7280" stroke-width="2.5" marker-end="url(#arrowhead)"/>
-
-  <!-- PaymentReceived -> OrderShipped -->
-  <path d="M 450 495 L 450 545"
-        fill="none" stroke="#6b7280" stroke-width="2.5" marker-end="url(#arrowhead)"/>
-
-  <!-- Edge labels -->
-  <text x="340" y="215" font-family="system-ui, -apple-system, sans-serif" font-size="10" fill="#9ca3af" font-style="italic">depends on</text>
-  <text x="520" y="215" font-family="system-ui, -apple-system, sans-serif" font-size="10" fill="#9ca3af" font-style="italic">depends on</text>
-  <text x="340" y="385" font-family="system-ui, -apple-system, sans-serif" font-size="10" fill="#9ca3af" font-style="italic">requires</text>
-  <text x="520" y="385" font-family="system-ui, -apple-system, sans-serif" font-size="10" fill="#9ca3af" font-style="italic">requires</text>
-  <text x="460" y="525" font-family="system-ui, -apple-system, sans-serif" font-size="10" fill="#9ca3af" font-style="italic">triggers</text>
-
-  <!-- Node 1: OrderCreated (root) -->
-  <g filter="url(#shadow)">
-    <rect x="350" y="100" width="200" height="75" rx="12" fill="url(#createGradient)" filter="url(#glow)"/>
-    <text x="450" y="128" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="16" font-weight="600" fill="white">OrderCreated</text>
-    <rect x="365" y="138" width="170" height="28" rx="4" fill="rgba(255,255,255,0.2)"/>
-    <text x="375" y="156" font-family="monospace" font-size="9" fill="rgba(255,255,255,0.9)">{"orderId": "ORD-001"}</text>
-  </g>
-
-  <!-- Node 2: ItemAdded #1 -->
-  <g filter="url(#shadow)">
-    <rect x="165" y="270" width="230" height="75" rx="12" fill="url(#actionGradient)" filter="url(#glow)"/>
-    <text x="280" y="298" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="16" font-weight="600" fill="white">ItemAdded</text>
-    <rect x="180" y="308" width="200" height="28" rx="4" fill="rgba(255,255,255,0.2)"/>
-    <text x="190" y="326" font-family="monospace" font-size="9" fill="rgba(255,255,255,0.9)">{"sku": "WIDGET-A", "qty": 2}</text>
-  </g>
-
-  <!-- Node 3: ItemAdded #2 -->
-  <g filter="url(#shadow)">
-    <rect x="505" y="270" width="230" height="75" rx="12" fill="url(#actionGradient)" filter="url(#glow)"/>
-    <text x="620" y="298" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="16" font-weight="600" fill="white">ItemAdded</text>
-    <rect x="520" y="308" width="200" height="28" rx="4" fill="rgba(255,255,255,0.2)"/>
-    <text x="530" y="326" font-family="monospace" font-size="9" fill="rgba(255,255,255,0.9)">{"sku": "GADGET-B", "qty": 1}</text>
-  </g>
-
-  <!-- Node 4: PaymentReceived (convergence point) -->
-  <g filter="url(#shadow)">
-    <rect x="330" y="420" width="240" height="75" rx="12" fill="url(#paymentGradient)" filter="url(#glow)"/>
-    <text x="450" y="448" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="16" font-weight="600" fill="white">PaymentReceived</text>
-    <rect x="345" y="458" width="210" height="28" rx="4" fill="rgba(255,255,255,0.2)"/>
-    <text x="355" y="476" font-family="monospace" font-size="9" fill="rgba(255,255,255,0.9)">{"amount": 149.99, "method": "card"}</text>
-  </g>
-
-  <!-- Node 5: OrderShipped -->
-  <g filter="url(#shadow)">
-    <rect x="340" y="550" width="220" height="75" rx="12" fill="url(#completeGradient)" filter="url(#glow)"/>
-    <text x="450" y="578" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="16" font-weight="600" fill="white">OrderShipped</text>
-    <rect x="355" y="588" width="190" height="28" rx="4" fill="rgba(255,255,255,0.2)"/>
-    <text x="365" y="606" font-family="monospace" font-size="9" fill="rgba(255,255,255,0.9)">{"tracking": "1Z999..."}</text>
-  </g>
-
-  <!-- Legend -->
-  <g transform="translate(30, 480)">
-    <rect x="0" y="0" width="130" height="180" rx="8" fill="white" stroke="#e5e7eb" stroke-width="1"/>
-    <text x="65" y="25" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="600" fill="#374151">Event Types</text>
-
-    <rect x="15" y="40" width="16" height="16" rx="3" fill="url(#createGradient)"/>
-    <text x="40" y="52" font-family="system-ui, -apple-system, sans-serif" font-size="10" fill="#6b7280">Creation</text>
-
-    <rect x="15" y="65" width="16" height="16" rx="3" fill="url(#actionGradient)"/>
-    <text x="40" y="77" font-family="system-ui, -apple-system, sans-serif" font-size="10" fill="#6b7280">Action</text>
-
-    <rect x="15" y="90" width="16" height="16" rx="3" fill="url(#paymentGradient)"/>
-    <text x="40" y="102" font-family="system-ui, -apple-system, sans-serif" font-size="10" fill="#6b7280">Payment</text>
-
-    <rect x="15" y="115" width="16" height="16" rx="3" fill="url(#completeGradient)"/>
-    <text x="40" y="127" font-family="system-ui, -apple-system, sans-serif" font-size="10" fill="#6b7280">Completion</text>
-
-    <line x1="15" y1="150" x2="45" y2="150" stroke="#6b7280" stroke-width="2" marker-end="url(#arrowhead)"/>
-    <text x="55" y="154" font-family="system-ui, -apple-system, sans-serif" font-size="10" fill="#6b7280">Edge</text>
-  </g>
-
-  <!-- Key concepts callout -->
-  <g transform="translate(700, 100)">
-    <rect x="0" y="0" width="180" height="140" rx="8" fill="#f0fdf4" stroke="#86efac" stroke-width="1"/>
-    <text x="90" y="25" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="600" fill="#166534">Key Concepts</text>
-
-    <circle cx="20" cy="50" r="4" fill="#22c55e"/>
-    <text x="30" y="54" font-family="system-ui, -apple-system, sans-serif" font-size="10" fill="#166534">Nodes = Events</text>
-
-    <circle cx="20" cy="75" r="4" fill="#22c55e"/>
-    <text x="30" y="79" font-family="system-ui, -apple-system, sans-serif" font-size="10" fill="#166534">Edges = Causality</text>
-
-    <circle cx="20" cy="100" r="4" fill="#22c55e"/>
-    <text x="30" y="104" font-family="system-ui, -apple-system, sans-serif" font-size="10" fill="#166534">Data in nodes</text>
-
-    <circle cx="20" cy="125" r="4" fill="#22c55e"/>
-    <text x="30" y="129" font-family="system-ui, -apple-system, sans-serif" font-size="10" fill="#166534">DAG structure</text>
-  </g>
-
-  <!-- Convergence callout -->
-  <g transform="translate(700, 380)">
-    <rect x="0" y="0" width="180" height="70" rx="8" fill="#fef3c7" stroke="#fbbf24" stroke-width="1"/>
-    <text x="90" y="22" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="600" fill="#92400e">Convergence</text>
-    <text x="15" y="42" font-family="system-ui, -apple-system, sans-serif" font-size="9" fill="#92400e">Multiple parents = event</text>
-    <text x="15" y="56" font-family="system-ui, -apple-system, sans-serif" font-size="9" fill="#92400e">depends on multiple causes</text>
-  </g>
-
-  <!-- Bottom note -->
-  <rect x="200" y="650" width="500" height="35" rx="6" fill="#f3f4f6" stroke="#d1d5db" stroke-width="1"/>
-  <text x="450" y="672" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="12" fill="#4b5563">
-    Git storage abstracted away - just nodes and edges
-  </text>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260124.0452)
+ -->
+<!-- Title: EmptyGraphPerspective Pages: 1 -->
+<svg width="457pt" height="489pt"
+ viewBox="0.00 0.00 457.00 489.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 485.29)">
+<title>EmptyGraphPerspective</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-485.29 453.33,-485.29 453.33,4 -4,4"/>
+<text xml:space="preserve" text-anchor="start" x="73.54" y="-464.99" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="14.00">EmptyGraph Perspective: Logical Event Graph</text>
+<text xml:space="preserve" text-anchor="start" x="108.79" y="-454.79" font-family="Helvetica,sans-Serif" font-size="10.00">Git storage abstracted away — just nodes and edges</text>
+<g id="clust1" class="cluster">
+<title>cluster_notes</title>
+<path fill="white" stroke="#90a4ae" d="M243.33,-314.04C243.33,-314.04 429.33,-314.04 429.33,-314.04 435.33,-314.04 441.33,-320.04 441.33,-326.04 441.33,-326.04 441.33,-429.29 441.33,-429.29 441.33,-435.29 435.33,-441.29 429.33,-441.29 429.33,-441.29 243.33,-441.29 243.33,-441.29 237.33,-441.29 231.33,-435.29 231.33,-429.29 231.33,-429.29 231.33,-326.04 231.33,-326.04 231.33,-320.04 237.33,-314.04 243.33,-314.04"/>
+<text xml:space="preserve" text-anchor="middle" x="336.33" y="-427.79" font-family="Helvetica,sans-Serif" font-size="10.00">Key Concepts</text>
+</g>
+<!-- order_created -->
+<g id="node1" class="node">
+<title>order_created</title>
+<ellipse fill="#c8e6c9" stroke="#2e7d32" stroke-width="2" cx="132.33" cy="-19.8" rx="62.76" ry="19.8"/>
+<text xml:space="preserve" text-anchor="start" x="96.71" y="-20.35" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="11.00">OrderCreated</text>
+<text xml:space="preserve" text-anchor="start" x="95.96" y="-11.25" font-family="Helvetica,sans-Serif" font-size="9.00">orderId: ORD&#45;001</text>
+</g>
+<!-- item_added_1 -->
+<g id="node2" class="node">
+<title>item_added_1</title>
+<ellipse fill="#bbdefb" stroke="#1565c0" stroke-width="2" cx="55.33" cy="-127.15" rx="55.33" ry="19.8"/>
+<text xml:space="preserve" text-anchor="start" x="26.83" y="-127.7" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="11.00">ItemAdded</text>
+<text xml:space="preserve" text-anchor="start" x="24.21" y="-118.6" font-family="Helvetica,sans-Serif" font-size="9.00">sku: WIDGET&#45;1</text>
+</g>
+<!-- item_added_1&#45;&gt;order_created -->
+<g id="edge1" class="edge">
+<title>item_added_1&#45;&gt;order_created</title>
+<path fill="none" stroke="#37474f" stroke-width="2" d="M69.1,-107.31C81.01,-91.01 98.41,-67.21 111.94,-48.69"/>
+<polygon fill="#37474f" stroke="#37474f" stroke-width="2" points="114.18,-50.38 116.64,-42.27 109.66,-47.08 114.18,-50.38"/>
+<text xml:space="preserve" text-anchor="middle" x="117.14" y="-69.8" font-family="Helvetica,sans-Serif" font-size="9.00">caused by</text>
+</g>
+<!-- item_added_2 -->
+<g id="node3" class="node">
+<title>item_added_2</title>
+<ellipse fill="#bbdefb" stroke="#1565c0" stroke-width="2" cx="210.33" cy="-127.15" rx="56.92" ry="19.8"/>
+<text xml:space="preserve" text-anchor="start" x="181.83" y="-127.7" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="11.00">ItemAdded</text>
+<text xml:space="preserve" text-anchor="start" x="178.08" y="-118.6" font-family="Helvetica,sans-Serif" font-size="9.00">sku: GADGET&#45;2</text>
+</g>
+<!-- item_added_2&#45;&gt;order_created -->
+<g id="edge2" class="edge">
+<title>item_added_2&#45;&gt;order_created</title>
+<path fill="none" stroke="#37474f" stroke-width="2" d="M196.39,-107.31C184.26,-90.94 166.53,-66.99 152.8,-48.44"/>
+<polygon fill="#37474f" stroke="#37474f" stroke-width="2" points="155.23,-47.02 148.22,-42.26 150.73,-50.35 155.23,-47.02"/>
+<text xml:space="preserve" text-anchor="middle" x="194.67" y="-69.8" font-family="Helvetica,sans-Serif" font-size="9.00">caused by</text>
+</g>
+<!-- payment -->
+<g id="node4" class="node">
+<title>payment</title>
+<ellipse fill="#e1bee7" stroke="#7b1fa2" stroke-width="2" cx="132.33" cy="-234.49" rx="77.6" ry="19.8"/>
+<text xml:space="preserve" text-anchor="start" x="85.46" y="-235.04" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="11.00">PaymentReceived</text>
+<text xml:space="preserve" text-anchor="start" x="100.46" y="-225.94" font-family="Helvetica,sans-Serif" font-size="9.00">amount: $99.99</text>
+</g>
+<!-- payment&#45;&gt;item_added_1 -->
+<g id="edge3" class="edge">
+<title>payment&#45;&gt;item_added_1</title>
+<path fill="none" stroke="#37474f" stroke-width="2" d="M118.21,-214.17C106.25,-197.81 88.96,-174.15 75.53,-155.79"/>
+<polygon fill="#37474f" stroke="#37474f" stroke-width="2" points="77.87,-154.24 70.89,-149.44 73.35,-157.55 77.87,-154.24"/>
+<text xml:space="preserve" text-anchor="middle" x="113.01" y="-177.15" font-family="Helvetica,sans-Serif" font-size="9.00">requires</text>
+</g>
+<!-- payment&#45;&gt;item_added_2 -->
+<g id="edge4" class="edge">
+<title>payment&#45;&gt;item_added_2</title>
+<path fill="none" stroke="#37474f" stroke-width="2" d="M146.64,-214.17C158.75,-197.81 176.27,-174.15 189.87,-155.79"/>
+<polygon fill="#37474f" stroke="#37474f" stroke-width="2" points="192.07,-157.52 194.58,-149.43 187.57,-154.19 192.07,-157.52"/>
+<text xml:space="preserve" text-anchor="middle" x="190.54" y="-177.15" font-family="Helvetica,sans-Serif" font-size="9.00">requires</text>
+</g>
+<!-- shipped -->
+<g id="node5" class="node">
+<title>shipped</title>
+<ellipse fill="#ffe0b2" stroke="#e65100" stroke-width="2" cx="132.33" cy="-368.04" rx="63.29" ry="19.8"/>
+<text xml:space="preserve" text-anchor="start" x="95.58" y="-368.59" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="11.00">OrderShipped</text>
+<text xml:space="preserve" text-anchor="start" x="100.83" y="-359.49" font-family="Helvetica,sans-Serif" font-size="9.00">tracking: 1Z999</text>
+</g>
+<!-- shipped&#45;&gt;payment -->
+<g id="edge5" class="edge">
+<title>shipped&#45;&gt;payment</title>
+<path fill="none" stroke="#37474f" stroke-width="2" d="M132.33,-347.35C132.33,-325.72 132.33,-290.73 132.33,-265.64"/>
+<polygon fill="#37474f" stroke="#37474f" stroke-width="2" points="135.13,-265.92 132.33,-257.92 129.53,-265.92 135.13,-265.92"/>
+<text xml:space="preserve" text-anchor="middle" x="156.71" y="-284.49" font-family="Helvetica,sans-Serif" font-size="9.00">triggered by</text>
+</g>
+<!-- note -->
+<g id="node6" class="node">
+<title>note</title>
+<polygon fill="#fafafa" stroke="none" stroke-width="2" points="433.58,-414.04 239.08,-414.04 239.08,-322.04 433.58,-322.04 433.58,-414.04"/>
+<text xml:space="preserve" text-anchor="start" x="253.08" y="-394.59" font-family="Helvetica,sans-Serif" font-size="11.00">• </text>
+<text xml:space="preserve" text-anchor="start" x="259.83" y="-394.59" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="11.00">Nodes</text>
+<text xml:space="preserve" text-anchor="start" x="293.58" y="-394.59" font-family="Helvetica,sans-Serif" font-size="11.00"> = Events with data</text>
+<text xml:space="preserve" text-anchor="start" x="253.08" y="-374.59" font-family="Helvetica,sans-Serif" font-size="11.00">• </text>
+<text xml:space="preserve" text-anchor="start" x="259.83" y="-374.59" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="11.00">Edges</text>
+<text xml:space="preserve" text-anchor="start" x="292.83" y="-374.59" font-family="Helvetica,sans-Serif" font-size="11.00"> = Causal relationships</text>
+<text xml:space="preserve" text-anchor="start" x="253.08" y="-354.59" font-family="Helvetica,sans-Serif" font-size="11.00">• </text>
+<text xml:space="preserve" text-anchor="start" x="259.83" y="-354.59" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="11.00">Structure</text>
+<text xml:space="preserve" text-anchor="start" x="309.33" y="-354.59" font-family="Helvetica,sans-Serif" font-size="11.00"> = DAG (no cycles)</text>
+<text xml:space="preserve" text-anchor="start" x="253.08" y="-334.59" font-family="Helvetica,sans-Serif" font-size="11.00">• </text>
+<text xml:space="preserve" text-anchor="start" x="259.83" y="-334.59" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="11.00">Storage</text>
+<text xml:space="preserve" text-anchor="start" x="301.08" y="-334.59" font-family="Helvetica,sans-Serif" font-size="11.00"> = Invisible (Git internals)</text>
+</g>
+</g>
 </svg>

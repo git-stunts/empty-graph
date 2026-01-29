@@ -1,156 +1,159 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 700">
-  <defs>
-    <!-- Gradients -->
-    <linearGradient id="commitGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" style="stop-color:#4a90d9;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#357abd;stop-opacity:1" />
-    </linearGradient>
-    <linearGradient id="treeGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" style="stop-color:#e8a838;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#d4922a;stop-opacity:1" />
-    </linearGradient>
-    <linearGradient id="legendGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" style="stop-color:#f8f9fa;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#e9ecef;stop-opacity:1" />
-    </linearGradient>
-
-    <!-- Arrow marker -->
-    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-      <polygon points="0 0, 10 3.5, 0 7" fill="#6c757d" />
-    </marker>
-    <marker id="arrowheadTree" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
-      <polygon points="0 0, 8 3, 0 6" fill="#d4922a" />
-    </marker>
-
-    <!-- Drop shadow filter -->
-    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="2" dy="2" stdDeviation="3" flood-opacity="0.15"/>
-    </filter>
-  </defs>
-
-  <!-- Background -->
-  <rect width="900" height="700" fill="#f8fafc"/>
-
-  <!-- Title -->
-  <text x="450" y="35" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="22" font-weight="600" fill="#1e293b">Git's View of an EMPTY GRAPH</text>
-  <text x="450" y="58" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="13" fill="#64748b">E-Commerce Event Graph Example</text>
-
-  <!-- Empty Tree (central element) -->
-  <g transform="translate(700, 320)">
-    <rect x="-75" y="-45" width="150" height="90" rx="12" fill="url(#treeGradient)" filter="url(#shadow)"/>
-    <text x="0" y="-15" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="600" fill="#fff">EMPTY TREE</text>
-    <text x="0" y="5" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10" fill="#fff" opacity="0.9">4b825dc...</text>
-    <text x="0" y="25" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="9" fill="#fff" opacity="0.8">(no files)</text>
-  </g>
-
-  <!-- Commit: order-created (root) -->
-  <g transform="translate(120, 150)">
-    <rect x="-90" y="-40" width="180" height="80" rx="10" fill="url(#commitGradient)" filter="url(#shadow)"/>
-    <text x="0" y="-18" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10" fill="#fff" opacity="0.8">a1b2c3d</text>
-    <text x="0" y="2" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="600" fill="#fff">order-created</text>
-    <text x="0" y="20" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="9" fill="#fff" opacity="0.7">{"orderId": "ORD-001"}</text>
-    <!-- Arrow to empty tree -->
-    <line x1="90" y1="0" x2="530" y2="170" stroke="#d4922a" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrowheadTree)" opacity="0.6"/>
-  </g>
-
-  <!-- Commit: item-added -->
-  <g transform="translate(120, 300)">
-    <rect x="-90" y="-40" width="180" height="80" rx="10" fill="url(#commitGradient)" filter="url(#shadow)"/>
-    <text x="0" y="-18" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10" fill="#fff" opacity="0.8">b2c3d4e</text>
-    <text x="0" y="2" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="600" fill="#fff">item-added</text>
-    <text x="0" y="20" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="9" fill="#fff" opacity="0.7">{"sku": "WIDGET-A"}</text>
-    <!-- Arrow to empty tree -->
-    <line x1="90" y1="0" x2="530" y2="20" stroke="#d4922a" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrowheadTree)" opacity="0.6"/>
-  </g>
-
-  <!-- Commit: item-added-2 -->
-  <g transform="translate(120, 450)">
-    <rect x="-90" y="-40" width="180" height="80" rx="10" fill="url(#commitGradient)" filter="url(#shadow)"/>
-    <text x="0" y="-18" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10" fill="#fff" opacity="0.8">c3d4e5f</text>
-    <text x="0" y="2" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="600" fill="#fff">item-added-2</text>
-    <text x="0" y="20" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="9" fill="#fff" opacity="0.7">{"sku": "GADGET-B"}</text>
-    <!-- Arrow to empty tree -->
-    <line x1="90" y1="0" x2="530" y2="-130" stroke="#d4922a" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrowheadTree)" opacity="0.6"/>
-  </g>
-
-  <!-- Commit: payment-received (merge) -->
-  <g transform="translate(350, 375)">
-    <rect x="-90" y="-40" width="180" height="80" rx="10" fill="url(#commitGradient)" filter="url(#shadow)"/>
-    <rect x="-90" y="-40" width="180" height="80" rx="10" fill="none" stroke="#22c55e" stroke-width="2"/>
-    <text x="0" y="-18" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10" fill="#fff" opacity="0.8">d4e5f6g</text>
-    <text x="0" y="2" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="600" fill="#fff">payment-received</text>
-    <text x="0" y="20" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="9" fill="#fff" opacity="0.7">{"amount": 149.99}</text>
-    <!-- Arrow to empty tree -->
-    <line x1="90" y1="-20" x2="255" y2="-55" stroke="#d4922a" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrowheadTree)" opacity="0.6"/>
-  </g>
-
-  <!-- Commit: order-shipped -->
-  <g transform="translate(350, 530)">
-    <rect x="-90" y="-40" width="180" height="80" rx="10" fill="url(#commitGradient)" filter="url(#shadow)"/>
-    <text x="0" y="-18" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10" fill="#fff" opacity="0.8">e5f6g7h</text>
-    <text x="0" y="2" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="600" fill="#fff">order-shipped</text>
-    <text x="0" y="20" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="9" fill="#fff" opacity="0.7">{"tracking": "1Z999..."}</text>
-    <!-- Arrow to empty tree -->
-    <line x1="90" y1="-20" x2="255" y2="-190" stroke="#d4922a" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrowheadTree)" opacity="0.6"/>
-  </g>
-
-  <!-- Parent arrows (DAG edges) -->
-  <!-- order-created -> item-added -->
-  <line x1="120" y1="210" x2="120" y2="252" stroke="#6c757d" stroke-width="2.5" marker-end="url(#arrowhead)"/>
-
-  <!-- order-created -> item-added-2 -->
-  <path d="M 80 210 Q 50 330 80 402" fill="none" stroke="#6c757d" stroke-width="2.5" marker-end="url(#arrowhead)"/>
-
-  <!-- item-added -> payment-received -->
-  <line x1="210" y1="310" x2="255" y2="355" stroke="#6c757d" stroke-width="2.5" marker-end="url(#arrowhead)"/>
-
-  <!-- item-added-2 -> payment-received -->
-  <line x1="210" y1="440" x2="255" y2="395" stroke="#6c757d" stroke-width="2.5" marker-end="url(#arrowhead)"/>
-
-  <!-- payment-received -> order-shipped -->
-  <line x1="350" y1="423" x2="350" y2="482" stroke="#6c757d" stroke-width="2.5" marker-end="url(#arrowhead)"/>
-
-  <!-- Legend -->
-  <g transform="translate(580, 500)">
-    <rect x="0" y="0" width="280" height="170" rx="8" fill="url(#legendGradient)" stroke="#dee2e6" stroke-width="1" filter="url(#shadow)"/>
-    <text x="140" y="25" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#1e293b">Legend</text>
-
-    <!-- Commit box -->
-    <rect x="15" y="42" width="40" height="25" rx="4" fill="url(#commitGradient)"/>
-    <text x="65" y="59" font-family="system-ui, -apple-system, sans-serif" font-size="11" fill="#495057">Commit (event node)</text>
-
-    <!-- Empty tree box -->
-    <rect x="15" y="77" width="40" height="25" rx="4" fill="url(#treeGradient)"/>
-    <text x="65" y="94" font-family="system-ui, -apple-system, sans-serif" font-size="11" fill="#495057">Empty Tree (shared by all)</text>
-
-    <!-- Parent arrow -->
-    <line x1="15" y1="120" x2="50" y2="120" stroke="#6c757d" stroke-width="2.5" marker-end="url(#arrowhead)"/>
-    <text x="65" y="124" font-family="system-ui, -apple-system, sans-serif" font-size="11" fill="#495057">Parent relationship (DAG)</text>
-
-    <!-- Tree pointer -->
-    <line x1="15" y1="148" x2="50" y2="148" stroke="#d4922a" stroke-width="1.5" stroke-dasharray="4,3"/>
-    <text x="65" y="152" font-family="system-ui, -apple-system, sans-serif" font-size="11" fill="#495057">Points to tree (always empty)</text>
-  </g>
-
-  <!-- Callout note -->
-  <g transform="translate(580, 85)">
-    <rect x="0" y="0" width="280" height="75" rx="8" fill="#fef3c7" stroke="#f59e0b" stroke-width="1.5"/>
-    <text x="15" y="25" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="600" fill="#92400e">Key Insight</text>
-    <text x="15" y="45" font-family="system-ui, -apple-system, sans-serif" font-size="10" fill="#78350f">No files created - data lives in</text>
-    <text x="15" y="60" font-family="system-ui, -apple-system, sans-serif" font-size="10" fill="#78350f">commit messages as JSON events</text>
-  </g>
-
-  <!-- Merge indicator -->
-  <g transform="translate(435, 345)">
-    <rect x="0" y="0" width="65" height="20" rx="10" fill="#22c55e"/>
-    <text x="32" y="14" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="9" font-weight="600" fill="#fff">MERGE</text>
-  </g>
-
-  <!-- Working directory note -->
-  <g transform="translate(580, 180)">
-    <rect x="0" y="0" width="280" height="55" rx="8" fill="#e0f2fe" stroke="#0284c7" stroke-width="1"/>
-    <text x="15" y="22" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="500" fill="#0369a1">Working directory is empty</text>
-    <text x="15" y="40" font-family="system-ui, -apple-system, sans-serif" font-size="10" fill="#0c4a6e">Graph is "invisible" - only exists in .git/</text>
-  </g>
-
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260124.0452)
+ -->
+<!-- Title: GitPerspective Pages: 1 -->
+<svg width="799pt" height="482pt"
+ viewBox="0.00 0.00 799.00 482.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 477.75)">
+<title>GitPerspective</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-477.75 795.12,-477.75 795.12,4 -4,4"/>
+<text xml:space="preserve" text-anchor="start" x="279.69" y="-457.45" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="14.00">Git Perspective: Empty Tree Pattern</text>
+<text xml:space="preserve" text-anchor="start" x="264.31" y="-447.25" font-family="Helvetica,sans-Serif" font-size="10.00">All commits point to the same empty tree — no files created</text>
+<g id="clust1" class="cluster">
+<title>cluster_commits</title>
+<polygon fill="white" stroke="#90a4ae" stroke-dasharray="5,2" points="178.12,-8 178.12,-433.75 426.12,-433.75 426.12,-8 178.12,-8"/>
+<text xml:space="preserve" text-anchor="middle" x="302.12" y="-420.25" font-family="Helvetica,sans-Serif" font-size="10.00">Commits (contain event data in messages)</text>
+</g>
+<g id="clust2" class="cluster">
+<title>cluster_legend</title>
+<path fill="white" stroke="#bdbdbd" d="M707.12,-125.75C707.12,-125.75 771.12,-125.75 771.12,-125.75 777.12,-125.75 783.12,-131.75 783.12,-137.75 783.12,-137.75 783.12,-421.75 783.12,-421.75 783.12,-427.75 777.12,-433.75 771.12,-433.75 771.12,-433.75 707.12,-433.75 707.12,-433.75 701.12,-433.75 695.12,-427.75 695.12,-421.75 695.12,-421.75 695.12,-137.75 695.12,-137.75 695.12,-131.75 701.12,-125.75 707.12,-125.75"/>
+<text xml:space="preserve" text-anchor="middle" x="739.12" y="-420.25" font-family="Helvetica,sans-Serif" font-size="10.00">Legend</text>
+</g>
+<!-- empty_tree -->
+<g id="node1" class="node">
+<title>empty_tree</title>
+<path fill="#fff3e0" stroke="#e65100" stroke-width="2" d="M84.25,-404.25C84.25,-406.18 65.37,-407.75 42.12,-407.75 18.88,-407.75 0,-406.18 0,-404.25 0,-404.25 0,-372.75 0,-372.75 0,-370.82 18.88,-369.25 42.12,-369.25 65.37,-369.25 84.25,-370.82 84.25,-372.75 84.25,-372.75 84.25,-404.25 84.25,-404.25"/>
+<path fill="none" stroke="#e65100" stroke-width="2" d="M84.25,-404.25C84.25,-402.32 65.37,-400.75 42.12,-400.75 18.88,-400.75 0,-402.32 0,-404.25"/>
+<text xml:space="preserve" text-anchor="start" x="12.5" y="-389.05" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="11.00">Empty Tree</text>
+<text xml:space="preserve" text-anchor="start" x="8" y="-379.95" font-family="Helvetica,sans-Serif" font-size="9.00" fill="#e65100">4b825dc642cb...</text>
+</g>
+<!-- order_created -->
+<g id="node2" class="node">
+<title>order_created</title>
+<path fill="#e3f2fd" stroke="#1976d2" stroke-width="2" d="M310.62,-406.5C310.62,-406.5 237.62,-406.5 237.62,-406.5 231.62,-406.5 225.62,-400.5 225.62,-394.5 225.62,-394.5 225.62,-382.5 225.62,-382.5 225.62,-376.5 231.62,-370.5 237.62,-370.5 237.62,-370.5 310.62,-370.5 310.62,-370.5 316.62,-370.5 322.62,-376.5 322.62,-382.5 322.62,-382.5 322.62,-394.5 322.62,-394.5 322.62,-400.5 316.62,-406.5 310.62,-406.5"/>
+<text xml:space="preserve" text-anchor="start" x="252.38" y="-393.05" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="11.00">a1b2c3d</text>
+<text xml:space="preserve" text-anchor="start" x="246.38" y="-383.95" font-family="Helvetica,sans-Serif" font-size="9.00">order&#45;created</text>
+<text xml:space="preserve" text-anchor="start" x="233.62" y="-375.9" font-family="Helvetica,sans-Serif" font-size="8.00" fill="#666666">{&quot;orderId&quot;:&quot;ORD&#45;001&quot;}</text>
+</g>
+<!-- order_created&#45;&gt;empty_tree -->
+<g id="edge6" class="edge">
+<title>order_created&#45;&gt;empty_tree</title>
+<path fill="none" stroke="#e65100" stroke-width="1.5" stroke-dasharray="5,2" d="M224.64,-395C224.64,-395 97.18,-395 97.18,-395"/>
+<polygon fill="#e65100" stroke="#e65100" stroke-width="1.5" points="97.18,-391.5 87.18,-395 97.18,-398.5 97.18,-391.5"/>
+</g>
+<!-- item_added_1 -->
+<g id="node3" class="node">
+<title>item_added_1</title>
+<path fill="#e3f2fd" stroke="#1976d2" stroke-width="2" d="M260.38,-287.5C260.38,-287.5 197.88,-287.5 197.88,-287.5 191.88,-287.5 185.88,-281.5 185.88,-275.5 185.88,-275.5 185.88,-263.5 185.88,-263.5 185.88,-257.5 191.88,-251.5 197.88,-251.5 197.88,-251.5 260.38,-251.5 260.38,-251.5 266.38,-251.5 272.38,-257.5 272.38,-263.5 272.38,-263.5 272.38,-275.5 272.38,-275.5 272.38,-281.5 266.38,-287.5 260.38,-287.5"/>
+<text xml:space="preserve" text-anchor="start" x="207.38" y="-274.05" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="11.00">b2c3d4e</text>
+<text xml:space="preserve" text-anchor="start" x="205.88" y="-264.95" font-family="Helvetica,sans-Serif" font-size="9.00">item&#45;added</text>
+<text xml:space="preserve" text-anchor="start" x="193.88" y="-256.9" font-family="Helvetica,sans-Serif" font-size="8.00" fill="#666666">{&quot;sku&quot;:&quot;WIDGET&#45;1&quot;}</text>
+</g>
+<!-- order_created&#45;&gt;item_added_1 -->
+<g id="edge1" class="edge">
+<title>order_created&#45;&gt;item_added_1</title>
+<path fill="none" stroke="#616161" stroke-width="1.5" d="M249,-369.64C249,-369.64 249,-300.54 249,-300.54"/>
+<polygon fill="#616161" stroke="#616161" stroke-width="1.5" points="252.5,-300.54 249,-290.54 245.5,-300.54 252.5,-300.54"/>
+<text xml:space="preserve" text-anchor="middle" x="268.25" y="-324.7" font-family="Helvetica,sans-Serif" font-size="9.00">parent</text>
+</g>
+<!-- item_added_2 -->
+<g id="node4" class="node">
+<title>item_added_2</title>
+<path fill="#e3f2fd" stroke="#1976d2" stroke-width="2" d="M406.12,-287.5C406.12,-287.5 342.12,-287.5 342.12,-287.5 336.12,-287.5 330.12,-281.5 330.12,-275.5 330.12,-275.5 330.12,-263.5 330.12,-263.5 330.12,-257.5 336.12,-251.5 342.12,-251.5 342.12,-251.5 406.12,-251.5 406.12,-251.5 412.12,-251.5 418.12,-257.5 418.12,-263.5 418.12,-263.5 418.12,-275.5 418.12,-275.5 418.12,-281.5 412.12,-287.5 406.12,-287.5"/>
+<text xml:space="preserve" text-anchor="start" x="353.88" y="-274.05" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="11.00">c3d4e5f</text>
+<text xml:space="preserve" text-anchor="start" x="350.88" y="-264.95" font-family="Helvetica,sans-Serif" font-size="9.00">item&#45;added</text>
+<text xml:space="preserve" text-anchor="start" x="338.12" y="-256.9" font-family="Helvetica,sans-Serif" font-size="8.00" fill="#666666">{&quot;sku&quot;:&quot;GADGET&#45;2&quot;}</text>
+</g>
+<!-- order_created&#45;&gt;item_added_2 -->
+<g id="edge2" class="edge">
+<title>order_created&#45;&gt;item_added_2</title>
+<path fill="none" stroke="#616161" stroke-width="1.5" d="M310.75,-369.67C310.75,-337.64 310.75,-276 310.75,-276 310.75,-276 317.15,-276 317.15,-276"/>
+<polygon fill="#616161" stroke="#616161" stroke-width="1.5" points="317.15,-279.5 327.15,-276 317.15,-272.5 317.15,-279.5"/>
+<text xml:space="preserve" text-anchor="middle" x="377.25" y="-324.7" font-family="Helvetica,sans-Serif" font-size="9.00">parent</text>
+</g>
+<!-- item_added_1&#45;&gt;empty_tree -->
+<g id="edge7" class="edge">
+<title>item_added_1&#45;&gt;empty_tree</title>
+<path fill="none" stroke="#e65100" stroke-width="1.5" stroke-dasharray="5,2" d="M205.75,-288.5C205.75,-320.81 205.75,-383 205.75,-383 205.75,-383 97.39,-383 97.39,-383"/>
+<polygon fill="#e65100" stroke="#e65100" stroke-width="1.5" points="97.39,-379.5 87.39,-383 97.39,-386.5 97.39,-379.5"/>
+</g>
+<!-- payment -->
+<g id="node5" class="node">
+<title>payment</title>
+<path fill="#e8f5e9" stroke="#388e3c" stroke-width="2" d="M286.88,-169.75C286.88,-169.75 221.38,-169.75 221.38,-169.75 215.38,-169.75 209.38,-163.75 209.38,-157.75 209.38,-157.75 209.38,-145.75 209.38,-145.75 209.38,-139.75 215.38,-133.75 221.38,-133.75 221.38,-133.75 286.88,-133.75 286.88,-133.75 292.88,-133.75 298.88,-139.75 298.88,-145.75 298.88,-145.75 298.88,-157.75 298.88,-157.75 298.88,-163.75 292.88,-169.75 286.88,-169.75"/>
+<text xml:space="preserve" text-anchor="start" x="233.88" y="-156.3" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="11.00">d4e5f6a</text>
+<text xml:space="preserve" text-anchor="start" x="217.38" y="-147.2" font-family="Helvetica,sans-Serif" font-size="9.00">payment&#45;received</text>
+<text xml:space="preserve" text-anchor="start" x="223.38" y="-139.15" font-family="Helvetica,sans-Serif" font-size="8.00" fill="#666666">{&quot;amount&quot;:99.99}</text>
+</g>
+<!-- item_added_1&#45;&gt;payment -->
+<g id="edge3" class="edge">
+<title>item_added_1&#45;&gt;payment</title>
+<path fill="none" stroke="#616161" stroke-width="1.5" d="M240.88,-250.58C240.88,-250.58 240.88,-182.89 240.88,-182.89"/>
+<polygon fill="#616161" stroke="#616161" stroke-width="1.5" points="244.38,-182.89 240.88,-172.89 237.38,-182.89 244.38,-182.89"/>
+<text xml:space="preserve" text-anchor="middle" x="262.25" y="-206.95" font-family="Helvetica,sans-Serif" font-size="9.00">parent</text>
+</g>
+<!-- item_added_2&#45;&gt;empty_tree -->
+<g id="edge8" class="edge">
+<title>item_added_2&#45;&gt;empty_tree</title>
+<path fill="none" stroke="#e65100" stroke-width="1.5" stroke-dasharray="5,2" d="M374.12,-288.33C374.12,-305.43 374.12,-328 374.12,-328 374.12,-328 42.12,-328 42.12,-328 42.12,-328 42.12,-356.08 42.12,-356.08"/>
+<polygon fill="#e65100" stroke="#e65100" stroke-width="1.5" points="38.63,-356.08 42.13,-366.08 45.63,-356.08 38.63,-356.08"/>
+</g>
+<!-- item_added_2&#45;&gt;payment -->
+<g id="edge4" class="edge">
+<title>item_added_2&#45;&gt;payment</title>
+<path fill="none" stroke="#616161" stroke-width="1.5" d="M329.36,-264C307.41,-264 285.62,-264 285.62,-264 285.62,-264 285.62,-182.81 285.62,-182.81"/>
+<polygon fill="#616161" stroke="#616161" stroke-width="1.5" points="289.13,-182.81 285.63,-172.81 282.13,-182.81 289.13,-182.81"/>
+<text xml:space="preserve" text-anchor="middle" x="371.25" y="-206.95" font-family="Helvetica,sans-Serif" font-size="9.00">parent</text>
+</g>
+<!-- payment&#45;&gt;empty_tree -->
+<g id="edge9" class="edge">
+<title>payment&#45;&gt;empty_tree</title>
+<path fill="none" stroke="#e65100" stroke-width="1.5" stroke-dasharray="5,2" d="M208.39,-152C151.9,-152 63.19,-152 63.19,-152 63.19,-152 63.19,-356.07 63.19,-356.07"/>
+<polygon fill="#e65100" stroke="#e65100" stroke-width="1.5" points="59.69,-356.07 63.19,-366.07 66.69,-356.07 59.69,-356.07"/>
+</g>
+<!-- shipped -->
+<g id="node6" class="node">
+<title>shipped</title>
+<path fill="#e3f2fd" stroke="#1976d2" stroke-width="2" d="M285.75,-52C285.75,-52 222.5,-52 222.5,-52 216.5,-52 210.5,-46 210.5,-40 210.5,-40 210.5,-28 210.5,-28 210.5,-22 216.5,-16 222.5,-16 222.5,-16 285.75,-16 285.75,-16 291.75,-16 297.75,-22 297.75,-28 297.75,-28 297.75,-40 297.75,-40 297.75,-46 291.75,-52 285.75,-52"/>
+<text xml:space="preserve" text-anchor="start" x="233.88" y="-38.55" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="11.00">e5f6a7b</text>
+<text xml:space="preserve" text-anchor="start" x="225.25" y="-29.45" font-family="Helvetica,sans-Serif" font-size="9.00">order&#45;shipped</text>
+<text xml:space="preserve" text-anchor="start" x="218.5" y="-21.4" font-family="Helvetica,sans-Serif" font-size="8.00" fill="#666666">{&quot;tracking&quot;:&quot;1Z999&quot;}</text>
+</g>
+<!-- payment&#45;&gt;shipped -->
+<g id="edge5" class="edge">
+<title>payment&#45;&gt;shipped</title>
+<path fill="none" stroke="#616161" stroke-width="1.5" d="M254.12,-132.83C254.12,-132.83 254.12,-65.14 254.12,-65.14"/>
+<polygon fill="#616161" stroke="#616161" stroke-width="1.5" points="257.63,-65.14 254.13,-55.14 250.63,-65.14 257.63,-65.14"/>
+<text xml:space="preserve" text-anchor="middle" x="267.25" y="-89.2" font-family="Helvetica,sans-Serif" font-size="9.00">parent</text>
+</g>
+<!-- shipped&#45;&gt;empty_tree -->
+<g id="edge10" class="edge">
+<title>shipped&#45;&gt;empty_tree</title>
+<path fill="none" stroke="#e65100" stroke-width="1.5" stroke-dasharray="5,2" d="M209.74,-34C142.12,-34 21.06,-34 21.06,-34 21.06,-34 21.06,-356.15 21.06,-356.15"/>
+<polygon fill="#e65100" stroke="#e65100" stroke-width="1.5" points="17.56,-356.15 21.06,-366.15 24.56,-356.15 17.56,-356.15"/>
+</g>
+<!-- leg1 -->
+<g id="node7" class="node">
+<title>leg1</title>
+<path fill="#e3f2fd" stroke="#1976d2" stroke-width="2" d="M754.12,-406.5C754.12,-406.5 724.12,-406.5 724.12,-406.5 718.12,-406.5 712.12,-400.5 712.12,-394.5 712.12,-394.5 712.12,-382.5 712.12,-382.5 712.12,-376.5 718.12,-370.5 724.12,-370.5 724.12,-370.5 754.12,-370.5 754.12,-370.5 760.12,-370.5 766.12,-376.5 766.12,-382.5 766.12,-382.5 766.12,-394.5 766.12,-394.5 766.12,-400.5 760.12,-406.5 754.12,-406.5"/>
+<text xml:space="preserve" text-anchor="middle" x="739.12" y="-384.05" font-family="Helvetica,sans-Serif" font-size="11.00">Commit</text>
+</g>
+<!-- leg2 -->
+<g id="node8" class="node">
+<title>leg2</title>
+<path fill="#e8f5e9" stroke="#388e3c" stroke-width="2" d="M754.12,-287.5C754.12,-287.5 724.12,-287.5 724.12,-287.5 718.12,-287.5 712.12,-281.5 712.12,-275.5 712.12,-275.5 712.12,-263.5 712.12,-263.5 712.12,-257.5 718.12,-251.5 724.12,-251.5 724.12,-251.5 754.12,-251.5 754.12,-251.5 760.12,-251.5 766.12,-257.5 766.12,-263.5 766.12,-263.5 766.12,-275.5 766.12,-275.5 766.12,-281.5 760.12,-287.5 754.12,-287.5"/>
+<text xml:space="preserve" text-anchor="middle" x="739.12" y="-265.05" font-family="Helvetica,sans-Serif" font-size="11.00">Merge</text>
+</g>
+<!-- leg1&#45;&gt;leg2 -->
+<!-- leg3 -->
+<g id="node9" class="node">
+<title>leg3</title>
+<path fill="#fff3e0" stroke="#e65100" stroke-width="2" d="M775.25,-166.48C775.25,-168.28 759.06,-169.75 739.12,-169.75 719.19,-169.75 703,-168.28 703,-166.48 703,-166.48 703,-137.02 703,-137.02 703,-135.22 719.19,-133.75 739.12,-133.75 759.06,-133.75 775.25,-135.22 775.25,-137.02 775.25,-137.02 775.25,-166.48 775.25,-166.48"/>
+<path fill="none" stroke="#e65100" stroke-width="2" d="M775.25,-166.48C775.25,-164.67 759.06,-163.2 739.12,-163.2 719.19,-163.2 703,-164.67 703,-166.48"/>
+<text xml:space="preserve" text-anchor="middle" x="739.12" y="-147.3" font-family="Helvetica,sans-Serif" font-size="11.00">Empty Tree</text>
+</g>
+<!-- leg2&#45;&gt;leg3 -->
+</g>
 </svg>
