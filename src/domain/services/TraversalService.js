@@ -9,6 +9,7 @@
 
 import NoOpLogger from '../../infrastructure/adapters/NoOpLogger.js';
 import TraversalError from '../errors/TraversalError.js';
+import MinHeap from '../utils/MinHeap.js';
 
 /**
  * @typedef {'forward' | 'reverse'} TraversalDirection
@@ -323,6 +324,97 @@ export default class TraversalService {
 
     this._logger.debug('shortestPath not found', { from, to });
     return { found: false, path: [], length: -1 };
+  }
+
+  /**
+   * Finds shortest path using Dijkstra's algorithm with custom edge weights.
+   *
+   * @param {Object} options
+   * @param {string} options.from - Starting SHA
+   * @param {string} options.to - Target SHA
+   * @param {Function} [options.weightProvider] - Callback (fromSha, toSha) => number, defaults to 1
+   * @param {string} [options.direction='children'] - 'children' or 'parents'
+   * @returns {Promise<{path: string[], totalCost: number}>}
+   * @throws {TraversalError} If no path exists between from and to
+   */
+  async weightedShortestPath({ from, to, weightProvider = () => 1, direction = 'children' }) {
+    this._logger.debug('weightedShortestPath started', { from, to, direction });
+
+    // Initialize distances map with Infinity for all except `from` (0)
+    const distances = new Map();
+    distances.set(from, 0);
+
+    // Track previous node for path reconstruction
+    const previous = new Map();
+
+    // Use MinHeap as priority queue
+    const pq = new MinHeap();
+    pq.insert(from, 0);
+
+    // Track visited nodes
+    const visited = new Set();
+
+    while (!pq.isEmpty()) {
+      const current = pq.extractMin();
+
+      // Skip if already visited
+      if (visited.has(current)) {
+        continue;
+      }
+      visited.add(current);
+
+      // If we reached the target, reconstruct and return path
+      if (current === to) {
+        const path = this._reconstructWeightedPath(previous, from, to);
+        const totalCost = distances.get(to);
+        this._logger.debug('weightedShortestPath found', { pathLength: path.length, totalCost });
+        return { path, totalCost };
+      }
+
+      // Get neighbors based on direction
+      const neighbors =
+        direction === 'children'
+          ? await this._indexReader.getChildren(current)
+          : await this._indexReader.getParents(current);
+
+      // Relax edges to neighbors
+      for (const neighbor of neighbors) {
+        if (visited.has(neighbor)) {
+          continue;
+        }
+
+        const edgeWeight = weightProvider(current, neighbor);
+        const newDist = distances.get(current) + edgeWeight;
+        const currentDist = distances.has(neighbor) ? distances.get(neighbor) : Infinity;
+
+        if (newDist < currentDist) {
+          distances.set(neighbor, newDist);
+          previous.set(neighbor, current);
+          pq.insert(neighbor, newDist);
+        }
+      }
+    }
+
+    // No path found
+    this._logger.debug('weightedShortestPath not found', { from, to });
+    throw new TraversalError(`No path exists from ${from} to ${to}`, {
+      code: 'NO_PATH',
+      context: { from, to, direction },
+    });
+  }
+
+  /**
+   * Reconstructs path from weighted search previous pointers.
+   * @private
+   */
+  _reconstructWeightedPath(previous, from, to) {
+    const path = [to];
+    let current = to;
+    while (current !== from) {
+      current = previous.get(current);
+      path.unshift(current);
+    }
+    return path;
   }
 
   /**

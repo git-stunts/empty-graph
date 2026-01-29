@@ -25,7 +25,9 @@ import {
   ShardValidationError,
   StorageError,
   TraversalError,
+  OperationAbortedError,
 } from './src/domain/errors/index.js';
+import { checkAborted, createTimeoutSignal } from './src/domain/utils/cancellation.js';
 
 export {
   GraphService,
@@ -59,6 +61,11 @@ export {
   ShardValidationError,
   StorageError,
   TraversalError,
+  OperationAbortedError,
+
+  // Cancellation utilities
+  checkAborted,
+  createTimeoutSignal,
 };
 
 /** Default ref for storing the index OID */

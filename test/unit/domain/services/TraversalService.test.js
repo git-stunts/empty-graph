@@ -504,6 +504,290 @@ describe('TraversalService', () => {
     });
   });
 
+  describe('weightedShortestPath', () => {
+    it('returns shortest path with uniform weights (same as BFS)', async () => {
+      // With all weights = 1 (default), should behave like BFS shortest path
+      const result = await service.weightedShortestPath({ from: 'A', to: 'D' });
+
+      expect(result.path[0]).toBe('A');
+      expect(result.path[result.path.length - 1]).toBe('D');
+      // A->B->D or A->C->D, both have cost 2
+      expect(result.totalCost).toBe(2);
+      expect(result.path).toHaveLength(3);
+    });
+
+    it('returns lowest-cost path when weights differ', async () => {
+      // Create a graph where the shorter hop path is more expensive:
+      //
+      //     A ---(10)--- B
+      //     |           |
+      //    (1)         (1)
+      //     |           |
+      //     C ---(1)--- D
+      //
+      // Shortest hop: A->B (2 hops via B->D)
+      // Cheapest: A->C->D (cost 2) vs A->B->D (cost 11)
+      const weightedReader = {
+        getChildren: vi.fn(async (sha) => {
+          const edges = {
+            A: ['B', 'C'],
+            B: ['D'],
+            C: ['D'],
+            D: [],
+          };
+          return edges[sha] || [];
+        }),
+        getParents: vi.fn(async (sha) => {
+          const edges = {
+            A: [],
+            B: ['A'],
+            C: ['A'],
+            D: ['B', 'C'],
+          };
+          return edges[sha] || [];
+        }),
+      };
+
+      const weightedService = new TraversalService({ indexReader: weightedReader });
+
+      // Weight provider: A->B is expensive (10), everything else is cheap (1)
+      const weightProvider = (from, to) => {
+        if (from === 'A' && to === 'B') return 10;
+        return 1;
+      };
+
+      const result = await weightedService.weightedShortestPath({
+        from: 'A',
+        to: 'D',
+        weightProvider,
+      });
+
+      // Should take the cheap path: A->C->D (cost 2) not A->B->D (cost 11)
+      expect(result.path).toEqual(['A', 'C', 'D']);
+      expect(result.totalCost).toBe(2);
+    });
+
+    it('uses weightProvider callback correctly', async () => {
+      const weightProvider = vi.fn(() => 1);
+
+      await service.weightedShortestPath({
+        from: 'A',
+        to: 'D',
+        weightProvider,
+      });
+
+      // Should have been called for each edge explored
+      expect(weightProvider).toHaveBeenCalled();
+      // Verify it was called with (fromSha, toSha) arguments
+      const calls = weightProvider.mock.calls;
+      for (const [fromSha, toSha] of calls) {
+        expect(typeof fromSha).toBe('string');
+        expect(typeof toSha).toBe('string');
+      }
+    });
+
+    it('works with direction=parents', async () => {
+      // Traverse in reverse: from E up to A
+      const result = await service.weightedShortestPath({
+        from: 'E',
+        to: 'A',
+        direction: 'parents',
+      });
+
+      expect(result.path[0]).toBe('E');
+      expect(result.path[result.path.length - 1]).toBe('A');
+      // E->D->B->A or E->D->C->A, both have cost 3
+      expect(result.totalCost).toBe(3);
+      expect(result.path).toHaveLength(4);
+    });
+
+    it('throws TraversalError when no path exists', async () => {
+      // Try to go from E to A with direction='children' (impossible)
+      await expect(
+        service.weightedShortestPath({ from: 'E', to: 'A', direction: 'children' })
+      ).rejects.toThrow(TraversalError);
+
+      try {
+        await service.weightedShortestPath({ from: 'E', to: 'A', direction: 'children' });
+      } catch (error) {
+        expect(error.code).toBe('NO_PATH');
+        expect(error.context).toMatchObject({
+          from: 'E',
+          to: 'A',
+          direction: 'children',
+        });
+      }
+    });
+
+    it('handles disconnected nodes', async () => {
+      // Create a graph with disconnected components
+      const disconnectedReader = {
+        getChildren: vi.fn(async (sha) => {
+          const edges = {
+            A: ['B'],
+            B: [],
+            X: ['Y'],
+            Y: [],
+          };
+          return edges[sha] || [];
+        }),
+        getParents: vi.fn(async (sha) => {
+          const edges = {
+            A: [],
+            B: ['A'],
+            X: [],
+            Y: ['X'],
+          };
+          return edges[sha] || [];
+        }),
+      };
+      const disconnectedService = new TraversalService({ indexReader: disconnectedReader });
+
+      // Try to find path between disconnected components
+      await expect(
+        disconnectedService.weightedShortestPath({ from: 'A', to: 'X' })
+      ).rejects.toThrow(TraversalError);
+
+      try {
+        await disconnectedService.weightedShortestPath({ from: 'A', to: 'X' });
+      } catch (error) {
+        expect(error.code).toBe('NO_PATH');
+      }
+    });
+
+    it('handles same source and destination', async () => {
+      // Note: This test documents current behavior - the implementation
+      // should handle this case. Based on the Dijkstra implementation,
+      // when from === to, the result depends on implementation details.
+      // Let's test what happens:
+      const result = await service.weightedShortestPath({ from: 'A', to: 'A' });
+
+      // The path should be just [A] with cost 0
+      expect(result.path).toEqual(['A']);
+      expect(result.totalCost).toBe(0);
+    });
+
+    it('handles complex weighted graph correctly', async () => {
+      // Create a more complex weighted graph:
+      //
+      //       A
+      //      /|\
+      //    (1)(5)(2)
+      //    /  |  \
+      //   B   C   D
+      //    \  |  /
+      //    (1)(1)(1)
+      //      \|/
+      //       E
+      //
+      // Shortest path A->E: A->B->E (cost 2) or A->D->E (cost 3) or A->C->E (cost 6)
+      const complexReader = {
+        getChildren: vi.fn(async (sha) => {
+          const edges = {
+            A: ['B', 'C', 'D'],
+            B: ['E'],
+            C: ['E'],
+            D: ['E'],
+            E: [],
+          };
+          return edges[sha] || [];
+        }),
+        getParents: vi.fn(async () => []),
+      };
+      const complexService = new TraversalService({ indexReader: complexReader });
+
+      const weights = {
+        'A-B': 1,
+        'A-C': 5,
+        'A-D': 2,
+        'B-E': 1,
+        'C-E': 1,
+        'D-E': 1,
+      };
+      const weightProvider = (from, to) => weights[`${from}-${to}`] || 1;
+
+      const result = await complexService.weightedShortestPath({
+        from: 'A',
+        to: 'E',
+        weightProvider,
+      });
+
+      expect(result.path).toEqual(['A', 'B', 'E']);
+      expect(result.totalCost).toBe(2);
+    });
+
+    it('handles zero-weight edges', async () => {
+      const zeroWeightReader = {
+        getChildren: vi.fn(async (sha) => {
+          const edges = {
+            A: ['B', 'C'],
+            B: ['D'],
+            C: ['D'],
+            D: [],
+          };
+          return edges[sha] || [];
+        }),
+        getParents: vi.fn(async () => []),
+      };
+      const zeroWeightService = new TraversalService({ indexReader: zeroWeightReader });
+
+      // A->C has zero weight, A->B has weight 1
+      const weightProvider = (from, to) => {
+        if (from === 'A' && to === 'C') return 0;
+        return 1;
+      };
+
+      const result = await zeroWeightService.weightedShortestPath({
+        from: 'A',
+        to: 'D',
+        weightProvider,
+      });
+
+      // Should prefer the zero-weight path: A->C->D (cost 1) over A->B->D (cost 2)
+      expect(result.path).toEqual(['A', 'C', 'D']);
+      expect(result.totalCost).toBe(1);
+    });
+
+    it('logs debug messages during traversal', async () => {
+      const mockLogger = {
+        debug: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+      };
+      const loggingService = new TraversalService({
+        indexReader: mockIndexReader,
+        logger: mockLogger,
+      });
+
+      await loggingService.weightedShortestPath({ from: 'A', to: 'D' });
+
+      expect(mockLogger.debug).toHaveBeenCalledWith('weightedShortestPath started', expect.any(Object));
+      expect(mockLogger.debug).toHaveBeenCalledWith('weightedShortestPath found', expect.any(Object));
+    });
+
+    it('logs debug when no path found', async () => {
+      const mockLogger = {
+        debug: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+      };
+      const loggingService = new TraversalService({
+        indexReader: mockIndexReader,
+        logger: mockLogger,
+      });
+
+      try {
+        await loggingService.weightedShortestPath({ from: 'E', to: 'A', direction: 'children' });
+      } catch {
+        // Expected to throw
+      }
+
+      expect(mockLogger.debug).toHaveBeenCalledWith('weightedShortestPath not found', expect.any(Object));
+    });
+  });
+
   describe('logging', () => {
     it('logs traversal operations', async () => {
       const mockLogger = {
