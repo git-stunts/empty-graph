@@ -1,6 +1,6 @@
 {
   "name": "@git-stunts/empty-graph",
-  "version": "1.0.0",
+  "version": "2.5.0",
   "description": "A graph database where every node is a Git commit pointing to the Empty Tree. Invisible storage, atomic operations, DAG-native.",
   "type": "module",
   "main": "index.js",
@@ -28,7 +28,9 @@
     "demo:explore": "cd examples && docker compose exec demo node /app/examples/explore.js",
     "demo:inspect": "cd examples && docker compose exec demo node /app/examples/inspect-index.js",
     "demo:down": "cd examples && docker compose down -v",
-    "demo:lagrangian": "cd examples && docker compose exec demo node /app/examples/lagrangian-path.js"
+    "demo:lagrangian": "cd examples && docker compose exec demo node /app/examples/lagrangian-path.js",
+    "demo:bench-streaming": "cd examples && docker compose up -d && docker compose exec demo node /app/examples/streaming-benchmark.js",
+    "demo:bench-traversal": "cd examples && docker compose up -d && docker compose exec demo node /app/examples/traversal-benchmark.js"
   },
   "author": "James Ross <james@flyingrobots.dev>",
   "license": "Apache-2.0",

@@ -4,7 +4,7 @@
 
 ## Project Status: 100% Complete - v2.5 Ship Ready
 
-The core is solid. Index build/query path complete. **Graph traversal algorithms implemented including Dijkstra, A*, and Bidirectional A*.** Cancellation support with AbortSignal. Health checks, structured logging, and comprehensive error handling all in place. Test coverage is excellent (349 tests). **Interactive Docker demo fully working with Lagrangian pathfinding.**
+The core is solid. Index build/query path complete. **Graph traversal algorithms implemented including Dijkstra, A*, and Bidirectional A*.** Cancellation support with AbortSignal. Health checks, structured logging, and comprehensive error handling all in place. Test coverage is excellent (349 tests). **Interactive Docker demo fully working with Lagrangian pathfinding.** **All P0 and P1 tasks complete, including streaming and traversal benchmarks.**
 
 ### Recent Progress (2026-01-29 - Afternoon)
 - **Cancellation Support**: `AbortSignal` integration for `iterateNodes()` and `rebuildIndex()`
@@ -90,14 +90,14 @@ The core is solid. Index build/query path complete. **Graph traversal algorithms
 - [x] Circular reference detection - `topologicalSort` now detects cycles and has `throwOnCycle` option
 
 ### ✅ Benchmark Suite (COMPLETED)
-`test/benchmark/graph.bench.js` is comprehensive, not a stub:
+Unit benchmarks in `test/benchmark/graph.bench.js`, integration benchmarks via Docker:
 - [x] Benchmark: createNode throughput (GraphNode creation)
 - [x] Benchmark: BitmapIndexService.Build (100, 1K, 10K edges)
 - [x] Benchmark: BitmapIndexService.Serialize (100, 1K, 10K edges)
 - [x] Benchmark: O(1) lookup vs iteration (1K, 10K node indexes)
 - [x] Benchmark: Memory profiling (50K edge builds)
-- [ ] Benchmark: iterateNodes memory profile for streaming 1M+ nodes
-- [ ] Benchmark: Weighted traversal performance (Dijkstra/A*/bidirectional at scale)
+- [x] Benchmark: iterateNodes memory profile for streaming 1M+ nodes (`npm run demo:bench-streaming`)
+- [x] Benchmark: Weighted traversal performance (Dijkstra/A*/bidirectional at scale) (`npm run demo:bench-traversal`)
 
 ### ✅ Documentation (COMPLETED 2026-01-28)
 - [x] Add `rebuildIndex()` and `loadIndex()` to README API reference
