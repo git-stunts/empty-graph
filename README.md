@@ -843,7 +843,7 @@ console.log(`  ${children.length} children:`, children);
 ## Choosing the Right Method
 
 | Scenario | Method | Reason |
-|----------|--------|--------|
+| ---------- | -------- | -------- |
 | < 1,000 nodes | `listNodes()` | Returns array, easier to work with |
 | > 1,000 nodes | `iterateNodes()` | Streams results, constant memory |
 | Single node lookup | `readNode()` | O(1) direct access |

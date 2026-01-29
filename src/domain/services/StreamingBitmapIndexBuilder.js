@@ -192,6 +192,8 @@ export default class StreamingBitmapIndexBuilder {
    * @private
    */
   async _writeShardsToStorage(bitmapShards) {
+    const writePromises = [];
+
     for (const type of ['fwd', 'rev']) {
       for (const [prefix, shardData] of Object.entries(bitmapShards[type])) {
         const path = `shards_${type}_${prefix}.json`;
@@ -201,14 +203,19 @@ export default class StreamingBitmapIndexBuilder {
           data: shardData,
         };
         const buffer = Buffer.from(JSON.stringify(envelope));
-        const oid = await this.storage.writeBlob(buffer);
 
-        if (!this.flushedChunks.has(path)) {
-          this.flushedChunks.set(path, []);
-        }
-        this.flushedChunks.get(path).push(oid);
+        writePromises.push(
+          this.storage.writeBlob(buffer).then(oid => {
+            if (!this.flushedChunks.has(path)) {
+              this.flushedChunks.set(path, []);
+            }
+            this.flushedChunks.get(path).push(oid);
+          })
+        );
       }
     }
+
+    await Promise.all(writePromises);
   }
 
   /**

@@ -126,6 +126,7 @@ describe('IndexRebuildService streaming mode', () => {
       const reader = await service.load(treeOid);
       expect(reader).toBeDefined();
       expect(typeof reader.getParents).toBe('function');
+      expect(typeof reader.getChildren).toBe('function');
     });
   });
 
