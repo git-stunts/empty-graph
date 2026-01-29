@@ -5,13 +5,25 @@
   "type": "module",
   "main": "index.js",
   "types": "./index.d.ts",
+  "typesVersions": {
+    "*": {
+      "service": ["./index.d.ts"],
+      "node": ["./index.d.ts"]
+    }
+  },
   "exports": {
     ".": {
       "types": "./index.d.ts",
       "default": "./index.js"
     },
-    "./service": "./src/domain/services/GraphService.js",
-    "./node": "./src/domain/entities/GraphNode.js"
+    "./service": {
+      "types": "./index.d.ts",
+      "default": "./src/domain/services/GraphService.js"
+    },
+    "./node": {
+      "types": "./index.d.ts",
+      "default": "./src/domain/entities/GraphNode.js"
+    }
   },
   "engines": {
     "node": ">=20.0.0"

@@ -95,6 +95,9 @@ export default class StreamingBitmapIndexBuilder {
     if (!storage) {
       throw new Error('StreamingBitmapIndexBuilder requires a storage adapter');
     }
+    if (maxMemoryBytes <= 0) {
+      throw new Error('maxMemoryBytes must be a positive number');
+    }
 
     /** @type {Object} */
     this.storage = storage;

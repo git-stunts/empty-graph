@@ -56,6 +56,18 @@ describe('TraversalService', () => {
     service = new TraversalService({ indexReader: mockIndexReader });
   });
 
+  describe('constructor validation', () => {
+    it('throws when indexReader is not provided', () => {
+      expect(() => new TraversalService({}))
+        .toThrow('TraversalService requires an indexReader');
+    });
+
+    it('throws when called with no arguments', () => {
+      expect(() => new TraversalService())
+        .toThrow('TraversalService requires an indexReader');
+    });
+  });
+
   describe('bfs', () => {
     it('traverses all reachable nodes in breadth-first order', async () => {
       const nodes = await collectAll(service.bfs({ start: 'A' }));

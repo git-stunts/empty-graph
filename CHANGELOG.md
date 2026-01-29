@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- **Cancellation**: `createTimeoutSignal()` now uses native `AbortSignal.timeout()` for cleaner implementation
+- **BitmapIndexReader**: Non-strict mode now caches empty shards on validation/parse failures to avoid repeated I/O
+
+### Fixed
+- **Constructor Validation**: All services now fail fast with clear error messages when required dependencies are missing
+  - `BitmapIndexReader` requires `storage`
+  - `IndexRebuildService` requires `graphService` and `storage`
+  - `StreamingBitmapIndexBuilder` requires positive `maxMemoryBytes`
+  - `GraphService` requires `persistence` and positive `maxMessageBytes`
+  - `TraversalService` requires `indexReader`
+- **Examples**: `lagrangian-path.js` now handles empty graphs and malformed JSON gracefully
+- **Tests**: Improved test stability and resilience
+  - NoOpLogger performance test uses generous threshold for CI environments
+  - BitmapIndexBuilder tests use hex-like SHAs for realism
+  - Streaming index tests store raw buffers and use resilient assertions
+
+### Docs
+- README: Added `text` language specifier to output code blocks
+- TASKLIST: Fixed table formatting consistency
+
 ## [2.5.0] - 2026-01-29
 
 ### Added

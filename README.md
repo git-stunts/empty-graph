@@ -4,7 +4,7 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![npm version](https://badge.fury.io/js/%40git-stunts%2Fempty-graph.svg)](https://www.npmjs.com/package/@git-stunts/empty-graph)
 
-A graph database where every node is a Git commit pointing to the "Empty Tree."
+A graph database that lives inside Git commits using the empty-tree pattern. Clean architecture with domain/infrastructure/ports separation, Roaring Bitmap indexing for O(1) lookups, and traversal services with weighted pathfinding.
 
 ## Why EmptyGraph?
 
@@ -108,7 +108,7 @@ The demo is **idempotent** - running `demo:setup` multiple times will clean up a
 
 **Sample output:**
 
-```
+```text
 [0148a1e4] UserCreated
            {"userId":"user-alice-001","email":"alice@example.com","name":"Alice"}
 
@@ -720,32 +720,24 @@ Immutable entity representing a graph node.
 
 EmptyGraph follows hexagonal architecture (ports & adapters):
 
-```text
-┌─────────────────────────────────────────────┐
-│         EmptyGraph (Facade)                 │
-└────────────────┬────────────────────────────┘
-                 │
-      ┌──────────┴──────────┐
-      │                     │
-┌─────▼──────┐    ┌────────▼─────────┐
-│ GraphService│    │IndexRebuildService│
-│  (Domain)   │    │    (Domain)      │
-└─────┬──────┘    └────────┬─────────┘
-      │                     │
-      │    ┌────────────────┤
-      │    │                │
-┌─────▼────▼───┐    ┌──────▼────────┐
-│GraphPersistence│   │IndexStoragePort│
-│    Port       │   │    (Port)      │
-└─────┬────────┘    └──────┬────────┘
-      │                     │
-┌─────▼─────────────────────▼─────────┐
-│     GitGraphAdapter (Adapter)       │
-└──────────────┬──────────────────────┘
-               │
-     ┌─────────▼──────────┐
-     │ @git-stunts/plumbing│
-     └────────────────────┘
+```mermaid
+flowchart TD
+  EG[EmptyGraph<br/>(Facade)]
+  GS[GraphService<br/>(Domain)]
+  IRS[IndexRebuildService<br/>(Domain)]
+  GPP[GraphPersistencePort<br/>(Port)]
+  ISP[IndexStoragePort<br/>(Port)]
+  GGA[GitGraphAdapter<br/>(Adapter)]
+  PL[@git-stunts/plumbing]
+
+  EG --> GS
+  EG --> IRS
+  GS --> GPP
+  GS --> ISP
+  IRS --> ISP
+  GPP --> GGA
+  ISP --> GGA
+  GGA --> PL
 ```
 
 **Key Components:**

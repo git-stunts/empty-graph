@@ -62,7 +62,10 @@ export default class TraversalService {
    * @param {import('./BitmapIndexReader.js').default} options.indexReader - Index reader for O(1) lookups
    * @param {import('../../ports/LoggerPort.js').default} [options.logger] - Logger instance
    */
-  constructor({ indexReader, logger = new NoOpLogger() }) {
+  constructor({ indexReader, logger = new NoOpLogger() } = {}) {
+    if (!indexReader) {
+      throw new Error('TraversalService requires an indexReader');
+    }
     this._indexReader = indexReader;
     this._logger = logger;
   }
@@ -106,8 +109,8 @@ export default class TraversalService {
     while (queue.length > 0 && nodesYielded < maxNodes) {
       const current = queue.shift();
 
-      if (visited.has(current.sha)) continue;
-      if (current.depth > maxDepth) continue;
+      if (visited.has(current.sha)) { continue; }
+      if (current.depth > maxDepth) { continue; }
 
       visited.add(current.sha);
       nodesYielded++;
@@ -146,8 +149,8 @@ export default class TraversalService {
     while (stack.length > 0 && nodesYielded < maxNodes) {
       const current = stack.pop();
 
-      if (visited.has(current.sha)) continue;
-      if (current.depth > maxDepth) continue;
+      if (visited.has(current.sha)) { continue; }
+      if (current.depth > maxDepth) { continue; }
 
       visited.add(current.sha);
       nodesYielded++;
@@ -216,8 +219,8 @@ export default class TraversalService {
     while (queue.length > 0) {
       const current = queue.shift();
 
-      if (current.depth > maxDepth) continue;
-      if (visited.has(current.sha)) continue;
+      if (current.depth > maxDepth) { continue; }
+      if (visited.has(current.sha)) { continue; }
 
       visited.add(current.sha);
 
@@ -804,7 +807,7 @@ export default class TraversalService {
    * @returns {Promise<string[]>} Array of common ancestor SHAs
    */
   async commonAncestors({ shas, maxResults = 100, maxDepth = DEFAULT_MAX_DEPTH }) {
-    if (shas.length === 0) return [];
+    if (shas.length === 0) { return []; }
     if (shas.length === 1) {
       const ancestors = [];
       for await (const node of this.ancestors({ sha: shas[0], maxNodes: maxResults, maxDepth })) {
@@ -834,7 +837,7 @@ export default class TraversalService {
     for (const [ancestor, count] of ancestorCounts) {
       if (count === requiredCount) {
         common.push(ancestor);
-        if (common.length >= maxResults) break;
+        if (common.length >= maxResults) { break; }
       }
     }
 

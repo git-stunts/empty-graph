@@ -47,6 +47,20 @@ describe('StreamingBitmapIndexBuilder', () => {
       expect(() => new StreamingBitmapIndexBuilder({})).toThrow('requires a storage adapter');
     });
 
+    it('throws when maxMemoryBytes is zero', () => {
+      expect(() => new StreamingBitmapIndexBuilder({
+        storage: mockStorage,
+        maxMemoryBytes: 0,
+      })).toThrow('maxMemoryBytes must be a positive number');
+    });
+
+    it('throws when maxMemoryBytes is negative', () => {
+      expect(() => new StreamingBitmapIndexBuilder({
+        storage: mockStorage,
+        maxMemoryBytes: -100,
+      })).toThrow('maxMemoryBytes must be a positive number');
+    });
+
     it('accepts custom maxMemoryBytes', () => {
       const builder = new StreamingBitmapIndexBuilder({
         storage: mockStorage,

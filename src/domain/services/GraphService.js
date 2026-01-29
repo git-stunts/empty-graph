@@ -48,6 +48,12 @@ export default class GraphService {
    *   Defaults to NoOpLogger (no logging). Inject ConsoleLogger or custom logger for output.
    */
   constructor({ persistence, parser = new GitLogParser(), maxMessageBytes = DEFAULT_MAX_MESSAGE_BYTES, logger = new NoOpLogger() }) {
+    if (!persistence) {
+      throw new Error('GraphService requires a persistence adapter');
+    }
+    if (maxMessageBytes <= 0) {
+      throw new Error('maxMessageBytes must be a positive number');
+    }
     this.persistence = persistence;
     this.parser = parser;
     this.maxMessageBytes = maxMessageBytes;

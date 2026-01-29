@@ -114,12 +114,21 @@ async function main() {
   const events = [];
   for await (const node of graph.traversal.ancestors({ sha: headSha })) {
     const message = await graph.readNode(node.sha);
-    const event = JSON.parse(message);
-    events.push({ sha: node.sha, depth: node.depth, event });
+    try {
+      const event = JSON.parse(message);
+      events.push({ sha: node.sha, depth: node.depth, event });
+    } catch {
+      console.warn(`Skipping non-JSON commit: ${node.sha.slice(0, 8)}`);
+    }
   }
 
   // Reverse to chronological order (oldest first)
   events.reverse();
+
+  if (events.length === 0) {
+    console.error('ERROR: No events found in graph. Run setup.js first.');
+    process.exit(1);
+  }
 
   console.log('Events discovered (chronological order):\n');
   for (let i = 0; i < events.length; i++) {

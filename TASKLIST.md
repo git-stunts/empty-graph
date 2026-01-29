@@ -177,16 +177,16 @@ Unit benchmarks in `test/benchmark/graph.bench.js`, integration benchmarks via D
 
 The implementation evolved beyond the original tasklist:
 
-| Original Plan | What We Actually Built |
-|---------------|------------------------|
-| Basic O(1) lookups | Full traversal service with 9 algorithms |
-| - | HealthCheckService with K8s probes |
-| - | Structured logging infrastructure |
-| - | Clock port abstraction |
-| - | Message size validation |
-| - | 6-class error hierarchy |
-| - | Streaming index builder |
-| CacheRebuildService | Renamed to IndexRebuildService |
+| Original Plan       | What We Actually Built                   |
+|---------------------|------------------------------------------|
+| Basic O(1) lookups  | Full traversal service with 9 algorithms |
+| -                   | HealthCheckService with K8s probes       |
+| -                   | Structured logging infrastructure        |
+| -                   | Clock port abstraction                   |
+| -                   | Message size validation                  |
+| -                   | 6-class error hierarchy                  |
+| -                   | Streaming index builder                  |
+| CacheRebuildService | Renamed to IndexRebuildService           |
 
 ### Architectural Observations
 - The hex arch pays off: domain layer is 100% testable without Git

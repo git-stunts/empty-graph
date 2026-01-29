@@ -31,10 +31,10 @@ describe('BitmapIndexBuilder', () => {
   describe('addEdge', () => {
     it('creates forward and reverse bitmaps', () => {
       const builder = new BitmapIndexBuilder();
-      builder.addEdge('parent', 'child');
+      builder.addEdge('aabbccdd', 'eeffgghh');
 
-      expect(builder.bitmaps.has('fwd_parent')).toBe(true);
-      expect(builder.bitmaps.has('rev_child')).toBe(true);
+      expect(builder.bitmaps.has('fwd_aabbccdd')).toBe(true);
+      expect(builder.bitmaps.has('rev_eeffgghh')).toBe(true);
     });
   });
 

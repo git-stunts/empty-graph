@@ -26,6 +26,12 @@ export default class IndexRebuildService {
    *   Defaults to NoOpLogger (no logging).
    */
   constructor({ graphService, storage, logger = new NoOpLogger() }) {
+    if (!graphService) {
+      throw new Error('IndexRebuildService requires a graphService');
+    }
+    if (!storage) {
+      throw new Error('IndexRebuildService requires a storage adapter');
+    }
     this.graphService = graphService;
     this.storage = storage;
     this.logger = logger;
@@ -78,6 +84,9 @@ export default class IndexRebuildService {
    * });
    */
   async rebuild(ref, { limit = 10_000_000, maxMemoryBytes, onFlush, onProgress, signal } = {}) {
+    if (maxMemoryBytes !== undefined && maxMemoryBytes <= 0) {
+      throw new Error('maxMemoryBytes must be a positive number');
+    }
     const mode = maxMemoryBytes !== undefined ? 'streaming' : 'in-memory';
     this.logger.info('Starting index rebuild', {
       operation: 'rebuild',

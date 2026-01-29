@@ -74,6 +74,9 @@ export default class BitmapIndexReader {
    *   Defaults to NoOpLogger (no logging).
    */
   constructor({ storage, strict = false, logger = new NoOpLogger() } = {}) {
+    if (!storage) {
+      throw new Error('BitmapIndexReader requires a storage adapter');
+    }
     this.storage = storage;
     this.strict = strict;
     this.logger = logger;
@@ -298,7 +301,9 @@ export default class BitmapIndexReader {
           expected: err.expected,
           actual: err.actual,
         });
-        return format === 'json' ? {} : new RoaringBitmap32();
+        const emptyShard = format === 'json' ? {} : new RoaringBitmap32();
+        this.loadedShards.set(path, emptyShard);
+        return emptyShard;
       }
 
       // JSON parse errors become corruption errors
@@ -317,7 +322,9 @@ export default class BitmapIndexReader {
           oid,
           error: err.message,
         });
-        return format === 'json' ? {} : new RoaringBitmap32();
+        const emptyShard = format === 'json' ? {} : new RoaringBitmap32();
+        this.loadedShards.set(path, emptyShard);
+        return emptyShard;
       }
 
       // Unknown errors - re-throw

@@ -33,6 +33,26 @@ describe('GraphService', () => {
       expect(serviceWithDefaults.parser).toBeDefined();
       expect(serviceWithDefaults.parser.constructor.name).toBe('GitLogParser');
     });
+
+    it('throws when persistence is not provided', () => {
+      expect(() => new GraphService({}))
+        .toThrow('GraphService requires a persistence adapter');
+    });
+
+    it('throws when persistence is not provided with empty options', () => {
+      expect(() => new GraphService({ parser: mockParser }))
+        .toThrow('GraphService requires a persistence adapter');
+    });
+
+    it('throws when maxMessageBytes is zero', () => {
+      expect(() => new GraphService({ persistence: mockPersistence, maxMessageBytes: 0 }))
+        .toThrow('maxMessageBytes must be a positive number');
+    });
+
+    it('throws when maxMessageBytes is negative', () => {
+      expect(() => new GraphService({ persistence: mockPersistence, maxMessageBytes: -100 }))
+        .toThrow('maxMessageBytes must be a positive number');
+    });
   });
 
   describe('createNode()', () => {

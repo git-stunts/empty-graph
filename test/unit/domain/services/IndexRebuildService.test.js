@@ -29,6 +29,23 @@ describe('IndexRebuildService', () => {
     });
   });
 
+  describe('constructor validation', () => {
+    it('throws when graphService is not provided', () => {
+      expect(() => new IndexRebuildService({ storage: mockStorage }))
+        .toThrow('IndexRebuildService requires a graphService');
+    });
+
+    it('throws when storage is not provided', () => {
+      expect(() => new IndexRebuildService({ graphService: mockGraphService }))
+        .toThrow('IndexRebuildService requires a storage adapter');
+    });
+
+    it('throws when called with empty options', () => {
+      expect(() => new IndexRebuildService({}))
+        .toThrow('IndexRebuildService requires a graphService');
+    });
+  });
+
   it('rebuilds the index and persists it', async () => {
     const treeOid = await service.rebuild('main');
 
@@ -70,6 +87,23 @@ describe('IndexRebuildService', () => {
     expect(treeEntries.every(e => e.startsWith('100644 blob'))).toBe(true);
 
     expect(treeOid).toBe('tree-oid');
+  });
+
+  describe('rebuild validation', () => {
+    it('throws when maxMemoryBytes is zero', async () => {
+      await expect(service.rebuild('main', { maxMemoryBytes: 0 }))
+        .rejects.toThrow('maxMemoryBytes must be a positive number');
+    });
+
+    it('throws when maxMemoryBytes is negative', async () => {
+      await expect(service.rebuild('main', { maxMemoryBytes: -100 }))
+        .rejects.toThrow('maxMemoryBytes must be a positive number');
+    });
+
+    it('accepts positive maxMemoryBytes', async () => {
+      const treeOid = await service.rebuild('main', { maxMemoryBytes: 1024 });
+      expect(treeOid).toBe('tree-oid');
+    });
   });
 
   describe('integrity verification', () => {

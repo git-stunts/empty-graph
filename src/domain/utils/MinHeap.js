@@ -27,8 +27,8 @@ class MinHeap {
    * @returns {*} The item with lowest priority, or undefined if empty
    */
   extractMin() {
-    if (this.heap.length === 0) return undefined;
-    if (this.heap.length === 1) return this.heap.pop().item;
+    if (this.heap.length === 0) { return undefined; }
+    if (this.heap.length === 1) { return this.heap.pop().item; }
 
     const min = this.heap[0];
     this.heap[0] = this.heap.pop();
@@ -72,7 +72,7 @@ class MinHeap {
   _bubbleUp(index) {
     while (index > 0) {
       const parentIndex = Math.floor((index - 1) / 2);
-      if (this.heap[parentIndex].priority <= this.heap[index].priority) break;
+      if (this.heap[parentIndex].priority <= this.heap[index].priority) { break; }
       [this.heap[parentIndex], this.heap[index]] = [this.heap[index], this.heap[parentIndex]];
       index = parentIndex;
     }
@@ -97,7 +97,7 @@ class MinHeap {
       if (rightChild < length && this.heap[rightChild].priority < this.heap[smallest].priority) {
         smallest = rightChild;
       }
-      if (smallest === index) break;
+      if (smallest === index) { break; }
 
       [this.heap[index], this.heap[smallest]] = [this.heap[smallest], this.heap[index]];
       index = smallest;

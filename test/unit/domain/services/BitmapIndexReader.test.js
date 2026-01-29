@@ -14,6 +14,16 @@ describe('BitmapIndexReader', () => {
     reader = new BitmapIndexReader({ storage: mockStorage });
   });
 
+  describe('constructor validation', () => {
+    it('throws when storage is not provided', () => {
+      expect(() => new BitmapIndexReader({})).toThrow('BitmapIndexReader requires a storage adapter');
+    });
+
+    it('throws when called with no arguments', () => {
+      expect(() => new BitmapIndexReader()).toThrow('BitmapIndexReader requires a storage adapter');
+    });
+  });
+
   describe('setup', () => {
     it('stores shard OIDs for lazy loading', () => {
       reader.setup({ 'meta_aa.json': 'oid1', 'shards_fwd_aa.json': 'oid2' });
@@ -242,6 +252,80 @@ describe('BitmapIndexReader', () => {
       strictReader.setup({ 'shards_rev_ab.json': 'corrupt-oid' });
 
       await expect(strictReader.getParents('abcd1234')).rejects.toThrow(ShardValidationError);
+    });
+
+    it('caches empty shard on validation failure to avoid repeated I/O and log spam', async () => {
+      const mockLogger = {
+        debug: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+      };
+      const nonStrictReader = new BitmapIndexReader({
+        storage: mockStorage,
+        strict: false,
+        logger: mockLogger,
+      });
+
+      // Return data with wrong version (validation failure)
+      mockStorage.readBlob.mockResolvedValue(Buffer.from(JSON.stringify({
+        version: 999,
+        checksum: 'abc',
+        data: {}
+      })));
+
+      nonStrictReader.setup({ 'shards_rev_ab.json': 'bad-version-oid' });
+
+      // First access - should log warning
+      const result1 = await nonStrictReader.getParents('abcd1234');
+      expect(result1).toEqual([]);
+      expect(mockLogger.warn).toHaveBeenCalledTimes(1);
+      expect(mockLogger.warn).toHaveBeenCalledWith('Shard validation warning', expect.objectContaining({
+        shardPath: 'shards_rev_ab.json',
+      }));
+
+      // Second access to same shard - should NOT log again (cached)
+      const result2 = await nonStrictReader.getParents('abcd1234');
+      expect(result2).toEqual([]);
+      expect(mockLogger.warn).toHaveBeenCalledTimes(1); // Still only 1 call
+
+      // Verify storage was only called once (not on second access)
+      expect(mockStorage.readBlob).toHaveBeenCalledTimes(1);
+    });
+
+    it('caches empty shard on JSON parse error to avoid repeated I/O and log spam', async () => {
+      const mockLogger = {
+        debug: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+      };
+      const nonStrictReader = new BitmapIndexReader({
+        storage: mockStorage,
+        strict: false,
+        logger: mockLogger,
+      });
+
+      // Return invalid JSON (parse error)
+      mockStorage.readBlob.mockResolvedValue(Buffer.from('not valid json {{{'));
+
+      nonStrictReader.setup({ 'shards_rev_ab.json': 'corrupt-oid' });
+
+      // First access - should log warning
+      const result1 = await nonStrictReader.getParents('abcd1234');
+      expect(result1).toEqual([]);
+      expect(mockLogger.warn).toHaveBeenCalledTimes(1);
+      expect(mockLogger.warn).toHaveBeenCalledWith('Shard parse warning', expect.objectContaining({
+        shardPath: 'shards_rev_ab.json',
+      }));
+
+      // Second access to same shard - should NOT log again (cached)
+      const result2 = await nonStrictReader.getParents('abcd1234');
+      expect(result2).toEqual([]);
+      expect(mockLogger.warn).toHaveBeenCalledTimes(1); // Still only 1 call
+
+      // Verify storage was only called once (not on second access)
+      expect(mockStorage.readBlob).toHaveBeenCalledTimes(1);
     });
   });
 });

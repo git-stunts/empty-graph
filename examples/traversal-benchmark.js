@@ -174,7 +174,7 @@ function createWeightProvider(graph) {
 function createHeuristic(depthMap, targetDepth) {
   // Admissible heuristic: minimum edge weight times depth difference
   const minWeight = 0.5 + 0.5 * 1.5; // min cpu + 1.5 * min mem
-  return (sha, targetSha) => {
+  return (sha, _targetSha) => { // targetSha unused; target info captured via targetDepth
     const currentDepth = depthMap.get(sha) ?? 0;
     const dist = Math.abs(targetDepth - currentDepth);
     return dist * minWeight;

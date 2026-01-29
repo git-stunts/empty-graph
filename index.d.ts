@@ -623,7 +623,10 @@ export default class EmptyGraph {
   /** The current index tree OID, or null if no index is loaded */
   readonly indexOid: string | null;
 
-  /** The traversal service for graph operations (requires loaded index) */
+  /**
+   * The traversal service for graph operations.
+   * @throws {Error} If accessed before calling loadIndex()
+   */
   readonly traversal: TraversalService;
 
   /**

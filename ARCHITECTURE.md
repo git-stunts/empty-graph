@@ -137,7 +137,7 @@ This ensures corrupted shards (from disk errors, partial writes, or tampering) a
 
 #### Domain Layer (`src/domain/`)
 - **Entities**: `GraphNode` (Value Object).
-- **Services**: 
+- **Services**:
     - `GraphService`: High-level graph operations.
     - `BitmapIndexService`: Index management.
     - `CacheRebuildService`: Rebuilds the index from the log.

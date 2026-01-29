@@ -38,25 +38,12 @@ const checkNativeBindings = () => {
     }
     return null; // Unknown
   } catch (error) {
-    console.warn(
-      '[@git-stunts/empty-graph] Error checking native Roaring bindings:',
-      error.message
-    );
     return false;
   }
 };
 
 /** @type {boolean|null} Whether native Roaring bindings are available (null = unknown) */
 export const NATIVE_ROARING_AVAILABLE = checkNativeBindings();
-
-// Emit warning once at module load if not native
-if (NATIVE_ROARING_AVAILABLE === false) {
-  console.warn(
-    '[@git-stunts/empty-graph] Native Roaring bindings not available. ' +
-    'Falling back to WASM/JS implementation. Performance may be degraded. ' +
-    'Run `npm rebuild roaring` or ensure native build dependencies are installed.'
-  );
-}
 
 /**
  * Builder for constructing bitmap indexes in memory.

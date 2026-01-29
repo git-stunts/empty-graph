@@ -79,7 +79,7 @@ describe('NoOpLogger', () => {
   });
 
   describe('zero overhead', () => {
-    it('handles large context objects without performance issues', () => {
+    it('handles large context objects without performance issues (sanity check)', () => {
       const logger = new NoOpLogger();
       const largeContext = {};
       for (let i = 0; i < 1000; i++) {
@@ -92,8 +92,8 @@ describe('NoOpLogger', () => {
       }
       const duration = Date.now() - start;
 
-      // Should be very fast since nothing happens
-      expect(duration).toBeLessThan(100);
+      // Generous threshold for CI environments with variable performance
+      expect(duration).toBeLessThan(500);
     });
   });
 });

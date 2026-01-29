@@ -25,11 +25,12 @@ export function checkAborted(signal, operation) {
 /**
  * Creates an AbortSignal that will abort after the specified timeout.
  *
+ * Note: This signal cannot be manually cancelled. If callers need early
+ * cancellation, they should use AbortController directly.
+ *
  * @param {number} ms - Timeout in milliseconds
  * @returns {AbortSignal} The abort signal
  */
 export function createTimeoutSignal(ms) {
-  const controller = new AbortController();
-  setTimeout(() => controller.abort(), ms);
-  return controller.signal;
+  return AbortSignal.timeout(ms);
 }

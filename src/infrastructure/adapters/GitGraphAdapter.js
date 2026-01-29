@@ -64,6 +64,7 @@ export default class GitGraphAdapter extends GraphPersistencePort {
     if (format) {
       // Strip NUL bytes from format - git -z flag handles NUL termination automatically
       // Node.js child_process rejects args containing null bytes
+      // eslint-disable-next-line no-control-regex
       const cleanFormat = format.replace(/\x00/g, '');
       args.push(`--format=${cleanFormat}`);
     }
