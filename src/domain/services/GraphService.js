@@ -1,5 +1,6 @@
 import { performance } from 'perf_hooks';
 import GitLogParser, { RECORD_SEPARATOR } from './GitLogParser.js';
+import GraphNode from '../entities/GraphNode.js';
 import NoOpLogger from '../../infrastructure/adapters/NoOpLogger.js';
 import { checkAborted } from '../utils/cancellation.js';
 
@@ -119,6 +120,70 @@ export default class GraphService {
   }
 
   /**
+   * Checks if a node exists by SHA.
+   *
+   * This is an efficient existence check that does not load the node's content.
+   * Non-existent SHAs return false rather than throwing an error.
+   *
+   * @param {string} sha - The node's SHA to check
+   * @returns {Promise<boolean>} True if the node exists, false otherwise
+   */
+  async hasNode(sha) {
+    const startTime = performance.now();
+    const exists = await this.persistence.nodeExists(sha);
+    const durationMs = performance.now() - startTime;
+    this.logger.debug('Node existence check', {
+      operation: 'hasNode',
+      sha,
+      exists,
+      durationMs,
+    });
+    return exists;
+  }
+
+  /**
+   * Gets a full GraphNode by SHA.
+   *
+   * Returns the complete node with all metadata (sha, message, author, date, parents).
+   * Use this when you need more than just the message content.
+   *
+   * @param {string} sha - The node's SHA
+   * @returns {Promise<GraphNode>} The complete graph node
+   * @throws {Error} If the SHA is invalid or node doesn't exist
+   *
+   * @example
+   * const node = await service.getNode('abc123...');
+   * console.log(node.sha);      // 'abc123...'
+   * console.log(node.message);  // 'My commit message'
+   * console.log(node.author);   // 'Alice'
+   * console.log(node.date);     // '2026-01-29 10:30:00 -0500'
+   * console.log(node.parents);  // ['def456...']
+   */
+  async getNode(sha) {
+    const startTime = performance.now();
+    const nodeInfo = await this.persistence.getNodeInfo(sha);
+    const durationMs = performance.now() - startTime;
+
+    const node = new GraphNode({
+      sha: nodeInfo.sha,
+      message: nodeInfo.message,
+      author: nodeInfo.author,
+      date: nodeInfo.date,
+      parents: nodeInfo.parents,
+    });
+
+    this.logger.debug('Node retrieved', {
+      operation: 'getNode',
+      sha,
+      messageBytes: Buffer.byteLength(nodeInfo.message, 'utf-8'),
+      parentCount: nodeInfo.parents.length,
+      durationMs,
+    });
+
+    return node;
+  }
+
+  /**
    * Lists nodes in history.
    *
    * Collects all nodes from the async generator into an array.
@@ -204,5 +269,35 @@ export default class GraphService {
       yieldedCount,
       durationMs,
     });
+  }
+
+  /**
+   * Counts nodes reachable from a ref without loading them into memory.
+   *
+   * This is an efficient O(1) memory operation using `git rev-list --count`.
+   * Use this for statistics or progress tracking without memory overhead.
+   *
+   * @param {string} ref - Git ref to count from (e.g., 'HEAD', 'main', SHA)
+   * @returns {Promise<number>} The count of reachable nodes
+   *
+   * @example
+   * const count = await service.countNodes('HEAD');
+   * console.log(`Graph has ${count} nodes`);
+   *
+   * @example
+   * // Count nodes on a specific branch
+   * const count = await service.countNodes('feature-branch');
+   */
+  async countNodes(ref) {
+    const startTime = performance.now();
+    const count = await this.persistence.countNodes(ref);
+    const durationMs = performance.now() - startTime;
+    this.logger.debug('Node count complete', {
+      operation: 'countNodes',
+      ref,
+      count,
+      durationMs,
+    });
+    return count;
   }
 }

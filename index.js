@@ -185,6 +185,44 @@ export default class EmptyGraph {
   }
 
   /**
+   * Checks if a node exists by SHA.
+   *
+   * This is an efficient existence check that does not load the node's content.
+   * Non-existent SHAs return false rather than throwing an error.
+   *
+   * @param {string} sha - Commit SHA to check
+   * @returns {Promise<boolean>} True if the node exists, false otherwise
+   * @example
+   * if (await graph.hasNode(sha)) {
+   *   const message = await graph.readNode(sha);
+   * }
+   */
+  async hasNode(sha) {
+    return this.service.hasNode(sha);
+  }
+
+  /**
+   * Gets a full GraphNode by SHA.
+   *
+   * Returns the complete node with all metadata (sha, message, author, date, parents).
+   * Use this when you need more than just the message content.
+   *
+   * @param {string} sha - Commit SHA to retrieve
+   * @returns {Promise<GraphNode>} The complete graph node
+   * @throws {Error} If the SHA is invalid or node doesn't exist
+   * @example
+   * const node = await graph.getNode(someSha);
+   * console.log(node.sha);      // 'abc123...'
+   * console.log(node.message);  // 'My commit message'
+   * console.log(node.author);   // 'Alice'
+   * console.log(node.date);     // '2026-01-29 10:30:00 -0500'
+   * console.log(node.parents);  // ['def456...']
+   */
+  async getNode(sha) {
+    return this.service.getNode(sha);
+  }
+
+  /**
    * Lists nodes in history (for small graphs).
    * @param {Object} options
    * @param {string} options.ref - Git ref to start from
@@ -403,5 +441,25 @@ export default class EmptyGraph {
    */
   async isAlive() {
     return this._healthService.isAlive();
+  }
+
+  /**
+   * Counts nodes reachable from a ref without loading them into memory.
+   *
+   * This is an efficient O(1) memory operation using `git rev-list --count`.
+   * Use this for statistics or progress tracking without memory overhead.
+   *
+   * @param {string} ref - Git ref to count from (e.g., 'HEAD', 'main', SHA)
+   * @returns {Promise<number>} The count of reachable nodes
+   * @example
+   * const count = await graph.countNodes('HEAD');
+   * console.log(`Graph has ${count} nodes`);
+   *
+   * @example
+   * // Count nodes on a specific branch
+   * const count = await graph.countNodes('feature-branch');
+   */
+  async countNodes(ref) {
+    return this.service.countNodes(ref);
   }
 }

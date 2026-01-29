@@ -34,6 +34,39 @@ export default class GitGraphAdapter extends GraphPersistencePort {
     return await this.plumbing.execute({ args: ['show', '-s', '--format=%B', sha] });
   }
 
+  /**
+   * Gets full commit metadata for a node.
+   * @param {string} sha - The commit SHA to retrieve
+   * @returns {Promise<{sha: string, message: string, author: string, date: string, parents: string[]}>}
+   *   Full commit metadata
+   */
+  async getNodeInfo(sha) {
+    this._validateOid(sha);
+    // Format: SHA, author, date, parents (space-separated), then message
+    // Using %x00 to separate fields for reliable parsing
+    const format = '%H%x00%an%x00%ad%x00%P%x00%B';
+    const output = await this.plumbing.execute({
+      args: ['show', '-s', `--format=${format}`, sha]
+    });
+
+    const parts = output.split('\x00');
+    if (parts.length < 5) {
+      throw new Error(`Invalid commit format for SHA ${sha}`);
+    }
+
+    const [commitSha, author, date, parentsStr, ...messageParts] = parts;
+    const message = messageParts.join('\x00'); // In case message contained NUL (shouldn't happen)
+    const parents = parentsStr ? parentsStr.split(' ').filter(p => p) : [];
+
+    return {
+      sha: commitSha.trim(),
+      message: message.trim(),
+      author: author.trim(),
+      date: date.trim(),
+      parents,
+    };
+  }
+
   async logNodes({ ref, limit = 50, format }) {
     this._validateRef(ref);
     this._validateLimit(limit);
@@ -254,6 +287,22 @@ export default class GitGraphAdapter extends GraphPersistencePort {
   }
 
   /**
+   * Checks if a node (commit) exists in the repository.
+   * Uses `git cat-file -e` for efficient existence checking without loading content.
+   * @param {string} sha - The commit SHA to check
+   * @returns {Promise<boolean>} True if the node exists, false otherwise
+   */
+  async nodeExists(sha) {
+    this._validateOid(sha);
+    try {
+      await this.plumbing.execute({ args: ['cat-file', '-e', sha] });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
    * Pings the repository to verify accessibility.
    * Uses `git rev-parse --git-dir` as a lightweight check.
    * @returns {Promise<{ok: boolean, latencyMs: number}>} Health check result with latency
@@ -268,5 +317,19 @@ export default class GitGraphAdapter extends GraphPersistencePort {
       const latencyMs = Date.now() - start;
       return { ok: false, latencyMs };
     }
+  }
+
+  /**
+   * Counts nodes reachable from a ref without loading them into memory.
+   * Uses `git rev-list --count` for O(1) memory efficiency.
+   * @param {string} ref - Git ref to count from (e.g., 'HEAD', 'main', SHA)
+   * @returns {Promise<number>} The count of reachable nodes
+   */
+  async countNodes(ref) {
+    this._validateRef(ref);
+    const output = await this.plumbing.execute({
+      args: ['rev-list', '--count', ref]
+    });
+    return parseInt(output.trim(), 10);
   }
 }

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { createHash } from 'crypto';
 import BitmapIndexReader from '../../../../src/domain/services/BitmapIndexReader.js';
 import BitmapIndexBuilder from '../../../../src/domain/services/BitmapIndexBuilder.js';
 import { ShardLoadError, ShardCorruptionError, ShardValidationError } from '../../../../src/domain/errors/index.js';
@@ -21,6 +22,16 @@ describe('BitmapIndexReader', () => {
 
     it('throws when called with no arguments', () => {
       expect(() => new BitmapIndexReader()).toThrow('BitmapIndexReader requires a storage adapter');
+    });
+
+    it('uses default maxCachedShards of 100', () => {
+      const readerWithDefaults = new BitmapIndexReader({ storage: mockStorage });
+      expect(readerWithDefaults.maxCachedShards).toBe(100);
+    });
+
+    it('accepts custom maxCachedShards', () => {
+      const readerWithCustom = new BitmapIndexReader({ storage: mockStorage, maxCachedShards: 50 });
+      expect(readerWithCustom.maxCachedShards).toBe(50);
     });
   });
 
@@ -327,6 +338,91 @@ describe('BitmapIndexReader', () => {
 
       // Verify storage was only called once (not on second access)
       expect(mockStorage.readBlob).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('LRU cache eviction', () => {
+    it('evicts least recently used shards when exceeding maxCachedShards', async () => {
+      // Create reader with small cache size
+      const smallCacheReader = new BitmapIndexReader({
+        storage: mockStorage,
+        maxCachedShards: 2
+      });
+
+      // Create valid shard data
+      const createValidShard = (id) => Buffer.from(JSON.stringify({
+        version: 1,
+        checksum: createHash('sha256').update(JSON.stringify({ id })).digest('hex'),
+        data: { id }
+      }));
+
+      mockStorage.readBlob.mockImplementation(async (oid) => {
+        return createValidShard(oid);
+      });
+
+      smallCacheReader.setup({
+        'meta_aa.json': 'oid-aa',
+        'meta_bb.json': 'oid-bb',
+        'meta_cc.json': 'oid-cc',
+      });
+
+      // Load first shard
+      await smallCacheReader.lookupId('aabbccdd');
+      expect(smallCacheReader.loadedShards.size).toBe(1);
+      expect(mockStorage.readBlob).toHaveBeenCalledTimes(1);
+
+      // Load second shard
+      await smallCacheReader.lookupId('bbccddee');
+      expect(smallCacheReader.loadedShards.size).toBe(2);
+      expect(mockStorage.readBlob).toHaveBeenCalledTimes(2);
+
+      // Load third shard - should evict first
+      await smallCacheReader.lookupId('ccddeeff');
+      expect(smallCacheReader.loadedShards.size).toBe(2); // Still 2 due to LRU eviction
+
+      // First shard should be evicted, accessing it again should reload
+      await smallCacheReader.lookupId('aabbccdd');
+      expect(mockStorage.readBlob).toHaveBeenCalledTimes(4); // 3 + 1 reload
+    });
+
+    it('marks accessed shards as recently used', async () => {
+      const smallCacheReader = new BitmapIndexReader({
+        storage: mockStorage,
+        maxCachedShards: 2
+      });
+
+      const createValidShard = (id) => Buffer.from(JSON.stringify({
+        version: 1,
+        checksum: createHash('sha256').update(JSON.stringify({ id })).digest('hex'),
+        data: { id }
+      }));
+
+      mockStorage.readBlob.mockImplementation(async (oid) => {
+        return createValidShard(oid);
+      });
+
+      smallCacheReader.setup({
+        'meta_aa.json': 'oid-aa',
+        'meta_bb.json': 'oid-bb',
+        'meta_cc.json': 'oid-cc',
+      });
+
+      // Load first two shards
+      await smallCacheReader.lookupId('aabbccdd'); // Load aa
+      await smallCacheReader.lookupId('bbccddee'); // Load bb
+
+      // Access 'aa' again to make it recently used
+      await smallCacheReader.lookupId('aabbccdd');
+
+      // Load third shard - should evict 'bb' (now oldest)
+      await smallCacheReader.lookupId('ccddeeff'); // Load cc
+
+      // 'aa' should still be in cache (was recently used)
+      expect(smallCacheReader.loadedShards.has('meta_aa.json')).toBe(true);
+      // 'bb' should have been evicted
+      expect(smallCacheReader.loadedShards.has('meta_bb.json')).toBe(false);
+      // 'cc' should be in cache
+      expect(smallCacheReader.loadedShards.has('meta_cc.json')).toBe(true);
     });
   });
 });

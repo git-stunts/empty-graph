@@ -11,6 +11,14 @@ describe('GraphService', () => {
     mockPersistence = {
       commitNode: vi.fn().mockResolvedValue('new-sha'),
       showNode: vi.fn().mockResolvedValue('node-content'),
+      getNodeInfo: vi.fn().mockResolvedValue({
+        sha: 'abc123',
+        message: 'test message',
+        author: 'Test Author',
+        date: '2026-01-29 10:00:00 -0500',
+        parents: ['parent1'],
+      }),
+      nodeExists: vi.fn().mockResolvedValue(true),
       logNodesStream: vi.fn(),
     };
 
@@ -161,6 +169,97 @@ describe('GraphService', () => {
     });
   });
 
+  describe('hasNode()', () => {
+    it('returns true when node exists', async () => {
+      mockPersistence.nodeExists.mockResolvedValue(true);
+
+      const exists = await service.hasNode('existing-sha');
+
+      expect(exists).toBe(true);
+      expect(mockPersistence.nodeExists).toHaveBeenCalledWith('existing-sha');
+    });
+
+    it('returns false when node does not exist', async () => {
+      mockPersistence.nodeExists.mockResolvedValue(false);
+
+      const exists = await service.hasNode('nonexistent-sha');
+
+      expect(exists).toBe(false);
+      expect(mockPersistence.nodeExists).toHaveBeenCalledWith('nonexistent-sha');
+    });
+
+    it('does not throw on non-existent SHA', async () => {
+      mockPersistence.nodeExists.mockResolvedValue(false);
+
+      // Should not throw, just return false
+      await expect(service.hasNode('bad-sha')).resolves.toBe(false);
+    });
+
+    it('delegates to persistence.nodeExists', async () => {
+      await service.hasNode('test-sha');
+
+      expect(mockPersistence.nodeExists).toHaveBeenCalledWith('test-sha');
+      expect(mockPersistence.nodeExists).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('getNode()', () => {
+    it('returns a GraphNode with all metadata', async () => {
+      mockPersistence.getNodeInfo.mockResolvedValue({
+        sha: 'abc123def456',
+        message: 'My commit message',
+        author: 'Alice',
+        date: '2026-01-29 10:30:00 -0500',
+        parents: ['parent1sha', 'parent2sha'],
+      });
+
+      const node = await service.getNode('abc123def456');
+
+      expect(node).toBeInstanceOf(GraphNode);
+      expect(node.sha).toBe('abc123def456');
+      expect(node.message).toBe('My commit message');
+      expect(node.author).toBe('Alice');
+      expect(node.date).toBe('2026-01-29 10:30:00 -0500');
+      expect(node.parents).toEqual(['parent1sha', 'parent2sha']);
+    });
+
+    it('delegates to persistence.getNodeInfo with the sha', async () => {
+      await service.getNode('some-sha-value');
+
+      expect(mockPersistence.getNodeInfo).toHaveBeenCalledWith('some-sha-value');
+    });
+
+    it('returns a node with empty parents array for root commits', async () => {
+      mockPersistence.getNodeInfo.mockResolvedValue({
+        sha: 'rootsha123',
+        message: 'Initial commit',
+        author: 'Bob',
+        date: '2026-01-01 00:00:00 +0000',
+        parents: [],
+      });
+
+      const node = await service.getNode('rootsha123');
+
+      expect(node.parents).toEqual([]);
+      expect(node.parents).toHaveLength(0);
+    });
+
+    it('returns an immutable GraphNode', async () => {
+      const node = await service.getNode('abc123');
+
+      // GraphNode instances are frozen
+      expect(Object.isFrozen(node)).toBe(true);
+      expect(Object.isFrozen(node.parents)).toBe(true);
+    });
+
+    it('propagates errors from persistence layer', async () => {
+      mockPersistence.getNodeInfo.mockRejectedValue(new Error('Node not found'));
+
+      await expect(service.getNode('nonexistent'))
+        .rejects.toThrow('Node not found');
+    });
+  });
+
   describe('listNodes()', () => {
     it('collects nodes from iterateNodes into array', async () => {
       const mockNodes = [
@@ -304,6 +403,61 @@ describe('GraphService', () => {
       expect(nodes[0].message).toBe('msg1');
       expect(nodes[1].sha).toBe('sha2');
       expect(nodes[1].parents).toEqual(['parent1']);
+    });
+  });
+
+  describe('countNodes()', () => {
+    beforeEach(() => {
+      mockPersistence.countNodes = vi.fn();
+    });
+
+    it('delegates to persistence.countNodes', async () => {
+      mockPersistence.countNodes.mockResolvedValue(42);
+
+      const count = await service.countNodes('HEAD');
+
+      expect(count).toBe(42);
+      expect(mockPersistence.countNodes).toHaveBeenCalledWith('HEAD');
+    });
+
+    it('returns count for branch ref', async () => {
+      mockPersistence.countNodes.mockResolvedValue(1000);
+
+      const count = await service.countNodes('main');
+
+      expect(count).toBe(1000);
+      expect(mockPersistence.countNodes).toHaveBeenCalledWith('main');
+    });
+
+    it('returns count for SHA ref', async () => {
+      mockPersistence.countNodes.mockResolvedValue(5);
+
+      const count = await service.countNodes('abc123def456');
+
+      expect(count).toBe(5);
+    });
+
+    it('handles large counts', async () => {
+      mockPersistence.countNodes.mockResolvedValue(1000000);
+
+      const count = await service.countNodes('HEAD');
+
+      expect(count).toBe(1000000);
+    });
+
+    it('returns 0 for empty result', async () => {
+      mockPersistence.countNodes.mockResolvedValue(0);
+
+      const count = await service.countNodes('HEAD');
+
+      expect(count).toBe(0);
+    });
+
+    it('propagates errors from persistence layer', async () => {
+      mockPersistence.countNodes.mockRejectedValue(new Error('Ref not found'));
+
+      await expect(service.countNodes('nonexistent'))
+        .rejects.toThrow('Ref not found');
     });
   });
 });

@@ -233,16 +233,36 @@ export class GraphNode {
  * Port interface for graph persistence operations.
  * @abstract
  */
+/**
+ * Full commit metadata returned by getNodeInfo.
+ */
+export interface NodeInfo {
+  /** Commit SHA */
+  sha: string;
+  /** Commit message */
+  message: string;
+  /** Author name */
+  author: string;
+  /** Commit date */
+  date: string;
+  /** Parent commit SHAs */
+  parents: string[];
+}
+
 export abstract class GraphPersistencePort {
   /** The empty tree SHA */
   abstract get emptyTree(): string;
 
   abstract commitNode(options: CreateNodeOptions): Promise<string>;
   abstract showNode(sha: string): Promise<string>;
+  /** Gets full commit metadata for a node */
+  abstract getNodeInfo(sha: string): Promise<NodeInfo>;
   abstract logNodesStream(options: ListNodesOptions & { format: string }): Promise<AsyncIterable<Uint8Array | string>>;
   abstract logNodes(options: ListNodesOptions & { format: string }): Promise<string>;
   /** Pings the repository to verify accessibility */
   abstract ping(): Promise<PingResult>;
+  /** Counts nodes reachable from a ref without loading them into memory */
+  abstract countNodes(ref: string): Promise<number>;
 }
 
 /**
@@ -374,6 +394,7 @@ export class GitGraphAdapter extends GraphPersistencePort implements IndexStorag
   get emptyTree(): string;
   commitNode(options: CreateNodeOptions): Promise<string>;
   showNode(sha: string): Promise<string>;
+  getNodeInfo(sha: string): Promise<NodeInfo>;
   logNodesStream(options: ListNodesOptions & { format: string }): Promise<AsyncIterable<Uint8Array | string>>;
   logNodes(options: ListNodesOptions & { format: string }): Promise<string>;
   writeBlob(content: Buffer | string): Promise<string>;
@@ -384,7 +405,11 @@ export class GitGraphAdapter extends GraphPersistencePort implements IndexStorag
   updateRef(ref: string, oid: string): Promise<void>;
   readRef(ref: string): Promise<string | null>;
   deleteRef(ref: string): Promise<void>;
+  /** Checks if a node (commit) exists in the repository */
+  nodeExists(sha: string): Promise<boolean>;
   ping(): Promise<PingResult>;
+  /** Counts nodes reachable from a ref without loading them into memory */
+  countNodes(ref: string): Promise<number>;
 }
 
 /**
@@ -401,8 +426,14 @@ export class GraphService {
 
   createNode(options: CreateNodeOptions): Promise<string>;
   readNode(sha: string): Promise<string>;
+  /** Checks if a node exists by SHA (efficient, does not load content) */
+  hasNode(sha: string): Promise<boolean>;
+  /** Gets a full GraphNode by SHA with all metadata */
+  getNode(sha: string): Promise<GraphNode>;
   listNodes(options: ListNodesOptions): Promise<GraphNode[]>;
   iterateNodes(options: IterateNodesOptions): AsyncGenerator<GraphNode, void, unknown>;
+  /** Counts nodes reachable from a ref without loading them into memory */
+  countNodes(ref: string): Promise<number>;
 }
 
 /**
@@ -814,6 +845,18 @@ export default class EmptyGraph {
   readNode(sha: string): Promise<string>;
 
   /**
+   * Checks if a node exists by SHA.
+   * Efficient existence check that does not load the node's content.
+   * Non-existent SHAs return false rather than throwing an error.
+   */
+  hasNode(sha: string): Promise<boolean>;
+
+  /**
+   * Gets a full GraphNode by SHA with all metadata (sha, message, author, date, parents).
+   */
+  getNode(sha: string): Promise<GraphNode>;
+
+  /**
    * Lists nodes in history (for small graphs).
    */
   listNodes(options: ListNodesOptions): Promise<GraphNode[]>;
@@ -870,4 +913,10 @@ export default class EmptyGraph {
    * Returns true if the repository is accessible (even if degraded).
    */
   isAlive(): Promise<boolean>;
+
+  /**
+   * Counts nodes reachable from a ref without loading them into memory.
+   * Uses git rev-list --count for O(1) memory efficiency.
+   */
+  countNodes(ref: string): Promise<number>;
 }
