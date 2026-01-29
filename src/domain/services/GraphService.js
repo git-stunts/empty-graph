@@ -300,4 +300,167 @@ export default class GraphService {
     });
     return count;
   }
+
+  /**
+   * Validates a single node specification for bulk creation.
+   * @param {Object} spec - The node specification to validate
+   * @param {number} index - The index in the batch (for error messages)
+   * @returns {{message: string, parents: string[]}} Validated node spec
+   * @throws {Error} If the spec is invalid
+   * @private
+   */
+  _validateNodeSpec(spec, index) {
+    if (!spec || typeof spec !== 'object') {
+      throw new Error(`Node at index ${index} must be an object`);
+    }
+
+    const { message, parents = [] } = spec;
+
+    if (typeof message !== 'string') {
+      throw new Error(`Node at index ${index}: message must be a string`);
+    }
+
+    const messageBytes = Buffer.byteLength(message, 'utf-8');
+    if (messageBytes > this.maxMessageBytes) {
+      this.logger.warn('Message size exceeds limit in bulk create', {
+        operation: 'createNodes',
+        index,
+        messageBytes,
+        maxMessageBytes: this.maxMessageBytes,
+      });
+      throw new Error(
+        `Node at index ${index}: message size ${messageBytes} bytes exceeds maximum allowed ${this.maxMessageBytes} bytes`
+      );
+    }
+
+    if (!Array.isArray(parents)) {
+      throw new Error(`Node at index ${index}: parents must be an array`);
+    }
+
+    this._validateParentRefs(parents, index);
+
+    return { message, parents };
+  }
+
+  /**
+   * Validates parent references for a node in bulk creation.
+   * @param {string[]} parents - Array of parent references
+   * @param {number} nodeIndex - The index of the node in the batch
+   * @throws {Error} If any parent reference is invalid
+   * @private
+   */
+  _validateParentRefs(parents, nodeIndex) {
+    for (let j = 0; j < parents.length; j++) {
+      const parent = parents[j];
+      if (typeof parent !== 'string') {
+        throw new Error(`Node at index ${nodeIndex}: parent at index ${j} must be a string`);
+      }
+
+      if (parent.startsWith('$')) {
+        const refIndex = parseInt(parent.slice(1), 10);
+        if (isNaN(refIndex) || refIndex < 0 || refIndex >= nodeIndex) {
+          throw new Error(
+            `Node at index ${nodeIndex}: invalid placeholder '${parent}'. ` +
+            `Must reference an earlier node index (0 to ${nodeIndex - 1})`
+          );
+        }
+      }
+    }
+  }
+
+  /**
+   * Resolves placeholder references in parent array to actual SHAs.
+   * @param {string[]} parents - Array of parent references
+   * @param {string[]} createdShas - Array of already-created SHAs
+   * @returns {string[]} Resolved parent SHAs
+   * @private
+   */
+  _resolveParentRefs(parents, createdShas) {
+    return parents.map(parent => {
+      if (parent.startsWith('$')) {
+        const refIndex = parseInt(parent.slice(1), 10);
+        return createdShas[refIndex];
+      }
+      return parent;
+    });
+  }
+
+  /**
+   * Creates multiple nodes in the graph in bulk.
+   *
+   * Validates all inputs upfront before creating any nodes, ensuring atomicity
+   * at the validation level - if any node spec is invalid, no nodes are created.
+   *
+   * Nodes can reference each other via a special placeholder syntax: `$0`, `$1`, etc.
+   * These placeholders refer to the SHA of nodes created earlier in the same batch
+   * (by their array index).
+   *
+   * @param {Array<{message: string, parents?: string[]}>} nodes - Array of node specifications
+   * @returns {Promise<string[]>} Array of created SHAs in the same order as input
+   * @throws {Error} If any node spec is invalid (message not string, message too large, invalid parent)
+   *
+   * @example
+   * // Create independent nodes
+   * const shas = await service.createNodes([
+   *   { message: 'Node A' },
+   *   { message: 'Node B' },
+   * ]);
+   *
+   * @example
+   * // Create nodes with parent relationships to each other
+   * const shas = await service.createNodes([
+   *   { message: 'Root node' },
+   *   { message: 'Child of root', parents: ['$0'] }, // References first node
+   *   { message: 'Another child', parents: ['$0'] },
+   *   { message: 'Grandchild', parents: ['$1', '$2'] }, // References both children
+   * ]);
+   *
+   * @example
+   * // Mix external and internal parents
+   * const existingSha = 'abc123...';
+   * const shas = await service.createNodes([
+   *   { message: 'Branch from existing', parents: [existingSha] },
+   *   { message: 'Continue branch', parents: ['$0'] },
+   * ]);
+   */
+  async createNodes(nodes) {
+    const startTime = performance.now();
+
+    if (!Array.isArray(nodes)) {
+      throw new Error('createNodes requires an array of node specifications');
+    }
+
+    if (nodes.length === 0) {
+      this.logger.debug('createNodes called with empty array', {
+        operation: 'createNodes',
+        nodeCount: 0,
+        durationMs: performance.now() - startTime,
+      });
+      return [];
+    }
+
+    // Phase 1: Validate all inputs upfront
+    const validatedNodes = nodes.map((spec, i) => this._validateNodeSpec(spec, i));
+
+    // Phase 2: Create nodes sequentially (required for placeholder resolution)
+    const createdShas = [];
+    for (const { message, parents } of validatedNodes) {
+      const resolvedParents = this._resolveParentRefs(parents, createdShas);
+      const sha = await this.persistence.commitNode({
+        message,
+        parents: resolvedParents,
+        sign: false,
+      });
+      createdShas.push(sha);
+    }
+
+    const durationMs = performance.now() - startTime;
+    this.logger.debug('Bulk node creation complete', {
+      operation: 'createNodes',
+      nodeCount: createdShas.length,
+      durationMs,
+    });
+
+    return createdShas;
+  }
 }

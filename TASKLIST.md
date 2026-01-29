@@ -141,12 +141,12 @@ Unit benchmarks in `test/benchmark/graph.bench.js`, integration benchmarks via D
 - [x] Lazy shard loading in BitmapIndexReader
 - [x] StreamingBitmapIndexBuilder for memory-bounded index builds
 - [ ] Shard the global `ids.json` map for >10M nodes (noted in ARCHITECTURE.md)
-- [ ] LRU cache for loaded shards (currently unbounded Map)
+- [x] LRU cache for loaded shards
 
-### API Enhancements
-- [ ] `graph.getNode(sha)` returning full `GraphNode` (not just message)
-- [ ] `graph.hasNode(sha)` existence check
-- [ ] `graph.countNodes(ref)` without loading all nodes
+### API Enhancements (PARTIAL)
+- [x] `graph.getNode(sha)` returning full `GraphNode` (not just message)
+- [x] `graph.hasNode(sha)` existence check
+- [x] `graph.countNodes(ref)` without loading all nodes
 - [ ] Batch operations: `createNodes([...])` for bulk inserts
 
 ---

@@ -73,6 +73,18 @@ export interface CreateNodeOptions {
 }
 
 /**
+ * Specification for a node to be created in bulk.
+ * Parents can include placeholder references like '$0', '$1' to reference
+ * nodes created earlier in the same batch (by their array index).
+ */
+export interface BulkNodeSpec {
+  /** The node's message/data */
+  message: string;
+  /** Array of parent commit SHAs or placeholder references ('$0', '$1', etc.) */
+  parents?: string[];
+}
+
+/**
  * Options for listing nodes.
  */
 export interface ListNodesOptions {
@@ -425,6 +437,12 @@ export class GraphService {
   });
 
   createNode(options: CreateNodeOptions): Promise<string>;
+  /**
+   * Creates multiple nodes in bulk.
+   * Validates all inputs upfront before creating any nodes.
+   * Supports placeholder references ('$0', '$1', etc.) to reference nodes created earlier in the batch.
+   */
+  createNodes(nodes: BulkNodeSpec[]): Promise<string[]>;
   readNode(sha: string): Promise<string>;
   /** Checks if a node exists by SHA (efficient, does not load content) */
   hasNode(sha: string): Promise<boolean>;
@@ -838,6 +856,13 @@ export default class EmptyGraph {
    * Creates a new graph node as a Git commit.
    */
   createNode(options: CreateNodeOptions): Promise<string>;
+
+  /**
+   * Creates multiple graph nodes in bulk.
+   * Validates all inputs upfront before creating any nodes.
+   * Supports placeholder references ('$0', '$1', etc.) to reference nodes created earlier in the batch.
+   */
+  createNodes(nodes: BulkNodeSpec[]): Promise<string[]>;
 
   /**
    * Reads a node's message.

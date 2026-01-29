@@ -460,4 +460,275 @@ describe('GraphService', () => {
         .rejects.toThrow('Ref not found');
     });
   });
+
+  describe('createNodes()', () => {
+    beforeEach(() => {
+      let callCount = 0;
+      mockPersistence.commitNode.mockImplementation(async () => {
+        return `sha-${callCount++}`;
+      });
+    });
+
+    describe('basic functionality', () => {
+      it('creates multiple nodes and returns SHAs in order', async () => {
+        const shas = await service.createNodes([
+          { message: 'Node A' },
+          { message: 'Node B' },
+          { message: 'Node C' },
+        ]);
+
+        expect(shas).toHaveLength(3);
+        expect(shas).toEqual(['sha-0', 'sha-1', 'sha-2']);
+        expect(mockPersistence.commitNode).toHaveBeenCalledTimes(3);
+      });
+
+      it('passes message and empty parents by default', async () => {
+        await service.createNodes([{ message: 'Test message' }]);
+
+        expect(mockPersistence.commitNode).toHaveBeenCalledWith({
+          message: 'Test message',
+          parents: [],
+          sign: false,
+        });
+      });
+
+      it('passes explicit parents to persistence', async () => {
+        await service.createNodes([
+          { message: 'Node with parents', parents: ['existing-sha-1', 'existing-sha-2'] },
+        ]);
+
+        expect(mockPersistence.commitNode).toHaveBeenCalledWith({
+          message: 'Node with parents',
+          parents: ['existing-sha-1', 'existing-sha-2'],
+          sign: false,
+        });
+      });
+    });
+
+    describe('empty array input', () => {
+      it('returns empty array for empty input', async () => {
+        const shas = await service.createNodes([]);
+
+        expect(shas).toEqual([]);
+        expect(mockPersistence.commitNode).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('placeholder references', () => {
+      it('resolves $0 to first created SHA', async () => {
+        await service.createNodes([
+          { message: 'Root' },
+          { message: 'Child', parents: ['$0'] },
+        ]);
+
+        expect(mockPersistence.commitNode).toHaveBeenNthCalledWith(2, {
+          message: 'Child',
+          parents: ['sha-0'],
+          sign: false,
+        });
+      });
+
+      it('resolves multiple placeholder references', async () => {
+        await service.createNodes([
+          { message: 'Root A' },
+          { message: 'Root B' },
+          { message: 'Merge', parents: ['$0', '$1'] },
+        ]);
+
+        expect(mockPersistence.commitNode).toHaveBeenNthCalledWith(3, {
+          message: 'Merge',
+          parents: ['sha-0', 'sha-1'],
+          sign: false,
+        });
+      });
+
+      it('supports complex DAG structures', async () => {
+        const shas = await service.createNodes([
+          { message: 'Root' },                           // $0
+          { message: 'Child A', parents: ['$0'] },       // $1
+          { message: 'Child B', parents: ['$0'] },       // $2
+          { message: 'Grandchild', parents: ['$1', '$2'] }, // $3
+        ]);
+
+        expect(shas).toHaveLength(4);
+        expect(mockPersistence.commitNode).toHaveBeenNthCalledWith(4, {
+          message: 'Grandchild',
+          parents: ['sha-1', 'sha-2'],
+          sign: false,
+        });
+      });
+
+      it('mixes external SHAs with placeholder references', async () => {
+        await service.createNodes([
+          { message: 'Branch from existing', parents: ['external-sha'] },
+          { message: 'Continue', parents: ['$0'] },
+        ]);
+
+        expect(mockPersistence.commitNode).toHaveBeenNthCalledWith(1, {
+          message: 'Branch from existing',
+          parents: ['external-sha'],
+          sign: false,
+        });
+        expect(mockPersistence.commitNode).toHaveBeenNthCalledWith(2, {
+          message: 'Continue',
+          parents: ['sha-0'],
+          sign: false,
+        });
+      });
+    });
+
+    describe('validation - fail fast before any creation', () => {
+      it('throws if input is not an array', async () => {
+        await expect(service.createNodes('not an array'))
+          .rejects.toThrow('createNodes requires an array of node specifications');
+        expect(mockPersistence.commitNode).not.toHaveBeenCalled();
+      });
+
+      it('throws if input is null', async () => {
+        await expect(service.createNodes(null))
+          .rejects.toThrow('createNodes requires an array of node specifications');
+        expect(mockPersistence.commitNode).not.toHaveBeenCalled();
+      });
+
+      it('throws if node spec is not an object', async () => {
+        await expect(service.createNodes(['not an object']))
+          .rejects.toThrow('Node at index 0 must be an object');
+        expect(mockPersistence.commitNode).not.toHaveBeenCalled();
+      });
+
+      it('throws if node spec is null', async () => {
+        await expect(service.createNodes([null]))
+          .rejects.toThrow('Node at index 0 must be an object');
+        expect(mockPersistence.commitNode).not.toHaveBeenCalled();
+      });
+
+      it('throws if message is not a string', async () => {
+        await expect(service.createNodes([{ message: 123 }]))
+          .rejects.toThrow('Node at index 0: message must be a string');
+        expect(mockPersistence.commitNode).not.toHaveBeenCalled();
+      });
+
+      it('throws if message is missing', async () => {
+        await expect(service.createNodes([{}]))
+          .rejects.toThrow('Node at index 0: message must be a string');
+        expect(mockPersistence.commitNode).not.toHaveBeenCalled();
+      });
+
+      it('throws if parents is not an array', async () => {
+        await expect(service.createNodes([{ message: 'test', parents: 'not-array' }]))
+          .rejects.toThrow('Node at index 0: parents must be an array');
+        expect(mockPersistence.commitNode).not.toHaveBeenCalled();
+      });
+
+      it('throws if parent is not a string', async () => {
+        await expect(service.createNodes([{ message: 'test', parents: [123] }]))
+          .rejects.toThrow('Node at index 0: parent at index 0 must be a string');
+        expect(mockPersistence.commitNode).not.toHaveBeenCalled();
+      });
+
+      it('includes index in error message for later nodes', async () => {
+        await expect(service.createNodes([
+          { message: 'Valid' },
+          { message: 'Valid' },
+          { message: 123 }, // Invalid at index 2
+        ])).rejects.toThrow('Node at index 2: message must be a string');
+        expect(mockPersistence.commitNode).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('message size validation', () => {
+      it('throws if message exceeds max size', async () => {
+        const smallLimitService = new GraphService({
+          persistence: mockPersistence,
+          maxMessageBytes: 100,
+        });
+
+        const largeMessage = 'x'.repeat(101);
+        await expect(smallLimitService.createNodes([{ message: largeMessage }]))
+          .rejects.toThrow(/Node at index 0: message size 101 bytes exceeds maximum.*100 bytes/);
+        expect(mockPersistence.commitNode).not.toHaveBeenCalled();
+      });
+
+      it('validates message size for all nodes before creating any', async () => {
+        const smallLimitService = new GraphService({
+          persistence: mockPersistence,
+          maxMessageBytes: 100,
+        });
+
+        const largeMessage = 'x'.repeat(101);
+        await expect(smallLimitService.createNodes([
+          { message: 'Valid' },
+          { message: largeMessage }, // Invalid
+        ])).rejects.toThrow('Node at index 1');
+        expect(mockPersistence.commitNode).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('placeholder validation', () => {
+      it('throws for invalid placeholder format', async () => {
+        await expect(service.createNodes([
+          { message: 'Root' },
+          { message: 'Child', parents: ['$abc'] }, // Invalid - not a number
+        ])).rejects.toThrow("Node at index 1: invalid placeholder '$abc'");
+        expect(mockPersistence.commitNode).not.toHaveBeenCalled();
+      });
+
+      it('throws for placeholder referencing current index', async () => {
+        await expect(service.createNodes([
+          { message: 'Self-reference', parents: ['$0'] }, // Can't reference self
+        ])).rejects.toThrow("Node at index 0: invalid placeholder '$0'");
+        expect(mockPersistence.commitNode).not.toHaveBeenCalled();
+      });
+
+      it('throws for placeholder referencing future index', async () => {
+        await expect(service.createNodes([
+          { message: 'Root' },
+          { message: 'Invalid', parents: ['$2'] }, // References future node
+          { message: 'Future' },
+        ])).rejects.toThrow("Node at index 1: invalid placeholder '$2'");
+        expect(mockPersistence.commitNode).not.toHaveBeenCalled();
+      });
+
+      it('throws for negative placeholder', async () => {
+        await expect(service.createNodes([
+          { message: 'Root' },
+          { message: 'Invalid', parents: ['$-1'] },
+        ])).rejects.toThrow("Node at index 1: invalid placeholder '$-1'");
+        expect(mockPersistence.commitNode).not.toHaveBeenCalled();
+      });
+
+      it('provides helpful error message with valid range', async () => {
+        await expect(service.createNodes([
+          { message: 'A' },
+          { message: 'B' },
+          { message: 'C', parents: ['$5'] },
+        ])).rejects.toThrow('Must reference an earlier node index (0 to 1)');
+        expect(mockPersistence.commitNode).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('error propagation', () => {
+      it('propagates errors from persistence layer', async () => {
+        mockPersistence.commitNode.mockRejectedValue(new Error('Git error'));
+
+        await expect(service.createNodes([{ message: 'Test' }]))
+          .rejects.toThrow('Git error');
+      });
+
+      it('stops creating nodes on first persistence error', async () => {
+        mockPersistence.commitNode
+          .mockResolvedValueOnce('sha-0')
+          .mockRejectedValueOnce(new Error('Git error'));
+
+        await expect(service.createNodes([
+          { message: 'A' },
+          { message: 'B' },
+          { message: 'C' },
+        ])).rejects.toThrow('Git error');
+
+        // Only 2 calls made (second one failed)
+        expect(mockPersistence.commitNode).toHaveBeenCalledTimes(2);
+      });
+    });
+  });
 });

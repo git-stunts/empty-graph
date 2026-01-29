@@ -174,6 +174,39 @@ export default class EmptyGraph {
   }
 
   /**
+   * Creates multiple graph nodes in bulk.
+   *
+   * Validates all inputs upfront before creating any nodes, ensuring atomicity
+   * at the validation level - if any node spec is invalid, no nodes are created.
+   *
+   * Nodes can reference each other via a special placeholder syntax: `$0`, `$1`, etc.
+   * These placeholders refer to the SHA of nodes created earlier in the same batch
+   * (by their array index).
+   *
+   * @param {Array<{message: string, parents?: string[]}>} nodes - Array of node specifications
+   * @returns {Promise<string[]>} Array of created SHAs in the same order as input
+   * @throws {Error} If any node spec is invalid (message not string, message too large, invalid parent)
+   * @example
+   * // Create independent nodes
+   * const shas = await graph.createNodes([
+   *   { message: 'Node A' },
+   *   { message: 'Node B' },
+   * ]);
+   *
+   * @example
+   * // Create nodes with parent relationships to each other
+   * const shas = await graph.createNodes([
+   *   { message: 'Root node' },
+   *   { message: 'Child of root', parents: ['$0'] },
+   *   { message: 'Another child', parents: ['$0'] },
+   *   { message: 'Grandchild', parents: ['$1', '$2'] },
+   * ]);
+   */
+  async createNodes(nodes) {
+    return this.service.createNodes(nodes);
+  }
+
+  /**
    * Reads a node's message.
    * @param {string} sha - Commit SHA to read
    * @returns {Promise<string>} The node's message
