@@ -110,7 +110,7 @@ Shards are loaded on-demand to minimize startup time and memory usage:
 #### Memory Characteristics
 
 | Scenario | Approximate Memory |
-|----------|-------------------|
+| ---------- | ------------------- |
 | Cold start (no queries) | Near-zero |
 | Single prefix loaded | ~0.5-2MB per prefix |
 | Full index loaded (1M nodes) | ~150-200MB |

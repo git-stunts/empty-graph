@@ -92,7 +92,7 @@ async function main() {
   const shardData = {};
   let totalBytes = 0;
   let totalNodes = 0;
-  let totalEdges = 0;
+  let totalEdgeLists = 0;
 
   for (const path of shardPaths) {
     const oid = shardOids[path];
@@ -118,15 +118,15 @@ async function main() {
       totalNodes += Object.keys(parsed.data).length;
     }
 
-    // Count edges from forward shards
+    // Count edge lists from forward shards
     if (path.startsWith('shards_fwd_') && parsed?.data) {
-      totalEdges += Object.keys(parsed.data).length;
+      totalEdgeLists += Object.keys(parsed.data).length;
     }
   }
 
   console.log(`  Total index size: ${formatBytes(totalBytes)}`);
   console.log(`  Total nodes:      ${totalNodes}`);
-  console.log(`  Total edges:      ${totalEdges}`);
+  console.log(`  Edge lists:       ${totalEdgeLists}`);
   console.log('');
 
   // Show shard distribution by prefix
@@ -213,7 +213,7 @@ async function main() {
   // Rough memory estimates based on typical roaring bitmap overhead
   const bitmapOverheadPerNode = 64; // ~64 bytes per node in roaring bitmaps
   const metadataOverhead = totalNodes * 80; // SHA (40) + ID (8) + overhead (32)
-  const edgeBitmapMemory = totalEdges * bitmapOverheadPerNode;
+  const edgeBitmapMemory = totalEdgeLists * bitmapOverheadPerNode;
   const estimatedRuntimeMemory = metadataOverhead + edgeBitmapMemory * 2; // fwd + rev
 
   console.log(`  On-disk index size:         ${formatBytes(totalBytes)}`);

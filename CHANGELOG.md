@@ -10,23 +10,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - **Cancellation**: `createTimeoutSignal()` now uses native `AbortSignal.timeout()` for cleaner implementation
 - **BitmapIndexReader**: Non-strict mode now caches empty shards on validation/parse failures to avoid repeated I/O
+- **TraversalService**: `findPath()` now accepts `maxNodes` parameter for consistency with `bfs`/`dfs`
+- **index.js**: `loadIndex()` now resets cached `_traversal` so subsequent access uses the new index
 
 ### Fixed
 - **Constructor Validation**: All services now fail fast with clear error messages when required dependencies are missing
   - `BitmapIndexReader` requires `storage`
   - `IndexRebuildService` requires `graphService` and `storage`
   - `StreamingBitmapIndexBuilder` requires positive `maxMemoryBytes`
-  - `GraphService` requires `persistence` and positive `maxMessageBytes`
+  - `GraphService` requires `persistence`, positive `maxMessageBytes`, and string `message`
   - `TraversalService` requires `indexReader`
-- **Examples**: `lagrangian-path.js` now handles empty graphs and malformed JSON gracefully
+- **Examples**: Improved robustness across demo scripts
+  - `lagrangian-path.js`: handles empty graphs and malformed JSON gracefully
+  - `explore.js`: guards against empty events, removes unused import, adds curly braces
+  - `setup.js`: clears timeout to allow immediate process exit
+  - `streaming-benchmark.js`: handles divide-by-zero when no heap samples
+  - `traversal-benchmark.js`: catches JSON parse errors in weight provider
+  - `inspect-index.js`: renamed misleading `totalEdges` to `totalEdgeLists`
+- **Error Classes**: Removed redundant `Error.captureStackTrace` calls in `ShardValidationError` and `ShardCorruptionError`
+- **GitLogParser**: Removed `trim()` from final record to preserve message content exactly
 - **Tests**: Improved test stability and resilience
   - NoOpLogger performance test uses generous threshold for CI environments
   - BitmapIndexBuilder tests use hex-like SHAs for realism
   - Streaming index tests store raw buffers and use resilient assertions
+  - GraphService test uses idiomatic `expect().rejects.toThrow()` pattern
 
 ### Docs
 - README: Added `text` language specifier to output code blocks
-- TASKLIST: Fixed table formatting consistency
+- TASKLIST: Fixed table formatting and grammar
+- ARCHITECTURE: Fixed table separator spacing
+- WALKTHROUGH: Added language specifiers to output blocks, converted bold to headings
+- **TypeScript**: Added missing `weightedShortestPath`, `aStarSearch`, `bidirectionalAStar` method declarations and `throwOnCycle` option
 
 ## [2.5.0] - 2026-01-29
 

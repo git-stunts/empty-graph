@@ -240,6 +240,7 @@ export default class EmptyGraph {
     this._index = await this.rebuildService.load(treeOid);
     this._indexOid = treeOid;
     this._healthService.setIndexReader(this._index);
+    this._traversal = null; // Reset to pick up new index on next access
   }
 
   /**

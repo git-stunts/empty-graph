@@ -58,7 +58,5 @@ export default class ShardValidationError extends IndexError {
     this.expected = options.expected;
     this.actual = options.actual;
     this.field = options.field;
-
-    Error.captureStackTrace?.(this, this.constructor);
   }
 }

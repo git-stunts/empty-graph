@@ -222,13 +222,15 @@ async function main() {
 
   // Calculate heap variance during streaming
   const heapVariance = maxHeap - minHeap;
-  const avgHeap = heapSamples.reduce((a, b) => a + b, 0) / heapSamples.length;
+  const avgHeap = heapSamples.length > 0
+    ? heapSamples.reduce((a, b) => a + b, 0) / heapSamples.length
+    : 0;
 
   console.log('Memory Profile During Streaming:\n');
-  console.log(`  Min heap:     ${formatBytes(minHeap)}`);
-  console.log(`  Max heap:     ${formatBytes(maxHeap)}`);
-  console.log(`  Variance:     ${formatBytes(heapVariance)}`);
-  console.log(`  Avg heap:     ${formatBytes(avgHeap)}`);
+  console.log(`  Min heap:     ${heapSamples.length > 0 ? formatBytes(minHeap) : 'N/A'}`);
+  console.log(`  Max heap:     ${heapSamples.length > 0 ? formatBytes(maxHeap) : 'N/A'}`);
+  console.log(`  Variance:     ${heapSamples.length > 0 ? formatBytes(heapVariance) : 'N/A'}`);
+  console.log(`  Avg heap:     ${heapSamples.length > 0 ? formatBytes(avgHeap) : 'N/A'}`);
 
   // Memory should stay relatively constant - variance should be small
   const variancePercent = (heapVariance / avgHeap * 100).toFixed(1);

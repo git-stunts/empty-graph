@@ -68,7 +68,7 @@ The core is solid. Index build/query path complete. **Graph traversal algorithms
 - [x] `commonAncestors()` - Find common ancestors of multiple nodes
 - [x] `topologicalSort()` - Kahn's algorithm for dependency order
 
-**Note:** Traversal accessed via `graph.traversal` property (lazy instantiation). Requires loaded index.
+**Note:** Traversal accessed via `graph.traversal` property (lazy instantiation). Requires a loaded index.
 
 ### ✅ Cancellation Support (COMPLETED 2026-01-29)
 - [x] `OperationAbortedError` - Custom error for aborted operations

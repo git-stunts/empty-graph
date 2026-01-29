@@ -10,7 +10,6 @@ import { execSync } from 'child_process';
 const modulePath = process.env.EMPTYGRAPH_MODULE || '/app/index.js';
 const { default: EmptyGraph, ConsoleLogger, LogLevel } = await import(modulePath);
 const { GitGraphAdapter } = await import(modulePath);
-const { createTimeoutSignal } = await import(modulePath);
 import GitPlumbing, { ShellRunnerFactory } from '@git-stunts/plumbing';
 
 // Demo should never hang indefinitely - 60s is generous for index build
@@ -139,10 +138,15 @@ async function main() {
 
   console.log('\n📊 Building bitmap index...\n');
 
-  const indexOid = await graph.rebuildIndex('main', {
-    signal: createTimeoutSignal(DEMO_TIMEOUT_MS),
-  });
-  await graph.saveIndex();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), DEMO_TIMEOUT_MS);
+  let indexOid;
+  try {
+    indexOid = await graph.rebuildIndex('main', { signal: controller.signal });
+    await graph.saveIndex();
+  } finally {
+    clearTimeout(timeout);
+  }
   console.log(`  Index saved to refs/empty-graph/index (${indexOid.slice(0, 8)})`);
 
   console.log('\n✅ Demo setup complete!\n');

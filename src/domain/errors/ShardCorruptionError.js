@@ -53,7 +53,5 @@ export default class ShardCorruptionError extends IndexError {
     this.shardPath = options.shardPath;
     this.oid = options.oid;
     this.reason = options.reason;
-
-    Error.captureStackTrace?.(this, this.constructor);
   }
 }

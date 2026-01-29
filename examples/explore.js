@@ -5,7 +5,7 @@
  * Run after setup.js to explore the event graph
  */
 
-import { execSync, spawnSync } from 'child_process';
+import { execSync } from 'child_process';
 // Import from mounted volume in Docker
 const modulePath = process.env.EMPTYGRAPH_MODULE || '/app/index.js';
 const { default: EmptyGraph } = await import(modulePath);
@@ -16,8 +16,12 @@ import GitPlumbing, { ShellRunnerFactory } from '@git-stunts/plumbing';
  * Format nanoseconds to appropriate units (ns, μs, ms)
  */
 function formatTime(ns) {
-  if (ns < 1000n) return `${ns}ns`;
-  if (ns < 1000000n) return `${(Number(ns) / 1000).toFixed(2)}μs`;
+  if (ns < 1000n) {
+    return `${ns}ns`;
+  }
+  if (ns < 1000000n) {
+    return `${(Number(ns) / 1000).toFixed(2)}μs`;
+  }
   return `${(Number(ns) / 1000000).toFixed(2)}ms`;
 }
 
@@ -65,6 +69,11 @@ async function main() {
 
   // Reverse to show chronological order
   events.reverse();
+
+  if (events.length === 0) {
+    console.log('No events found for HEAD; nothing to explore.');
+    return;
+  }
 
   for (const { sha, event } of events) {
     console.log(`[${sha.slice(0, 8)}] ${event.type}`);

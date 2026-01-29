@@ -71,6 +71,9 @@ export default class GraphService {
    * @throws {Error} If message size exceeds maxMessageBytes limit
    */
   async createNode({ message, parents = [], sign = false }) {
+    if (typeof message !== 'string') {
+      throw new Error('message must be a string');
+    }
     // Validate message size
     const messageBytes = Buffer.byteLength(message, 'utf-8');
     if (messageBytes > this.maxMessageBytes) {

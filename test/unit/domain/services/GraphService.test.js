@@ -147,13 +147,8 @@ describe('GraphService', () => {
 
       const message = 'x'.repeat(600);
 
-      try {
-        await service.createNode({ message });
-        expect.fail('Should have thrown');
-      } catch (err) {
-        expect(err.message).toContain('600');
-        expect(err.message).toContain('500');
-      }
+      await expect(service.createNode({ message }))
+        .rejects.toThrow(/600 bytes.*500 bytes/);
     });
   });
 

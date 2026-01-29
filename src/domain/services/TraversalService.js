@@ -202,21 +202,22 @@ export default class TraversalService {
    * @param {Object} options
    * @param {string} options.from - Source node SHA
    * @param {string} options.to - Target node SHA
+   * @param {number} [options.maxNodes=100000] - Maximum nodes to visit
    * @param {number} [options.maxDepth=1000] - Maximum search depth
    * @returns {Promise<PathResult>}
    */
-  async findPath({ from, to, maxDepth = DEFAULT_MAX_DEPTH }) {
+  async findPath({ from, to, maxNodes = DEFAULT_MAX_NODES, maxDepth = DEFAULT_MAX_DEPTH }) {
     if (from === to) {
       return { found: true, path: [from], length: 0 };
     }
 
-    this._logger.debug('findPath started', { from, to, maxDepth });
+    this._logger.debug('findPath started', { from, to, maxNodes, maxDepth });
 
     const visited = new Set();
     const parentMap = new Map();
     const queue = [{ sha: from, depth: 0 }];
 
-    while (queue.length > 0) {
+    while (queue.length > 0 && visited.size < maxNodes) {
       const current = queue.shift();
 
       if (current.depth > maxDepth) { continue; }

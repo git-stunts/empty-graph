@@ -161,9 +161,14 @@ function createWeightProvider(graph) {
     }
 
     const message = await graph.readNode(toSha);
-    const event = JSON.parse(message);
-    const cpu = event.metrics?.cpu ?? 1;
-    const mem = event.metrics?.mem ?? 1;
+    let cpu = 1, mem = 1;
+    try {
+      const event = JSON.parse(message);
+      cpu = event.metrics?.cpu ?? 1;
+      mem = event.metrics?.mem ?? 1;
+    } catch {
+      // Fall back to default weights for non-JSON messages
+    }
     const weight = cpu + 1.5 * mem;
 
     cache.set(toSha, weight);

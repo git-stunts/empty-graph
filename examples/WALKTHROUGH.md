@@ -36,7 +36,7 @@ This command:
 
 You should see output like:
 
-```
+```text
 🚀 EmptyGraph Demo Setup
 
 📁 Initializing git repo...
@@ -86,7 +86,7 @@ git log --oneline main
 
 You'll see something like:
 
-```
+```text
 a3a69ce OrderDelivered
 b44d50a OrderShipped
 d84d835 PaymentReceived
@@ -105,7 +105,7 @@ This is an e-commerce order lifecycle, stored as Git commits!
 git log --oneline --all --graph
 ```
 
-```
+```text
 * ad2d0de OrderCancelled        <- cancelled-order branch
 | * a3a69ce OrderDelivered      <- main branch continues
 | * b44d50a OrderShipped
@@ -153,7 +153,7 @@ The commit message IS the event payload. No files, no blobs - just pure data in 
 git cat-file -p a3a69ce
 ```
 
-```
+```text
 tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904
 parent b44d50a...
 author EmptyGraph Demo <demo@emptygraph.local> 1706478887 +0000
@@ -189,7 +189,7 @@ This script demonstrates EmptyGraph's traversal capabilities.
 
 The explorer walks backwards through all ancestors of HEAD, collecting events:
 
-```
+```text
 ═══════════════════════════════════════════════════════════════
 1. REPLAY ALL EVENTS (ancestors of HEAD)
 ═══════════════════════════════════════════════════════════════
@@ -225,7 +225,7 @@ This is `graph.traversal.ancestors()` in action - O(1) lookups thanks to the bit
 
 The explorer replays events through a reducer to rebuild current state:
 
-```
+```text
 ═══════════════════════════════════════════════════════════════
 2. REBUILD STATE (event sourcing projection)
 ═══════════════════════════════════════════════════════════════
@@ -267,7 +267,7 @@ No database queries - just replay the events to get current state. This is the h
 
 The explorer finds where the main and cancelled-order branches diverge:
 
-```
+```text
 ═══════════════════════════════════════════════════════════════
 3. COMPARE BRANCHES (main vs cancelled-order)
 ═══════════════════════════════════════════════════════════════
@@ -289,7 +289,7 @@ This demonstrates how branching enables "what-if" scenarios. Both timelines shar
 
 The explorer finds the shortest path between two events:
 
-```
+```text
 ═══════════════════════════════════════════════════════════════
 4. PATH FINDING
 ═══════════════════════════════════════════════════════════════
@@ -304,7 +304,7 @@ This uses bidirectional BFS - the same algorithm used in social network "degrees
 
 Events in dependency order:
 
-```
+```text
 ═══════════════════════════════════════════════════════════════
 5. TOPOLOGICAL ORDER
 ═══════════════════════════════════════════════════════════════
@@ -418,19 +418,22 @@ This removes the container and volumes. Run `demo:setup` again anytime to start 
 
 ## Troubleshooting
 
-**"Cannot find module" errors**
+### "Cannot find module" errors
+
 ```bash
 # Inside container, reinstall deps
 cd /app && npm install
 ```
 
-**"No index found" errors**
+### "No index found" errors
+
 ```bash
 # Rebuild the index
 npm run demo:setup
 ```
 
-**Container won't start**
+### Container won't start
+
 ```bash
 # Full reset
 npm run demo:down
@@ -438,7 +441,8 @@ docker volume prune -f
 npm run demo:setup
 ```
 
-**Permission errors on macOS**
+### Permission errors on macOS
+
 ```bash
 # Docker Desktop may need permissions for the mounted volume
 # Check Docker Desktop > Settings > Resources > File sharing

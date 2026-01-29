@@ -189,6 +189,8 @@ export interface TopologicalSortOptions {
   maxNodes?: number;
   /** Direction determines dependency order (default: 'forward') */
   direction?: TraversalDirection;
+  /** If true, throws TraversalError when cycle detected (default: false) */
+  throwOnCycle?: boolean;
 }
 
 /**
@@ -583,6 +585,38 @@ export class TraversalService {
    * Yields nodes in topological order using Kahn's algorithm.
    */
   topologicalSort(options: TopologicalSortOptions): AsyncGenerator<TraversalNode, void, unknown>;
+
+  /**
+   * Finds shortest path using Dijkstra's algorithm with custom edge weights.
+   */
+  weightedShortestPath(options: {
+    from: string;
+    to: string;
+    weightProvider?: (fromSha: string, toSha: string) => number | Promise<number>;
+    direction?: 'children' | 'parents';
+  }): Promise<{ path: string[]; totalCost: number }>;
+
+  /**
+   * Finds shortest path using A* algorithm with heuristic guidance.
+   */
+  aStarSearch(options: {
+    from: string;
+    to: string;
+    weightProvider?: (fromSha: string, toSha: string) => number | Promise<number>;
+    heuristicProvider?: (sha: string, targetSha: string) => number | Promise<number>;
+    direction?: 'children' | 'parents';
+  }): Promise<{ path: string[]; totalCost: number; nodesExplored: number }>;
+
+  /**
+   * Bi-directional A* search - meets in the middle from both ends.
+   */
+  bidirectionalAStar(options: {
+    from: string;
+    to: string;
+    weightProvider?: (fromSha: string, toSha: string) => number | Promise<number>;
+    forwardHeuristic?: (sha: string, targetSha: string) => number | Promise<number>;
+    backwardHeuristic?: (sha: string, targetSha: string) => number | Promise<number>;
+  }): Promise<{ path: string[]; totalCost: number; nodesExplored: number }>;
 }
 
 /**

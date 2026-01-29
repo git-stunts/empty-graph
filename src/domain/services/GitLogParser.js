@@ -143,7 +143,7 @@ export default class GitLogParser {
 
     // Process any remaining data (final record without trailing NUL)
     if (buffer.length > 0) {
-      const block = buffer.toString('utf-8').trim();
+      const block = buffer.toString('utf-8');
       if (block) {
         const node = this.parseNode(block);
         if (node) {
