@@ -663,7 +663,7 @@ const treeOid = await graph.rebuildIndex('HEAD', {
 | -------- | --------- | ------------- |
 | `maxNodes` | 100000 | Maximum number of nodes to visit |
 | `maxDepth` | 1000 | Maximum traversal depth |
-| `direction` | `'forward'` | Traversal direction: `'forward'` (children) or `'reverse'` (parents). For `bfs`/`dfs` only. |
+| `direction` | `'forward'` | Traversal direction: `'forward'` or `'reverse'` for `bfs`/`dfs`; `'children'` or `'parents'` for weighted algorithms (`weightedShortestPath`, `aStarSearch`). |
 
 All traversal generators are async and memory-efficient, suitable for large graphs with millions of nodes.
 

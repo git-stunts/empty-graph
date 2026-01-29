@@ -153,10 +153,10 @@ async function main() {
   try {
     indexOid = await graph.rebuildIndex('main', { signal: controller.signal });
     await graph.saveIndex();
+    console.log(`  Index saved to refs/empty-graph/index (${indexOid.slice(0, 8)})`);
   } finally {
     clearTimeout(timeout);
   }
-  console.log(`  Index saved to refs/empty-graph/index (${indexOid.slice(0, 8)})`);
 
   console.log('\n✅ Demo setup complete!\n');
   console.log('Try these commands:');

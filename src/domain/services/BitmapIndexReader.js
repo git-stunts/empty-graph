@@ -164,8 +164,24 @@ export default class BitmapIndexReader {
 
     // Decode base64 bitmap and extract IDs
     const buffer = Buffer.from(encoded, 'base64');
-    const bitmap = RoaringBitmap32.deserialize(buffer, true);
-    const ids = bitmap.toArray();
+    let ids;
+    try {
+      const bitmap = RoaringBitmap32.deserialize(buffer, true);
+      ids = bitmap.toArray();
+    } catch (err) {
+      const corruptionError = new ShardCorruptionError('Failed to deserialize bitmap', {
+        shardPath,
+        oid: this.shardOids.get(shardPath),
+        reason: 'bitmap_deserialize_error',
+        originalError: err.message,
+      });
+      this._handleShardError(corruptionError, {
+        path: shardPath,
+        oid: this.shardOids.get(shardPath),
+        format: 'json',
+      });
+      return [];
+    }
 
     // Convert IDs to SHAs
     const idToSha = await this._buildIdToShaMapping();
