@@ -1,21 +1,18 @@
+import { createHash } from 'crypto';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import StreamingBitmapIndexBuilder, { SHARD_VERSION } from '../../../../src/domain/services/StreamingBitmapIndexBuilder.js';
 
 /**
  * Helper to create a valid shard envelope with checksum.
- * Mirrors the computeChecksum function in StreamingBitmapIndexBuilder.
+ * Uses SHA-256 to match production validation in StreamingBitmapIndexBuilder.
  */
 function createMockEnvelope(data) {
-  const str = JSON.stringify(data);
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash;
-  }
+  const checksum = createHash('sha256')
+    .update(JSON.stringify(data))
+    .digest('hex');
   return {
     version: SHARD_VERSION,
-    checksum: hash.toString(16),
+    checksum,
     data,
   };
 }

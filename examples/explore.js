@@ -12,6 +12,10 @@ const { default: EmptyGraph } = await import(modulePath);
 const { GitGraphAdapter } = await import(modulePath);
 import GitPlumbing, { ShellRunnerFactory } from '@git-stunts/plumbing';
 
+/* eslint-disable no-console */
+/* eslint-disable max-lines-per-function */
+/* eslint-disable complexity */
+
 /**
  * Format nanoseconds to appropriate units (ns, μs, ms)
  */

@@ -15,10 +15,7 @@ import OperationAbortedError from '../errors/OperationAbortedError.js';
  */
 export function checkAborted(signal, operation) {
   if (signal?.aborted) {
-    throw new OperationAbortedError(
-      operation ? `Operation "${operation}" was aborted` : 'Operation was aborted',
-      { context: { operation } }
-    );
+    throw new OperationAbortedError(operation || undefined, { context: { operation } });
   }
 }
 

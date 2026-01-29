@@ -22,18 +22,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `TraversalService` requires `indexReader`
 - **Examples**: Improved robustness across demo scripts
   - `lagrangian-path.js`: handles empty graphs and malformed JSON gracefully
-  - `explore.js`: guards against empty events, removes unused import, adds curly braces
+  - `explore.js`: guards against empty events, removes unused import, adds curly braces, adds eslint overrides
   - `setup.js`: clears timeout to allow immediate process exit
   - `streaming-benchmark.js`: handles divide-by-zero when no heap samples
   - `traversal-benchmark.js`: catches JSON parse errors in weight provider
   - `inspect-index.js`: renamed misleading `totalEdges` to `totalEdgeLists`
+  - `event-sourcing.js`: added per-line eslint-disable for console.log
 - **Error Classes**: Removed redundant `Error.captureStackTrace` calls in `ShardValidationError` and `ShardCorruptionError`
 - **GitLogParser**: Removed `trim()` from final record to preserve message content exactly
+- **BitmapIndexReader**: `_validateShard` now guards against missing/invalid `envelope.data` before computing checksum
+- **StreamingBitmapIndexBuilder**: `_mergeChunks` wraps JSON parse, bitmap deserialize, and serialization errors in `ShardCorruptionError`
+- **Cancellation**: `checkAborted` now passes raw operation name to `OperationAbortedError` to avoid double-formatting
 - **Tests**: Improved test stability and resilience
   - NoOpLogger performance test uses generous threshold for CI environments
   - BitmapIndexBuilder tests use hex-like SHAs for realism
   - Streaming index tests store raw buffers and use resilient assertions
   - GraphService test uses idiomatic `expect().rejects.toThrow()` pattern
+  - StreamingBitmapIndexBuilder test mock uses SHA-256 checksums matching production
+  - logging.integration test properly invokes async IIFE for `.rejects` matcher
 
 ### Docs
 - README: Added `text` language specifier to output code blocks

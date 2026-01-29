@@ -126,12 +126,12 @@ describe('Service Logging Integration', () => {
       it('logs warn on invalid limit', async () => {
         const service = new GraphService({ persistence: mockPersistence, logger: mockLogger });
 
-        await expect(async () => {
+        await expect((async () => {
           // eslint-disable-next-line no-unused-vars
           for await (const node of service.iterateNodes({ ref: 'HEAD', limit: -1 })) {
             // Should not reach here
           }
-        }).rejects.toThrow();
+        })()).rejects.toThrow();
 
         expect(mockLogger._calls.warn.length).toBe(1);
         const logEntry = mockLogger._calls.warn[0];

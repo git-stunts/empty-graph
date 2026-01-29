@@ -251,7 +251,7 @@ describe('BitmapIndexReader', () => {
       const strictReader = new BitmapIndexReader({ storage: mockStorage, strict: true });
       strictReader.setup({ 'shards_rev_ab.json': 'corrupt-oid' });
 
-      await expect(strictReader.getParents('abcd1234')).rejects.toThrow(ShardValidationError);
+      await expect(strictReader.getParents('abcd1234')).rejects.toThrow(ShardCorruptionError);
     });
 
     it('caches empty shard on validation failure to avoid repeated I/O and log spam', async () => {

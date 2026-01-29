@@ -215,6 +215,14 @@ export default class BitmapIndexReader {
         reason: 'not_an_object',
       });
     }
+    // Validate data field exists and is an object
+    if (typeof envelope.data !== 'object' || envelope.data === null) {
+      throw new ShardCorruptionError('Invalid or missing data field', {
+        shardPath: path,
+        oid,
+        reason: 'missing_or_invalid_data',
+      });
+    }
     if (envelope.version !== SHARD_VERSION) {
       throw new ShardValidationError('Version mismatch', {
         shardPath: path,

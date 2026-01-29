@@ -400,7 +400,16 @@ export default class StreamingBitmapIndexBuilder {
 
     for (const oid of oids) {
       const buffer = await this.storage.readBlob(oid);
-      const envelope = JSON.parse(buffer.toString('utf-8'));
+      let envelope;
+      try {
+        envelope = JSON.parse(buffer.toString('utf-8'));
+      } catch (err) {
+        throw new ShardCorruptionError('Failed to parse shard JSON', {
+          oid,
+          reason: 'invalid_format',
+          originalError: err.message,
+        });
+      }
 
       // Validate version
       if (envelope.version !== SHARD_VERSION) {
@@ -428,7 +437,16 @@ export default class StreamingBitmapIndexBuilder {
       const chunk = envelope.data;
 
       for (const [sha, base64Bitmap] of Object.entries(chunk)) {
-        const bitmap = RoaringBitmap32.deserialize(Buffer.from(base64Bitmap, 'base64'), true);
+        let bitmap;
+        try {
+          bitmap = RoaringBitmap32.deserialize(Buffer.from(base64Bitmap, 'base64'), true);
+        } catch (err) {
+          throw new ShardCorruptionError('Failed to deserialize bitmap', {
+            oid,
+            reason: 'invalid_bitmap',
+            originalError: err.message,
+          });
+        }
 
         if (!merged[sha]) {
           merged[sha] = bitmap;
@@ -446,13 +464,21 @@ export default class StreamingBitmapIndexBuilder {
     }
 
     // Wrap merged result in envelope with version and checksum
-    const envelope = {
+    const mergedEnvelope = {
       version: SHARD_VERSION,
       checksum: computeChecksum(result),
       data: result,
     };
 
-    const buffer = Buffer.from(JSON.stringify(envelope));
-    return this.storage.writeBlob(buffer);
+    let serialized;
+    try {
+      serialized = Buffer.from(JSON.stringify(mergedEnvelope));
+    } catch (err) {
+      throw new ShardCorruptionError('Failed to serialize merged shard', {
+        reason: 'serialization_error',
+        originalError: err.message,
+      });
+    }
+    return this.storage.writeBlob(serialized);
   }
 }
