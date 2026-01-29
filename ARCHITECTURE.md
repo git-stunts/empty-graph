@@ -156,6 +156,12 @@ The following diagrams illustrate the key operational flows within the system.
 
 This flow shows how the bitmap index is rebuilt from the commit graph. The process iterates through all nodes, registers them in the bitmap builder, and persists the resulting shards as Git blobs.
 
+**Parallel Shard Writes**: The `StreamingBitmapIndexBuilder` uses `Promise.all` to write shards in parallel during both flush and finalize operations. Since shards are partitioned by prefix, they are independent and can be written concurrently:
+
+- `_writeShardsToStorage()`: Writes forward and reverse bitmap shards in parallel
+- `_writeMetaShards()`: Writes meta shards (SHA-to-ID mappings) in parallel
+- `_processBitmapShards()`: Merges multi-chunk shards in parallel
+
 ```mermaid
 sequenceDiagram
     participant Client
@@ -175,8 +181,11 @@ sequenceDiagram
     end
     IndexRebuildService->>BitmapIndexBuilder: serialize()
     BitmapIndexBuilder-->>IndexRebuildService: shardBuffers
-    loop For each shard
-        IndexRebuildService->>GitAdapter: writeBlob(buffer)
+    par Parallel shard writes
+        IndexRebuildService->>GitAdapter: writeBlob(shard_fwd_00)
+        IndexRebuildService->>GitAdapter: writeBlob(shard_fwd_01)
+        IndexRebuildService->>GitAdapter: writeBlob(shard_rev_00)
+        IndexRebuildService->>GitAdapter: writeBlob(meta_00)
     end
     IndexRebuildService->>GitAdapter: writeTree(entries)
     GitAdapter-->>EmptyGraph: treeOid
@@ -185,6 +194,16 @@ sequenceDiagram
 ### 2. Index Query Flow (O(1) Lookup)
 
 This flow demonstrates the O(1) parent lookup using the bitmap index. Shards are loaded on-demand based on the SHA prefix, validated, and cached for subsequent queries.
+
+**Helper Method Decomposition**: The `BitmapIndexReader` uses extracted helper methods for maintainability and reduced complexity:
+
+| Method | Responsibility |
+| ------ | -------------- |
+| `_getEdges(sha, type)` | Unified edge retrieval for both parents and children |
+| `_loadShardBuffer(path, oid)` | Loads raw shard data from storage |
+| `_parseAndValidateShard(buffer, path, oid)` | JSON parsing with validation |
+| `_validateShard(envelope, path, oid)` | Version and checksum verification |
+| `_getOrLoadShard(path, format)` | Cache-aware shard loading orchestration |
 
 ```mermaid
 sequenceDiagram

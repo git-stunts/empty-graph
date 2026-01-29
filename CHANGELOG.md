@@ -42,10 +42,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - **Cancellation**: `createTimeoutSignal()` now uses native `AbortSignal.timeout()` for cleaner implementation
 - **BitmapIndexReader**: Non-strict mode now caches empty shards on validation/parse failures to avoid repeated I/O
+- **BitmapIndexReader**: Refactored for reduced complexity with extracted helper methods (`_validateShard`, `_parseAndValidateShard`, `_loadShardBuffer`, `_getEdges`)
+- **StreamingBitmapIndexBuilder**: Parallel shard writes using `Promise.all` for improved performance during flush and finalize operations
 - **TraversalService**: `findPath()` now accepts `maxNodes` parameter for consistency with `bfs`/`dfs`
 - **index.js**: `loadIndex()` now resets cached `_traversal` so subsequent access uses the new index
 - **Async Weight Providers**: `weightProvider` callbacks now properly awaited in all algorithms
   - Fixes bug where async weight functions returned Promises instead of numbers
+- **README**: Reorganized sections for better flow - moved Use Cases up, improved navigation
 
 ### Fixed
 - **Constructor Validation**: All services now fail fast with clear error messages when required dependencies are missing
