@@ -138,9 +138,9 @@ This ensures corrupted shards (from disk errors, partial writes, or tampering) a
 #### Domain Layer (`src/domain/`)
 - **Entities**: `GraphNode` (Value Object).
 - **Services**:
-    - `GraphService`: High-level graph operations.
-    - `BitmapIndexService`: Index management.
-    - `IndexRebuildService`: Rebuilds the index from the log.
+  - `GraphService`: High-level graph operations.
+  - `BitmapIndexService`: Index management.
+  - `IndexRebuildService`: Rebuilds the index from the log.
 
 #### Infrastructure Layer (`src/infrastructure/`)
 - **Adapters**: `GitGraphAdapter` wraps `git` commands via `@git-stunts/plumbing`.

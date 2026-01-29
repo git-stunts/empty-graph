@@ -291,8 +291,12 @@ async function main() {
   console.log(`  git rev-list --children:      ${formatTime(gitChildrenTime)}`);
 
   // Calculate speedup factors
-  const parentsSpeedup = Number(gitParentsTime) / Number(parentsTime);
-  const childrenSpeedup = Number(gitChildrenTime) / Number(childrenTime);
+  const parentsSpeedup = parentsTime > 0n
+    ? Number(gitParentsTime) / Number(parentsTime)
+    : Infinity;
+  const childrenSpeedup = childrenTime > 0n
+    ? Number(gitChildrenTime) / Number(childrenTime)
+    : Infinity;
 
   console.log('\n  ┌─────────────────────────────────────────────────────────────┐');
   console.log('  │ SPEEDUP SUMMARY                                             │');

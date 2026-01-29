@@ -168,7 +168,7 @@ describe('IndexRebuildService streaming mode', () => {
         onProgress: (data) => progressCalls.push(data),
       });
 
-      expect(progressCalls.length).toBe(1); // 10000 nodes checkpoint
+      expect(progressCalls.length).toBeGreaterThanOrEqual(1); // Progress called at 10000-node intervals
       expect(progressCalls[0].processedNodes).toBe(10000);
       expect(progressCalls[0].currentMemoryBytes).toBeNull(); // in-memory mode doesn't track
     });

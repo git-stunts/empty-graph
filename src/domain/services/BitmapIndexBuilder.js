@@ -146,6 +146,7 @@ export default class BitmapIndexBuilder {
     }
 
     // Serialize bitmaps (sharded by prefix, per-node within shard)
+    // Keys are constructed as '${type}_${sha}' by _addToBitmap (e.g., 'fwd_abc123', 'rev_def456')
     const bitmapShards = { fwd: {}, rev: {} };
     for (const [key, bitmap] of this.bitmaps) {
       const [type, sha] = [key.substring(0, 3), key.substring(4)];

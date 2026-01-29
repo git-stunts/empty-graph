@@ -64,9 +64,7 @@ export default [
         beforeAll: "readonly",
         afterAll: "readonly",
         vi: "readonly",
-        bench: "readonly",
-        AbortController: "readonly",
-        AbortSignal: "readonly"
+        bench: "readonly"
       }
     },
     rules: {
@@ -96,11 +94,12 @@ export default [
       "complexity": "off"
     }
   },
-  // Relaxed rules for algorithm/service files (graph algorithms have inherently high complexity)
+  // Relaxed rules for specific algorithm files (graph algorithms have inherently high complexity)
   {
-    files: ["src/domain/services/*.js"],
+    files: ["src/domain/services/TraversalService.js", "src/domain/services/IndexRebuildService.js"],
     rules: {
-      "complexity": ["error", 35],
+      "complexity": ["error", 25],
+      "max-statements": ["error", 50],
       "max-lines-per-function": ["error", 200],
       "max-depth": ["error", 6],
       "max-params": ["error", 6]

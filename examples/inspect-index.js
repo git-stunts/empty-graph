@@ -103,7 +103,9 @@ async function main() {
     let parsed;
     try {
       parsed = JSON.parse(new TextDecoder().decode(buffer));
-    } catch {
+    } catch (err) {
+      // Shard contains invalid JSON - will be reported as unparseable
+      console.debug(`Failed to parse shard ${path}: ${err.message}`);
       parsed = null;
     }
 

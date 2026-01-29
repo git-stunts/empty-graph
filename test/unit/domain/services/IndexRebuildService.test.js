@@ -65,6 +65,7 @@ describe('IndexRebuildService', () => {
     expect(typeof reader.getChildren).toBe('function');
   });
 
+  // Testing _persistIndex directly to verify shard file creation without full rebuild overhead
   it('persists index from builder to storage', async () => {
     // Create a minimal builder with known data
     const BitmapIndexBuilder = (await import('../../../../src/domain/services/BitmapIndexBuilder.js')).default;

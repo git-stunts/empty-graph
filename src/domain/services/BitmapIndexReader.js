@@ -216,7 +216,7 @@ export default class BitmapIndexReader {
       });
     }
     // Validate data field exists and is an object
-    if (typeof envelope.data !== 'object' || envelope.data === null) {
+    if (typeof envelope.data !== 'object' || envelope.data === null || Array.isArray(envelope.data)) {
       throw new ShardCorruptionError('Invalid or missing data field', {
         shardPath: path,
         oid,
@@ -288,7 +288,7 @@ export default class BitmapIndexReader {
 
       // For JSON format, use the validated data directly
       // For bitmap format, the data contains base64-encoded bitmaps (handled by caller)
-      const data = format === 'json' ? validatedData : validatedData;
+      const data = validatedData;
 
       this.loadedShards.set(path, data);
       return data;

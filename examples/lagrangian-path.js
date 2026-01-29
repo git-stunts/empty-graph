@@ -178,7 +178,13 @@ async function main() {
     const message = await graph.readNode(toSha);
 
     // Parse the JSON event structure
-    const event = JSON.parse(message);
+    let event;
+    try {
+      event = JSON.parse(message);
+    } catch {
+      // Non-JSON node: use default cost
+      return 1 * COEFF_CPU + 1 * COEFF_MEM;
+    }
 
     // Extract metrics from payload.metrics with sensible defaults
     const cpu = event.payload?.metrics?.cpu ?? 1;  // Default: 1 unit of CPU

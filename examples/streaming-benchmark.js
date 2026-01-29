@@ -23,6 +23,11 @@ const NODE_COUNT = parseInt(process.env.NODE_COUNT || '100000', 10); // Default 
 const BATCH_SIZE = 10000; // Create nodes in batches for progress reporting
 const SAMPLE_INTERVAL = 10000; // Sample memory every N nodes
 
+// Warn if GC control is unavailable
+if (typeof global.gc !== 'function') {
+  console.warn('Warning: Run with --expose-gc for accurate memory measurements');
+}
+
 // ============================================================================
 // HELPERS
 // ============================================================================

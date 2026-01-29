@@ -659,7 +659,7 @@ const treeOid = await graph.rebuildIndex('HEAD', {
 #### Traversal Options
 
 | Option | Default | Description |
-|--------|---------|-------------|
+| ------ | ------- | ----------- |
 | `maxNodes` | 100000 | Maximum number of nodes to visit |
 | `maxDepth` | 1000 | Maximum traversal depth |
 | `direction` | `'forward'` | Traversal direction: `'forward'` (children) or `'reverse'` (parents). For `bfs`/`dfs` only. |

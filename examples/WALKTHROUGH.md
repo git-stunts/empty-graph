@@ -364,6 +364,7 @@ If you add events, rebuild the index to include them:
 
 ```bash
 node -e "
+// Note: This script reflects the v2.5.0 API. Check index.js exports if API has changed.
 const { default: EmptyGraph, GitGraphAdapter } = await import('/app/index.js');
 const GitPlumbing = (await import('@git-stunts/plumbing')).default;
 

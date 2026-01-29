@@ -376,7 +376,7 @@ export default class StreamingBitmapIndexBuilder {
     bitmap.add(id);
     const sizeAfter = bitmap.size;
 
-    // Estimate ~4 bytes per new entry (Roaring compression varies)
+    // Estimate ~4 bytes per new entry (approximation; actual Roaring compression varies widely based on data distribution)
     if (sizeAfter > sizeBefore) {
       this.estimatedBitmapBytes += 4;
     }
