@@ -6,7 +6,16 @@
 
 The core is solid. Index build/query path complete. **Graph traversal algorithms implemented including Dijkstra, A*, and Bidirectional A*.** Cancellation support with AbortSignal. Health checks, structured logging, and comprehensive error handling all in place. Test coverage is excellent (349 tests). **Interactive Docker demo fully working with Lagrangian pathfinding.** **All P0 and P1 tasks complete, including streaming and traversal benchmarks.**
 
-### Recent Progress (2026-01-29 - Afternoon)
+### Recent Progress (2026-01-29 - Evening)
+- **Streaming Benchmark**: `npm run demo:bench-streaming` - Memory profile for 100K+ nodes
+  - Verifies constant memory overhead during streaming (6.9% variance)
+  - Stream rate: ~24K nodes/sec
+- **Traversal Benchmark**: `npm run demo:bench-traversal` - Weighted pathfinding at scale
+  - Tests Dijkstra, A*, Bidirectional A* on linear and diamond graphs (100-5000 nodes)
+  - A* shows 1.34x speedup on DAGs with good heuristics
+- **Package version**: Updated to 2.5.0
+
+### Previous Progress (2026-01-29 - Afternoon)
 - **Cancellation Support**: `AbortSignal` integration for `iterateNodes()` and `rebuildIndex()`
 - **Dijkstra's Algorithm**: `weightedShortestPath()` with async weight provider support
 - **A* Search**: `aStarSearch()` with heuristic guidance and tie-breaking
@@ -226,4 +235,6 @@ The implementation evolved beyond the original tasklist:
 - [x] ARCHITECTURE.md
 - [x] THE_STUNT.md
 - [x] Comprehensive benchmark suite
+- [x] Docker-based streaming benchmark (`demo:bench-streaming`)
+- [x] Docker-based traversal benchmark (`demo:bench-traversal`)
 - [x] 349 passing tests

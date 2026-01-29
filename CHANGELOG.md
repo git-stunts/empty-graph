@@ -28,6 +28,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Lagrangian Demo**: `npm run demo:lagrangian` - Resource-aware pathfinding
   - Event payloads now include `metrics: { cpu, mem }` for weight calculations
   - Demonstrates Dijkstra, A*, and cost optimization concepts
+- **Streaming Benchmark**: `npm run demo:bench-streaming` - Memory profile for 100K+ nodes
+  - Verifies constant memory overhead during iteration (~7% variance)
+  - Measures stream throughput (~24K nodes/sec)
+- **Traversal Benchmark**: `npm run demo:bench-traversal` - Weighted pathfinding at scale
+  - Tests Dijkstra, A*, Bidirectional A* on linear and diamond graphs (100-5000 nodes)
+  - Compares algorithm performance characteristics
 - **OperationAbortedError**: New error class for cancellation scenarios
 
 ### Changed

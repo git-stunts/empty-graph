@@ -83,7 +83,11 @@ npm run demo:inspect
 # 5. Run Lagrangian pathfinding demo (resource-aware traversal)
 npm run demo:lagrangian
 
-# 6. Clean up when done
+# 6. Run benchmarks
+npm run demo:bench-streaming   # Memory profile for 100K+ nodes
+npm run demo:bench-traversal   # Dijkstra/A*/BiA* performance at scale
+
+# 7. Clean up when done
 npm run demo:down
 ```
 
@@ -99,6 +103,8 @@ The demo is **idempotent** - running `demo:setup` multiple times will clean up a
 - **Performance Comparison**: Shows O(1) bitmap index lookups vs git log (with speedup factors)
 - **Index Inspector**: Visualizes shard distribution with ASCII charts
 - **Lagrangian Pathfinding**: Resource-aware traversal using Dijkstra and A* with weighted costs
+- **Streaming Benchmark**: Verifies constant memory overhead when iterating 100K+ nodes
+- **Traversal Benchmark**: Compares Dijkstra, A*, and Bidirectional A* at scale
 
 **Sample output:**
 
