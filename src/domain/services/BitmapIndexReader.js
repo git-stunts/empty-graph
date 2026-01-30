@@ -2,6 +2,7 @@ import roaring from 'roaring';
 import { createHash } from 'crypto';
 import { ShardLoadError, ShardCorruptionError, ShardValidationError } from '../errors/index.js';
 import NoOpLogger from '../../infrastructure/adapters/NoOpLogger.js';
+import LRUCache from '../utils/LRUCache.js';
 
 const { RoaringBitmap32 } = roaring;
 
@@ -11,6 +12,12 @@ const { RoaringBitmap32 } = roaring;
  * @const {number}
  */
 const SHARD_VERSION = 1;
+
+/**
+ * Default maximum number of shards to cache.
+ * @const {number}
+ */
+const DEFAULT_MAX_CACHED_SHARDS = 100;
 
 /**
  * Computes a SHA-256 checksum of the given data.
@@ -72,16 +79,19 @@ export default class BitmapIndexReader {
    * @param {boolean} [options.strict=false] - If true, throw errors on validation failures; if false, log warnings and return empty shards
    * @param {import('../../ports/LoggerPort.js').default} [options.logger] - Logger for structured logging.
    *   Defaults to NoOpLogger (no logging).
+   * @param {number} [options.maxCachedShards=100] - Maximum number of shards to keep in the LRU cache.
+   *   When exceeded, least recently used shards are evicted to free memory.
    */
-  constructor({ storage, strict = false, logger = new NoOpLogger() } = {}) {
+  constructor({ storage, strict = false, logger = new NoOpLogger(), maxCachedShards = DEFAULT_MAX_CACHED_SHARDS } = {}) {
     if (!storage) {
       throw new Error('BitmapIndexReader requires a storage adapter');
     }
     this.storage = storage;
     this.strict = strict;
     this.logger = logger;
+    this.maxCachedShards = maxCachedShards;
     this.shardOids = new Map(); // path -> OID
-    this.loadedShards = new Map(); // path -> Data
+    this.loadedShards = new LRUCache(maxCachedShards); // path -> Data
     this._idToShaCache = null; // Lazy-built reverse mapping
   }
 

@@ -22,6 +22,16 @@ export default class GraphPersistencePort {
   }
 
   /**
+   * Gets full commit metadata for a node.
+   * @param {string} sha - The commit SHA to retrieve
+   * @returns {Promise<{sha: string, message: string, author: string, date: string, parents: string[]}>}
+   *   Full commit metadata
+   */
+  async getNodeInfo(_sha) {
+    throw new Error('Not implemented');
+  }
+
+  /**
    * @param {Object} options
    * @param {string} options.ref
    * @param {number} [options.limit]
@@ -124,6 +134,16 @@ export default class GraphPersistencePort {
    * @returns {Promise<{ok: boolean, latencyMs: number}>} Health check result with latency
    */
   async ping() {
+    throw new Error('Not implemented');
+  }
+
+  /**
+   * Counts nodes reachable from a ref without loading them into memory.
+   * Uses git rev-list --count for efficiency.
+   * @param {string} ref - Git ref to count from
+   * @returns {Promise<number>} The count of reachable nodes
+   */
+  async countNodes(_ref) {
     throw new Error('Not implemented');
   }
 }

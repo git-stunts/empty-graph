@@ -1,5 +1,6 @@
 import { performance } from 'perf_hooks';
 import GitLogParser, { RECORD_SEPARATOR } from './GitLogParser.js';
+import GraphNode from '../entities/GraphNode.js';
 import NoOpLogger from '../../infrastructure/adapters/NoOpLogger.js';
 import { checkAborted } from '../utils/cancellation.js';
 
@@ -119,6 +120,70 @@ export default class GraphService {
   }
 
   /**
+   * Checks if a node exists by SHA.
+   *
+   * This is an efficient existence check that does not load the node's content.
+   * Non-existent SHAs return false rather than throwing an error.
+   *
+   * @param {string} sha - The node's SHA to check
+   * @returns {Promise<boolean>} True if the node exists, false otherwise
+   */
+  async hasNode(sha) {
+    const startTime = performance.now();
+    const exists = await this.persistence.nodeExists(sha);
+    const durationMs = performance.now() - startTime;
+    this.logger.debug('Node existence check', {
+      operation: 'hasNode',
+      sha,
+      exists,
+      durationMs,
+    });
+    return exists;
+  }
+
+  /**
+   * Gets a full GraphNode by SHA.
+   *
+   * Returns the complete node with all metadata (sha, message, author, date, parents).
+   * Use this when you need more than just the message content.
+   *
+   * @param {string} sha - The node's SHA
+   * @returns {Promise<GraphNode>} The complete graph node
+   * @throws {Error} If the SHA is invalid or node doesn't exist
+   *
+   * @example
+   * const node = await service.getNode('abc123...');
+   * console.log(node.sha);      // 'abc123...'
+   * console.log(node.message);  // 'My commit message'
+   * console.log(node.author);   // 'Alice'
+   * console.log(node.date);     // '2026-01-29T10:30:00-05:00'
+   * console.log(node.parents);  // ['def456...']
+   */
+  async getNode(sha) {
+    const startTime = performance.now();
+    const nodeInfo = await this.persistence.getNodeInfo(sha);
+    const durationMs = performance.now() - startTime;
+
+    const node = new GraphNode({
+      sha: nodeInfo.sha,
+      message: nodeInfo.message,
+      author: nodeInfo.author,
+      date: nodeInfo.date,
+      parents: nodeInfo.parents,
+    });
+
+    this.logger.debug('Node retrieved', {
+      operation: 'getNode',
+      sha,
+      messageBytes: Buffer.byteLength(nodeInfo.message, 'utf-8'),
+      parentCount: nodeInfo.parents.length,
+      durationMs,
+    });
+
+    return node;
+  }
+
+  /**
    * Lists nodes in history.
    *
    * Collects all nodes from the async generator into an array.
@@ -204,5 +269,208 @@ export default class GraphService {
       yieldedCount,
       durationMs,
     });
+  }
+
+  /**
+   * Counts nodes reachable from a ref without loading them into memory.
+   *
+   * This is an efficient O(1) memory operation using `git rev-list --count`.
+   * Use this for statistics or progress tracking without memory overhead.
+   *
+   * @param {string} ref - Git ref to count from (e.g., 'HEAD', 'main', SHA)
+   * @returns {Promise<number>} The count of reachable nodes
+   *
+   * @example
+   * const count = await service.countNodes('HEAD');
+   * console.log(`Graph has ${count} nodes`);
+   *
+   * @example
+   * // Count nodes on a specific branch
+   * const count = await service.countNodes('feature-branch');
+   */
+  async countNodes(ref) {
+    const startTime = performance.now();
+    const count = await this.persistence.countNodes(ref);
+    const durationMs = performance.now() - startTime;
+    this.logger.debug('Node count complete', {
+      operation: 'countNodes',
+      ref,
+      count,
+      durationMs,
+    });
+    return count;
+  }
+
+  /**
+   * Validates a single node specification for bulk creation.
+   * @param {Object} spec - The node specification to validate
+   * @param {number} index - The index in the batch (for error messages)
+   * @returns {{message: string, parents: string[]}} Validated node spec
+   * @throws {Error} If the spec is invalid
+   * @private
+   */
+  _validateNodeSpec(spec, index) {
+    if (!spec || typeof spec !== 'object') {
+      throw new Error(`Node at index ${index} must be an object`);
+    }
+
+    const { message, parents = [] } = spec;
+
+    if (typeof message !== 'string') {
+      throw new Error(`Node at index ${index}: message must be a string`);
+    }
+
+    const messageBytes = Buffer.byteLength(message, 'utf-8');
+    if (messageBytes > this.maxMessageBytes) {
+      this.logger.warn('Message size exceeds limit in bulk create', {
+        operation: 'createNodes',
+        index,
+        messageBytes,
+        maxMessageBytes: this.maxMessageBytes,
+      });
+      throw new Error(
+        `Node at index ${index}: message size ${messageBytes} bytes exceeds maximum allowed ${this.maxMessageBytes} bytes`
+      );
+    }
+
+    if (!Array.isArray(parents)) {
+      throw new Error(`Node at index ${index}: parents must be an array`);
+    }
+
+    this._validateParentRefs(parents, index);
+
+    return { message, parents };
+  }
+
+  /**
+   * Validates parent references for a node in bulk creation.
+   * @param {string[]} parents - Array of parent references
+   * @param {number} nodeIndex - The index of the node in the batch
+   * @throws {Error} If any parent reference is invalid
+   * @private
+   */
+  _validateParentRefs(parents, nodeIndex) {
+    for (let j = 0; j < parents.length; j++) {
+      const parent = parents[j];
+      if (typeof parent !== 'string') {
+        throw new Error(`Node at index ${nodeIndex}: parent at index ${j} must be a string`);
+      }
+
+      if (parent.startsWith('$')) {
+        const refIndex = parseInt(parent.slice(1), 10);
+        if (isNaN(refIndex) || refIndex < 0 || refIndex >= nodeIndex) {
+          const errorDetail = nodeIndex === 0
+            ? `Placeholder '${parent}' is invalid: must reference an earlier node, but this is the first node`
+            : `Must reference an earlier node index (0 to ${nodeIndex - 1})`;
+          throw new Error(
+            `Node at index ${nodeIndex}: invalid placeholder '${parent}'. ${errorDetail}`
+          );
+        }
+      }
+    }
+  }
+
+  /**
+   * Resolves placeholder references in parent array to actual SHAs.
+   * @param {string[]} parents - Array of parent references
+   * @param {string[]} createdShas - Array of already-created SHAs
+   * @returns {string[]} Resolved parent SHAs
+   * @private
+   */
+  _resolveParentRefs(parents, createdShas) {
+    return parents.map(parent => {
+      if (parent.startsWith('$')) {
+        const refIndex = parseInt(parent.slice(1), 10);
+        return createdShas[refIndex];
+      }
+      return parent;
+    });
+  }
+
+  /**
+   * Creates multiple nodes in the graph in bulk.
+   *
+   * Validates all inputs upfront before creating any nodes, ensuring atomicity
+   * at the validation level - if any node spec is invalid, no nodes are created.
+   *
+   * Nodes can reference each other via a special placeholder syntax: `$0`, `$1`, etc.
+   * These placeholders refer to the SHA of nodes created earlier in the same batch
+   * (by their array index).
+   *
+   * @param {Array<{message: string, parents?: string[]}>} nodes - Array of node specifications
+   * @param {Object} [options={}] - Options for bulk creation
+   * @param {boolean} [options.sign=false] - Whether to GPG-sign the commits
+   * @returns {Promise<string[]>} Array of created SHAs in the same order as input
+   * @throws {Error} If any node spec is invalid (message not string, message too large, invalid parent)
+   *
+   * @example
+   * // Create independent nodes
+   * const shas = await service.createNodes([
+   *   { message: 'Node A' },
+   *   { message: 'Node B' },
+   * ]);
+   *
+   * @example
+   * // Create nodes with parent relationships to each other
+   * const shas = await service.createNodes([
+   *   { message: 'Root node' },
+   *   { message: 'Child of root', parents: ['$0'] }, // References first node
+   *   { message: 'Another child', parents: ['$0'] },
+   *   { message: 'Grandchild', parents: ['$1', '$2'] }, // References both children
+   * ]);
+   *
+   * @example
+   * // Mix external and internal parents
+   * const existingSha = 'abc123...';
+   * const shas = await service.createNodes([
+   *   { message: 'Branch from existing', parents: [existingSha] },
+   *   { message: 'Continue branch', parents: ['$0'] },
+   * ]);
+   *
+   * @example
+   * // Create signed commits
+   * const shas = await service.createNodes([
+   *   { message: 'Signed node' },
+   * ], { sign: true });
+   */
+  async createNodes(nodes, { sign = false } = {}) {
+    const startTime = performance.now();
+
+    if (!Array.isArray(nodes)) {
+      throw new Error('createNodes requires an array of node specifications');
+    }
+
+    if (nodes.length === 0) {
+      this.logger.debug('createNodes called with empty array', {
+        operation: 'createNodes',
+        nodeCount: 0,
+        durationMs: performance.now() - startTime,
+      });
+      return [];
+    }
+
+    // Phase 1: Validate all inputs upfront
+    const validatedNodes = nodes.map((spec, i) => this._validateNodeSpec(spec, i));
+
+    // Phase 2: Create nodes sequentially (required for placeholder resolution)
+    const createdShas = [];
+    for (const { message, parents } of validatedNodes) {
+      const resolvedParents = this._resolveParentRefs(parents, createdShas);
+      const sha = await this.persistence.commitNode({
+        message,
+        parents: resolvedParents,
+        sign,
+      });
+      createdShas.push(sha);
+    }
+
+    const durationMs = performance.now() - startTime;
+    this.logger.debug('Bulk node creation complete', {
+      operation: 'createNodes',
+      nodeCount: createdShas.length,
+      durationMs,
+    });
+
+    return createdShas;
   }
 }

@@ -315,6 +315,35 @@ const sha = await graph.createNode({
 });
 ```
 
+#### `async createNodes(nodes)`
+
+Creates multiple nodes in a single batch operation.
+
+**Parameters:**
+- `nodes` (array): Array of `{ message: string, parents?: string[] }` objects. Parents can use placeholder syntax: `$0`, `$1`, etc. to reference nodes created earlier in the same batch.
+
+**Returns:** `Promise<string[]>` - Array of created SHAs in same order as input
+
+**Validation:** All nodes are validated before any are created (fail-fast).
+
+**Example:**
+```javascript
+// Create a chain
+const [root, child, grandchild] = await graph.createNodes([
+  { message: 'Root node' },
+  { message: 'Child', parents: ['$0'] },
+  { message: 'Grandchild', parents: ['$1'] },
+]);
+
+// Create a DAG with merge
+const shas = await graph.createNodes([
+  { message: 'Root' },
+  { message: 'Branch A', parents: ['$0'] },
+  { message: 'Branch B', parents: ['$0'] },
+  { message: 'Merge', parents: ['$1', '$2'] },
+]);
+```
+
 #### `async readNode(sha)`
 
 Reads a node's message.
@@ -328,6 +357,57 @@ Reads a node's message.
 ```javascript
 const message = await graph.readNode(childSha);
 console.log(message); // "Second Entry"
+```
+
+#### `async getNode(sha)`
+
+Returns the full GraphNode with all metadata.
+
+**Parameters:**
+- `sha` (string): Commit SHA to read
+
+**Returns:** `Promise<GraphNode>` - Full node with sha, author, date, message, and parents
+
+**Example:**
+```javascript
+const node = await graph.getNode(childSha);
+console.log(node.sha);      // "abc123..."
+console.log(node.author);   // "Alice <alice@example.com>"
+console.log(node.date);     // "2026-01-29T12:00:00Z"
+console.log(node.message);  // "Second Entry"
+console.log(node.parents);  // ["def456..."]
+```
+
+#### `async hasNode(sha)`
+
+Checks if a node exists in the graph.
+
+**Parameters:**
+- `sha` (string): Commit SHA to check
+
+**Returns:** `Promise<boolean>` - True if the node exists
+
+**Example:**
+```javascript
+const exists = await graph.hasNode('abc123...');
+if (exists) {
+  const node = await graph.getNode('abc123...');
+}
+```
+
+#### `async countNodes(ref)`
+
+Counts nodes reachable from a ref without loading all node data into memory.
+
+**Parameters:**
+- `ref` (string): Git ref to count from (HEAD, branch, SHA)
+
+**Returns:** `Promise<number>` - Number of nodes reachable from the ref
+
+**Example:**
+```javascript
+const count = await graph.countNodes('HEAD');
+console.log(`Graph contains ${count} nodes`);
 ```
 
 #### `async listNodes({ ref, limit = 50 })`
