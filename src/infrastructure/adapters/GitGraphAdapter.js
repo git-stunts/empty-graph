@@ -44,7 +44,7 @@ export default class GitGraphAdapter extends GraphPersistencePort {
     this._validateOid(sha);
     // Format: SHA, author, date, parents (space-separated), then message
     // Using %x00 to separate fields for reliable parsing
-    const format = '%H%x00%an%x00%ad%x00%P%x00%B';
+    const format = '%H%x00%an <%ae>%x00%aI%x00%P%x00%B';
     const output = await this.plumbing.execute({
       args: ['show', '-s', `--format=${format}`, sha]
     });
@@ -60,7 +60,7 @@ export default class GitGraphAdapter extends GraphPersistencePort {
 
     return {
       sha: commitSha.trim(),
-      message: message.trim(),
+      message,
       author: author.trim(),
       date: date.trim(),
       parents,

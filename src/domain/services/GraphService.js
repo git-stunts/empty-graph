@@ -359,9 +359,11 @@ export default class GraphService {
       if (parent.startsWith('$')) {
         const refIndex = parseInt(parent.slice(1), 10);
         if (isNaN(refIndex) || refIndex < 0 || refIndex >= nodeIndex) {
+          const errorDetail = nodeIndex === 0
+            ? `Placeholder '${parent}' is invalid: must reference an earlier node, but this is the first node`
+            : `Must reference an earlier node index (0 to ${nodeIndex - 1})`;
           throw new Error(
-            `Node at index ${nodeIndex}: invalid placeholder '${parent}'. ` +
-            `Must reference an earlier node index (0 to ${nodeIndex - 1})`
+            `Node at index ${nodeIndex}: invalid placeholder '${parent}'. ${errorDetail}`
           );
         }
       }
@@ -396,6 +398,8 @@ export default class GraphService {
    * (by their array index).
    *
    * @param {Array<{message: string, parents?: string[]}>} nodes - Array of node specifications
+   * @param {Object} [options={}] - Options for bulk creation
+   * @param {boolean} [options.sign=false] - Whether to GPG-sign the commits
    * @returns {Promise<string[]>} Array of created SHAs in the same order as input
    * @throws {Error} If any node spec is invalid (message not string, message too large, invalid parent)
    *
@@ -422,8 +426,14 @@ export default class GraphService {
    *   { message: 'Branch from existing', parents: [existingSha] },
    *   { message: 'Continue branch', parents: ['$0'] },
    * ]);
+   *
+   * @example
+   * // Create signed commits
+   * const shas = await service.createNodes([
+   *   { message: 'Signed node' },
+   * ], { sign: true });
    */
-  async createNodes(nodes) {
+  async createNodes(nodes, { sign = false } = {}) {
     const startTime = performance.now();
 
     if (!Array.isArray(nodes)) {
@@ -449,7 +459,7 @@ export default class GraphService {
       const sha = await this.persistence.commitNode({
         message,
         parents: resolvedParents,
-        sign: false,
+        sign,
       });
       createdShas.push(sha);
     }

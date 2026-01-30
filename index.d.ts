@@ -441,8 +441,11 @@ export class GraphService {
    * Creates multiple nodes in bulk.
    * Validates all inputs upfront before creating any nodes.
    * Supports placeholder references ('$0', '$1', etc.) to reference nodes created earlier in the batch.
+   * @param nodes Array of node specifications
+   * @param options Options for bulk creation
+   * @param options.sign Whether to GPG-sign the commits (default: false)
    */
-  createNodes(nodes: BulkNodeSpec[]): Promise<string[]>;
+  createNodes(nodes: BulkNodeSpec[], options?: { sign?: boolean }): Promise<string[]>;
   readNode(sha: string): Promise<string>;
   /** Checks if a node exists by SHA (efficient, does not load content) */
   hasNode(sha: string): Promise<boolean>;
@@ -861,8 +864,11 @@ export default class EmptyGraph {
    * Creates multiple graph nodes in bulk.
    * Validates all inputs upfront before creating any nodes.
    * Supports placeholder references ('$0', '$1', etc.) to reference nodes created earlier in the batch.
+   * @param nodes Array of node specifications
+   * @param options Options for bulk creation
+   * @param options.sign Whether to GPG-sign the commits (default: false)
    */
-  createNodes(nodes: BulkNodeSpec[]): Promise<string[]>;
+  createNodes(nodes: BulkNodeSpec[], options?: { sign?: boolean }): Promise<string[]>;
 
   /**
    * Reads a node's message.

@@ -16,17 +16,17 @@ describe('GitGraphAdapter', () => {
     });
 
     it('parses full commit metadata correctly', async () => {
-      // Format: SHA\x00author\x00date\x00parents\x00message
+      // Format: SHA\x00author <email>\x00ISO date\x00parents\x00message
       mockPlumbing.execute.mockResolvedValue(
-        'abc123def456789012345678901234567890abcd\x00Alice\x00Mon Jan 29 10:30:00 2026 -0500\x00parent1 parent2\x00My commit message'
+        'abc123def456789012345678901234567890abcd\x00Alice <alice@example.com>\x002026-01-29T10:30:00-05:00\x00parent1 parent2\x00My commit message'
       );
 
       const result = await adapter.getNodeInfo('abc123def456789012345678901234567890abcd');
 
       expect(result).toEqual({
         sha: 'abc123def456789012345678901234567890abcd',
-        author: 'Alice',
-        date: 'Mon Jan 29 10:30:00 2026 -0500',
+        author: 'Alice <alice@example.com>',
+        date: '2026-01-29T10:30:00-05:00',
         parents: ['parent1', 'parent2'],
         message: 'My commit message',
       });
@@ -34,7 +34,7 @@ describe('GitGraphAdapter', () => {
 
     it('handles root commit with no parents', async () => {
       mockPlumbing.execute.mockResolvedValue(
-        'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0\x00Bob\x00Mon Jan 1 00:00:00 2026 +0000\x00\x00Initial commit'
+        'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0\x00Bob <bob@example.com>\x002026-01-01T00:00:00+00:00\x00\x00Initial commit'
       );
 
       const result = await adapter.getNodeInfo('a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0');
@@ -64,17 +64,17 @@ describe('GitGraphAdapter', () => {
       expect(result.message).toBe(multiLineMessage);
     });
 
-    it('trims whitespace from fields', async () => {
+    it('trims whitespace from SHA, author, and date but not message', async () => {
       mockPlumbing.execute.mockResolvedValue(
-        '  cccc9012  \x00  Author Name  \x00  Date String  \x00parent1\x00  Message with spaces  '
+        '  cccc9012  \x00  Author Name <author@example.com>  \x00  2026-01-29T10:30:00-05:00  \x00parent1\x00  Message with spaces  '
       );
 
       const result = await adapter.getNodeInfo('cccc9012');
 
       expect(result.sha).toBe('cccc9012');
-      expect(result.author).toBe('Author Name');
-      expect(result.date).toBe('Date String');
-      expect(result.message).toBe('Message with spaces');
+      expect(result.author).toBe('Author Name <author@example.com>');
+      expect(result.date).toBe('2026-01-29T10:30:00-05:00');
+      expect(result.message).toBe('  Message with spaces  ');
     });
 
     it('calls git show with correct format', async () => {
@@ -83,7 +83,7 @@ describe('GitGraphAdapter', () => {
       await adapter.getNodeInfo('abc123');
 
       expect(mockPlumbing.execute).toHaveBeenCalledWith({
-        args: ['show', '-s', '--format=%H%x00%an%x00%ad%x00%P%x00%B', 'abc123'],
+        args: ['show', '-s', '--format=%H%x00%an <%ae>%x00%aI%x00%P%x00%B', 'abc123'],
       });
     });
 
@@ -342,7 +342,7 @@ describe('GitGraphAdapter', () => {
       expect(count).toBe(5);
     });
 
-    it('returns 0 for single root commit', async () => {
+    it('returns 1 for single root commit', async () => {
       mockPlumbing.execute.mockResolvedValue('1\n');
 
       const count = await adapter.countNodes('HEAD');

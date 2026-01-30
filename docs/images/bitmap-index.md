@@ -108,6 +108,10 @@ sequenceDiagram
     Note over User,Reader: O(1) lookup via bitmap!
 ```
 
+> **Warning**: First query loads all meta shards O(n); subsequent queries O(1)
+>
+> `BitmapIndexReader.getChildren` depends on `_buildIdToShaMapping` which loads all meta shards (up to 256) on the first query. Only subsequent lookups are O(1). Note that the LRU cache (default 100) can be exceeded during initial load.
+
 ## Query Flow: getParents(D)
 
 ```mermaid
@@ -293,7 +297,7 @@ flowchart TB
 ## Summary
 
 | Component | Purpose | Lookup Time |
-|-----------|---------|-------------|
+| --------- | ------- | ----------- |
 | `meta_XX.json` | SHA to numeric ID mapping | O(1) |
 | `shards_fwd_XX.json` | Forward edges (parent to children) | O(1) |
 | `shards_rev_XX.json` | Reverse edges (child to parents) | O(1) |

@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `getNode(sha)` - Returns full GraphNode with all metadata (sha, author, date, message, parents)
   - `hasNode(sha)` - Boolean existence check without loading full node data
   - `countNodes(ref)` - Count nodes reachable from a ref without loading all nodes into memory
+- **Batch Operations**: `createNodes(nodes)` - Create multiple nodes in a single operation with placeholder parent refs
 - **LRU Cache**: Loaded shards now use an LRU cache to bound memory usage
 
 ## [2.5.0] - 2026-01-29
