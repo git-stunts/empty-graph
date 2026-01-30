@@ -275,6 +275,8 @@ export abstract class GraphPersistencePort {
   abstract ping(): Promise<PingResult>;
   /** Counts nodes reachable from a ref without loading them into memory */
   abstract countNodes(ref: string): Promise<number>;
+  /** Checks if a node exists by SHA */
+  nodeExists(sha: string): Promise<boolean>;
 }
 
 /**

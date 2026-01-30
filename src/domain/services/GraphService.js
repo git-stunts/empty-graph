@@ -156,7 +156,7 @@ export default class GraphService {
    * console.log(node.sha);      // 'abc123...'
    * console.log(node.message);  // 'My commit message'
    * console.log(node.author);   // 'Alice'
-   * console.log(node.date);     // '2026-01-29 10:30:00 -0500'
+   * console.log(node.date);     // '2026-01-29T10:30:00-05:00'
    * console.log(node.parents);  // ['def456...']
    */
   async getNode(sha) {
