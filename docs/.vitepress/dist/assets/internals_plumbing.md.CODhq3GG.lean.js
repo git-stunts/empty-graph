@@ -1,0 +1,1 @@
+import{_ as e,c as t,o as n}from"./chunks/framework.DvGhUH3j.js";const _=JSON.parse('{"title":"","description":"","frontmatter":{},"headers":[],"relativePath":"internals/plumbing.md","filePath":"internals/plumbing.md"}'),a={name:"internals/plumbing.md"};function r(s,i,o,c,p,l){return n(),t("div")}const d=e(a,[["render",r]]);export{_ as __pageData,d as default};

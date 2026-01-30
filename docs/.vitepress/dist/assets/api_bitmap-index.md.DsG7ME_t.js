@@ -1,0 +1,1 @@
+import{_ as e,c as t,o as a}from"./chunks/framework.DvGhUH3j.js";const _=JSON.parse('{"title":"","description":"","frontmatter":{},"headers":[],"relativePath":"api/bitmap-index.md","filePath":"api/bitmap-index.md"}'),i={name:"api/bitmap-index.md"};function n(p,r,o,s,c,d){return a(),t("div")}const f=e(i,[["render",n]]);export{_ as __pageData,f as default};

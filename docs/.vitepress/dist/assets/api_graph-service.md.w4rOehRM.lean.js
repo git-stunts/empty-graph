@@ -1,0 +1,1 @@
+import{_ as e,c as a,o as r}from"./chunks/framework.DvGhUH3j.js";const m=JSON.parse('{"title":"","description":"","frontmatter":{},"headers":[],"relativePath":"api/graph-service.md","filePath":"api/graph-service.md"}'),t={name:"api/graph-service.md"};function c(s,p,i,o,n,_){return r(),a("div")}const f=e(t,[["render",c]]);export{m as __pageData,f as default};

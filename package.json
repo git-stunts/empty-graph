@@ -7,8 +7,12 @@
   "types": "./index.d.ts",
   "typesVersions": {
     "*": {
-      "service": ["./index.d.ts"],
-      "node": ["./index.d.ts"]
+      "service": [
+        "./index.d.ts"
+      ],
+      "node": [
+        "./index.d.ts"
+      ]
     }
   },
   "exports": {
@@ -35,6 +39,9 @@
     "format": "prettier --write .",
     "test:local": "vitest run test/unit",
     "benchmark:local": "vitest bench test/benchmark",
+    "docs:dev": "vitepress dev docs",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs",
     "demo": "cd examples && docker compose up -d && docker compose exec demo bash",
     "demo:setup": "cd examples && docker compose up -d && docker compose exec demo sh -c 'cd /app && npm install --silent && cd /demo && node /app/examples/setup.js'",
     "demo:explore": "cd examples && docker compose exec demo node /app/examples/explore.js",
@@ -55,10 +62,12 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
+    "@git-stunts/docker-guard": "^0.1.0",
     "eslint": "^9.17.0",
     "prettier": "^3.4.2",
+    "vitepress": "^1.6.4",
     "vitest": "^2.1.8",
-    "@git-stunts/docker-guard": "^0.1.0"
+    "vue": "^3.5.27"
   },
   "files": [
     "src",
