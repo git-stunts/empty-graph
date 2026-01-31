@@ -76,6 +76,29 @@ export default class GitGraphAdapter extends GraphPersistencePort {
     return oid.trim();
   }
 
+  /**
+   * Creates a commit pointing to a custom tree (not the empty tree).
+   * Used for WARP patch commits that have attachment trees.
+   * @param {Object} options
+   * @param {string} options.treeOid - The tree OID to point to
+   * @param {string[]} [options.parents=[]] - Parent commit SHAs
+   * @param {string} options.message - Commit message
+   * @param {boolean} [options.sign=false] - Whether to GPG sign
+   * @returns {Promise<string>} The created commit SHA
+   */
+  async commitNodeWithTree({ treeOid, parents = [], message, sign = false }) {
+    this._validateOid(treeOid);
+    for (const p of parents) {
+      this._validateOid(p);
+    }
+    const parentArgs = parents.flatMap(p => ['-p', p]);
+    const signArgs = sign ? ['-S'] : [];
+    const args = ['commit-tree', treeOid, ...parentArgs, ...signArgs, '-m', message];
+
+    const oid = await this._executeWithRetry({ args });
+    return oid.trim();
+  }
+
   async showNode(sha) {
     this._validateOid(sha);
     return await this._executeWithRetry({ args: ['show', '-s', '--format=%B', sha] });
@@ -347,6 +370,20 @@ export default class GitGraphAdapter extends GraphPersistencePort {
     } catch {
       return false;
     }
+  }
+
+  /**
+   * Lists refs matching a prefix.
+   * @param {string} prefix - The ref prefix to match (e.g., 'refs/empty-graph/events/writers/')
+   * @returns {Promise<string[]>} Array of matching ref paths
+   */
+  async listRefs(prefix) {
+    this._validateRef(prefix);
+    const output = await this._executeWithRetry({
+      args: ['for-each-ref', '--format=%(refname)', prefix]
+    });
+    // Parse output - one ref per line, filter empty lines
+    return output.split('\n').filter(line => line.trim());
   }
 
   /**
