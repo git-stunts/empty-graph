@@ -254,7 +254,7 @@ describe('BitmapIndexReader', () => {
         expect(err).toBeInstanceOf(ShardValidationError);
         expect(err.code).toBe('SHARD_VALIDATION_ERROR');
         expect(err.field).toBe('version');
-        expect(err.expected).toBe(1);
+        expect(err.expected).toEqual([1, 2]);
         expect(err.actual).toBe(999);
         expect(err.shardPath).toBe('shards_fwd_cd.json');
       }

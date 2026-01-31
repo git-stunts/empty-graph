@@ -26,6 +26,7 @@ describe('EmptyGraph manual mode', () => {
       logNodesStream: vi.fn(),
       readRef: vi.fn().mockResolvedValue(null),
       updateRef: vi.fn().mockResolvedValue(undefined),
+      isAncestor: vi.fn().mockResolvedValue(false), // Default to false (not ancestor)
     };
   });
 

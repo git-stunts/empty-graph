@@ -46,6 +46,7 @@ describe('Managed Mode Durability', () => {
         currentRef = oid;
       }),
       countNodes: vi.fn().mockResolvedValue(1),
+      isAncestor: vi.fn().mockResolvedValue(false), // Default to false (not ancestor)
     };
   });
 
@@ -405,8 +406,9 @@ describe('Managed Mode Durability', () => {
 
       const result = await refManager.syncHead('refs/empty-graph/test', 'existingsha');
 
+      // When ref already points to target, no update is needed (idempotent)
       expect(result).toEqual({
-        updated: true,
+        updated: false,
         anchor: false,
         sha: 'existingsha',
       });
