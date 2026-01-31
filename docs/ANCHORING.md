@@ -11,11 +11,19 @@ EmptyGraph uses "anchor commits" to ensure all nodes remain reachable from the g
 ### What is an Anchor Commit?
 
 An anchor commit is a special commit with:
-- Message: `{"_type":"anchor"}`
 - Parents: The commits that need to be kept reachable
 - Tree: The empty tree (same as all EmptyGraph nodes)
+- **v4+ format (trailer-typed):**
+  ```
+  empty-graph:anchor
 
-Anchor commits are infrastructure—they don't represent domain data and are filtered from E graph queries.
+  eg-kind: anchor
+  eg-graph: <graph_name>
+  eg-schema: 1
+  ```
+- **Legacy v3 format (JSON):** `{"_type":"anchor"}` (still recognized for backwards compatibility)
+
+Anchor commits are infrastructure—they don't represent domain data and are filtered from E graph queries. The v4+ trailer format aligns with the WARP spec requirement that commit kind MUST be encoded via trailers, not inferred by string sniffing.
 
 ### When Are Anchors Created?
 
