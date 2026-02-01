@@ -290,5 +290,4 @@ refs/empty-graph/<graph>/
 ## Further Reading
 
 - [WARP Technical Specification](./WARP-TECH-SPEC-ROADMAP.md) - Full protocol details
-- [Architecture](./ARCHITECTURE.md) - System design
-- [Anchoring](./ANCHORING.md) - Ref management mechanics
+- [Architecture](../ARCHITECTURE.md) - System design, Durability, and Anchoring

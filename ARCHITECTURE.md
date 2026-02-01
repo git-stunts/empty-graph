@@ -1,258 +1,499 @@
-# Architecture: @git-stunts/empty-graph
+# WarpGraph Architecture
 
-A "hidden" graph database. No files, just Git commits, using the "Empty Tree" pattern for invisible storage and Roaring Bitmaps for high-performance indexing.
+## Overview
 
-## 🧱 Core Concepts
+WarpGraph is a graph database built on Git. It uses Git commits pointing to the empty tree as nodes, with commit messages as payloads and parent relationships as edges.
 
-### 1. The "Invisible" Graph
-Nodes are represented by **Git Commits**.
-- **SHA**: The Node ID.
-- **Message**: The Node Payload.
-- **Tree**: The "Empty Tree" (SHA: `4b825dc642cb6eb9a060e54bf8d69288fbee4904`).
-- **Parents**: Graph Edges (Directed).
+This architecture enables:
+- Content-addressable storage with built-in deduplication
+- Git's proven durability and integrity guarantees
+- Standard Git tooling compatibility
+- Distributed replication via git push/pull
 
-Because they point to the Empty Tree, these commits introduce **no files** into the repository. They float in the object database, visible only to `git log` and this tool.
+## Design Principles
 
-### 2. High-Performance Indexing (The "Stunt")
-To avoid O(N) graph traversals, we maintain a secondary index structure persisted as a Git Tree.
+### Hexagonal Architecture (Ports & Adapters)
 
-#### Components:
-- **`BitmapIndexService`**: Manages the index.
-- **`RoaringBitmap32`**: Used for O(1) set operations and storage.
-- **Sharding**: Bitmaps are sharded by OID prefix (e.g., `00`, `01`... `ff`) to allow partial loading.
+The codebase follows hexagonal architecture to isolate domain logic from infrastructure concerns:
 
-#### Index Structure (Git Tree):
-```text
-/
-├── meta_xx.json           # Maps SHAs to IDs (sharded by prefix)
-├── shards_fwd_xx.json     # Forward edges: {sha: base64Bitmap, ...}
-└── shards_rev_xx.json     # Reverse edges: {sha: base64Bitmap, ...}
+- **Ports** define abstract interfaces for external dependencies
+- **Adapters** implement ports for specific technologies (Git, console, etc.)
+- **Domain services** contain pure business logic with injected dependencies
+
+This enables:
+- Easy testing via mock adapters
+- Swappable infrastructure (different Git implementations, logging backends)
+- Clear separation of concerns
+
+### Domain-Driven Design
+
+The domain layer models the graph database concepts:
+- `GraphNode` - Immutable value object representing a node
+- `WarpGraph` - Node CRUD operations (the main API class)
+- `TraversalService` - Graph algorithms (BFS, DFS, shortest path)
+- `BitmapIndexBuilder/Reader` - High-performance indexing
+
+### Immutable Entities
+
+`GraphNode` instances are frozen after construction. The `parents` array is also frozen to prevent accidental mutation. This aligns with Git's immutable commit model.
+
+### Dependency Injection
+
+All services accept their dependencies via constructor options:
+- Persistence adapters
+- Loggers
+- Clocks
+- Parsers
+
+This enables testing with mocks and flexible runtime configuration.
+
+## Layer Diagram
+
+```
++-------------------------------------------------------------+
+|                       WarpGraph                              |  <- Main API
+|                      (WarpGraph.js)                          |
++-------------------------------------------------------------+
+|                     Supporting Services                      |
+|  +---------------+ +--------------------+                    |
+|  | IndexRebuild  | | TraversalService   |                    |
+|  | Service       | |                    |                    |
+|  +---------------+ +--------------------+                    |
+|  +-------------+ +---------------+ +--------------------+    |
+|  | HealthCheck | | BitmapIndex   | | BitmapIndex        |    |
+|  | Service     | | Builder       | | Reader             |    |
+|  +-------------+ +---------------+ +--------------------+    |
+|  +---------------+ +---------------+ +--------------------+    |
+|  | GitLogParser  | | Streaming          |                    |
+|  |               | | BitmapIndexBuilder |                    |
+|  +---------------+ +--------------------+                    |
++-------------------------------------------------------------+
+|                         Ports                                |
+|  +-------------------+ +---------------------------+         |
+|  | GraphPersistence  | | IndexStoragePort          |         |
+|  | Port              | |                           |         |
+|  +-------------------+ +---------------------------+         |
+|  +-------------------+ +---------------------------+         |
+|  | LoggerPort        | | ClockPort                 |         |
+|  +-------------------+ +---------------------------+         |
++-------------------------------------------------------------+
+|                       Adapters                               |
+|  +-------------------+ +---------------------------+         |
+|  | GitGraphAdapter   | | ConsoleLogger             |         |
+|  |                   | | NoOpLogger                |         |
+|  +-------------------+ +---------------------------+         |
+|  +-------------------+                                       |
+|  | PerformanceClock  |                                       |
+|  | GlobalClock       |                                       |
+|  +-------------------+                                       |
++-------------------------------------------------------------+
 ```
 
-Each shard file contains per-node bitmaps encoded as base64 JSON. This enables O(1) lookups while maintaining efficient storage through prefix-based sharding.
+## Directory Structure
 
-#### Index Tree Structure
+```
+src/
++-- domain/
+|   +-- entities/           # Immutable domain objects
+|   |   +-- GraphNode.js    # Node value object (sha, message, parents)
+|   +-- services/           # Business logic
+|   |   +-- WarpGraph.js             # Main API - Node CRUD operations
+|   |   +-- IndexRebuildService.js   # Index orchestration
+|   |   +-- BitmapIndexBuilder.js    # In-memory index construction
+|   |   +-- BitmapIndexReader.js     # O(1) index queries
+|   |   +-- StreamingBitmapIndexBuilder.js  # Memory-bounded building
+|   |   +-- TraversalService.js      # Graph algorithms
+|   |   +-- HealthCheckService.js    # K8s-style probes
+|   |   +-- GitLogParser.js          # Binary stream parsing
+|   +-- errors/             # Domain-specific errors
+|   |   +-- IndexError.js
+|   |   +-- ShardLoadError.js
+|   |   +-- ShardCorruptionError.js
+|   |   +-- ShardValidationError.js
+|   |   +-- TraversalError.js
+|   |   +-- OperationAbortedError.js
+|   |   +-- EmptyMessageError.js
+|   +-- utils/              # Domain utilities
+|       +-- LRUCache.js     # Shard caching
+|       +-- MinHeap.js      # Priority queue for A*
+|       +-- CachedValue.js  # TTL-based caching
+|       +-- cancellation.js # AbortSignal utilities
++-- infrastructure/
+|   +-- adapters/           # Port implementations
+|       +-- GitGraphAdapter.js       # Git operations via @git-stunts/plumbing
+|       +-- ConsoleLogger.js         # Structured JSON logging
+|       +-- NoOpLogger.js            # Silent logger for tests
+|       +-- PerformanceClockAdapter.js  # Node.js timing
+|       +-- GlobalClockAdapter.js       # Bun/Deno/Browser timing
++-- ports/                  # Abstract interfaces
+    +-- GraphPersistencePort.js  # Git commit/ref operations
+    +-- IndexStoragePort.js      # Blob/tree storage
+    +-- LoggerPort.js            # Structured logging contract
+    +-- ClockPort.js             # Timing abstraction
+```
 
-The complete index is organized as a prefix-sharded file structure:
+## Key Components
 
-```text
+### Main API: WarpGraph
+
+The main entry point (`WarpGraph.js`) provides:
+- Direct graph database API
+- `open()` factory for managed mode with automatic durability
+- Batch API for efficient bulk writes
+- Health check endpoints (K8s liveness/readiness)
+- Index management (rebuild, load, save)
+
+### Core API
+
+#### WarpGraph
+
+Core node operations:
+- `createNode()` - Create a single node
+- `createNodes()` - Bulk creation with placeholder references (`$0`, `$1`)
+- `readNode()` / `getNode()` - Retrieve node data
+- `hasNode()` - Existence check
+- `iterateNodes()` - Streaming iterator for large graphs
+- `countNodes()` - Efficient count via `git rev-list --count`
+
+Message validation enforces size limits (default 1MB) and non-empty content.
+
+#### IndexRebuildService
+
+Orchestrates index creation:
+- **In-memory mode**: Fast, O(N) memory, single serialization pass
+- **Streaming mode**: Memory-bounded, flushes to storage periodically
+
+Supports cancellation via `AbortSignal` and progress callbacks.
+
+#### TraversalService
+
+Graph algorithms using O(1) bitmap lookups:
+- `bfs()` / `dfs()` - Traversal generators
+- `ancestors()` / `descendants()` - Transitive closures
+- `findPath()` - Any path between nodes
+- `shortestPath()` - Bidirectional BFS for efficiency
+- `weightedShortestPath()` - Dijkstra with custom edge weights
+- `aStarSearch()` - A* with heuristic guidance
+- `bidirectionalAStar()` - A* from both ends
+- `topologicalSort()` - Kahn's algorithm with cycle detection
+- `commonAncestors()` - Find shared ancestors of multiple nodes
+
+All traversals support:
+- `maxNodes` / `maxDepth` limits
+- Cancellation via `AbortSignal`
+- Direction control (forward/reverse)
+
+#### BitmapIndexBuilder / BitmapIndexReader
+
+Roaring bitmap-based indexes for O(1) neighbor lookups:
+
+**Builder**:
+- `registerNode()` - Assign numeric ID to SHA
+- `addEdge()` - Record parent/child relationship
+- `serialize()` - Output sharded JSON structure
+
+**Reader**:
+- `setup()` - Configure with shard OID mappings
+- `getParents()` / `getChildren()` - O(1) lookups
+- Lazy loading with LRU cache for bounded memory
+- Checksum validation with strict/non-strict modes
+
+#### StreamingBitmapIndexBuilder
+
+Memory-bounded variant of BitmapIndexBuilder:
+- Flushes bitmap data to storage when threshold exceeded
+- SHA-to-ID mappings remain in memory (required for consistency)
+- Merges chunks at finalization via bitmap OR operations
+
+### Ports (Interfaces)
+
+#### GraphPersistencePort
+
+Git operations contract:
+- `commitNode()` - Create commit pointing to empty tree
+- `showNode()` / `getNodeInfo()` - Retrieve commit data
+- `logNodesStream()` - Stream commit history
+- `updateRef()` / `readRef()` / `deleteRef()` - Ref management
+- `isAncestor()` - Ancestry testing for fast-forward detection
+- `countNodes()` - Efficient count
+- `ping()` - Health check
+
+Also includes blob/tree operations for index storage.
+
+#### IndexStoragePort
+
+Index persistence contract:
+- `writeBlob()` / `readBlob()` - Blob I/O
+- `writeTree()` / `readTreeOids()` - Tree I/O
+- `updateRef()` / `readRef()` - Index ref management
+
+#### LoggerPort
+
+Structured logging contract:
+- `debug()`, `info()`, `warn()`, `error()` - Log levels
+- `child()` - Create scoped logger with inherited context
+
+#### ClockPort
+
+Timing abstraction:
+- `now()` - High-resolution timestamp (ms)
+- `timestamp()` - ISO 8601 wall-clock time
+
+### Adapters (Implementations)
+
+#### GitGraphAdapter
+
+Implements both `GraphPersistencePort` and `IndexStoragePort`:
+- Uses `@git-stunts/plumbing` for git command execution
+- Retry logic with exponential backoff for transient errors
+- Input validation to prevent command injection
+- NUL-terminated output parsing for reliability
+
+#### ConsoleLogger / NoOpLogger
+
+- `ConsoleLogger`: Structured JSON output with configurable levels
+- `NoOpLogger`: Zero-overhead silent logger for tests
+
+#### PerformanceClockAdapter / GlobalClockAdapter
+
+- `PerformanceClockAdapter`: Uses Node.js `perf_hooks`
+- `GlobalClockAdapter`: Uses global `performance` for Bun/Deno/browsers
+
+## Data Flow
+
+### Write Path
+
+```
+createNode() -> WarpGraph.createNode()
+             -> persistence.commitNode()
+             -> persistence.updateRef()
+```
+
+### Read Path (with index)
+
+```
+getParents() -> BitmapIndexReader._getEdges()
+             -> _getOrLoadShard() (lazy load)
+             -> storage.readBlob()
+             -> Validate checksum
+             -> RoaringBitmap32.deserialize()
+             -> Map IDs to SHAs
+```
+
+### Index Rebuild
+
+```
+rebuildIndex() -> IndexRebuildService.rebuild()
+               -> WarpGraph.iterateNodes()
+               -> BitmapIndexBuilder.registerNode() / addEdge()
+               -> builder.serialize()
+               -> storage.writeBlob() (per shard, parallel)
+               -> storage.writeTree()
+```
+
+## The Empty Tree Trick
+
+All WarpGraph nodes are Git commits pointing to the empty tree:
+
+```
+SHA: 4b825dc642cb6eb9a060e54bf8d69288fbee4904
+```
+
+This is the well-known SHA of an empty Git tree, automatically available in every repository.
+
+**How it works:**
+- **Data**: Stored in commit message (arbitrary payload up to 1MB default)
+- **Edges**: Commit parent relationships (directed, multi-parent supported)
+- **Identity**: Commit SHA (content-addressable)
+
+**Benefits:**
+- Introduces no files into the repository working tree
+- Content-addressable with automatic deduplication
+- Git's proven durability and integrity (SHA verification)
+- Standard tooling compatibility (`git log`, `git show`, etc.)
+- Distributed replication via `git push`/`git pull`
+
+## Index Structure
+
+The bitmap index enables O(1) neighbor lookups. It is stored as a Git tree with sharded JSON blobs:
+
+```
 index-tree/
-├── meta_00.json    # SHA→ID mappings for SHAs starting with "00"
-├── meta_01.json    # SHA→ID mappings for SHAs starting with "01"
-├── ...
-├── meta_ff.json    # SHA→ID mappings for SHAs starting with "ff"
-├── shards_fwd_00.json  # Forward edges (parent→children) for prefix "00"
-├── shards_rev_00.json  # Reverse edges (child→parents) for prefix "00"
-├── ...
-└── shards_fwd_ff.json, shards_rev_ff.json
++-- meta_00.json        # SHA->ID mappings for prefix "00"
++-- meta_01.json        # SHA->ID mappings for prefix "01"
++-- ...
++-- meta_ff.json        # SHA->ID mappings for prefix "ff"
++-- shards_fwd_00.json  # Forward edges (parent->children) for prefix "00"
++-- shards_rev_00.json  # Reverse edges (child->parents) for prefix "00"
++-- ...
++-- shards_fwd_ff.json
++-- shards_rev_ff.json
 ```
 
-This results in 256 meta shards + 512 edge shards = 768 total shard files. Each prefix corresponds to the first two hex characters of a commit SHA.
-
-#### Shard Envelope Format
-
-Every shard file is wrapped in a versioned envelope with integrity verification:
-
+**Shard envelope format:**
 ```json
 {
-  "version": 1,
+  "version": 2,
   "checksum": "sha256-hex-of-data",
-  "data": { ... actual shard content ... }
+  "data": { ... actual content ... }
 }
 ```
 
-- **`version`**: Schema version for forward compatibility
-- **`checksum`**: SHA-256 hash of the serialized `data` field
-- **`data`**: The actual shard content (format varies by shard type)
-
-#### Meta Shard Content
-
-Meta shards (`meta_xx.json`) map full commit SHAs to compact numeric IDs:
-
+**Meta shard content:**
 ```json
 {
   "00a1b2c3d4e5f6789...": 0,
-  "00d4e5f6a7b8c9012...": 42,
-  "00f1e2d3c4b5a6987...": 1337
+  "00d4e5f6a7b8c9012...": 42
 }
 ```
 
-Numeric IDs are assigned incrementally as nodes are discovered. These IDs are used within Roaring bitmaps for space-efficient edge storage.
-
-#### Edge Shard Content
-
-Edge shards (`shards_fwd_xx.json` and `shards_rev_xx.json`) map full SHAs to base64-encoded Roaring bitmaps:
-
+**Edge shard content:**
 ```json
 {
-  "00a1b2c3d4e5f6789...": "OjAAAAEAAAAAAAEAEAAAABAAAA==",
-  "00d4e5f6a7b8c9012...": "OjAAAAEAAAAAAgAQAAAAIAAA=="
+  "00a1b2c3d4e5f6789...": "OjAAAAEAAAAAAAEAEAAAABAAAA=="
 }
 ```
 
-Each bitmap contains the numeric IDs of connected nodes:
-- **Forward shards** (`shards_fwd_xx.json`): Bitmap contains IDs of child nodes (this node is their parent)
-- **Reverse shards** (`shards_rev_xx.json`): Bitmap contains IDs of parent nodes (this node is their child)
+Values are base64-encoded Roaring bitmaps containing numeric IDs of connected nodes.
 
-#### Lazy Loading
+## Durability & Semantics
 
-Shards are loaded on-demand to minimize startup time and memory usage:
+This section defines the official durability contract for EmptyGraph and the mechanisms used to enforce it.
 
-1. **Query-driven loading**: A query for SHA `abc123...` only loads:
-   - `meta_ab.json` (to resolve the SHA to a numeric ID)
-   - `shards_rev_ab.json` (to find parent IDs, if querying ancestry)
-   - `shards_fwd_ab.json` (to find child IDs, if querying descendants)
+### Core Durability Contract
 
-2. **In-memory caching**: Once loaded, shard contents are cached in an LRU (Least Recently Used) cache for subsequent queries. The cache size is configurable via `maxCachedShards` (default: 100 shards), providing bounded memory usage while keeping frequently-accessed shards hot.
+**A write is durable if and only if it becomes reachable from the graph ref.**
 
-3. **Lazy reverse mapping**: The full ID→SHA reverse mapping is built lazily when the first edge query needs to resolve numeric IDs back to SHAs. This avoids loading all meta shards upfront.
+Git garbage collection (GC) prunes commits that are not reachable from any ref. Since WarpGraph nodes are Git commits, without careful ref management, data can be silently deleted. EmptyGraph provides mechanisms to ensure writes remain reachable.
 
-#### Memory Characteristics
+### Modes
 
-| Scenario | Approximate Memory |
-| ---------- | ------------------- |
-| Cold start (no queries) | Near-zero |
-| Single prefix loaded | ~0.5-2MB per prefix |
-| Full index loaded (1M nodes) | ~150-200MB |
+#### Managed Mode (Default)
+In managed mode, EmptyGraph guarantees durability for all writes.
+- Every write operation updates the graph ref (or creates an anchor commit).
+- Reachability from the ref is maintained automatically.
+- Users do not need to manage refs or call sync manually.
 
-- **Roaring bitmap efficiency**: Sparse ID sets compress extremely well. A node with 3 parents uses bytes, not kilobytes.
-- **JSON overhead**: Text-based format trades some memory for debuggability. Binary formats could reduce this by ~50%.
-- **Prefix distribution**: Uniform SHA distribution means each of 256 prefixes holds ~0.4% of nodes.
+#### Manual Mode
+In manual mode, EmptyGraph provides no automatic ref management.
+- Writes create commits but do not update refs.
+- User is responsible for calling `sync()` to persist reachability.
+- User may manage refs directly via Git commands.
+- **Warning**: Uncommitted writes are subject to garbage collection.
 
-#### Integrity Verification
+### Anchor Commits
 
-Shard integrity is verified on every load:
+Anchor commits are the mechanism used to maintain reachability for disconnected graphs (e.g., disjoint roots or imported history).
 
-1. **Version check**: The `version` field is validated for forward compatibility. Unknown versions may be rejected or handled with fallback logic.
+#### The Problem
+In a linear history, every new commit points to the previous tip, maintaining a single chain reachable from the ref. However, graph operations can create disconnected commits:
+- Creating a new root node (no parents).
+- Merging unrelated graph histories.
+- Importing commits from external sources.
 
-2. **Checksum verification**: The SHA-256 checksum is recomputed from the `data` field and compared against the stored `checksum`.
+If the ref simply moves to the new commit, the old history becomes unreachable and will be GC'd.
 
-3. **Failure modes**:
-   - **Strict mode**: Throws an error on version/checksum mismatch, halting operations
-   - **Non-strict mode**: Logs a warning and returns an empty shard, allowing degraded operation
+#### The Solution
+An anchor commit is a special infrastructure commit that:
+- Has multiple **parents**: The previous ref tip AND the new commit(s).
+- Has an **Empty Tree** (like all WarpGraph nodes).
+- Has a specific **Payload/Trailer**:
+  - **v4+ format**: Trailer-typed (`eg-kind: anchor`, `eg-schema: 1`).
+  - **Legacy v3**: JSON `{"_type":"anchor"}`.
+- Is **filtered out** during graph traversal (invisible to domain logic).
 
-This ensures corrupted shards (from disk errors, partial writes, or tampering) are detected before they can poison the index.
+#### Anchoring Strategies
 
-### 3. Hexagonal Architecture
+**1. Chained Anchors (per-write sync)**
+Used by `autoSync: 'onWrite'`.
+- Each disconnected write creates one anchor with 2 parents.
+- **Pro**: Simple, stateless, works for incremental writes.
+- **Con**: O(N) anchor commits for N disconnected tips.
 
-#### Domain Layer (`src/domain/`)
-- **Entities**: `GraphNode` (Value Object).
-- **Services**:
-  - `GraphService`: High-level graph operations.
-  - `BitmapIndexService`: Index management.
-  - `IndexRebuildService`: Rebuilds the index from the log.
+**2. Octopus Anchors (batch mode)**
+Used by `Batch.commit()`.
+- Single anchor with N parents for all tips.
+- **Pro**: O(1) anchor overhead.
+- **Con**: Requires knowing all tips upfront.
 
-#### Infrastructure Layer (`src/infrastructure/`)
-- **Adapters**: `GitGraphAdapter` wraps `git` commands via `@git-stunts/plumbing`.
+**3. Hybrid**
+WarpGraph defaults to chained anchors for individual writes but uses octopus anchors for batch operations. `compactAnchors()` can be called to rewrite chains into octopus anchors for cleanup.
 
-#### Ports Layer (`src/ports/`)
-- **GraphPersistencePort**: Interface for Git operations (`writeBlob`, `writeTree`, `logNodes`).
+### Guarantees
 
-## Sequence Diagrams
+1. In **managed mode**, any successfully returned write is durable.
+2. Anchor commits preserve all previously reachable history.
+3. The sync algorithm is idempotent for the same inputs.
+4. Graph semantics are unaffected by anchor commits (they are transparent to traversal).
 
-The following diagrams illustrate the key operational flows within the system.
+### Storage & Rebuild Impact
 
-### 1. Index Rebuild Flow
+In V7, logical graph traversal uses the **Bitmap Index** (built from materialized state) and is **O(1)** regardless of the underlying commit topology. Anchor commits do **not** appear in the logical graph.
 
-This flow shows how the bitmap index is rebuilt from the commit graph. The process iterates through all nodes, registers them in the bitmap builder, and persists the resulting shards as Git blobs.
+However, anchors do impact **Materialization** (scanning Git history to build state) and **Git Storage** (number of objects).
 
-**Parallel Shard Writes**: The `StreamingBitmapIndexBuilder` uses `Promise.all` to write shards in parallel during both flush and finalize operations. Since shards are partitioned by prefix, they are independent and can be written concurrently:
+| Metric            | Chained Anchors          | Octopus Anchors          |
+| ----------------- | ------------------------ | ------------------------ |
+| Logical Traversal | **O(1)** (Index)         | **O(1)** (Index)         |
+| Materialization   | N patches + O(N) anchors | N patches + O(1) anchors |
+| Git Object Count  | Higher                   | Lower                    |
 
-- `_writeShardsToStorage()`: Writes forward and reverse bitmap shards in parallel
-- `_writeMetaShards()`: Writes meta shards (SHA-to-ID mappings) in parallel
-- `_processBitmapShards()`: Merges multi-chunk shards in parallel
+**Chained Anchors** (linear history enforcement) add overhead to the `git rev-list` walk required during materialization.
+**Octopus Anchors** (used by `syncCoverage`) are more efficient for bulk operations, keeping the commit depth shallow.
 
-```mermaid
-sequenceDiagram
-    participant Client
-    participant EmptyGraph
-    participant IndexRebuildService
-    participant GraphService
-    participant BitmapIndexBuilder
-    participant GitAdapter
+### Sync Algorithm (V7)
 
-    Client->>EmptyGraph: rebuildIndex(ref)
-    EmptyGraph->>IndexRebuildService: rebuild(ref)
-    IndexRebuildService->>GraphService: iterateNodes(ref)
-    loop For each node
-        GraphService-->>IndexRebuildService: GraphNode
-        IndexRebuildService->>BitmapIndexBuilder: registerNode(sha)
-        IndexRebuildService->>BitmapIndexBuilder: addEdge(child, parent)
-    end
-    IndexRebuildService->>BitmapIndexBuilder: serialize()
-    BitmapIndexBuilder-->>IndexRebuildService: shardBuffers
-    par Parallel shard writes
-        IndexRebuildService->>GitAdapter: writeBlob(shard_fwd_00)
-        IndexRebuildService->>GitAdapter: writeBlob(shard_fwd_01)
-        IndexRebuildService->>GitAdapter: writeBlob(shard_rev_00)
-        IndexRebuildService->>GitAdapter: writeBlob(meta_00)
-    end
-    IndexRebuildService->>GitAdapter: writeTree(entries)
-    GitAdapter-->>EmptyGraph: treeOid
+In V7 Multi-Writer mode:
+1. Each writer maintains their own ref (`refs/.../writers/<id>`), pointing to a chain of **Patch Commits**.
+2. **Durability** is ensured because writes update these refs.
+3. **Global Reachability** (optional) is maintained via `syncCoverage()`, which creates an **Octopus Anchor** commit pointed to by `refs/.../coverage/head`. This anchor has all writer tips as parents, ensuring they aren't GC'd even if individual writer refs are deleted (e.g. during a clone).
+
+## Performance Characteristics
+
+| Operation           | Complexity   | Notes                        |
+| ------------------- | ------------ | ---------------------------- |
+| Write (createNode)  | O(1)         | Append-only commit           |
+| Read (readNode)     | O(1)         | Direct SHA lookup            |
+| Unindexed traversal | O(N)         | Linear scan via git log      |
+| Indexed lookup      | O(1)         | Bitmap query + ID resolution |
+| Index rebuild       | O(N)         | One-time scan                |
+| Index load          | O(1) initial | Lazy shard loading           |
+
+**Memory characteristics:**
+| Scenario              | Approximate Memory  |
+| --------------------- | ------------------- |
+| Cold start (no index) | Near-zero           |
+| Single shard loaded   | 0.5-2 MB per prefix |
+| Full index (1M nodes) | 150-200 MB          |
+
+## Error Handling
+
+Domain-specific error types enable precise error handling:
+
+- `ShardLoadError` - Storage I/O failure
+- `ShardCorruptionError` - Invalid shard format
+- `ShardValidationError` - Version/checksum mismatch
+- `TraversalError` - Algorithm failures (no path, cycle detected)
+- `OperationAbortedError` - Cancellation via AbortSignal
+- `EmptyMessageError` - Empty message validation failure
+
+## Cancellation Support
+
+Long-running operations support `AbortSignal` for cooperative cancellation:
+
+```javascript
+const controller = new AbortController();
+setTimeout(() => controller.abort(), 5000);
+
+for await (const node of graph.iterateNodes({
+  ref: 'HEAD',
+  signal: controller.signal
+})) {
+  // Process node
+}
 ```
 
-### 2. Index Query Flow (O(1) Lookup)
-
-This flow demonstrates the O(1) parent lookup using the bitmap index. Shards are loaded on-demand based on the SHA prefix, validated, and cached for subsequent queries.
-
-**Helper Method Decomposition**: The `BitmapIndexReader` uses extracted helper methods for maintainability and reduced complexity:
-
-| Method | Responsibility |
-| ------ | -------------- |
-| `_getEdges(sha, type)` | Unified edge retrieval for both parents and children |
-| `_loadShardBuffer(path, oid)` | Loads raw shard data from storage |
-| `_parseAndValidateShard(buffer, path, oid)` | JSON parsing with validation |
-| `_validateShard(envelope, path, oid)` | Version and checksum verification |
-| `_getOrLoadShard(path, format)` | Cache-aware shard loading orchestration |
-
-```mermaid
-sequenceDiagram
-    participant Client
-    participant EmptyGraph
-    participant BitmapIndexReader
-    participant GitAdapter
-
-    Client->>EmptyGraph: getParents(sha)
-    EmptyGraph->>BitmapIndexReader: getParents(sha)
-    Note over BitmapIndexReader: Extract prefix "ab" from sha
-    alt Shard not loaded
-        BitmapIndexReader->>GitAdapter: readBlob(shardOid)
-        GitAdapter-->>BitmapIndexReader: shardBuffer
-        Note over BitmapIndexReader: Validate checksum, cache shard
-    end
-    Note over BitmapIndexReader: Decode Roaring bitmap
-    Note over BitmapIndexReader: Map IDs → SHAs
-    BitmapIndexReader-->>Client: parentShas[]
-```
-
-### 3. Traversal Flow (BFS Example)
-
-This flow illustrates breadth-first traversal of the graph. The traversal service uses the bitmap index for efficient child lookups while yielding nodes to the client as they are visited.
-
-```mermaid
-sequenceDiagram
-    participant Client
-    participant TraversalService
-    participant BitmapIndexReader
-
-    Client->>TraversalService: bfs({ start, maxDepth })
-    loop While queue not empty
-        TraversalService->>TraversalService: dequeue node
-        TraversalService-->>Client: yield { sha, depth, parent }
-        TraversalService->>BitmapIndexReader: getChildren(sha)
-        BitmapIndexReader-->>TraversalService: childShas[]
-        TraversalService->>TraversalService: enqueue unvisited children
-    end
-```
-
-## 🚀 Performance
-
-- **Write**: O(1) (Append-only commit).
-- **Read (Unindexed)**: O(N) (Linear scan of `git log`).
-- **Read (Indexed)**: **O(1)** (Bitmap lookup).
-- **Rebuild**: O(N) (One-time scan to build the bitmap).
-
-## ⚠️ Constraints
-
-- **Delimiter**: Requires a safe delimiter for parsing `git log` output (mitigated by strict validation).
-- **ID Map Size**: The global `ids.json` map grows linearly with node count. For >10M nodes, this map itself should be sharded (Future Work).
+Supported operations:
+- `iterateNodes()`
+- `rebuildIndex()`
+- All traversal methods (BFS, DFS, shortest path, etc.)

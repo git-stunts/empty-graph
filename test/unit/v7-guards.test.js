@@ -65,6 +65,10 @@ describe('V7 Contract Guards', () => {
         reason: 'Commit-per-node engine (nodes are commits)',
       },
       {
+        path: 'domain/services/GraphRefManager.js',
+        reason: 'Legacy ref/anchor management (JSON format, linear history)',
+      },
+      {
         path: 'legacy',
         reason: 'Legacy module directory',
       },
