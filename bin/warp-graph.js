@@ -3,7 +3,7 @@
 import path from 'node:path';
 import process from 'node:process';
 import GitPlumbing, { ShellRunnerFactory } from '@git-stunts/plumbing';
-import { GitGraphAdapter } from '../index.js';
+import WarpGraph, { GitGraphAdapter } from '../index.js';
 import { REF_PREFIX } from '../src/domain/utils/RefLayout.js';
 
 const EXIT_CODES = {
@@ -28,6 +28,20 @@ Options:
   --graph <name>    Graph name (required if repo has multiple graphs)
   --writer <id>     Writer id (default: cli)
   -h, --help        Show this help
+
+Query options:
+  --match <glob>        Match node ids (default: *)
+  --outgoing [label]    Traverse outgoing edge (repeatable)
+  --incoming [label]    Traverse incoming edge (repeatable)
+  --where-prop k=v      Filter nodes by prop equality (repeatable)
+  --select <fields>     Fields to select (id, props)
+
+Path options:
+  --from <id>           Start node id
+  --to <id>             End node id
+  --dir <out|in|both>   Traversal direction (default: out)
+  --label <label>       Filter by edge label (repeatable, comma-separated)
+  --max-depth <n>       Maximum depth
 `;
 
 class CliError extends Error {
@@ -179,12 +193,243 @@ async function resolveGraphName(persistence, explicitGraph) {
   throw usageError('Multiple graphs found; specify --graph');
 }
 
+async function openGraph(options) {
+  const { persistence } = await createPersistence(options.repo);
+  const graphName = await resolveGraphName(persistence, options.graph);
+  const graph = await WarpGraph.open({
+    persistence,
+    graphName,
+    writerId: options.writer,
+  });
+  return { graph, graphName, persistence };
+}
+
+function parseQueryArgs(args) {
+  const spec = {
+    match: null,
+    select: null,
+    steps: [],
+  };
+
+  for (let i = 0; i < args.length; i += 1) {
+    const arg = args[i];
+
+    if (arg === '--match') {
+      const value = args[i + 1];
+      if (!value) throw usageError('Missing value for --match');
+      spec.match = value;
+      i += 1;
+      continue;
+    }
+
+    if (arg.startsWith('--match=')) {
+      spec.match = arg.slice('--match='.length);
+      continue;
+    }
+
+    if (arg === '--outgoing' || arg === '--incoming') {
+      const next = args[i + 1];
+      const label = next && !next.startsWith('-') ? next : undefined;
+      if (label) i += 1;
+      spec.steps.push({ type: arg.slice(2), label });
+      continue;
+    }
+
+    if (arg === '--where-prop') {
+      const value = args[i + 1];
+      if (!value) throw usageError('Missing value for --where-prop');
+      const [key, ...rest] = value.split('=');
+      if (!key || rest.length === 0) {
+        throw usageError('Expected --where-prop key=value');
+      }
+      spec.steps.push({ type: 'where-prop', key, value: rest.join('=') });
+      i += 1;
+      continue;
+    }
+
+    if (arg.startsWith('--where-prop=')) {
+      const value = arg.slice('--where-prop='.length);
+      const [key, ...rest] = value.split('=');
+      if (!key || rest.length === 0) {
+        throw usageError('Expected --where-prop key=value');
+      }
+      spec.steps.push({ type: 'where-prop', key, value: rest.join('=') });
+      continue;
+    }
+
+    if (arg === '--select') {
+      const value = args[i + 1];
+      if (value === undefined) throw usageError('Missing value for --select');
+      spec.select = value === '' ? [] : value.split(',').map((field) => field.trim()).filter(Boolean);
+      i += 1;
+      continue;
+    }
+
+    if (arg.startsWith('--select=')) {
+      const value = arg.slice('--select='.length);
+      spec.select = value === '' ? [] : value.split(',').map((field) => field.trim()).filter(Boolean);
+      continue;
+    }
+
+    throw usageError(`Unknown query option: ${arg}`);
+  }
+
+  return spec;
+}
+
+function parsePathArgs(args) {
+  const options = {
+    from: null,
+    to: null,
+    dir: undefined,
+    labelFilter: undefined,
+    maxDepth: undefined,
+  };
+  const labels = [];
+  const positionals = [];
+
+  for (let i = 0; i < args.length; i += 1) {
+    const arg = args[i];
+
+    if (arg === '--from') {
+      const value = args[i + 1];
+      if (!value) throw usageError('Missing value for --from');
+      options.from = value;
+      i += 1;
+      continue;
+    }
+
+    if (arg.startsWith('--from=')) {
+      options.from = arg.slice('--from='.length);
+      continue;
+    }
+
+    if (arg === '--to') {
+      const value = args[i + 1];
+      if (!value) throw usageError('Missing value for --to');
+      options.to = value;
+      i += 1;
+      continue;
+    }
+
+    if (arg.startsWith('--to=')) {
+      options.to = arg.slice('--to='.length);
+      continue;
+    }
+
+    if (arg === '--dir') {
+      const value = args[i + 1];
+      if (!value) throw usageError('Missing value for --dir');
+      options.dir = value;
+      i += 1;
+      continue;
+    }
+
+    if (arg.startsWith('--dir=')) {
+      options.dir = arg.slice('--dir='.length);
+      continue;
+    }
+
+    if (arg === '--label') {
+      const value = args[i + 1];
+      if (!value) throw usageError('Missing value for --label');
+      labels.push(...value.split(',').map((label) => label.trim()).filter(Boolean));
+      i += 1;
+      continue;
+    }
+
+    if (arg.startsWith('--label=')) {
+      const value = arg.slice('--label='.length);
+      labels.push(...value.split(',').map((label) => label.trim()).filter(Boolean));
+      continue;
+    }
+
+    if (arg === '--max-depth') {
+      const value = args[i + 1];
+      if (!value) throw usageError('Missing value for --max-depth');
+      const parsed = Number.parseInt(value, 10);
+      if (Number.isNaN(parsed)) throw usageError('Invalid value for --max-depth');
+      options.maxDepth = parsed;
+      i += 1;
+      continue;
+    }
+
+    if (arg.startsWith('--max-depth=')) {
+      const value = arg.slice('--max-depth='.length);
+      const parsed = Number.parseInt(value, 10);
+      if (Number.isNaN(parsed)) throw usageError('Invalid value for --max-depth');
+      options.maxDepth = parsed;
+      continue;
+    }
+
+    if (arg.startsWith('-')) {
+      throw usageError(`Unknown path option: ${arg}`);
+    }
+
+    positionals.push(arg);
+  }
+
+  if (!options.from) {
+    options.from = positionals[0] || null;
+  }
+
+  if (!options.to) {
+    options.to = positionals[1] || null;
+  }
+
+  if (!options.from || !options.to) {
+    throw usageError('Path requires --from and --to (or two positional ids)');
+  }
+
+  if (labels.length === 1) {
+    options.labelFilter = labels[0];
+  } else if (labels.length > 1) {
+    options.labelFilter = labels;
+  }
+
+  return options;
+}
+
 function renderInfo(payload) {
   const lines = [`Repo: ${payload.repo}`];
   lines.push(`Graphs: ${payload.graphs.length}`);
   for (const graph of payload.graphs) {
     lines.push(`- ${graph.name}`);
   }
+  return `${lines.join('\n')}\n`;
+}
+
+function renderQuery(payload) {
+  const lines = [
+    `Graph: ${payload.graph}`,
+    `State: ${payload.stateHash}`,
+    `Nodes: ${payload.nodes.length}`,
+  ];
+
+  for (const node of payload.nodes) {
+    const id = node.id ?? '(unknown)';
+    lines.push(`- ${id}`);
+    if (node.props && Object.keys(node.props).length > 0) {
+      lines.push(`  props: ${JSON.stringify(node.props)}`);
+    }
+  }
+
+  return `${lines.join('\n')}\n`;
+}
+
+function renderPath(payload) {
+  const lines = [
+    `Graph: ${payload.graph}`,
+    `From: ${payload.from}`,
+    `To: ${payload.to}`,
+    `Found: ${payload.found ? 'yes' : 'no'}`,
+    `Length: ${payload.length}`,
+  ];
+
+  if (payload.path && payload.path.length > 0) {
+    lines.push(`Path: ${payload.path.join(' -> ')}`);
+  }
+
   return `${lines.join('\n')}\n`;
 }
 
@@ -200,6 +445,16 @@ function emit(payload, { json, command }) {
 
   if (command === 'info') {
     process.stdout.write(renderInfo(payload));
+    return;
+  }
+
+  if (command === 'query') {
+    process.stdout.write(renderQuery(payload));
+    return;
+  }
+
+  if (command === 'path') {
+    process.stdout.write(renderPath(payload));
     return;
   }
 
@@ -225,6 +480,91 @@ async function handleInfo({ options }) {
   };
 }
 
+async function handleQuery({ options, args }) {
+  const querySpec = parseQueryArgs(args);
+  const { graph, graphName } = await openGraph(options);
+  let builder = graph.query();
+
+  if (querySpec.match !== null) {
+    builder = builder.match(querySpec.match);
+  }
+
+  for (const step of querySpec.steps) {
+    if (step.type === 'outgoing') {
+      builder = builder.outgoing(step.label);
+      continue;
+    }
+    if (step.type === 'incoming') {
+      builder = builder.incoming(step.label);
+      continue;
+    }
+    if (step.type === 'where-prop') {
+      const key = step.key;
+      const value = step.value;
+      builder = builder.where((node) => {
+        const props = node.props || {};
+        if (!Object.prototype.hasOwnProperty.call(props, key)) {
+          return false;
+        }
+        return String(props[key]) === value;
+      });
+    }
+  }
+
+  if (querySpec.select !== null) {
+    builder = builder.select(querySpec.select);
+  }
+
+  try {
+    const result = await builder.run();
+    return {
+      payload: {
+        graph: graphName,
+        stateHash: result.stateHash,
+        nodes: result.nodes,
+      },
+      exitCode: EXIT_CODES.OK,
+    };
+  } catch (error) {
+    if (error && error.code && String(error.code).startsWith('E_QUERY')) {
+      throw usageError(error.message);
+    }
+    throw error;
+  }
+}
+
+async function handlePath({ options, args }) {
+  const pathOptions = parsePathArgs(args);
+  const { graph, graphName } = await openGraph(options);
+
+  try {
+    const result = await graph.traverse.shortestPath(
+      pathOptions.from,
+      pathOptions.to,
+      {
+        dir: pathOptions.dir,
+        labelFilter: pathOptions.labelFilter,
+        maxDepth: pathOptions.maxDepth,
+      }
+    );
+
+    return {
+      payload: {
+        graph: graphName,
+        from: pathOptions.from,
+        to: pathOptions.to,
+        ...result,
+      },
+      exitCode: result.found ? EXIT_CODES.OK : EXIT_CODES.NOT_FOUND,
+    };
+  } catch (error) {
+    if (error && error.code === 'NODE_NOT_FOUND') {
+      throw notFoundError(error.message);
+    }
+    throw error;
+  }
+}
+
 async function handleNotImplemented({ command }) {
   throw new CliError(`${command} is not implemented yet`, {
     code: 'E_NOT_IMPLEMENTED',
@@ -234,8 +574,8 @@ async function handleNotImplemented({ command }) {
 
 const COMMANDS = new Map([
   ['info', handleInfo],
-  ['query', handleNotImplemented],
-  ['path', handleNotImplemented],
+  ['query', handleQuery],
+  ['path', handlePath],
   ['history', handleNotImplemented],
   ['check', handleNotImplemented],
 ]);
@@ -261,16 +601,20 @@ async function main() {
     throw usageError(`Unknown command: ${command}`);
   }
 
-  const payload = await handler({
+  const result = await handler({
     command,
     args: positionals.slice(1),
     options,
   });
 
-  if (payload !== undefined) {
-    emit(payload, { json: options.json, command });
+  const normalized = result && typeof result === 'object' && 'payload' in result
+    ? result
+    : { payload: result, exitCode: EXIT_CODES.OK };
+
+  if (normalized.payload !== undefined) {
+    emit(normalized.payload, { json: options.json, command });
   }
-  process.exitCode = EXIT_CODES.OK;
+  process.exitCode = normalized.exitCode ?? EXIT_CODES.OK;
 }
 
 main().catch((error) => {

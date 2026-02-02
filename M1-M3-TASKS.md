@@ -69,9 +69,9 @@
 - [x] Exit codes: 0 ok, 1 usage/config, 2 not found/no path, 3 internal
 
 ### M3.2 Reuse query + traversal
-- [ ] CLI query calls M1.1 builder
-- [ ] CLI path calls M2.1 shortestPath
-- [ ] Human output derived from JSON
+- [x] CLI query calls M1.1 builder
+- [x] CLI path calls M2.1 shortestPath
+- [x] Human output derived from JSON
 
 ### M3.3 Health & GC visibility
 - [ ] 30-min audit of existing health/GC metrics
