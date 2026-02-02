@@ -8,7 +8,7 @@ import BitmapIndexBuilder from './src/domain/services/BitmapIndexBuilder.js';
 import BitmapIndexReader from './src/domain/services/BitmapIndexReader.js';
 import IndexRebuildService from './src/domain/services/IndexRebuildService.js';
 import HealthCheckService, { HealthStatus } from './src/domain/services/HealthCheckService.js';
-import TraversalService from './src/domain/services/TraversalService.js';
+import CommitDagTraversalService from './src/domain/services/CommitDagTraversalService.js';
 import GraphPersistencePort from './src/ports/GraphPersistencePort.js';
 import IndexStoragePort from './src/ports/IndexStoragePort.js';
 import LoggerPort from './src/ports/LoggerPort.js';
@@ -44,6 +44,8 @@ import {
 import { migrateV4toV5 } from './src/domain/services/MigrationService.js';
 import QueryBuilder from './src/domain/services/QueryBuilder.js';
 
+const TraversalService = CommitDagTraversalService;
+
 export {
   GitGraphAdapter,
   GraphNode,
@@ -52,6 +54,7 @@ export {
   IndexRebuildService,
   HealthCheckService,
   HealthStatus,
+  CommitDagTraversalService,
   TraversalService,
   GraphPersistencePort,
   IndexStoragePort,

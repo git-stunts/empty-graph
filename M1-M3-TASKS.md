@@ -55,9 +55,9 @@
 - [x] Tests: reuse adjacency for same stateHash; eviction under cap
 
 ### M2.3 Naming cleanup: logical vs Git DAG
-- [ ] Rename Git DAG traversal to CommitDagTraversal*
-- [ ] Keep deprecated alias for 1 minor version
-- [ ] Update exports/imports/comments for clarity
+- [x] Rename Git DAG traversal to CommitDagTraversal*
+- [x] Keep deprecated alias for 1 minor version
+- [x] Update exports/imports/comments for clarity
 
 ---
 

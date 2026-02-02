@@ -17,6 +17,7 @@ import WarpGraphDefault, {
   IndexRebuildService,
   HealthCheckService,
   HealthStatus,
+  CommitDagTraversalService,
   TraversalService,
   GraphPersistencePort,
   IndexStoragePort,
@@ -107,9 +108,15 @@ describe('index.js exports', () => {
       expect(HealthStatus.UNHEALTHY).toBe('unhealthy');
     });
 
+    it('exports CommitDagTraversalService', () => {
+      expect(CommitDagTraversalService).toBeDefined();
+      expect(typeof CommitDagTraversalService).toBe('function');
+    });
+
     it('exports TraversalService', () => {
       expect(TraversalService).toBeDefined();
       expect(typeof TraversalService).toBe('function');
+      expect(TraversalService).toBe(CommitDagTraversalService);
     });
   });
 

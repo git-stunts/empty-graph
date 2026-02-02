@@ -620,12 +620,12 @@ export class HealthCheckService {
 }
 
 /**
- * Service for graph traversal operations.
+ * Service for commit DAG traversal operations.
  *
  * Provides BFS, DFS, path finding, and topological sort algorithms
  * using O(1) bitmap index lookups.
  */
-export class TraversalService {
+export class CommitDagTraversalService {
   constructor(options: {
     /** Index reader for O(1) lookups */
     indexReader: BitmapIndexReader;
@@ -710,6 +710,11 @@ export class TraversalService {
     backwardHeuristic?: (sha: string, targetSha: string) => number | Promise<number>;
   }): Promise<{ path: string[]; totalCost: number; nodesExplored: number }>;
 }
+
+/**
+ * @deprecated Use CommitDagTraversalService instead.
+ */
+export { CommitDagTraversalService as TraversalService };
 
 /**
  * Error class for graph traversal operations.
