@@ -1,0 +1,17 @@
+#!/bin/sh
+set -e
+
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null)"
+if [ -z "$ROOT" ]; then
+  echo "pre-push: unable to locate repo root" >&2
+  exit 1
+fi
+cd "$ROOT"
+
+if ! command -v docker >/dev/null 2>&1; then
+  echo "pre-push: docker is required to run git-warp CLI bats tests" >&2
+  exit 1
+fi
+
+echo "Running pre-push git-warp CLI bats tests..."
+docker compose run --build --rm test bats test/bats/warp-graph-cli.bats
