@@ -836,7 +836,7 @@ async function handleHistory({ options, args }) {
     throw usageError('history requires --writer <id>');
   }
 
-  const patches = await graph._loadWriterPatches(writerId);
+  const patches = await graph.getWriterPatches(writerId);
   if (patches.length === 0) {
     throw notFoundError(`No patches found for writer: ${writerId}`);
   }

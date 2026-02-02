@@ -896,6 +896,14 @@ export default class WarpGraph {
   createPatch(): unknown;
 
   /**
+   * Returns patches from a writer's ref chain.
+   */
+  getWriterPatches(
+    writerId: string,
+    stopAtSha?: string | null
+  ): Promise<Array<{ patch: unknown; sha: string }>>;
+
+  /**
    * Logical graph traversal helpers.
    */
   traverse: LogicalTraversal;

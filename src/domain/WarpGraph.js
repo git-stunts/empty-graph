@@ -211,6 +211,17 @@ export default class WarpGraph {
   }
 
   /**
+   * Returns patches from a writer's ref chain.
+   *
+   * @param {string} writerId - The writer ID to load patches for
+   * @param {string|null} [stopAtSha=null] - Stop walking when reaching this SHA (exclusive)
+   * @returns {Promise<Array<{patch: import('./types/WarpTypes.js').PatchV1, sha: string}>>} Array of patches
+   */
+  async getWriterPatches(writerId, stopAtSha = null) {
+    return this._loadWriterPatches(writerId, stopAtSha);
+  }
+
+  /**
    * Gets the next lamport timestamp and current parent SHA for this writer.
    * Reads from the current ref chain to determine values.
    *
