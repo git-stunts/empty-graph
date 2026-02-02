@@ -409,7 +409,7 @@ describe('CheckpointService', () => {
         updateFrontier(frontier, 'writer1', makeOid('p'));
 
         // V5 writes 4 blobs: state, visible, frontier, appliedVV
-        let writtenBlobs = [];
+        const writtenBlobs = [];
         let writtenMessage;
 
         mockPersistence.writeBlob.mockImplementation((buffer) => {
@@ -803,7 +803,10 @@ describe('CheckpointService', () => {
         updateFrontier(frontier, 'bob', makeOid('sha2'));
 
         // Capture written data during create
-        let writtenStateBlob, writtenVisibleBlob, writtenFrontierBlob, writtenAppliedVVBlob;
+        let writtenStateBlob;
+        let writtenVisibleBlob;
+        let writtenFrontierBlob;
+        let writtenAppliedVVBlob;
         let writtenMessage;
         let blobIndex = 0;
 
@@ -821,6 +824,8 @@ describe('CheckpointService', () => {
             case 3:
               writtenAppliedVVBlob = buffer;
               return Promise.resolve(makeOid('appliedVVOid'));
+            default:
+              return Promise.reject(new Error('Unexpected blob write'));
           }
         });
         mockPersistence.writeTree.mockResolvedValue(makeOid('treeOid'));
