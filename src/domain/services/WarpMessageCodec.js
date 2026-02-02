@@ -30,12 +30,6 @@ const MESSAGE_TITLES = {
 };
 
 /**
- * Trailer key prefix for empty-graph trailers.
- * @type {string}
- */
-const TRAILER_PREFIX = 'eg-';
-
-/**
  * Standard trailer keys used across WARP messages.
  * @type {Object<string, string>}
  */
