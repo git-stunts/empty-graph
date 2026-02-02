@@ -31,10 +31,10 @@ const canonicalStringify = (obj) => {
     return JSON.stringify(obj);
   }
   if (Array.isArray(obj)) {
-    return '[' + obj.map(canonicalStringify).join(',') + ']';
+    return `[${obj.map(canonicalStringify).join(',')}]`;
   }
   const keys = Object.keys(obj).sort();
-  return '{' + keys.map(k => JSON.stringify(k) + ':' + canonicalStringify(obj[k])).join(',') + '}';
+  return `{${keys.map(k => `${JSON.stringify(k)}:${canonicalStringify(obj[k])}`).join(',')}}`;
 };
 
 /**
