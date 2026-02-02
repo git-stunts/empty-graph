@@ -24,9 +24,9 @@
 - [x] Tests: two-hop traversal, chaining order matters, mutation does not affect results
 
 ### M1.2 Pattern matching (nodeId glob)
-- [ ] match supports glob string (case-sensitive)
-- [ ] Define wildcard semantics for *
-- [ ] Tests: user:* matches all user nodes; * matches all
+- [x] match supports glob string (case-sensitive)
+- [x] Define wildcard semantics for *
+- [x] Tests: user:* matches all user nodes; * matches all
 
 ### M1.3 Result shaping (DTO)
 - [ ] Default QueryResult DTO: { stateHash, nodes: [{ id, props? }] }

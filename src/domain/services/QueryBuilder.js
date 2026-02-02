@@ -49,6 +49,19 @@ function sortIds(ids) {
   return [...ids].sort();
 }
 
+function escapeRegex(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function matchesPattern(nodeId, pattern) {
+  if (pattern === DEFAULT_PATTERN) return true;
+  if (pattern.includes('*')) {
+    const regex = new RegExp(`^${escapeRegex(pattern).replace(/\\*/g, '.*')}$`);
+    return regex.test(nodeId);
+  }
+  return nodeId === pattern;
+}
+
 function deepFreeze(obj) {
   if (!obj || typeof obj !== 'object' || Object.isFrozen(obj)) {
     return obj;
@@ -250,11 +263,7 @@ export default class QueryBuilder {
     const pattern = this._pattern ?? DEFAULT_PATTERN;
 
     let workingSet;
-    if (pattern === DEFAULT_PATTERN) {
-      workingSet = allNodes;
-    } else {
-      workingSet = allNodes.filter((nodeId) => nodeId === pattern);
-    }
+    workingSet = allNodes.filter((nodeId) => matchesPattern(nodeId, pattern));
 
     for (const op of this._operations) {
       if (op.type === 'where') {

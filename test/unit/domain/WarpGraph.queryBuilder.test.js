@@ -74,6 +74,28 @@ describe('WarpGraph QueryBuilder', () => {
     expect(result.nodes).toEqual(['user:carol']);
   });
 
+  it('supports glob match patterns', async () => {
+    setupGraphState(graph, (state) => {
+      addNode(state, 'user:alice', 1);
+      addNode(state, 'user:bob', 2);
+      addNode(state, 'team:eng', 3);
+    });
+
+    const result = await graph.query().match('user:*').run();
+    expect(result.nodes).toEqual(['user:alice', 'user:bob']);
+  });
+
+  it('match(*) returns all nodes in canonical order', async () => {
+    setupGraphState(graph, (state) => {
+      addNode(state, 'team:eng', 1);
+      addNode(state, 'user:bob', 2);
+      addNode(state, 'user:alice', 3);
+    });
+
+    const result = await graph.query().match('*').run();
+    expect(result.nodes).toEqual(['team:eng', 'user:alice', 'user:bob']);
+  });
+
   it('chaining order matters', async () => {
     setupGraphState(graph, (state) => {
       addNode(state, 'user:alice', 1);
