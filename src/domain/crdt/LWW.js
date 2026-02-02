@@ -35,9 +35,15 @@ export function lwwSet(eventId, value) {
  */
 export function lwwMax(a, b) {
   // Handle null/undefined cases
-  if (a == null && b == null) return null;
-  if (a == null) return b;
-  if (b == null) return a;
+  if ((a === null || a === undefined) && (b === null || b === undefined)) {
+    return null;
+  }
+  if (a === null || a === undefined) {
+    return b;
+  }
+  if (b === null || b === undefined) {
+    return a;
+  }
 
   // Compare EventIds - return the one with greater EventId
   // On equal EventIds, return first argument (deterministic)
