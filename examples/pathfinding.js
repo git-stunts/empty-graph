@@ -168,8 +168,15 @@ export function aStar({ adjacency, start, goal, weightForNode, heuristic }) {
   pq.push(start, heuristic(start));
 
   while (!pq.isEmpty()) {
-    const { item: node } = pq.pop();
+    const { item: node, priority } = pq.pop();
     const currentDist = distances.get(node);
+    if (currentDist === undefined) {
+      continue;
+    }
+    const expectedPriority = currentDist + heuristic(node);
+    if (priority !== expectedPriority) {
+      continue;
+    }
 
     nodesExplored++;
 
