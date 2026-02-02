@@ -295,7 +295,7 @@ export default class GitGraphAdapter extends GraphPersistencePort {
       // (newer plumbing library stores stderr in details)
       const msg = (err.message || '').toLowerCase();
       const stderr = (err.details?.stderr || '').toLowerCase();
-      const searchText = msg + ' ' + stderr;
+      const searchText = `${msg} ${stderr}`;
       const isNotFound =
         searchText.includes('unknown revision') ||
         searchText.includes('ambiguous argument') ||
@@ -458,7 +458,7 @@ export default class GitGraphAdapter extends GraphPersistencePort {
       // Exit code 1 means config key not found
       const msg = (err.message || '').toLowerCase();
       const stderr = (err.details?.stderr || '').toLowerCase();
-      const searchText = msg + ' ' + stderr;
+      const searchText = `${msg} ${stderr}`;
       if (searchText.includes('exit code 1') || err.exitCode === 1) {
         return null;
       }
