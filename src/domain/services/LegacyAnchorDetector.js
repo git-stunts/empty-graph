@@ -22,7 +22,9 @@
  * isLegacyAnchor('plain text'); // false
  */
 export function isLegacyAnchor(message) {
-  if (typeof message !== 'string') return false;
+  if (typeof message !== 'string') {
+    return false;
+  }
   try {
     const parsed = JSON.parse(message.trim());
     return parsed && parsed._type === 'anchor';
@@ -52,7 +54,9 @@ export function isLegacyAnchor(message) {
  * isAnyAnchor('Some node content'); // false
  */
 export function isAnyAnchor(message) {
-  if (typeof message !== 'string') return false;
+  if (typeof message !== 'string') {
+    return false;
+  }
 
   // Check v4 trailer-based anchor
   if (message.includes('eg-kind: anchor')) {
