@@ -17,7 +17,7 @@ RUN git init -q \
   && git config user.email "container@empty-graph.local" \
   && git config user.name "Empty Graph Container" \
   && git add -A \
-  && git commit -m "seed empty-graph" >/dev/null
+  && git commit --allow-empty -m "seed empty-graph" >/dev/null
 RUN cat <<'EOF' > /usr/local/bin/warp-graph
 #!/usr/bin/env bash
 exec node /app/bin/warp-graph.js "$@"
