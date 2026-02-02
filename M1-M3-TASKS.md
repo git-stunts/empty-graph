@@ -74,9 +74,9 @@
 - [x] Human output derived from JSON
 
 ### M3.3 Health & GC visibility
-- [ ] 30-min audit of existing health/GC metrics
-- [ ] If missing: scope to checkpoint freshness + writer heads + tombstone counts
-- [ ] Surface in CLI check output (JSON first)
+- [x] 30-min audit of existing health/GC metrics
+- [x] If missing: scope to checkpoint freshness + writer heads + tombstone counts
+- [x] Surface in CLI check output (JSON first)
 
 ### M3.4 CLI history definition (MVP)
 - [ ] history --writer <id> shows writer patch chain

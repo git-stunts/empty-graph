@@ -3,8 +3,12 @@
 import path from 'node:path';
 import process from 'node:process';
 import GitPlumbing, { ShellRunnerFactory } from '@git-stunts/plumbing';
-import WarpGraph, { GitGraphAdapter } from '../index.js';
-import { REF_PREFIX } from '../src/domain/utils/RefLayout.js';
+import WarpGraph, {
+  GitGraphAdapter,
+  HealthCheckService,
+  PerformanceClockAdapter,
+} from '../index.js';
+import { REF_PREFIX, buildCheckpointRef, buildCoverageRef } from '../src/domain/utils/RefLayout.js';
 
 const EXIT_CODES = {
   OK: 0,
@@ -433,6 +437,41 @@ function renderPath(payload) {
   return `${lines.join('\n')}\n`;
 }
 
+function renderCheck(payload) {
+  const lines = [
+    `Graph: ${payload.graph}`,
+    `Health: ${payload.health.status}`,
+  ];
+
+  if (payload.checkpoint?.sha) {
+    lines.push(`Checkpoint: ${payload.checkpoint.sha}`);
+    if (payload.checkpoint.ageSeconds !== null) {
+      lines.push(`Checkpoint Age: ${payload.checkpoint.ageSeconds}s`);
+    }
+  } else {
+    lines.push('Checkpoint: none');
+  }
+
+  lines.push(`Writers: ${payload.writers.count}`);
+  for (const head of payload.writers.heads) {
+    lines.push(`- ${head.writerId}: ${head.sha}`);
+  }
+
+  if (payload.coverage?.sha) {
+    lines.push(`Coverage: ${payload.coverage.sha}`);
+    lines.push(`Coverage Missing: ${payload.coverage.missingWriters.length}`);
+  } else {
+    lines.push('Coverage: none');
+  }
+
+  if (payload.gc) {
+    lines.push(`Tombstones: ${payload.gc.totalTombstones}`);
+    lines.push(`Tombstone Ratio: ${payload.gc.tombstoneRatio}`);
+  }
+
+  return `${lines.join('\n')}\n`;
+}
+
 function renderError(payload) {
   return `Error: ${payload.error.message}\n`;
 }
@@ -455,6 +494,11 @@ function emit(payload, { json, command }) {
 
   if (command === 'path') {
     process.stdout.write(renderPath(payload));
+    return;
+  }
+
+  if (command === 'check') {
+    process.stdout.write(renderCheck(payload));
     return;
   }
 
@@ -565,6 +609,72 @@ async function handlePath({ options, args }) {
   }
 }
 
+async function handleCheck({ options }) {
+  const { graph, graphName, persistence } = await openGraph(options);
+  const clock = new PerformanceClockAdapter();
+  const healthService = new HealthCheckService({ persistence, clock });
+  const health = await healthService.getHealth();
+
+  await graph.materialize();
+  const gcMetrics = graph.getGCMetrics();
+
+  const frontier = await graph.getFrontier();
+  const writerHeads = [...frontier.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([writerId, sha]) => ({ writerId, sha }));
+
+  const checkpointRef = buildCheckpointRef(graphName);
+  const checkpointSha = await persistence.readRef(checkpointRef);
+  let checkpointDate = null;
+  let checkpointAgeSeconds = null;
+
+  if (checkpointSha) {
+    const info = await persistence.getNodeInfo(checkpointSha);
+    checkpointDate = info.date || null;
+    const parsed = checkpointDate ? Date.parse(checkpointDate) : Number.NaN;
+    if (!Number.isNaN(parsed)) {
+      checkpointAgeSeconds = Math.max(0, Math.floor((Date.now() - parsed) / 1000));
+    }
+  }
+
+  const coverageRef = buildCoverageRef(graphName);
+  const coverageSha = await persistence.readRef(coverageRef);
+  const missingWriters = [];
+
+  if (coverageSha) {
+    for (const head of writerHeads) {
+      const reachable = await persistence.isAncestor(head.sha, coverageSha);
+      if (!reachable) {
+        missingWriters.push(head.writerId);
+      }
+    }
+  }
+
+  const payload = {
+    repo: options.repo,
+    graph: graphName,
+    health,
+    checkpoint: {
+      ref: checkpointRef,
+      sha: checkpointSha || null,
+      date: checkpointDate,
+      ageSeconds: checkpointAgeSeconds,
+    },
+    writers: {
+      count: writerHeads.length,
+      heads: writerHeads,
+    },
+    coverage: {
+      ref: coverageRef,
+      sha: coverageSha || null,
+      missingWriters: missingWriters.sort(),
+    },
+    gc: gcMetrics,
+  };
+
+  return { payload, exitCode: EXIT_CODES.OK };
+}
+
 async function handleNotImplemented({ command }) {
   throw new CliError(`${command} is not implemented yet`, {
     code: 'E_NOT_IMPLEMENTED',
@@ -577,7 +687,7 @@ const COMMANDS = new Map([
   ['query', handleQuery],
   ['path', handlePath],
   ['history', handleNotImplemented],
-  ['check', handleNotImplemented],
+  ['check', handleCheck],
 ]);
 
 async function main() {
