@@ -101,6 +101,11 @@ function parseArgs(argv) {
     help: false,
   };
   const positionals = [];
+  const optionDefs = [
+    { flag: '--repo', shortFlag: '-r', key: 'repo' },
+    { flag: '--graph', key: 'graph' },
+    { flag: '--writer', key: 'writer' },
+  ];
 
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
@@ -115,47 +120,27 @@ function parseArgs(argv) {
       continue;
     }
 
-    if (arg === '--repo' || arg === '-r') {
-      const value = argv[i + 1];
-      if (!value) throw usageError('Missing value for --repo');
-      options.repo = value;
-      i += 1;
-      continue;
-    }
-
-    if (arg.startsWith('--repo=')) {
-      options.repo = arg.slice('--repo='.length);
-      continue;
-    }
-
-    if (arg === '--graph') {
-      const value = argv[i + 1];
-      if (!value) throw usageError('Missing value for --graph');
-      options.graph = value;
-      i += 1;
-      continue;
-    }
-
-    if (arg.startsWith('--graph=')) {
-      options.graph = arg.slice('--graph='.length);
-      continue;
-    }
-
-    if (arg === '--writer') {
-      const value = argv[i + 1];
-      if (!value) throw usageError('Missing value for --writer');
-      options.writer = value;
-      i += 1;
-      continue;
-    }
-
-    if (arg.startsWith('--writer=')) {
-      options.writer = arg.slice('--writer='.length);
-      continue;
-    }
-
     if (arg === '-h' || arg === '--help') {
       options.help = true;
+      continue;
+    }
+
+    const matched = optionDefs.find((def) =>
+      arg === def.flag ||
+      arg === def.shortFlag ||
+      arg.startsWith(`${def.flag}=`)
+    );
+
+    if (matched) {
+      const result = readOptionValue({
+        args: argv,
+        index: i,
+        flag: matched.flag,
+        shortFlag: matched.shortFlag,
+        allowEmpty: false,
+      });
+      options[matched.key] = result.value;
+      i += result.consumed;
       continue;
     }
 
@@ -163,8 +148,7 @@ function parseArgs(argv) {
       throw usageError(`Unknown option: ${arg}`);
     }
 
-    positionals.push(arg);
-    positionals.push(...argv.slice(i + 1));
+    positionals.push(arg, ...argv.slice(i + 1));
     break;
   }
 
@@ -192,7 +176,9 @@ async function listGraphNames(persistence) {
   const names = new Set();
 
   for (const ref of refs) {
-    if (!ref.startsWith(prefix)) continue;
+    if (!ref.startsWith(prefix)) {
+      continue;
+    }
     const rest = ref.slice(prefix.length);
     const [graphName] = rest.split('/');
     if (graphName) {
@@ -204,9 +190,13 @@ async function listGraphNames(persistence) {
 }
 
 async function resolveGraphName(persistence, explicitGraph) {
-  if (explicitGraph) return explicitGraph;
+  if (explicitGraph) {
+    return explicitGraph;
+  }
   const graphNames = await listGraphNames(persistence);
-  if (graphNames.length === 1) return graphNames[0];
+  if (graphNames.length === 1) {
+    return graphNames[0];
+  }
   if (graphNames.length === 0) {
     throw notFoundError('No graphs found in repo; specify --graph');
   }
@@ -264,75 +254,89 @@ function parseQueryArgs(args) {
     steps: [],
   };
 
-  const optionParsers = [
-    {
-      flag: '--match',
-      allowEmpty: true,
-      apply: (value) => {
-        spec.match = value;
-      },
-    },
-    {
-      flag: '--where-prop',
-      allowEmpty: false,
-      apply: (value) => {
-        const [key, ...rest] = value.split('=');
-        if (!key || rest.length === 0) {
-          throw usageError('Expected --where-prop key=value');
-        }
-        spec.steps.push({ type: 'where-prop', key, value: rest.join('=') });
-      },
-    },
-    {
-      flag: '--select',
-      allowEmpty: true,
-      apply: (value) => {
-        spec.select = value === ''
-          ? []
-          : value.split(',').map((field) => field.trim()).filter(Boolean);
-      },
-    },
-  ];
-
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i];
 
-    if (arg === '--outgoing' || arg === '--incoming') {
-      const next = args[i + 1];
-      const label = next && !next.startsWith('-') ? next : undefined;
-      if (label) i += 1;
-      spec.steps.push({ type: arg.slice(2), label });
+    const stepResult = readTraversalStep(args, i);
+    if (stepResult) {
+      spec.steps.push(stepResult.step);
+      i += stepResult.consumed;
       continue;
     }
 
-    let handled = false;
-    for (const parser of optionParsers) {
-      const result = readOptionValue(args, i, parser.flag, parser.allowEmpty);
-      if (!result) {
-        continue;
-      }
-      parser.apply(result.value);
-      i += result.consumed;
-      handled = true;
-      break;
+    const matchResult = readOptionValue({
+      args,
+      index: i,
+      flag: '--match',
+      allowEmpty: true,
+    });
+    if (matchResult) {
+      spec.match = matchResult.value;
+      i += matchResult.consumed;
+      continue;
     }
 
-    if (!handled) {
-      throw usageError(`Unknown query option: ${arg}`);
+    const whereResult = readOptionValue({
+      args,
+      index: i,
+      flag: '--where-prop',
+      allowEmpty: false,
+    });
+    if (whereResult) {
+      spec.steps.push(parseWhereProp(whereResult.value));
+      i += whereResult.consumed;
+      continue;
     }
+
+    const selectResult = readOptionValue({
+      args,
+      index: i,
+      flag: '--select',
+      allowEmpty: true,
+    });
+    if (selectResult) {
+      spec.select = parseSelectFields(selectResult.value);
+      i += selectResult.consumed;
+      continue;
+    }
+
+    throw usageError(`Unknown query option: ${arg}`);
   }
 
   return spec;
 }
 
-function readOptionValue(args, index, flag, allowEmpty) {
+function parseWhereProp(value) {
+  const [key, ...rest] = value.split('=');
+  if (!key || rest.length === 0) {
+    throw usageError('Expected --where-prop key=value');
+  }
+  return { type: 'where-prop', key, value: rest.join('=') };
+}
+
+function parseSelectFields(value) {
+  if (value === '') {
+    return [];
+  }
+  return value.split(',').map((field) => field.trim()).filter(Boolean);
+}
+
+function readTraversalStep(args, index) {
   const arg = args[index];
-  if (arg === flag) {
+  if (arg !== '--outgoing' && arg !== '--incoming') {
+    return null;
+  }
+  const next = args[index + 1];
+  const label = next && !next.startsWith('-') ? next : undefined;
+  const consumed = label ? 1 : 0;
+  return { step: { type: arg.slice(2), label }, consumed };
+}
+
+function readOptionValue({ args, index, flag, shortFlag, allowEmpty = false }) {
+  const arg = args[index];
+  if (arg === flag || (shortFlag && arg === shortFlag)) {
     const value = args[index + 1];
-    if (value === undefined) {
-      throw usageError(`Missing value for ${flag}`);
-    }
-    if (!allowEmpty && value === '') {
+    if (value === undefined || (!allowEmpty && value === '')) {
       throw usageError(`Missing value for ${flag}`);
     }
     return { value, consumed: 1 };
@@ -363,74 +367,38 @@ function parsePathArgs(args) {
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i];
 
-    if (arg === '--from') {
-      const value = args[i + 1];
-      if (!value) throw usageError('Missing value for --from');
-      options.from = value;
-      i += 1;
+    const fromResult = readOptionValue({ args, index: i, flag: '--from' });
+    if (fromResult) {
+      options.from = fromResult.value;
+      i += fromResult.consumed;
       continue;
     }
 
-    if (arg.startsWith('--from=')) {
-      options.from = arg.slice('--from='.length);
+    const toResult = readOptionValue({ args, index: i, flag: '--to' });
+    if (toResult) {
+      options.to = toResult.value;
+      i += toResult.consumed;
       continue;
     }
 
-    if (arg === '--to') {
-      const value = args[i + 1];
-      if (!value) throw usageError('Missing value for --to');
-      options.to = value;
-      i += 1;
+    const dirResult = readOptionValue({ args, index: i, flag: '--dir' });
+    if (dirResult) {
+      options.dir = dirResult.value;
+      i += dirResult.consumed;
       continue;
     }
 
-    if (arg.startsWith('--to=')) {
-      options.to = arg.slice('--to='.length);
+    const labelResult = readOptionValue({ args, index: i, flag: '--label' });
+    if (labelResult) {
+      labels.push(...parseLabels(labelResult.value));
+      i += labelResult.consumed;
       continue;
     }
 
-    if (arg === '--dir') {
-      const value = args[i + 1];
-      if (!value) throw usageError('Missing value for --dir');
-      options.dir = value;
-      i += 1;
-      continue;
-    }
-
-    if (arg.startsWith('--dir=')) {
-      options.dir = arg.slice('--dir='.length);
-      continue;
-    }
-
-    if (arg === '--label') {
-      const value = args[i + 1];
-      if (!value) throw usageError('Missing value for --label');
-      labels.push(...value.split(',').map((label) => label.trim()).filter(Boolean));
-      i += 1;
-      continue;
-    }
-
-    if (arg.startsWith('--label=')) {
-      const value = arg.slice('--label='.length);
-      labels.push(...value.split(',').map((label) => label.trim()).filter(Boolean));
-      continue;
-    }
-
-    if (arg === '--max-depth') {
-      const value = args[i + 1];
-      if (!value) throw usageError('Missing value for --max-depth');
-      const parsed = Number.parseInt(value, 10);
-      if (Number.isNaN(parsed)) throw usageError('Invalid value for --max-depth');
-      options.maxDepth = parsed;
-      i += 1;
-      continue;
-    }
-
-    if (arg.startsWith('--max-depth=')) {
-      const value = arg.slice('--max-depth='.length);
-      const parsed = Number.parseInt(value, 10);
-      if (Number.isNaN(parsed)) throw usageError('Invalid value for --max-depth');
-      options.maxDepth = parsed;
+    const depthResult = readOptionValue({ args, index: i, flag: '--max-depth' });
+    if (depthResult) {
+      options.maxDepth = parseMaxDepth(depthResult.value);
+      i += depthResult.consumed;
       continue;
     }
 
@@ -462,6 +430,18 @@ function parsePathArgs(args) {
   return options;
 }
 
+function parseLabels(value) {
+  return value.split(',').map((label) => label.trim()).filter(Boolean);
+}
+
+function parseMaxDepth(value) {
+  const parsed = Number.parseInt(value, 10);
+  if (Number.isNaN(parsed)) {
+    throw usageError('Invalid value for --max-depth');
+  }
+  return parsed;
+}
+
 function parseHistoryArgs(args) {
   const options = { node: null };
 
@@ -470,7 +450,9 @@ function parseHistoryArgs(args) {
 
     if (arg === '--node') {
       const value = args[i + 1];
-      if (!value) throw usageError('Missing value for --node');
+      if (!value) {
+        throw usageError('Missing value for --node');
+      }
       options.node = value;
       i += 1;
       continue;
@@ -494,8 +476,12 @@ function parseHistoryArgs(args) {
 function patchTouchesNode(patch, nodeId) {
   const ops = Array.isArray(patch?.ops) ? patch.ops : [];
   for (const op of ops) {
-    if (op.node === nodeId) return true;
-    if (op.from === nodeId || op.to === nodeId) return true;
+    if (op.node === nodeId) {
+      return true;
+    }
+    if (op.from === nodeId || op.to === nodeId) {
+      return true;
+    }
   }
   return false;
 }
@@ -685,27 +671,7 @@ async function handleQuery({ options, args }) {
     builder = builder.match(querySpec.match);
   }
 
-  for (const step of querySpec.steps) {
-    if (step.type === 'outgoing') {
-      builder = builder.outgoing(step.label);
-      continue;
-    }
-    if (step.type === 'incoming') {
-      builder = builder.incoming(step.label);
-      continue;
-    }
-    if (step.type === 'where-prop') {
-      const key = step.key;
-      const value = step.value;
-      builder = builder.where((node) => {
-        const props = node.props || {};
-        if (!Object.prototype.hasOwnProperty.call(props, key)) {
-          return false;
-        }
-        return String(props[key]) === value;
-      });
-    }
-  }
+  builder = applyQuerySteps(builder, querySpec.steps);
 
   if (querySpec.select !== null) {
     builder = builder.select(querySpec.select);
@@ -714,19 +680,56 @@ async function handleQuery({ options, args }) {
   try {
     const result = await builder.run();
     return {
-      payload: {
-        graph: graphName,
-        stateHash: result.stateHash,
-        nodes: result.nodes,
-      },
+      payload: buildQueryPayload(graphName, result),
       exitCode: EXIT_CODES.OK,
     };
   } catch (error) {
-    if (error && error.code && String(error.code).startsWith('E_QUERY')) {
-      throw usageError(error.message);
-    }
-    throw error;
+    throw mapQueryError(error);
   }
+}
+
+function applyQuerySteps(builder, steps) {
+  let current = builder;
+  for (const step of steps) {
+    current = applyQueryStep(current, step);
+  }
+  return current;
+}
+
+function applyQueryStep(builder, step) {
+  if (step.type === 'outgoing') {
+    return builder.outgoing(step.label);
+  }
+  if (step.type === 'incoming') {
+    return builder.incoming(step.label);
+  }
+  if (step.type === 'where-prop') {
+    return builder.where((node) => matchesPropFilter(node, step.key, step.value));
+  }
+  return builder;
+}
+
+function matchesPropFilter(node, key, value) {
+  const props = node.props || {};
+  if (!Object.prototype.hasOwnProperty.call(props, key)) {
+    return false;
+  }
+  return String(props[key]) === value;
+}
+
+function buildQueryPayload(graphName, result) {
+  return {
+    graph: graphName,
+    stateHash: result.stateHash,
+    nodes: result.nodes,
+  };
+}
+
+function mapQueryError(error) {
+  if (error && error.code && String(error.code).startsWith('E_QUERY')) {
+    throw usageError(error.message);
+  }
+  throw error;
 }
 
 async function handlePath({ options, args }) {
@@ -763,68 +766,123 @@ async function handlePath({ options, args }) {
 
 async function handleCheck({ options }) {
   const { graph, graphName, persistence } = await openGraph(options);
+  const health = await getHealth(persistence);
+  const gcMetrics = await getGcMetrics(graph);
+  const writerHeads = await collectWriterHeads(graph);
+  const checkpoint = await loadCheckpointInfo(persistence, graphName);
+  const coverage = await loadCoverageInfo(persistence, graphName, writerHeads);
+
+  return {
+    payload: buildCheckPayload({
+      repo: options.repo,
+      graphName,
+      health,
+      checkpoint,
+      writerHeads,
+      coverage,
+      gcMetrics,
+    }),
+    exitCode: EXIT_CODES.OK,
+  };
+}
+
+async function getHealth(persistence) {
   const clock = new PerformanceClockAdapter();
   const healthService = new HealthCheckService({ persistence, clock });
-  const health = await healthService.getHealth();
+  return healthService.getHealth();
+}
 
+async function getGcMetrics(graph) {
   await graph.materialize();
-  const gcMetrics = graph.getGCMetrics();
+  return graph.getGCMetrics();
+}
 
+async function collectWriterHeads(graph) {
   const frontier = await graph.getFrontier();
-  const writerHeads = [...frontier.entries()]
+  return [...frontier.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([writerId, sha]) => ({ writerId, sha }));
+}
 
+async function loadCheckpointInfo(persistence, graphName) {
   const checkpointRef = buildCheckpointRef(graphName);
   const checkpointSha = await persistence.readRef(checkpointRef);
-  let checkpointDate = null;
-  let checkpointAgeSeconds = null;
+  const checkpointDate = await readCheckpointDate(persistence, checkpointSha);
+  const checkpointAgeSeconds = computeAgeSeconds(checkpointDate);
 
-  if (checkpointSha) {
-    const info = await persistence.getNodeInfo(checkpointSha);
-    checkpointDate = info.date || null;
-    const parsed = checkpointDate ? Date.parse(checkpointDate) : Number.NaN;
-    if (!Number.isNaN(parsed)) {
-      checkpointAgeSeconds = Math.max(0, Math.floor((Date.now() - parsed) / 1000));
-    }
+  return {
+    ref: checkpointRef,
+    sha: checkpointSha || null,
+    date: checkpointDate,
+    ageSeconds: checkpointAgeSeconds,
+  };
+}
+
+async function readCheckpointDate(persistence, checkpointSha) {
+  if (!checkpointSha) {
+    return null;
   }
+  const info = await persistence.getNodeInfo(checkpointSha);
+  return info.date || null;
+}
 
+function computeAgeSeconds(checkpointDate) {
+  if (!checkpointDate) {
+    return null;
+  }
+  const parsed = Date.parse(checkpointDate);
+  if (Number.isNaN(parsed)) {
+    return null;
+  }
+  return Math.max(0, Math.floor((Date.now() - parsed) / 1000));
+}
+
+async function loadCoverageInfo(persistence, graphName, writerHeads) {
   const coverageRef = buildCoverageRef(graphName);
   const coverageSha = await persistence.readRef(coverageRef);
-  const missingWriters = [];
+  const missingWriters = coverageSha
+    ? await findMissingWriters(persistence, writerHeads, coverageSha)
+    : [];
 
-  if (coverageSha) {
-    for (const head of writerHeads) {
-      const reachable = await persistence.isAncestor(head.sha, coverageSha);
-      if (!reachable) {
-        missingWriters.push(head.writerId);
-      }
+  return {
+    ref: coverageRef,
+    sha: coverageSha || null,
+    missingWriters: missingWriters.sort(),
+  };
+}
+
+async function findMissingWriters(persistence, writerHeads, coverageSha) {
+  const missing = [];
+  for (const head of writerHeads) {
+    const reachable = await persistence.isAncestor(head.sha, coverageSha);
+    if (!reachable) {
+      missing.push(head.writerId);
     }
   }
+  return missing;
+}
 
-  const payload = {
-    repo: options.repo,
+function buildCheckPayload({
+  repo,
+  graphName,
+  health,
+  checkpoint,
+  writerHeads,
+  coverage,
+  gcMetrics,
+}) {
+  return {
+    repo,
     graph: graphName,
     health,
-    checkpoint: {
-      ref: checkpointRef,
-      sha: checkpointSha || null,
-      date: checkpointDate,
-      ageSeconds: checkpointAgeSeconds,
-    },
+    checkpoint,
     writers: {
       count: writerHeads.length,
       heads: writerHeads,
     },
-    coverage: {
-      ref: coverageRef,
-      sha: coverageSha || null,
-      missingWriters: missingWriters.sort(),
-    },
+    coverage,
     gc: gcMetrics,
   };
-
-  return { payload, exitCode: EXIT_CODES.OK };
 }
 
 async function handleHistory({ options, args }) {
@@ -858,13 +916,6 @@ async function handleHistory({ options, args }) {
   };
 
   return { payload, exitCode: EXIT_CODES.OK };
-}
-
-async function handleNotImplemented({ command }) {
-  throw new CliError(`${command} is not implemented yet`, {
-    code: 'E_NOT_IMPLEMENTED',
-    exitCode: EXIT_CODES.INTERNAL,
-  });
 }
 
 const COMMANDS = new Map([
