@@ -17,7 +17,8 @@
     } catch (err) {
       container.innerHTML = "";
       const message = document.createElement("div");
-      message.textContent = "Viz render failed: " + (err && err.message ? err.message : String(err));
+      const detail = err && err.message ? err.message : String(err);
+      message.textContent = `Viz render failed: ${detail}`;
       message.style.color = "#fca5a5";
       container.appendChild(message);
     }
