@@ -17,7 +17,7 @@
  */
 
 import { decode } from '../../infrastructure/codecs/CborCodec.js';
-import { decodePatchMessage, detectMessageKind } from './WarpMessageCodec.js';
+import { decodePatchMessage } from './WarpMessageCodec.js';
 import { join, cloneStateV5 } from './JoinReducer.js';
 import { cloneFrontier, updateFrontier } from './Frontier.js';
 import { vvDeserialize } from '../crdt/VersionVector.js';
