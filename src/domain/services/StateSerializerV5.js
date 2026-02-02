@@ -38,7 +38,9 @@ export function nodeVisibleV5(state, nodeId) {
  * @returns {boolean}
  */
 export function edgeVisibleV5(state, edgeKey) {
-  if (!orsetContains(state.edgeAlive, edgeKey)) return false;
+  if (!orsetContains(state.edgeAlive, edgeKey)) {
+    return false;
+  }
   const { from, to } = decodeEdgeKey(edgeKey);
   return nodeVisibleV5(state, from) && nodeVisibleV5(state, to);
 }
@@ -52,7 +54,9 @@ export function edgeVisibleV5(state, edgeKey) {
  */
 export function propVisibleV5(state, propKey) {
   const { nodeId } = decodePropKey(propKey);
-  if (!nodeVisibleV5(state, nodeId)) return false;
+  if (!nodeVisibleV5(state, nodeId)) {
+    return false;
+  }
   return state.prop.has(propKey);
 }
 
@@ -84,8 +88,12 @@ export function serializeStateV5(state) {
     }
   }
   visibleEdges.sort((a, b) => {
-    if (a.from !== b.from) return a.from < b.from ? -1 : 1;
-    if (a.to !== b.to) return a.to < b.to ? -1 : 1;
+    if (a.from !== b.from) {
+      return a.from < b.from ? -1 : 1;
+    }
+    if (a.to !== b.to) {
+      return a.to < b.to ? -1 : 1;
+    }
     return a.label < b.label ? -1 : a.label > b.label ? 1 : 0;
   });
 
@@ -98,7 +106,9 @@ export function serializeStateV5(state) {
     }
   }
   visibleProps.sort((a, b) => {
-    if (a.node !== b.node) return a.node < b.node ? -1 : 1;
+    if (a.node !== b.node) {
+      return a.node < b.node ? -1 : 1;
+    }
     return a.key < b.key ? -1 : a.key > b.key ? 1 : 0;
   });
 
