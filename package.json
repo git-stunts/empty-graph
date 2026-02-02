@@ -45,13 +45,14 @@
     "demo:bench-streaming": "cd examples && docker compose up -d && docker compose exec demo node /app/examples/streaming-benchmark.js",
     "demo:bench-traversal": "cd examples && docker compose up -d && docker compose exec demo node /app/examples/traversal-benchmark.js",
     "setup:hooks": "node scripts/setup-hooks.js",
+    "postinstall": "patch-package",
     "install:git-warp": "bash scripts/install-git-warp.sh",
     "uninstall:git-warp": "bash scripts/uninstall-git-warp.sh"
   },
   "author": "James Ross <james@flyingrobots.dev>",
   "license": "Apache-2.0",
   "dependencies": {
-    "@git-stunts/alfred": "^0.2.1",
+    "@git-stunts/alfred": "^0.3.0",
     "@git-stunts/plumbing": "^2.8.0",
     "@git-stunts/trailer-codec": "^2.1.1",
     "cbor-x": "^1.6.0",
@@ -63,6 +64,7 @@
     "@git-stunts/docker-guard": "^0.1.0",
     "eslint": "^9.17.0",
     "fast-check": "^4.5.3",
+    "patch-package": "^8.0.0",
     "prettier": "^3.4.2",
     "vitest": "^2.1.8"
   },
