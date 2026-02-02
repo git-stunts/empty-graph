@@ -93,13 +93,7 @@ function stableStringify(value) {
 }
 
 function parseArgs(argv) {
-  const options = {
-    repo: process.cwd(),
-    json: false,
-    graph: null,
-    writer: 'cli',
-    help: false,
-  };
+  const options = createDefaultOptions();
   const positionals = [];
   const optionDefs = [
     { flag: '--repo', shortFlag: '-r', key: 'repo' },
@@ -108,52 +102,72 @@ function parseArgs(argv) {
   ];
 
   for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
-
-    if (arg === '--') {
-      positionals.push(...argv.slice(i + 1));
+    const result = consumeBaseArg({ argv, index: i, options, optionDefs, positionals });
+    if (result.done) {
       break;
     }
-
-    if (arg === '--json') {
-      options.json = true;
-      continue;
-    }
-
-    if (arg === '-h' || arg === '--help') {
-      options.help = true;
-      continue;
-    }
-
-    const matched = optionDefs.find((def) =>
-      arg === def.flag ||
-      arg === def.shortFlag ||
-      arg.startsWith(`${def.flag}=`)
-    );
-
-    if (matched) {
-      const result = readOptionValue({
-        args: argv,
-        index: i,
-        flag: matched.flag,
-        shortFlag: matched.shortFlag,
-        allowEmpty: false,
-      });
-      options[matched.key] = result.value;
-      i += result.consumed;
-      continue;
-    }
-
-    if (arg.startsWith('-')) {
-      throw usageError(`Unknown option: ${arg}`);
-    }
-
-    positionals.push(arg, ...argv.slice(i + 1));
-    break;
+    i += result.consumed;
   }
 
   options.repo = path.resolve(options.repo);
   return { options, positionals };
+}
+
+function createDefaultOptions() {
+  return {
+    repo: process.cwd(),
+    json: false,
+    graph: null,
+    writer: 'cli',
+    help: false,
+  };
+}
+
+function consumeBaseArg({ argv, index, options, optionDefs, positionals }) {
+  const arg = argv[index];
+
+  if (arg === '--') {
+    positionals.push(...argv.slice(index + 1));
+    return { consumed: argv.length - index - 1, done: true };
+  }
+
+  if (arg === '--json') {
+    options.json = true;
+    return { consumed: 0 };
+  }
+
+  if (arg === '-h' || arg === '--help') {
+    options.help = true;
+    return { consumed: 0 };
+  }
+
+  const matched = matchOptionDef(arg, optionDefs);
+  if (matched) {
+    const result = readOptionValue({
+      args: argv,
+      index,
+      flag: matched.flag,
+      shortFlag: matched.shortFlag,
+      allowEmpty: false,
+    });
+    options[matched.key] = result.value;
+    return { consumed: result.consumed };
+  }
+
+  if (arg.startsWith('-')) {
+    throw usageError(`Unknown option: ${arg}`);
+  }
+
+  positionals.push(arg, ...argv.slice(index + 1));
+  return { consumed: argv.length - index - 1, done: true };
+}
+
+function matchOptionDef(arg, optionDefs) {
+  return optionDefs.find((def) =>
+    arg === def.flag ||
+    arg === def.shortFlag ||
+    arg.startsWith(`${def.flag}=`)
+  );
 }
 
 async function createPersistence(repoPath) {
@@ -255,55 +269,57 @@ function parseQueryArgs(args) {
   };
 
   for (let i = 0; i < args.length; i += 1) {
-    const arg = args[i];
-
-    const stepResult = readTraversalStep(args, i);
-    if (stepResult) {
-      spec.steps.push(stepResult.step);
-      i += stepResult.consumed;
-      continue;
+    const result = consumeQueryArg(args, i, spec);
+    if (!result) {
+      throw usageError(`Unknown query option: ${args[i]}`);
     }
-
-    const matchResult = readOptionValue({
-      args,
-      index: i,
-      flag: '--match',
-      allowEmpty: true,
-    });
-    if (matchResult) {
-      spec.match = matchResult.value;
-      i += matchResult.consumed;
-      continue;
-    }
-
-    const whereResult = readOptionValue({
-      args,
-      index: i,
-      flag: '--where-prop',
-      allowEmpty: false,
-    });
-    if (whereResult) {
-      spec.steps.push(parseWhereProp(whereResult.value));
-      i += whereResult.consumed;
-      continue;
-    }
-
-    const selectResult = readOptionValue({
-      args,
-      index: i,
-      flag: '--select',
-      allowEmpty: true,
-    });
-    if (selectResult) {
-      spec.select = parseSelectFields(selectResult.value);
-      i += selectResult.consumed;
-      continue;
-    }
-
-    throw usageError(`Unknown query option: ${arg}`);
+    i += result.consumed;
   }
 
   return spec;
+}
+
+function consumeQueryArg(args, index, spec) {
+  const stepResult = readTraversalStep(args, index);
+  if (stepResult) {
+    spec.steps.push(stepResult.step);
+    return stepResult;
+  }
+
+  const matchResult = readOptionValue({
+    args,
+    index,
+    flag: '--match',
+    allowEmpty: true,
+  });
+  if (matchResult) {
+    spec.match = matchResult.value;
+    return matchResult;
+  }
+
+  const whereResult = readOptionValue({
+    args,
+    index,
+    flag: '--where-prop',
+    allowEmpty: false,
+  });
+  if (whereResult) {
+    spec.steps.push(parseWhereProp(whereResult.value));
+    return whereResult;
+  }
+
+  const selectResult = readOptionValue({
+    args,
+    index,
+    flag: '--select',
+    allowEmpty: true,
+  });
+  if (selectResult) {
+    spec.select = parseSelectFields(selectResult.value);
+    return selectResult;
+  }
+
+  return null;
 }
 
 function parseWhereProp(value) {
@@ -334,81 +350,88 @@ function readTraversalStep(args, index) {
 
 function readOptionValue({ args, index, flag, shortFlag, allowEmpty = false }) {
   const arg = args[index];
-  if (arg === flag || (shortFlag && arg === shortFlag)) {
-    const value = args[index + 1];
-    if (value === undefined || (!allowEmpty && value === '')) {
-      throw usageError(`Missing value for ${flag}`);
-    }
-    return { value, consumed: 1 };
+  if (matchesOptionFlag(arg, flag, shortFlag)) {
+    return readNextOptionValue({ args, index, flag, allowEmpty });
   }
 
   if (arg.startsWith(`${flag}=`)) {
-    const value = arg.slice(flag.length + 1);
-    if (!allowEmpty && value === '') {
-      throw usageError(`Missing value for ${flag}`);
-    }
-    return { value, consumed: 0 };
+    return readInlineOptionValue({ arg, flag, allowEmpty });
   }
 
   return null;
 }
 
+function matchesOptionFlag(arg, flag, shortFlag) {
+  return arg === flag || (shortFlag && arg === shortFlag);
+}
+
+function readNextOptionValue({ args, index, flag, allowEmpty }) {
+  const value = args[index + 1];
+  if (value === undefined || (!allowEmpty && value === '')) {
+    throw usageError(`Missing value for ${flag}`);
+  }
+  return { value, consumed: 1 };
+}
+
+function readInlineOptionValue({ arg, flag, allowEmpty }) {
+  const value = arg.slice(flag.length + 1);
+  if (!allowEmpty && value === '') {
+    throw usageError(`Missing value for ${flag}`);
+  }
+  return { value, consumed: 0 };
+}
+
 function parsePathArgs(args) {
-  const options = {
+  const options = createPathOptions();
+  const labels = [];
+  const positionals = [];
+
+  for (let i = 0; i < args.length; i += 1) {
+    const result = consumePathArg({ args, index: i, options, labels, positionals });
+    i += result.consumed;
+  }
+
+  finalizePathOptions(options, labels, positionals);
+  return options;
+}
+
+function createPathOptions() {
+  return {
     from: null,
     to: null,
     dir: undefined,
     labelFilter: undefined,
     maxDepth: undefined,
   };
-  const labels = [];
-  const positionals = [];
+}
 
-  for (let i = 0; i < args.length; i += 1) {
-    const arg = args[i];
+function consumePathArg({ args, index, options, labels, positionals }) {
+  const arg = args[index];
+  const handlers = [
+    { flag: '--from', apply: (value) => { options.from = value; } },
+    { flag: '--to', apply: (value) => { options.to = value; } },
+    { flag: '--dir', apply: (value) => { options.dir = value; } },
+    { flag: '--label', apply: (value) => { labels.push(...parseLabels(value)); } },
+    { flag: '--max-depth', apply: (value) => { options.maxDepth = parseMaxDepth(value); } },
+  ];
 
-    const fromResult = readOptionValue({ args, index: i, flag: '--from' });
-    if (fromResult) {
-      options.from = fromResult.value;
-      i += fromResult.consumed;
-      continue;
+  for (const handler of handlers) {
+    const result = readOptionValue({ args, index, flag: handler.flag });
+    if (result) {
+      handler.apply(result.value);
+      return result;
     }
-
-    const toResult = readOptionValue({ args, index: i, flag: '--to' });
-    if (toResult) {
-      options.to = toResult.value;
-      i += toResult.consumed;
-      continue;
-    }
-
-    const dirResult = readOptionValue({ args, index: i, flag: '--dir' });
-    if (dirResult) {
-      options.dir = dirResult.value;
-      i += dirResult.consumed;
-      continue;
-    }
-
-    const labelResult = readOptionValue({ args, index: i, flag: '--label' });
-    if (labelResult) {
-      labels.push(...parseLabels(labelResult.value));
-      i += labelResult.consumed;
-      continue;
-    }
-
-    const depthResult = readOptionValue({ args, index: i, flag: '--max-depth' });
-    if (depthResult) {
-      options.maxDepth = parseMaxDepth(depthResult.value);
-      i += depthResult.consumed;
-      continue;
-    }
-
-    if (arg.startsWith('-')) {
-      throw usageError(`Unknown path option: ${arg}`);
-    }
-
-    positionals.push(arg);
   }
 
+  if (arg.startsWith('-')) {
+    throw usageError(`Unknown path option: ${arg}`);
+  }
+
+  positionals.push(arg);
+  return { consumed: 0 };
+}
+
+function finalizePathOptions(options, labels, positionals) {
   if (!options.from) {
     options.from = positionals[0] || null;
   }
@@ -426,8 +449,6 @@ function parsePathArgs(args) {
   } else if (labels.length > 1) {
     options.labelFilter = labels;
   }
-
-  return options;
 }
 
 function parseLabels(value) {
