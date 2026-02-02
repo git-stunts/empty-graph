@@ -264,21 +264,38 @@ function parseQueryArgs(args) {
     steps: [],
   };
 
+  const optionParsers = [
+    {
+      flag: '--match',
+      allowEmpty: true,
+      apply: (value) => {
+        spec.match = value;
+      },
+    },
+    {
+      flag: '--where-prop',
+      allowEmpty: false,
+      apply: (value) => {
+        const [key, ...rest] = value.split('=');
+        if (!key || rest.length === 0) {
+          throw usageError('Expected --where-prop key=value');
+        }
+        spec.steps.push({ type: 'where-prop', key, value: rest.join('=') });
+      },
+    },
+    {
+      flag: '--select',
+      allowEmpty: true,
+      apply: (value) => {
+        spec.select = value === ''
+          ? []
+          : value.split(',').map((field) => field.trim()).filter(Boolean);
+      },
+    },
+  ];
+
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i];
-
-    if (arg === '--match') {
-      const value = args[i + 1];
-      if (!value) throw usageError('Missing value for --match');
-      spec.match = value;
-      i += 1;
-      continue;
-    }
-
-    if (arg.startsWith('--match=')) {
-      spec.match = arg.slice('--match='.length);
-      continue;
-    }
 
     if (arg === '--outgoing' || arg === '--incoming') {
       const next = args[i + 1];
@@ -288,46 +305,48 @@ function parseQueryArgs(args) {
       continue;
     }
 
-    if (arg === '--where-prop') {
-      const value = args[i + 1];
-      if (!value) throw usageError('Missing value for --where-prop');
-      const [key, ...rest] = value.split('=');
-      if (!key || rest.length === 0) {
-        throw usageError('Expected --where-prop key=value');
+    let handled = false;
+    for (const parser of optionParsers) {
+      const result = readOptionValue(args, i, parser.flag, parser.allowEmpty);
+      if (!result) {
+        continue;
       }
-      spec.steps.push({ type: 'where-prop', key, value: rest.join('=') });
-      i += 1;
-      continue;
+      parser.apply(result.value);
+      i += result.consumed;
+      handled = true;
+      break;
     }
 
-    if (arg.startsWith('--where-prop=')) {
-      const value = arg.slice('--where-prop='.length);
-      const [key, ...rest] = value.split('=');
-      if (!key || rest.length === 0) {
-        throw usageError('Expected --where-prop key=value');
-      }
-      spec.steps.push({ type: 'where-prop', key, value: rest.join('=') });
-      continue;
+    if (!handled) {
+      throw usageError(`Unknown query option: ${arg}`);
     }
-
-    if (arg === '--select') {
-      const value = args[i + 1];
-      if (value === undefined) throw usageError('Missing value for --select');
-      spec.select = value === '' ? [] : value.split(',').map((field) => field.trim()).filter(Boolean);
-      i += 1;
-      continue;
-    }
-
-    if (arg.startsWith('--select=')) {
-      const value = arg.slice('--select='.length);
-      spec.select = value === '' ? [] : value.split(',').map((field) => field.trim()).filter(Boolean);
-      continue;
-    }
-
-    throw usageError(`Unknown query option: ${arg}`);
   }
 
   return spec;
+}
+
+function readOptionValue(args, index, flag, allowEmpty) {
+  const arg = args[index];
+  if (arg === flag) {
+    const value = args[index + 1];
+    if (value === undefined) {
+      throw usageError(`Missing value for ${flag}`);
+    }
+    if (!allowEmpty && value === '') {
+      throw usageError(`Missing value for ${flag}`);
+    }
+    return { value, consumed: 1 };
+  }
+
+  if (arg.startsWith(`${flag}=`)) {
+    const value = arg.slice(flag.length + 1);
+    if (!allowEmpty && value === '') {
+      throw usageError(`Missing value for ${flag}`);
+    }
+    return { value, consumed: 0 };
+  }
+
+  return null;
 }
 
 function parsePathArgs(args) {
