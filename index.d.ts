@@ -900,4 +900,14 @@ export default class WarpGraph {
    * Gets the current version vector.
    */
   getVersionVector(): unknown;
+
+  /**
+   * Starts a built-in sync server for this graph.
+   */
+  serve(options: {
+    port: number;
+    host?: string;
+    path?: string;
+    maxRequestBytes?: number;
+  }): Promise<{ close(): Promise<void>; url: string }>;
 }

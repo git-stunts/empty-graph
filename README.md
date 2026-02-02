@@ -210,6 +210,20 @@ for await (const node of graph.iterateNodes({ ref: 'refs/empty-graph/events' }))
 }
 ```
 
+## Sync Transport (HTTP)
+
+WarpGraph includes a one-line sync server for peer-to-peer replication.
+
+```javascript
+const server = await graph.serve({ port: 8080 });
+console.log(server.url); // http://127.0.0.1:8080/sync
+
+// ... later
+await server.close();
+```
+
+Clients should POST a `sync-request` JSON payload (use `graph.createSyncRequest()` on the caller).
+
 ## Choosing a Mode
 
 ### Beginner (Recommended)

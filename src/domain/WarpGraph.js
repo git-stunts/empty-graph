@@ -33,6 +33,26 @@ import QueryBuilder from './services/QueryBuilder.js';
 import LogicalTraversal from './services/LogicalTraversal.js';
 import LRUCache from './utils/LRUCache.js';
 
+const DEFAULT_SYNC_SERVER_MAX_BYTES = 4 * 1024 * 1024;
+
+function canonicalizeJson(value) {
+  if (Array.isArray(value)) {
+    return value.map(canonicalizeJson);
+  }
+  if (value && typeof value === 'object') {
+    const sorted = {};
+    for (const key of Object.keys(value).sort()) {
+      sorted[key] = canonicalizeJson(value[key]);
+    }
+    return sorted;
+  }
+  return value;
+}
+
+function canonicalStringify(value) {
+  return JSON.stringify(canonicalizeJson(value));
+}
+
 const DEFAULT_ADJACENCY_CACHE_SIZE = 3;
 
 /**
@@ -1056,6 +1076,119 @@ export default class WarpGraph {
   async syncNeeded(remoteFrontier) {
     const localFrontier = await this.getFrontier();
     return syncNeeded(localFrontier, remoteFrontier);
+  }
+
+  /**
+   * Starts a built-in sync server for this graph.
+   *
+   * @param {Object} options
+   * @param {number} options.port - Port to listen on
+   * @param {string} [options.host='127.0.0.1'] - Host to bind
+   * @param {string} [options.path='/sync'] - Path to handle sync requests
+   * @param {number} [options.maxRequestBytes=4194304] - Max request size in bytes
+   * @returns {Promise<{close: () => Promise<void>, url: string}>} Server handle
+   */
+  async serve({ port, host = '127.0.0.1', path = '/sync', maxRequestBytes = DEFAULT_SYNC_SERVER_MAX_BYTES } = {}) {
+    if (typeof port !== 'number') {
+      throw new Error('serve() requires a numeric port');
+    }
+
+    const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+    const { createServer } = await import('node:http');
+
+    const server = createServer(async (req, res) => {
+      const contentType = (req.headers['content-type'] || '').toLowerCase();
+      if (contentType && !contentType.startsWith('application/json')) {
+        res.writeHead(400, { 'content-type': 'application/json' });
+        res.end(canonicalStringify({ error: 'Expected application/json' }));
+        return;
+      }
+
+      let requestUrl;
+      try {
+        requestUrl = new URL(req.url || '/', `http://${req.headers.host || host}`);
+      } catch {
+        res.writeHead(400, { 'content-type': 'application/json' });
+        res.end(canonicalStringify({ error: 'Invalid URL' }));
+        return;
+      }
+
+      if (requestUrl.pathname !== normalizedPath) {
+        res.writeHead(404, { 'content-type': 'application/json' });
+        res.end(canonicalStringify({ error: 'Not Found' }));
+        return;
+      }
+
+      if (req.method !== 'POST') {
+        res.writeHead(405, { 'content-type': 'application/json' });
+        res.end(canonicalStringify({ error: 'Method Not Allowed' }));
+        return;
+      }
+
+      let total = 0;
+      let body = '';
+      let aborted = false;
+
+      req.on('data', (chunk) => {
+        if (aborted) return;
+        total += chunk.length;
+        if (total > maxRequestBytes) {
+          aborted = true;
+          res.writeHead(413, { 'content-type': 'application/json' });
+          res.end(canonicalStringify({ error: 'Request too large' }));
+          req.destroy();
+          return;
+        }
+        body += chunk.toString('utf-8');
+      });
+
+      req.on('end', async () => {
+        if (aborted) return;
+        let request;
+        try {
+          request = body ? JSON.parse(body) : null;
+        } catch {
+          res.writeHead(400, { 'content-type': 'application/json' });
+          res.end(canonicalStringify({ error: 'Invalid JSON' }));
+          return;
+        }
+
+        if (!request || typeof request !== 'object' || request.type !== 'sync-request' ||
+          !request.frontier || typeof request.frontier !== 'object' || Array.isArray(request.frontier)) {
+          res.writeHead(400, { 'content-type': 'application/json' });
+          res.end(canonicalStringify({ error: 'Invalid sync request' }));
+          return;
+        }
+
+        try {
+          const response = await this.processSyncRequest(request);
+          res.writeHead(200, { 'content-type': 'application/json' });
+          res.end(canonicalStringify(response));
+        } catch (err) {
+          res.writeHead(500, { 'content-type': 'application/json' });
+          res.end(canonicalStringify({ error: err?.message || 'Sync failed' }));
+        }
+      });
+    });
+
+    await new Promise((resolve, reject) => {
+      server.once('error', reject);
+      server.listen(port, host, resolve);
+    });
+
+    const address = server.address();
+    const actualPort = typeof address === 'object' && address ? address.port : port;
+    const url = `http://${host}:${actualPort}${normalizedPath}`;
+
+    return {
+      url,
+      close: () => new Promise((resolve, reject) => {
+        server.close((err) => {
+          if (err) reject(err);
+          else resolve();
+        });
+      }),
+    };
   }
 
   // ============================================================================
