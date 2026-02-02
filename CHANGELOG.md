@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **git-warp CLI** - canonical `git warp` entrypoint (shim + PATH install)
+- **Installer scripts** - `scripts/install-git-warp.sh` and `scripts/uninstall-git-warp.sh`
+- **Docker bats CLI test** coverage for `git warp` commands
 
 #### Query API (V7 Task 7)
 - **`graph.hasNode(nodeId)`** - Check if node exists in materialized state
@@ -24,6 +27,8 @@ All query methods operate on `WarpStateV5` (materialized state), never commit DA
 - Index built from materialized state, not Git commit parents (TECH-SPEC-V7.md compliance)
 
 ### Changed
+- **Repo ping** now uses `git rev-parse --is-inside-work-tree` for plumbing compatibility
+- **CLI imports** avoid eager `index.js` loading to suppress `url.parse` warnings from optional deps
 - **v7-guards.test.js** - Added `WarpStateIndexBuilder.js` to required V7 components
 
 ### Documentation

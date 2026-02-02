@@ -125,6 +125,30 @@ That's the stunt. Take something everyone has, use it for something no one inten
 npm install @git-stunts/empty-graph @git-stunts/plumbing
 ```
 
+### CLI (git warp)
+
+The canonical CLI entrypoint is `git warp` (a `git-warp` shim).
+
+```bash
+git warp --help
+git warp info
+git warp query --help
+```
+
+#### Local install (clone + npm install)
+
+```bash
+./scripts/install-git-warp.sh
+```
+
+Defaults:
+- Repo: `https://github.com/git-stunts/empty-graph.git`
+- Install dir: `~/.git-warp`
+
+Overrides:
+- `GIT_WARP_REPO_URL` to point at a fork
+- `GIT_WARP_HOME` to change install dir
+
 ## API Status
 
 | API                    | Status          | Use For                 |
