@@ -225,10 +225,11 @@ function generatePatches(n, options = {}) {
         case 0: // NodeAdd
           ops.push(createNodeAddV2(nodeId, dot));
           break;
-        case 1: // EdgeAdd
+        case 1: { // EdgeAdd
           const toNode = `node:${Math.floor(Math.random() * 10)}`;
           ops.push(createEdgeAddV2(nodeId, toNode, 'rel', dot));
           break;
+        }
         case 2: // PropSet
           ops.push(createPropSetV2(nodeId, 'prop', createInlineValue(`value-${i}-${j}`)));
           break;
