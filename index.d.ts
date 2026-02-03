@@ -954,6 +954,16 @@ export default class WarpGraph {
   getFrontier(): Promise<Map<string, string>>;
 
   /**
+   * Creates a checkpoint snapshot of the current materialized state.
+   */
+  createCheckpoint(): Promise<string>;
+
+  /**
+   * Materializes graph state from a checkpoint, applying incremental patches.
+   */
+  materializeAt(checkpointSha: string): Promise<unknown>;
+
+  /**
    * Logical graph traversal helpers.
    */
   traverse: LogicalTraversal;

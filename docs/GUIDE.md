@@ -143,7 +143,7 @@ const state = await graph.materializeAt(checkpointSha);
 ### Basic Workflow
 
 ```javascript
-import { WarpGraph, GitGraphAdapter } from 'empty-graph';
+import { WarpGraph, GitGraphAdapter } from '@git-stunts/empty-graph';
 import Plumbing from '@git-stunts/plumbing';
 
 const plumbing = new Plumbing({ cwd: './my-repo' });

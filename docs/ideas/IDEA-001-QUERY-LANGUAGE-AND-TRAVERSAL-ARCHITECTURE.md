@@ -170,7 +170,7 @@ The engine will execute queries in three distinct cost-weighted phases:
 
 JavaScript
 
-```
+```javascript
 const query = graph.query()
   .from('HEAD')                                  // Entry point
   .ancestors({ maxDepth: 20 })                   // TraversalService integration
@@ -204,7 +204,7 @@ WarpQL will implement the `AsyncIterator` protocol, allowing native JS streaming
 
 JavaScript
 
-```
+```javascript
 for await (const order of graph.query().where({ type: 'order' })) {
   // Processes nodes one-by-one as they exit the Git stream
 }
@@ -276,7 +276,7 @@ Instead of one big class, I’d suggest a simple `pipe` utility:
 
 JavaScript
 
-```
+```javascript
 // Example of the "Gut Choice" in action
 const results = await collect(
   pipe(

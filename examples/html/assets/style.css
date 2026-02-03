@@ -220,7 +220,8 @@ a:hover {
   transform: rotate(45deg);
 }
 
-.theme-toggle-wrap:hover .theme-popover {
+.theme-toggle-wrap:hover .theme-popover,
+.theme-toggle-wrap:focus-within .theme-popover {
   opacity: 1;
   transform: translateY(0);
 }

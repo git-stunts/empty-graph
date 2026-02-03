@@ -124,8 +124,10 @@ async function main() {
 
     if (nodesInPatch >= NODES_PER_PATCH) {
       await patch.commit();
-      patch = await graph.createPatch();
       nodesInPatch = 0;
+      if (i < NODE_COUNT - 1) {
+        patch = await graph.createPatch();
+      }
     }
 
     if ((i + 1) % SAMPLE_INTERVAL === 0) {

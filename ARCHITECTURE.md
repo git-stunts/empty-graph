@@ -2,7 +2,7 @@
 
 ## Overview
 
-WarpGraph is a graph database built on Git. It uses Git commits pointing to the empty tree as nodes, with commit messages as payloads and parent relationships as edges.
+WarpGraph is a graph database built on Git. It uses a patch-based CRDT model where Git commits represent patch objects containing graph operations, with commit messages encoding patch metadata and parent relationships linking patch history.
 
 This architecture enables:
 - Content-addressable storage with built-in deduplication
@@ -358,24 +358,24 @@ Values are base64-encoded Roaring bitmaps containing numeric IDs of connected no
 
 ## Durability & Semantics
 
-This section defines the official durability contract for EmptyGraph and the mechanisms used to enforce it.
+This section defines the official durability contract for WarpGraph and the mechanisms used to enforce it.
 
 ### Core Durability Contract
 
 **A write is durable if and only if it becomes reachable from the graph ref.**
 
-Git garbage collection (GC) prunes commits that are not reachable from any ref. Since WarpGraph nodes are Git commits, without careful ref management, data can be silently deleted. EmptyGraph provides mechanisms to ensure writes remain reachable.
+Git garbage collection (GC) prunes commits that are not reachable from any ref. Since WarpGraph patches are Git commits, without careful ref management, data can be silently deleted. WarpGraph provides mechanisms to ensure writes remain reachable.
 
 ### Modes
 
 #### Managed Mode (Default)
-In managed mode, EmptyGraph guarantees durability for all writes.
+In managed mode, WarpGraph guarantees durability for all writes.
 - Every write operation updates the graph ref (or creates an anchor commit).
 - Reachability from the ref is maintained automatically.
 - Users do not need to manage refs or call sync manually.
 
 #### Manual Mode
-In manual mode, EmptyGraph provides no automatic ref management.
+In manual mode, WarpGraph provides no automatic ref management.
 - Writes create commits but do not update refs.
 - User is responsible for calling `sync()` to persist reachability.
 - User may manage refs directly via Git commands.
