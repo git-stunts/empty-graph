@@ -11,9 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **git-warp CLI** - canonical `git warp` entrypoint (shim + PATH install)
 - **Installer scripts** - `scripts/install-git-warp.sh` and `scripts/uninstall-git-warp.sh`
 - **Docker bats CLI test** coverage for `git warp` commands
-- **Pre-push hook** - runs Docker bats CLI suite
+- **Pre-push hook** - runs lint, unit tests, benchmarks, and Docker bats CLI suite
 - **`graph.serve()`** - one-line HTTP sync transport for multi-writer graphs
 - **`graph.syncWith()`** - sync with HTTP peer or direct graph instance
+- **`graph.getWriterPatches(writerId)`** - public API for writer patch history
 
 #### Query API (V7 Task 7)
 - **`graph.hasNode(nodeId)`** - Check if node exists in materialized state
@@ -33,17 +34,22 @@ All query methods operate on `WarpStateV5` (materialized state), never commit DA
 - **Repo ping** now uses `git rev-parse --is-inside-work-tree` for plumbing compatibility
 - **CLI imports** avoid eager `index.js` loading to suppress `url.parse` warnings from optional deps
 - **v7-guards.test.js** - Added `WarpStateIndexBuilder.js` to required V7 components
+- **Benchmarks** now run in non-watch mode for CI/pre-push safety
+- **Docker test image** copies hooks/patches before `npm install` to support postinstall
+- **Git ref reads** guard missing refs to avoid fatal `show-ref` errors in empty repos
 
 ### Documentation
 - **`docs/V7_TEST_MAPPING.md`** - Maps TECH-SPEC-V7.md Task 5 requirements to existing test files
   - Documents how existing tests cover WARP contracts (write, materialize, convergence, determinism)
   - Confirms legacy tests deleted (not skipped)
   - Provides verification commands
+ - Hook docs updated in README/CONTRIBUTING
+ - Example imports clarified for external consumers
 
 ### Tests
 - Added `test/unit/domain/WarpGraph.query.test.js` (21 tests) - Query API tests
 - Added `test/unit/domain/services/WarpStateIndexBuilder.test.js` (13 tests) - WARP state index tests
-- Total test count: 1413
+- Total test count: 1438
 
 ## [6.0.0] - 2026-01-31
 

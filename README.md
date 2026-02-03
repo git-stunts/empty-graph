@@ -1391,7 +1391,9 @@ This project uses custom git hooks (no husky). To enable pre-commit linting:
 npm run setup:hooks
 ```
 
-This configures git to use the hooks in `scripts/hooks/`. The pre-commit hook runs ESLint on staged JavaScript files.
+This configures git to use the hooks in `scripts/hooks/`.
+- `pre-commit` runs ESLint on staged JavaScript files.
+- `pre-push` runs lint, unit tests, benchmarks, and the Docker bats CLI suite.
 
 To bypass the hook temporarily (not recommended):
 ```bash
