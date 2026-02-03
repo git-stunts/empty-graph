@@ -35,6 +35,13 @@ const DEFAULT_RETRY_OPTIONS = {
   shouldRetry: isTransientError,
 };
 
+const MISSING_REF_PATTERNS = [
+  'unknown revision',
+  'ambiguous argument',
+  'no such ref',
+  'bad revision',
+];
+
 function parseShowRefOutput(output) {
   const trimmed = output.trim();
   if (!trimmed) {
@@ -52,12 +59,7 @@ function isMissingRefError(err) {
   const msg = (err?.message || '').toLowerCase();
   const stderr = (err?.details?.stderr || '').toLowerCase();
   const searchText = `${msg} ${stderr}`;
-  return (
-    searchText.includes('unknown revision') ||
-    searchText.includes('ambiguous argument') ||
-    searchText.includes('no such ref') ||
-    searchText.includes('bad revision')
-  );
+  return MISSING_REF_PATTERNS.some((pattern) => searchText.includes(pattern));
 }
 
 /**
