@@ -1,49 +1,55 @@
-import roaring from 'roaring';
 import { createHash } from 'crypto';
-
-const { RoaringBitmap32 } = roaring;
+import { getRoaringBitmap32, getNativeRoaringAvailable } from '../utils/roaring.js';
 
 /**
  * Shard format version for forward compatibility.
  * Increment when changing the shard structure.
  * @const {number}
  */
-export const SHARD_VERSION = 1;
+export const SHARD_VERSION = 2;
+
+/**
+ * Produces a canonical JSON string with deterministic key ordering.
+ * Recursively sorts object keys alphabetically to ensure consistent
+ * output across different JavaScript engines.
+ *
+ * @param {*} obj - The value to stringify
+ * @returns {string} Canonical JSON string
+ */
+const canonicalStringify = (obj) => {
+  if (obj === null || typeof obj !== 'object') {
+    return JSON.stringify(obj);
+  }
+  if (Array.isArray(obj)) {
+    return `[${obj.map(canonicalStringify).join(',')}]`;
+  }
+  const keys = Object.keys(obj).sort();
+  return `{${keys.map(k => `${JSON.stringify(k)}:${canonicalStringify(obj[k])}`).join(',')}}`;
+};
 
 /**
  * Computes a SHA-256 checksum of the given data.
- * Used to verify shard integrity on load.
+ * Uses canonical JSON stringification for deterministic output
+ * across different JavaScript engines.
  *
  * @param {Object} data - The data object to checksum
  * @returns {string} Hex-encoded SHA-256 hash
  */
 const computeChecksum = (data) => {
-  const json = JSON.stringify(data);
+  const json = canonicalStringify(data);
   return createHash('sha256').update(json).digest('hex');
 };
 
-/**
- * Check if native Roaring bindings are available.
- * Falls back to WASM/JS implementation if not, which is slower.
- */
-const checkNativeBindings = () => {
-  try {
-    // RoaringBitmap32.isNativelyInstalled is available in roaring package
-    if (typeof RoaringBitmap32.isNativelyInstalled === 'function') {
-      return RoaringBitmap32.isNativelyInstalled();
-    }
-    // Fallback: check if the native addon exists
-    if (roaring.isNativelyInstalled !== undefined) {
-      return roaring.isNativelyInstalled;
-    }
-    return null; // Unknown
-  } catch {
-    return false;
-  }
-};
+/** @type {boolean|null} Whether native Roaring bindings are available (null = unknown until first use) */
+export let NATIVE_ROARING_AVAILABLE = null;
 
-/** @type {boolean|null} Whether native Roaring bindings are available (null = unknown) */
-export const NATIVE_ROARING_AVAILABLE = checkNativeBindings();
+const ensureRoaringBitmap32 = () => {
+  const RoaringBitmap32 = getRoaringBitmap32();
+  if (NATIVE_ROARING_AVAILABLE === null) {
+    NATIVE_ROARING_AVAILABLE = getNativeRoaringAvailable();
+  }
+  return RoaringBitmap32;
+};
 
 /**
  * Builder for constructing bitmap indexes in memory.
@@ -195,6 +201,7 @@ export default class BitmapIndexBuilder {
   _addToBitmap({ sha, id, type }) {
     const key = `${type}_${sha}`;
     if (!this.bitmaps.has(key)) {
+      const RoaringBitmap32 = ensureRoaringBitmap32();
       this.bitmaps.set(key, new RoaringBitmap32());
     }
     this.bitmaps.get(key).add(id);

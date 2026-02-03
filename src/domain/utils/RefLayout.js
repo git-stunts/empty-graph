@@ -1,0 +1,280 @@
+/**
+ * Ref layout constants and helpers for WARP (Write-Ahead Reference Protocol).
+ *
+ * Provides functions for building, parsing, and validating Git ref paths
+ * used by the WARP protocol. All refs live under the refs/empty-graph/ namespace.
+ *
+ * Ref layout:
+ * - refs/empty-graph/<graph>/writers/<writer_id>
+ * - refs/empty-graph/<graph>/checkpoints/head
+ * - refs/empty-graph/<graph>/coverage/head
+ *
+ * @module domain/utils/RefLayout
+ */
+
+// -----------------------------------------------------------------------------
+// Constants
+// -----------------------------------------------------------------------------
+
+/**
+ * The prefix for all empty-graph refs.
+ * @type {string}
+ */
+export const REF_PREFIX = 'refs/empty-graph';
+
+/**
+ * Maximum length for a writer ID.
+ * @type {number}
+ */
+export const MAX_WRITER_ID_LENGTH = 64;
+
+/**
+ * Regex pattern for valid writer IDs.
+ * ASCII ref-safe characters: [A-Za-z0-9._-], 1-64 chars
+ * @type {RegExp}
+ */
+const WRITER_ID_PATTERN = /^[A-Za-z0-9._-]+$/;
+
+/**
+ * Pattern to detect path traversal sequences.
+ * @type {RegExp}
+ */
+const PATH_TRAVERSAL_PATTERN = /\.\./;
+
+// -----------------------------------------------------------------------------
+// Validators
+// -----------------------------------------------------------------------------
+
+/**
+ * Validates a graph name and throws if invalid.
+ *
+ * Graph names must not contain:
+ * - Path traversal sequences (`../`)
+ * - Semicolons (`;`)
+ * - Spaces
+ * - Null bytes (`\0`)
+ * - Empty strings
+ *
+ * @param {string} name - The graph name to validate
+ * @throws {Error} If the graph name is invalid
+ * @returns {void}
+ *
+ * @example
+ * validateGraphName('events'); // OK
+ * validateGraphName('../etc'); // throws
+ * validateGraphName('my graph'); // throws
+ */
+export function validateGraphName(name) {
+  if (typeof name !== 'string') {
+    throw new Error(`Invalid graph name: expected string, got ${typeof name}`);
+  }
+
+  if (name.length === 0) {
+    throw new Error('Invalid graph name: cannot be empty');
+  }
+
+  if (PATH_TRAVERSAL_PATTERN.test(name)) {
+    throw new Error(`Invalid graph name: contains path traversal sequence '..': ${name}`);
+  }
+
+  if (name.includes(';')) {
+    throw new Error(`Invalid graph name: contains semicolon: ${name}`);
+  }
+
+  if (name.includes(' ')) {
+    throw new Error(`Invalid graph name: contains space: ${name}`);
+  }
+
+  if (name.includes('\0')) {
+    throw new Error(`Invalid graph name: contains null byte: ${name}`);
+  }
+}
+
+/**
+ * Validates a writer ID and throws if invalid.
+ *
+ * Writer IDs must:
+ * - Be ASCII ref-safe: only [A-Za-z0-9._-]
+ * - Be 1-64 characters long
+ * - Not contain `/`, `..`, whitespace, or NUL
+ *
+ * @param {string} id - The writer ID to validate
+ * @throws {Error} If the writer ID is invalid
+ * @returns {void}
+ *
+ * @example
+ * validateWriterId('node-1'); // OK
+ * validateWriterId('a/b'); // throws (contains /)
+ * validateWriterId('x'.repeat(65)); // throws (too long)
+ */
+export function validateWriterId(id) {
+  if (typeof id !== 'string') {
+    throw new Error(`Invalid writer ID: expected string, got ${typeof id}`);
+  }
+
+  if (id.length === 0) {
+    throw new Error('Invalid writer ID: cannot be empty');
+  }
+
+  if (id.length > MAX_WRITER_ID_LENGTH) {
+    throw new Error(
+      `Invalid writer ID: exceeds maximum length of ${MAX_WRITER_ID_LENGTH} characters: ${id.length}`
+    );
+  }
+
+  // Check for path traversal before pattern check for clearer error message
+  if (PATH_TRAVERSAL_PATTERN.test(id)) {
+    throw new Error(`Invalid writer ID: contains path traversal sequence '..': ${id}`);
+  }
+
+  // Check for forward slash before pattern check for clearer error message
+  if (id.includes('/')) {
+    throw new Error(`Invalid writer ID: contains forward slash: ${id}`);
+  }
+
+  // Check for null byte
+  if (id.includes('\0')) {
+    throw new Error(`Invalid writer ID: contains null byte: ${id}`);
+  }
+
+  // Check for whitespace (space, tab, newline, etc.)
+  if (/\s/.test(id)) {
+    throw new Error(`Invalid writer ID: contains whitespace: ${id}`);
+  }
+
+  // Check overall pattern for ref-safe characters
+  if (!WRITER_ID_PATTERN.test(id)) {
+    throw new Error(`Invalid writer ID: contains invalid characters (only [A-Za-z0-9._-] allowed): ${id}`);
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Builders
+// -----------------------------------------------------------------------------
+
+/**
+ * Builds a writer ref path for the given graph and writer ID.
+ *
+ * @param {string} graphName - The name of the graph
+ * @param {string} writerId - The writer's unique identifier
+ * @returns {string} The full ref path
+ * @throws {Error} If graphName or writerId is invalid
+ *
+ * @example
+ * buildWriterRef('events', 'node-1');
+ * // => 'refs/empty-graph/events/writers/node-1'
+ */
+export function buildWriterRef(graphName, writerId) {
+  validateGraphName(graphName);
+  validateWriterId(writerId);
+  return `${REF_PREFIX}/${graphName}/writers/${writerId}`;
+}
+
+/**
+ * Builds the checkpoint head ref path for the given graph.
+ *
+ * @param {string} graphName - The name of the graph
+ * @returns {string} The full ref path
+ * @throws {Error} If graphName is invalid
+ *
+ * @example
+ * buildCheckpointRef('events');
+ * // => 'refs/empty-graph/events/checkpoints/head'
+ */
+export function buildCheckpointRef(graphName) {
+  validateGraphName(graphName);
+  return `${REF_PREFIX}/${graphName}/checkpoints/head`;
+}
+
+/**
+ * Builds the coverage head ref path for the given graph.
+ *
+ * @param {string} graphName - The name of the graph
+ * @returns {string} The full ref path
+ * @throws {Error} If graphName is invalid
+ *
+ * @example
+ * buildCoverageRef('events');
+ * // => 'refs/empty-graph/events/coverage/head'
+ */
+export function buildCoverageRef(graphName) {
+  validateGraphName(graphName);
+  return `${REF_PREFIX}/${graphName}/coverage/head`;
+}
+
+/**
+ * Builds the writers prefix path for the given graph.
+ * Useful for listing all writer refs under a graph.
+ *
+ * @param {string} graphName - The name of the graph
+ * @returns {string} The writers prefix path
+ * @throws {Error} If graphName is invalid
+ *
+ * @example
+ * buildWritersPrefix('events');
+ * // => 'refs/empty-graph/events/writers/'
+ */
+export function buildWritersPrefix(graphName) {
+  validateGraphName(graphName);
+  return `${REF_PREFIX}/${graphName}/writers/`;
+}
+
+// -----------------------------------------------------------------------------
+// Parsers
+// -----------------------------------------------------------------------------
+
+/**
+ * Parses and extracts the writer ID from a writer ref path.
+ *
+ * @param {string} refPath - The full ref path
+ * @returns {string|null} The writer ID, or null if the path is not a valid writer ref
+ *
+ * @example
+ * parseWriterIdFromRef('refs/empty-graph/events/writers/alice');
+ * // => 'alice'
+ *
+ * parseWriterIdFromRef('refs/heads/main');
+ * // => null
+ */
+export function parseWriterIdFromRef(refPath) {
+  if (typeof refPath !== 'string') {
+    return null;
+  }
+
+  // Match pattern: refs/empty-graph/<graph>/writers/<writerId>
+  const prefix = `${REF_PREFIX}/`;
+  if (!refPath.startsWith(prefix)) {
+    return null;
+  }
+
+  const rest = refPath.slice(prefix.length);
+  const parts = rest.split('/');
+
+  // We expect: <graph>/writers/<writerId>
+  // So parts should be: [graphName, 'writers', writerId]
+  if (parts.length < 3) {
+    return null;
+  }
+
+  // Find the 'writers' segment
+  const writersIndex = parts.indexOf('writers');
+  if (writersIndex === -1 || writersIndex === 0) {
+    return null;
+  }
+
+  // The writer ID is everything after 'writers'
+  // (should be exactly one segment for valid writer IDs)
+  if (writersIndex !== parts.length - 2) {
+    return null;
+  }
+
+  const writerId = parts[parts.length - 1];
+
+  // Validate the extracted writer ID
+  try {
+    validateWriterId(writerId);
+    return writerId;
+  } catch {
+    return null;
+  }
+}

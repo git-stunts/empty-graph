@@ -152,6 +152,63 @@ export interface PathResult {
 }
 
 /**
+ * Snapshot of a node passed into query predicates.
+ */
+export interface QueryNodeSnapshot {
+  id: string;
+  props: Record<string, unknown>;
+  edgesOut: Array<{ label: string; to: string }>;
+  edgesIn: Array<{ label: string; from: string }>;
+}
+
+/**
+ * Query result (MVP).
+ */
+export interface QueryResultV1 {
+  stateHash: string;
+  nodes: Array<{
+    id?: string;
+    props?: Record<string, unknown>;
+  }>;
+}
+
+/**
+ * Fluent query builder (MVP).
+ */
+export class QueryBuilder {
+  match(pattern: string): QueryBuilder;
+  where(fn: (node: QueryNodeSnapshot) => boolean): QueryBuilder;
+  outgoing(label?: string): QueryBuilder;
+  incoming(label?: string): QueryBuilder;
+  select(fields?: Array<'id' | 'props'>): QueryBuilder;
+  run(): Promise<QueryResultV1>;
+}
+
+/**
+ * Logical graph traversal module.
+ */
+export interface LogicalTraversal {
+  bfs(start: string, options?: {
+    maxDepth?: number;
+    dir?: 'out' | 'in' | 'both';
+    labelFilter?: string | string[];
+  }): Promise<string[]>;
+  dfs(start: string, options?: {
+    maxDepth?: number;
+    dir?: 'out' | 'in' | 'both';
+    labelFilter?: string | string[];
+  }): Promise<string[]>;
+  shortestPath(from: string, to: string, options?: {
+    maxDepth?: number;
+    dir?: 'out' | 'in' | 'both';
+    labelFilter?: string | string[];
+  }): Promise<{ found: boolean; path: string[]; length: number }>;
+  connectedComponent(start: string, options?: {
+    labelFilter?: string | string[];
+  }): Promise<string[]>;
+}
+
+/**
  * Options for BFS/DFS traversal.
  */
 export interface TraversalOptions {
@@ -426,38 +483,6 @@ export class GitGraphAdapter extends GraphPersistencePort implements IndexStorag
   countNodes(ref: string): Promise<number>;
 }
 
-/**
- * Domain service for graph database operations.
- */
-export class GraphService {
-  constructor(options: {
-    persistence: GraphPersistencePort;
-    /** Maximum allowed message size in bytes (default: 1048576) */
-    maxMessageBytes?: number;
-    /** Logger for structured logging (default: NoOpLogger) */
-    logger?: LoggerPort;
-  });
-
-  createNode(options: CreateNodeOptions): Promise<string>;
-  /**
-   * Creates multiple nodes in bulk.
-   * Validates all inputs upfront before creating any nodes.
-   * Supports placeholder references ('$0', '$1', etc.) to reference nodes created earlier in the batch.
-   * @param nodes Array of node specifications
-   * @param options Options for bulk creation
-   * @param options.sign Whether to GPG-sign the commits (default: false)
-   */
-  createNodes(nodes: BulkNodeSpec[], options?: { sign?: boolean }): Promise<string[]>;
-  readNode(sha: string): Promise<string>;
-  /** Checks if a node exists by SHA (efficient, does not load content) */
-  hasNode(sha: string): Promise<boolean>;
-  /** Gets a full GraphNode by SHA with all metadata */
-  getNode(sha: string): Promise<GraphNode>;
-  listNodes(options: ListNodesOptions): Promise<GraphNode[]>;
-  iterateNodes(options: IterateNodesOptions): AsyncGenerator<GraphNode, void, unknown>;
-  /** Counts nodes reachable from a ref without loading them into memory */
-  countNodes(ref: string): Promise<number>;
-}
 
 /**
  * Builder for constructing bitmap indexes in memory.
@@ -528,7 +553,8 @@ export class BitmapIndexReader {
  */
 export class IndexRebuildService {
   constructor(options: {
-    graphService: GraphService;
+    /** Graph service providing iterateNodes() for walking the graph */
+    graphService: { iterateNodes(options: IterateNodesOptions): AsyncGenerator<GraphNode, void, unknown> };
     storage: IndexStoragePort;
     /** Logger for structured logging (default: NoOpLogger) */
     logger?: LoggerPort;
@@ -594,12 +620,12 @@ export class HealthCheckService {
 }
 
 /**
- * Service for graph traversal operations.
+ * Service for commit DAG traversal operations.
  *
  * Provides BFS, DFS, path finding, and topological sort algorithms
  * using O(1) bitmap index lookups.
  */
-export class TraversalService {
+export class CommitDagTraversalService {
   constructor(options: {
     /** Index reader for O(1) lookups */
     indexReader: BitmapIndexReader;
@@ -686,6 +712,11 @@ export class TraversalService {
 }
 
 /**
+ * @deprecated Use CommitDagTraversalService instead.
+ */
+export { CommitDagTraversalService as TraversalService };
+
+/**
  * Error class for graph traversal operations.
  */
 export class TraversalError extends Error {
@@ -714,6 +745,34 @@ export class OperationAbortedError extends Error {
 
   constructor(operation?: string, options?: {
     reason?: string;
+    code?: string;
+    context?: Record<string, unknown>;
+  });
+}
+
+/**
+ * Error class for query builder operations.
+ */
+export class QueryError extends Error {
+  readonly name: 'QueryError';
+  readonly code: string;
+  readonly context: Record<string, unknown>;
+
+  constructor(message: string, options?: {
+    code?: string;
+    context?: Record<string, unknown>;
+  });
+}
+
+/**
+ * Error class for sync transport operations.
+ */
+export class SyncError extends Error {
+  readonly name: 'SyncError';
+  readonly code: string;
+  readonly context: Record<string, unknown>;
+
+  constructor(message: string, options?: {
     code?: string;
     context?: Record<string, unknown>;
   });
@@ -813,143 +872,143 @@ export function checkAborted(signal?: AbortSignal, operation?: string): void;
  */
 export function createTimeoutSignal(ms: number): AbortSignal;
 
-/** Default ref for storing the index OID */
-export const DEFAULT_INDEX_REF: string;
-
 /**
- * Facade class for the EmptyGraph library.
+ * Multi-writer graph database using WARP CRDT protocol.
  *
- * Provides a simplified API over the underlying domain services.
+ * V7 primary API - uses patch-based storage with OR-Set semantics.
+ * See docs/V7_CONTRACT.md for architecture details.
  */
-export default class EmptyGraph {
-  /** The underlying GraphService instance */
-  readonly service: GraphService;
-
-  /** The underlying IndexRebuildService instance */
-  readonly rebuildService: IndexRebuildService;
-
-  /** Whether an index is currently loaded */
-  readonly hasIndex: boolean;
-
-  /** The current index tree OID, or null if no index is loaded */
-  readonly indexOid: string | null;
-
+export default class WarpGraph {
   /**
-   * The traversal service for graph operations.
-   * @throws {Error} If accessed before calling loadIndex()
+   * Opens or creates a multi-writer graph.
    */
-  readonly traversal: TraversalService;
-
-  /**
-   * Creates a new EmptyGraph instance.
-   * @param options Configuration options
-   * @param options.persistence Adapter implementing GraphPersistencePort & IndexStoragePort
-   * @param options.maxMessageBytes Maximum allowed message size in bytes (default: 1048576)
-   * @param options.logger Logger for structured logging (default: NoOpLogger)
-   * @param options.clock Clock for timing operations (default: PerformanceClockAdapter)
-   * @param options.healthCacheTtlMs How long to cache health check results in milliseconds (default: 5000)
-   */
-  constructor(options: {
-    persistence: GraphPersistencePort & IndexStoragePort;
-    maxMessageBytes?: number;
+  static open(options: {
+    graphName: string;
+    persistence: GraphPersistencePort;
+    writerId: string;
     logger?: LoggerPort;
-    clock?: ClockPort;
-    healthCacheTtlMs?: number;
-  });
+    adjacencyCacheSize?: number;
+    gcPolicy?: { type: string; [key: string]: unknown };
+  }): Promise<WarpGraph>;
 
   /**
-   * Creates a new graph node as a Git commit.
+   * The graph namespace.
    */
-  createNode(options: CreateNodeOptions): Promise<string>;
+  readonly graphName: string;
 
   /**
-   * Creates multiple graph nodes in bulk.
-   * Validates all inputs upfront before creating any nodes.
-   * Supports placeholder references ('$0', '$1', etc.) to reference nodes created earlier in the batch.
-   * @param nodes Array of node specifications
-   * @param options Options for bulk creation
-   * @param options.sign Whether to GPG-sign the commits (default: false)
+   * This writer's ID.
    */
-  createNodes(nodes: BulkNodeSpec[], options?: { sign?: boolean }): Promise<string[]>;
+  readonly writerId: string;
 
   /**
-   * Reads a node's message.
+   * Creates a new patch for adding operations.
    */
-  readNode(sha: string): Promise<string>;
+  createPatch(): Promise<unknown>;
 
   /**
-   * Checks if a node exists by SHA.
-   * Efficient existence check that does not load the node's content.
-   * Non-existent SHAs return false rather than throwing an error.
+   * Returns patches from a writer's ref chain.
    */
-  hasNode(sha: string): Promise<boolean>;
+  getWriterPatches(
+    writerId: string,
+    stopAtSha?: string | null
+  ): Promise<Array<{ patch: unknown; sha: string }>>;
 
   /**
-   * Gets a full GraphNode by SHA with all metadata (sha, message, author, date, parents).
+   * Gets all visible nodes in the materialized state.
    */
-  getNode(sha: string): Promise<GraphNode>;
+  getNodes(): string[];
 
   /**
-   * Lists nodes in history (for small graphs).
+   * Gets all visible edges in the materialized state.
    */
-  listNodes(options: ListNodesOptions): Promise<GraphNode[]>;
+  getEdges(): Array<{ from: string; to: string; label: string }>;
 
   /**
-   * Async generator for streaming large graphs.
+   * Gets all properties for a node from the materialized state.
    */
-  iterateNodes(options: IterateNodesOptions): AsyncGenerator<GraphNode, void, unknown>;
+  getNodeProps(nodeId: string): Map<string, unknown> | null;
 
   /**
-   * Rebuilds the bitmap index for the graph.
+   * Checks if a node exists in the materialized state.
    */
-  rebuildIndex(ref: string, options?: RebuildOptions): Promise<string>;
+  hasNode(nodeId: string): boolean;
 
   /**
-   * Loads a pre-built bitmap index for O(1) queries.
+   * Gets neighbors of a node from the materialized state.
    */
-  loadIndex(treeOid: string): Promise<void>;
+  neighbors(
+    nodeId: string,
+    direction?: 'outgoing' | 'incoming' | 'both',
+    edgeLabel?: string,
+  ): Array<{ nodeId: string; label: string; direction: 'outgoing' | 'incoming' }>;
 
   /**
-   * Saves the current index OID to a git ref.
+   * Discovers all writers that have contributed to this graph.
    */
-  saveIndex(ref?: string): Promise<void>;
+  discoverWriters(): Promise<string[]>;
 
   /**
-   * Loads the index from a git ref.
+   * Gets the current frontier (map of writerId to tip SHA).
    */
-  loadIndexFromRef(ref?: string): Promise<boolean>;
+  getFrontier(): Promise<Map<string, string>>;
 
   /**
-   * Gets parent SHAs for a node using the bitmap index.
+   * Creates a checkpoint snapshot of the current materialized state.
    */
-  getParents(sha: string): Promise<string[]>;
+  createCheckpoint(): Promise<string>;
 
   /**
-   * Gets child SHAs for a node using the bitmap index.
+   * Materializes graph state from a checkpoint, applying incremental patches.
    */
-  getChildren(sha: string): Promise<string[]>;
+  materializeAt(checkpointSha: string): Promise<unknown>;
 
   /**
-   * Gets detailed health information for all components.
-   * Results are cached for the configured TTL (default 5s).
+   * Logical graph traversal helpers.
    */
-  getHealth(): Promise<HealthResult>;
+  traverse: LogicalTraversal;
 
   /**
-   * K8s-style readiness probe: Can the service serve requests?
-   * Returns true only when all critical components are healthy.
+   * Creates a fluent query builder for the logical graph.
    */
-  isReady(): Promise<boolean>;
+  query(): QueryBuilder;
 
   /**
-   * K8s-style liveness probe: Is the service alive?
-   * Returns true if the repository is accessible (even if degraded).
+   * Materializes the current graph state from all patches.
    */
-  isAlive(): Promise<boolean>;
+  materialize(): Promise<unknown>;
 
   /**
-   * Counts nodes reachable from a ref without loading them into memory.
-   * Uses git rev-list --count for O(1) memory efficiency.
+   * Gets the current version vector.
    */
-  countNodes(ref: string): Promise<number>;
+  getVersionVector(): unknown;
+
+  /**
+   * Starts a built-in sync server for this graph.
+   */
+  serve(options: {
+    port: number;
+    host?: string;
+    path?: string;
+    maxRequestBytes?: number;
+  }): Promise<{ close(): Promise<void>; url: string }>;
+
+  /**
+   * Syncs with a remote peer (HTTP URL or another WarpGraph instance).
+   */
+  syncWith(remote: string | WarpGraph, options?: {
+    path?: string;
+    retries?: number;
+    baseDelayMs?: number;
+    maxDelayMs?: number;
+    timeoutMs?: number;
+    signal?: AbortSignal;
+    onStatus?: (event: {
+      type: string;
+      attempt: number;
+      durationMs?: number;
+      status?: number;
+      error?: Error;
+    }) => void;
+  }): Promise<{ applied: number; attempts: number }>;
 }

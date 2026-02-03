@@ -1,24 +1,25 @@
 {
   "name": "@git-stunts/empty-graph",
-  "version": "2.5.0",
-  "description": "A graph database where every node is a Git commit pointing to the Empty Tree. Invisible storage, atomic operations, DAG-native.",
+  "version": "7.0.0",
+  "description": "An experimental implementation of the WARP architecture",
   "type": "module",
   "main": "index.js",
   "types": "./index.d.ts",
   "typesVersions": {
     "*": {
-      "service": ["./index.d.ts"],
-      "node": ["./index.d.ts"]
+      "node": [
+        "./index.d.ts"
+      ]
     }
+  },
+  "bin": {
+    "warp-graph": "bin/warp-graph.js",
+    "git-warp": "bin/git-warp"
   },
   "exports": {
     ".": {
       "types": "./index.d.ts",
       "default": "./index.js"
-    },
-    "./service": {
-      "types": "./index.d.ts",
-      "default": "./src/domain/services/GraphService.js"
     },
     "./node": {
       "types": "./index.d.ts",
@@ -30,11 +31,11 @@
   },
   "scripts": {
     "test": "sh -c 'if [ \"$GIT_STUNTS_DOCKER\" = \"1\" ]; then vitest run test/unit \"$@\"; else docker compose run --build --rm test npm test -- \"$@\"; fi' --",
-    "benchmark": "sh -c 'if [ \"$GIT_STUNTS_DOCKER\" = \"1\" ]; then vitest bench test/benchmark \"$@\"; else docker compose run --build --rm test npm run benchmark -- \"$@\"; fi' --",
+    "benchmark": "sh -c 'if [ \"$GIT_STUNTS_DOCKER\" = \"1\" ]; then vitest bench --run test/benchmark \"$@\"; else docker compose run --build --rm test npm run benchmark -- \"$@\"; fi' --",
     "lint": "eslint .",
     "format": "prettier --write .",
     "test:local": "vitest run test/unit",
-    "benchmark:local": "vitest bench test/benchmark",
+    "benchmark:local": "vitest bench --run test/benchmark",
     "demo": "cd examples && docker compose up -d && docker compose exec demo bash",
     "demo:setup": "cd examples && docker compose up -d && docker compose exec demo sh -c 'cd /app && npm install --silent && cd /demo && node /app/examples/setup.js'",
     "demo:explore": "cd examples && docker compose exec demo node /app/examples/explore.js",
@@ -43,31 +44,42 @@
     "demo:lagrangian": "cd examples && docker compose exec demo node /app/examples/lagrangian-path.js",
     "demo:bench-streaming": "cd examples && docker compose up -d && docker compose exec demo node /app/examples/streaming-benchmark.js",
     "demo:bench-traversal": "cd examples && docker compose up -d && docker compose exec demo node /app/examples/traversal-benchmark.js",
-    "setup:hooks": "node scripts/setup-hooks.js"
+    "setup:hooks": "node scripts/setup-hooks.js",
+    "postinstall": "patch-package && node scripts/setup-hooks.js",
+    "install:git-warp": "bash scripts/install-git-warp.sh",
+    "uninstall:git-warp": "bash scripts/uninstall-git-warp.sh"
   },
   "author": "James Ross <james@flyingrobots.dev>",
   "license": "Apache-2.0",
   "dependencies": {
+    "@git-stunts/alfred": "^0.4.0",
     "@git-stunts/plumbing": "^2.8.0",
     "@git-stunts/trailer-codec": "^2.1.1",
+    "cbor-x": "^1.6.0",
+    "patch-package": "^8.0.0",
     "roaring": "^2.7.0",
     "zod": "^3.24.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
+    "@git-stunts/docker-guard": "^0.1.0",
     "eslint": "^9.17.0",
+    "fast-check": "^4.5.3",
     "prettier": "^3.4.2",
-    "vitest": "^2.1.8",
-    "@git-stunts/docker-guard": "^0.1.0"
+    "vitest": "^2.1.8"
   },
   "files": [
+    "bin/warp-graph.js",
+    "bin/git-warp",
     "src",
     "index.js",
     "index.d.ts",
     "README.md",
     "LICENSE",
     "NOTICE",
-    "SECURITY.md"
+    "SECURITY.md",
+    "scripts/install-git-warp.sh",
+    "scripts/uninstall-git-warp.sh"
   ],
   "repository": {
     "type": "git",

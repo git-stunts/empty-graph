@@ -31,3 +31,5 @@ jobs:
       - run: npm install
       - name: Run tests in Docker
         run: docker compose run --rm test
+      - name: Run git-warp CLI bats tests
+        run: docker compose run --rm test bats test/bats/warp-graph-cli.bats

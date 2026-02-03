@@ -1,4 +1,51 @@
+import { retry } from '@git-stunts/alfred';
 import GraphPersistencePort from '../../ports/GraphPersistencePort.js';
+
+/**
+ * Transient git errors that are safe to retry.
+ * @type {string[]}
+ */
+const TRANSIENT_ERROR_PATTERNS = [
+  'cannot lock ref',
+  'resource temporarily unavailable',
+  'connection timed out',
+];
+
+/**
+ * Determines if an error is transient and safe to retry.
+ * @param {Error} error - The error to check
+ * @returns {boolean} True if the error is transient
+ */
+function isTransientError(error) {
+  const message = (error.message || '').toLowerCase();
+  return TRANSIENT_ERROR_PATTERNS.some(pattern => message.includes(pattern));
+}
+
+/**
+ * Default retry options for git operations.
+ * Uses exponential backoff with decorrelated jitter.
+ * @type {import('@git-stunts/alfred').RetryOptions}
+ */
+const DEFAULT_RETRY_OPTIONS = {
+  retries: 3,
+  delay: 100,
+  maxDelay: 2000,
+  backoff: 'exponential',
+  jitter: 'decorrelated',
+  shouldRetry: isTransientError,
+};
+
+async function refExists(execute, ref) {
+  try {
+    await execute({ args: ['show-ref', '--verify', '--quiet', ref] });
+    return true;
+  } catch (err) {
+    if (err?.details?.code === 1) {
+      return false;
+    }
+    throw err;
+  }
+}
 
 /**
  * Implementation of GraphPersistencePort using GitPlumbing.
@@ -7,10 +54,22 @@ export default class GitGraphAdapter extends GraphPersistencePort {
   /**
    * @param {Object} options
    * @param {import('@git-stunts/plumbing').default} options.plumbing
+   * @param {import('@git-stunts/alfred').RetryOptions} [options.retryOptions] - Custom retry options
    */
-  constructor({ plumbing }) {
+  constructor({ plumbing, retryOptions = {} }) {
     super();
     this.plumbing = plumbing;
+    this._retryOptions = { ...DEFAULT_RETRY_OPTIONS, ...retryOptions };
+  }
+
+  /**
+   * Executes a git command with retry logic.
+   * @param {Object} options - Options to pass to plumbing.execute
+   * @returns {Promise<string>} Command output
+   * @private
+   */
+  async _executeWithRetry(options) {
+    return retry(() => this.plumbing.execute(options), this._retryOptions);
   }
 
   get emptyTree() {
@@ -25,13 +84,36 @@ export default class GitGraphAdapter extends GraphPersistencePort {
     const signArgs = sign ? ['-S'] : [];
     const args = ['commit-tree', this.emptyTree, ...parentArgs, ...signArgs, '-m', message];
 
-    const oid = await this.plumbing.execute({ args });
+    const oid = await this._executeWithRetry({ args });
+    return oid.trim();
+  }
+
+  /**
+   * Creates a commit pointing to a custom tree (not the empty tree).
+   * Used for WARP patch commits that have attachment trees.
+   * @param {Object} options
+   * @param {string} options.treeOid - The tree OID to point to
+   * @param {string[]} [options.parents=[]] - Parent commit SHAs
+   * @param {string} options.message - Commit message
+   * @param {boolean} [options.sign=false] - Whether to GPG sign
+   * @returns {Promise<string>} The created commit SHA
+   */
+  async commitNodeWithTree({ treeOid, parents = [], message, sign = false }) {
+    this._validateOid(treeOid);
+    for (const p of parents) {
+      this._validateOid(p);
+    }
+    const parentArgs = parents.flatMap(p => ['-p', p]);
+    const signArgs = sign ? ['-S'] : [];
+    const args = ['commit-tree', treeOid, ...parentArgs, ...signArgs, '-m', message];
+
+    const oid = await this._executeWithRetry({ args });
     return oid.trim();
   }
 
   async showNode(sha) {
     this._validateOid(sha);
-    return await this.plumbing.execute({ args: ['show', '-s', '--format=%B', sha] });
+    return await this._executeWithRetry({ args: ['show', '-s', '--format=%B', sha] });
   }
 
   /**
@@ -45,7 +127,7 @@ export default class GitGraphAdapter extends GraphPersistencePort {
     // Format: SHA, author, date, parents (space-separated), then message
     // Using %x00 to separate fields for reliable parsing
     const format = '%H%x00%an <%ae>%x00%aI%x00%P%x00%B';
-    const output = await this.plumbing.execute({
+    const output = await this._executeWithRetry({
       args: ['show', '-s', `--format=${format}`, sha]
     });
 
@@ -75,7 +157,7 @@ export default class GitGraphAdapter extends GraphPersistencePort {
       args.push(`--format=${format}`);
     }
     args.push(ref);
-    return await this.plumbing.execute({ args });
+    return await this._executeWithRetry({ args });
   }
 
   /**
@@ -134,7 +216,7 @@ export default class GitGraphAdapter extends GraphPersistencePort {
   }
 
   async writeBlob(content) {
-    const oid = await this.plumbing.execute({
+    const oid = await this._executeWithRetry({
       args: ['hash-object', '-w', '--stdin'],
       input: content,
     });
@@ -142,7 +224,7 @@ export default class GitGraphAdapter extends GraphPersistencePort {
   }
 
   async writeTree(entries) {
-    const oid = await this.plumbing.execute({
+    const oid = await this._executeWithRetry({
       args: ['mktree'],
       input: `${entries.join('\n')}\n`,
     });
@@ -161,7 +243,7 @@ export default class GitGraphAdapter extends GraphPersistencePort {
 
   async readTreeOids(treeOid) {
     this._validateOid(treeOid);
-    const output = await this.plumbing.execute({
+    const output = await this._executeWithRetry({
       args: ['ls-tree', '-r', '-z', treeOid]
     });
 
@@ -202,7 +284,7 @@ export default class GitGraphAdapter extends GraphPersistencePort {
   async updateRef(ref, oid) {
     this._validateRef(ref);
     this._validateOid(oid);
-    await this.plumbing.execute({
+    await this._executeWithRetry({
       args: ['update-ref', ref, oid]
     });
   }
@@ -214,24 +296,14 @@ export default class GitGraphAdapter extends GraphPersistencePort {
    */
   async readRef(ref) {
     this._validateRef(ref);
-    try {
-      const oid = await this.plumbing.execute({
-        args: ['rev-parse', ref]
-      });
-      return oid.trim();
-    } catch (err) {
-      // Only return null for "ref not found" errors; rethrow others
-      const msg = (err.message || '').toLowerCase();
-      const isNotFound =
-        msg.includes('unknown revision') ||
-        msg.includes('ambiguous argument') ||
-        msg.includes('no such ref') ||
-        msg.includes('bad revision');
-      if (isNotFound) {
-        return null;
-      }
-      throw err;
+    const exists = await refExists(this._executeWithRetry.bind(this), ref);
+    if (!exists) {
+      return null;
     }
+    const oid = await this._executeWithRetry({
+      args: ['rev-parse', ref]
+    });
+    return oid.trim();
   }
 
   /**
@@ -241,7 +313,7 @@ export default class GitGraphAdapter extends GraphPersistencePort {
    */
   async deleteRef(ref) {
     this._validateRef(ref);
-    await this.plumbing.execute({
+    await this._executeWithRetry({
       args: ['update-ref', '-d', ref]
     });
   }
@@ -295,7 +367,7 @@ export default class GitGraphAdapter extends GraphPersistencePort {
   async nodeExists(sha) {
     this._validateOid(sha);
     try {
-      await this.plumbing.execute({ args: ['cat-file', '-e', sha] });
+      await this._executeWithRetry({ args: ['cat-file', '-e', sha] });
       return true;
     } catch {
       return false;
@@ -303,14 +375,28 @@ export default class GitGraphAdapter extends GraphPersistencePort {
   }
 
   /**
+   * Lists refs matching a prefix.
+   * @param {string} prefix - The ref prefix to match (e.g., 'refs/empty-graph/events/writers/')
+   * @returns {Promise<string[]>} Array of matching ref paths
+   */
+  async listRefs(prefix) {
+    this._validateRef(prefix);
+    const output = await this._executeWithRetry({
+      args: ['for-each-ref', '--format=%(refname)', prefix]
+    });
+    // Parse output - one ref per line, filter empty lines
+    return output.split('\n').filter(line => line.trim());
+  }
+
+  /**
    * Pings the repository to verify accessibility.
-   * Uses `git rev-parse --git-dir` as a lightweight check.
+   * Uses `git rev-parse --is-inside-work-tree` as a lightweight check.
    * @returns {Promise<{ok: boolean, latencyMs: number}>} Health check result with latency
    */
   async ping() {
     const start = Date.now();
     try {
-      await this.plumbing.execute({ args: ['rev-parse', '--git-dir'] });
+      await this._executeWithRetry({ args: ['rev-parse', '--is-inside-work-tree'] });
       const latencyMs = Date.now() - start;
       return { ok: true, latencyMs };
     } catch {
@@ -327,9 +413,94 @@ export default class GitGraphAdapter extends GraphPersistencePort {
    */
   async countNodes(ref) {
     this._validateRef(ref);
-    const output = await this.plumbing.execute({
+    const output = await this._executeWithRetry({
       args: ['rev-list', '--count', ref]
     });
     return parseInt(output.trim(), 10);
+  }
+
+  /**
+   * Checks if one commit is an ancestor of another.
+   * Uses `git merge-base --is-ancestor` for efficient ancestry testing.
+   *
+   * @param {string} potentialAncestor - The commit that might be an ancestor
+   * @param {string} descendant - The commit that might be a descendant
+   * @returns {Promise<boolean>} True if potentialAncestor is an ancestor of descendant
+   */
+  async isAncestor(potentialAncestor, descendant) {
+    this._validateOid(potentialAncestor);
+    this._validateOid(descendant);
+    try {
+      await this._executeWithRetry({
+        args: ['merge-base', '--is-ancestor', potentialAncestor, descendant]
+      });
+      return true;  // Exit code 0 means it IS an ancestor
+    } catch {
+      return false; // Exit code 1 means it is NOT an ancestor
+    }
+  }
+
+  /**
+   * Reads a git config value.
+   * @param {string} key - The config key to read (e.g., 'warp.writerId.events')
+   * @returns {Promise<string|null>} The config value or null if not set
+   */
+  async configGet(key) {
+    this._validateConfigKey(key);
+    try {
+      const value = await this._executeWithRetry({
+        args: ['config', '--get', key]
+      });
+      return value.trim() || null;
+    } catch (err) {
+      // Exit code 1 means config key not found
+      const msg = (err.message || '').toLowerCase();
+      const stderr = (err.details?.stderr || '').toLowerCase();
+      const searchText = `${msg} ${stderr}`;
+      if (searchText.includes('exit code 1') || err.exitCode === 1) {
+        return null;
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * Sets a git config value.
+   * @param {string} key - The config key to set (e.g., 'warp.writerId.events')
+   * @param {string} value - The value to set
+   * @returns {Promise<void>}
+   */
+  async configSet(key, value) {
+    this._validateConfigKey(key);
+    if (typeof value !== 'string') {
+      throw new Error('Config value must be a string');
+    }
+    await this._executeWithRetry({
+      args: ['config', key, value]
+    });
+  }
+
+  /**
+   * Validates that a config key is safe to use in git commands.
+   * @param {string} key - The config key to validate
+   * @throws {Error} If key is invalid
+   * @private
+   */
+  _validateConfigKey(key) {
+    if (!key || typeof key !== 'string') {
+      throw new Error('Config key must be a non-empty string');
+    }
+    if (key.length > 256) {
+      throw new Error(`Config key too long: ${key.length} chars. Maximum is 256`);
+    }
+    // Prevent git option injection
+    if (key.startsWith('-')) {
+      throw new Error(`Invalid config key: ${key}. Keys cannot start with -`);
+    }
+    // Allow section.subsection.key format
+    const validKeyPattern = /^[a-zA-Z][a-zA-Z0-9._-]*$/;
+    if (!validKeyPattern.test(key)) {
+      throw new Error(`Invalid config key format: ${key}`);
+    }
   }
 }

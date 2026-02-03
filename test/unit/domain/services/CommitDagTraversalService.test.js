@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import TraversalService from '../../../../src/domain/services/TraversalService.js';
+import CommitDagTraversalService from '../../../../src/domain/services/CommitDagTraversalService.js';
 import TraversalError from '../../../../src/domain/errors/TraversalError.js';
 
 /**
@@ -47,24 +47,24 @@ async function collectAll(generator) {
   return results;
 }
 
-describe('TraversalService', () => {
+describe('CommitDagTraversalService', () => {
   let service;
   let mockIndexReader;
 
   beforeEach(() => {
     mockIndexReader = createMockIndexReader();
-    service = new TraversalService({ indexReader: mockIndexReader });
+    service = new CommitDagTraversalService({ indexReader: mockIndexReader });
   });
 
   describe('constructor validation', () => {
     it('throws when indexReader is not provided', () => {
-      expect(() => new TraversalService({}))
-        .toThrow('TraversalService requires an indexReader');
+      expect(() => new CommitDagTraversalService({}))
+        .toThrow('CommitDagTraversalService requires an indexReader');
     });
 
     it('throws when called with no arguments', () => {
-      expect(() => new TraversalService())
-        .toThrow('TraversalService requires an indexReader');
+      expect(() => new CommitDagTraversalService())
+        .toThrow('CommitDagTraversalService requires an indexReader');
     });
   });
 
@@ -304,7 +304,7 @@ describe('TraversalService', () => {
           return edges[sha] || [];
         }),
       };
-      const cyclicService = new TraversalService({ indexReader: cyclicReader });
+      const cyclicService = new CommitDagTraversalService({ indexReader: cyclicReader });
 
       const nodes = await collectAll(cyclicService.topologicalSort({ start: 'A' }));
 
@@ -327,7 +327,7 @@ describe('TraversalService', () => {
         warn: vi.fn(),
         error: vi.fn(),
       };
-      const cyclicService = new TraversalService({
+      const cyclicService = new CommitDagTraversalService({
         indexReader: cyclicReader,
         logger: mockLogger,
       });
@@ -352,7 +352,7 @@ describe('TraversalService', () => {
         }),
         getParents: vi.fn(async () => []),
       };
-      const cyclicService = new TraversalService({ indexReader: cyclicReader });
+      const cyclicService = new CommitDagTraversalService({ indexReader: cyclicReader });
 
       await expect(
         collectAll(cyclicService.topologicalSort({ start: 'A', throwOnCycle: true }))
@@ -390,7 +390,7 @@ describe('TraversalService', () => {
           return edges[sha] || [];
         }),
       };
-      const selfLoopService = new TraversalService({ indexReader: selfLoopReader });
+      const selfLoopService = new CommitDagTraversalService({ indexReader: selfLoopReader });
 
       // With throwOnCycle: true, it should throw TraversalError
       await expect(
@@ -419,7 +419,7 @@ describe('TraversalService', () => {
         }),
         getParents: vi.fn(async () => []),
       };
-      const selfLoopService = new TraversalService({ indexReader: selfLoopReader });
+      const selfLoopService = new CommitDagTraversalService({ indexReader: selfLoopReader });
 
       // Without throwOnCycle, it should complete without hanging
       // and yield partial results (the node cannot be yielded because its in-degree is never 0)
@@ -446,7 +446,7 @@ describe('TraversalService', () => {
         warn: vi.fn(),
         error: vi.fn(),
       };
-      const selfLoopService = new TraversalService({
+      const selfLoopService = new CommitDagTraversalService({
         indexReader: selfLoopReader,
         logger: mockLogger,
       });
@@ -490,7 +490,7 @@ describe('TraversalService', () => {
           return edges[sha] || [];
         }),
       };
-      const disconnectedService = new TraversalService({ indexReader: disconnectedReader });
+      const disconnectedService = new CommitDagTraversalService({ indexReader: disconnectedReader });
 
       // Start traversal from node A - should only visit Island 1
       const nodes = await collectAll(disconnectedService.topologicalSort({ start: 'A' }));
@@ -560,7 +560,7 @@ describe('TraversalService', () => {
         }),
       };
 
-      const weightedService = new TraversalService({ indexReader: weightedReader });
+      const weightedService = new CommitDagTraversalService({ indexReader: weightedReader });
 
       // Weight provider: A->B is expensive (10), everything else is cheap (1)
       const weightProvider = (from, to) => {
@@ -653,7 +653,7 @@ describe('TraversalService', () => {
           return edges[sha] || [];
         }),
       };
-      const disconnectedService = new TraversalService({ indexReader: disconnectedReader });
+      const disconnectedService = new CommitDagTraversalService({ indexReader: disconnectedReader });
 
       // Try to find path between disconnected components
       await expect(
@@ -706,7 +706,7 @@ describe('TraversalService', () => {
         }),
         getParents: vi.fn(async () => []),
       };
-      const complexService = new TraversalService({ indexReader: complexReader });
+      const complexService = new CommitDagTraversalService({ indexReader: complexReader });
 
       const weights = {
         'A-B': 1,
@@ -741,7 +741,7 @@ describe('TraversalService', () => {
         }),
         getParents: vi.fn(async () => []),
       };
-      const zeroWeightService = new TraversalService({ indexReader: zeroWeightReader });
+      const zeroWeightService = new CommitDagTraversalService({ indexReader: zeroWeightReader });
 
       // A->C has zero weight, A->B has weight 1
       const weightProvider = (from, to) => {
@@ -767,7 +767,7 @@ describe('TraversalService', () => {
         warn: vi.fn(),
         error: vi.fn(),
       };
-      const loggingService = new TraversalService({
+      const loggingService = new CommitDagTraversalService({
         indexReader: mockIndexReader,
         logger: mockLogger,
       });
@@ -785,7 +785,7 @@ describe('TraversalService', () => {
         warn: vi.fn(),
         error: vi.fn(),
       };
-      const loggingService = new TraversalService({
+      const loggingService = new CommitDagTraversalService({
         indexReader: mockIndexReader,
         logger: mockLogger,
       });
@@ -838,7 +838,7 @@ describe('TraversalService', () => {
         }),
         getParents: vi.fn(async () => []),
       };
-      const gridService = new TraversalService({ indexReader: gridReader });
+      const gridService = new CommitDagTraversalService({ indexReader: gridReader });
 
       // Heuristic: estimate based on "distance" to F
       // A=2, B=2, C=1, D=2, E=1, F=0 (admissible - never overestimates)
@@ -894,7 +894,7 @@ describe('TraversalService', () => {
         }),
         getParents: vi.fn(async () => []),
       };
-      const wideService = new TraversalService({ indexReader: wideReader });
+      const wideService = new CommitDagTraversalService({ indexReader: wideReader });
 
       // Run Dijkstra (zero heuristic)
       const dijkstraResult = await wideService.aStarSearch({
@@ -1005,7 +1005,7 @@ describe('TraversalService', () => {
         }),
         getParents: vi.fn(async () => []),
       };
-      const weightedService = new TraversalService({ indexReader: weightedReader });
+      const weightedService = new CommitDagTraversalService({ indexReader: weightedReader });
 
       // A->B is expensive (10), A->C is cheap (1), both ->D is 1
       const weightProvider = (from, to) => {
@@ -1067,7 +1067,7 @@ describe('TraversalService', () => {
         }),
         getParents: vi.fn(async () => []),
       };
-      const _tieBreakService = new TraversalService({ indexReader: tieBreakReader });
+      const _tieBreakService = new CommitDagTraversalService({ indexReader: tieBreakReader });
 
       // Weight provider: START->A is 1, START->B is 2, A->END is 2, B->END is 1
       const weightProvider = (from, to) => {
@@ -1099,7 +1099,7 @@ describe('TraversalService', () => {
         }),
         getParents: vi.fn(async () => []),
       };
-      const trackingService = new TraversalService({ indexReader: trackingReader });
+      const trackingService = new CommitDagTraversalService({ indexReader: trackingReader });
 
       const result = await trackingService.aStarSearch({
         from: 'START',
@@ -1191,7 +1191,7 @@ describe('TraversalService', () => {
           return edges[sha] || [];
         }),
       };
-      const weightedService = new TraversalService({ indexReader: weightedReader });
+      const weightedService = new CommitDagTraversalService({ indexReader: weightedReader });
 
       // A->B is expensive (10), everything else is cheap (1)
       const weightProvider = (from, to) => {
@@ -1230,7 +1230,7 @@ describe('TraversalService', () => {
       // Create a long chain where bidirectional search should meet in the middle
       const chainLength = 20;
       const chainReader = createChainReader(chainLength);
-      const chainService = new TraversalService({ indexReader: chainReader });
+      const chainService = new CommitDagTraversalService({ indexReader: chainReader });
 
       // Run unidirectional A* from start to end
       const uniResult = await chainService.aStarSearch({
@@ -1333,7 +1333,7 @@ describe('TraversalService', () => {
           return edges[sha] || [];
         }),
       };
-      const weightedService = new TraversalService({ indexReader: weightedReader });
+      const weightedService = new CommitDagTraversalService({ indexReader: weightedReader });
 
       // Make A->C->D path cheaper than A->B->D
       // A->B: 5, B->D: 5 (total 10)
@@ -1361,7 +1361,7 @@ describe('TraversalService', () => {
       // Create a chain: N0 -> N1 -> N2 -> N3 -> N4 -> N5 -> N6 -> N7 -> N8 -> N9
       const chainLength = 10;
       const chainReader = createChainReader(chainLength);
-      const chainService = new TraversalService({ indexReader: chainReader });
+      const chainService = new CommitDagTraversalService({ indexReader: chainReader });
 
       const result = await chainService.bidirectionalAStar({
         from: 'N0',
@@ -1394,7 +1394,7 @@ describe('TraversalService', () => {
         warn: vi.fn(),
         error: vi.fn(),
       };
-      const loggingService = new TraversalService({
+      const loggingService = new CommitDagTraversalService({
         indexReader: mockIndexReader,
         logger: mockLogger,
       });

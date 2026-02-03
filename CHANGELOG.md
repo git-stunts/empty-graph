@@ -8,12 +8,213 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- **Node Query API**: New methods for convenient node access
-  - `getNode(sha)` - Returns full GraphNode with all metadata (sha, author, date, message, parents)
-  - `hasNode(sha)` - Boolean existence check without loading full node data
-  - `countNodes(ref)` - Count nodes reachable from a ref without loading all nodes into memory
-- **Batch Operations**: `createNodes(nodes)` - Create multiple nodes in a single operation with placeholder parent refs
-- **LRU Cache**: Loaded shards now use an LRU cache to bound memory usage
+- **git-warp CLI** - canonical `git warp` entrypoint (shim + PATH install)
+- **Installer scripts** - `scripts/install-git-warp.sh` and `scripts/uninstall-git-warp.sh`
+- **Docker bats CLI test** coverage for `git warp` commands
+- **Pre-push hook** - runs lint, unit tests, benchmarks, and Docker bats CLI suite
+- **`graph.serve()`** - one-line HTTP sync transport for multi-writer graphs
+- **`graph.syncWith()`** - sync with HTTP peer or direct graph instance
+- **`graph.getWriterPatches(writerId)`** - public API for writer patch history
+
+#### Query API (V7 Task 7)
+- **`graph.hasNode(nodeId)`** - Check if node exists in materialized state
+- **`graph.getNodeProps(nodeId)`** - Get all properties for a node as Map
+- **`graph.neighbors(nodeId, dir?, label?)`** - Get neighbors with direction/label filtering
+- **`graph.getNodes()`** - Get all visible node IDs
+- **`graph.getEdges()`** - Get all visible edges as `{from, to, label}` array
+
+All query methods operate on `WarpStateV5` (materialized state), never commit DAG topology.
+
+#### WARP State Index (V7 Task 6)
+- **`WarpStateIndexBuilder`** - New index builder that indexes WARP logical edges from `edgeAlive` OR-Set
+- **`buildWarpStateIndex(state)`** - Convenience function to build and serialize index from state
+- Index built from materialized state, not Git commit parents (TECH-SPEC-V7.md compliance)
+
+### Changed
+- **Repo ping** now uses `git rev-parse --is-inside-work-tree` for plumbing compatibility
+- **CLI imports** avoid eager `index.js` loading to suppress `url.parse` warnings from optional deps
+- **v7-guards.test.js** - Added `WarpStateIndexBuilder.js` to required V7 components
+- **Benchmarks** now run in non-watch mode for CI/pre-push safety
+- **Docker test image** copies hooks/patches before `npm install` to support postinstall
+- **Git ref reads** guard missing refs to avoid fatal `show-ref` errors in empty repos
+
+### Documentation
+- **`docs/V7_TEST_MAPPING.md`** - Maps TECH-SPEC-V7.md Task 5 requirements to existing test files
+  - Documents how existing tests cover WARP contracts (write, materialize, convergence, determinism)
+  - Confirms legacy tests deleted (not skipped)
+  - Provides verification commands
+- Hook docs updated in README/CONTRIBUTING
+- Example imports clarified for external consumers
+
+### Tests
+- Added `test/unit/domain/WarpGraph.query.test.js` (21 tests) - Query API tests
+- Added `test/unit/domain/services/WarpStateIndexBuilder.test.js` (13 tests) - WARP state index tests
+- Total test count: 1438
+
+## [6.0.0] - 2026-01-31
+
+### Breaking Changes
+
+#### WARP Unification Complete
+- **`WarpGraph` is now the recommended API** for all new projects
+- **`EmptyGraph` is now a wrapper** - Implementation moved to `EmptyGraphWrapper.js`, maintains full API compatibility
+- **Schema:2 is now the default** for `WarpGraph.open()` and `openMultiWriter()`
+- **Legacy EmptyGraph engine removed** - Old implementation frozen in wrapper for compatibility
+
+### Added
+
+#### WARP v5 (OR-Set CRDT)
+- **OR-Set CRDTs** - `Dot`, `VersionVector`, `ORSet` for add-wins semantics
+- **`JoinReducer`** - CRDT join operation with schema:2 support
+- **`PatchBuilderV2`** - Schema:2 patch builder with dot tracking
+- **`CheckpointSerializerV5`** - V5 checkpoint format with OR-Set state
+- **`SyncProtocol`** - Network sync request/response with frontier comparison
+- **`GCPolicy` & `GCMetrics`** - Tombstone garbage collection
+- **Backfill rejection** - Graph reachability validation against checkpoint frontier
+
+#### Migration Support
+- **`migrateV4toV5()`** - Exported from package root for schema migration
+- **Migration boundary validation** - Prevents opening schema:2 with unmigrated v1 history
+
+#### API Status Documentation
+- **README API Status section** - Clear guidance on recommended vs deprecated APIs
+- **Migration examples** - Code samples for EmptyGraph → WarpGraph migration
+
+### Changed
+- `WarpGraph.open()` now defaults to `schema: 2`
+- `EmptyGraph.openMultiWriter()` explicitly passes `schema: 2`
+- `EmptyGraph` constructor shows deprecation warning (once per process)
+
+### Removed
+- `src/legacy/EmptyGraphLegacy.js` - Legacy engine code removed (wrapper preserves API)
+
+## [4.0.0] - 2026-01-31
+
+### Added
+
+#### Multi-Writer Support (WARP Protocol v4)
+- **`EmptyGraph.openMultiWriter()`** - New static factory for creating multi-writer graphs with deterministic convergence
+- **`WarpGraph`** - Main API class for WARP multi-writer graph operations
+- **`PatchBuilder`** - Fluent API for constructing graph mutations as atomic patches
+  - `.addNode(nodeId)` - Add a node
+  - `.removeNode(nodeId)` - Tombstone a node
+  - `.addEdge(from, to, label)` - Add an edge
+  - `.removeEdge(from, to, label)` - Tombstone an edge
+  - `.setProperty(nodeId, key, value)` - Set a property
+  - `.commit()` - Commit the patch atomically
+
+#### State Materialization
+- **`graph.materialize()`** - Reduces all patches from all writers to current state
+- **`graph.materializeAt(checkpointSha)`** - Incremental materialization from checkpoint
+- **`graph.discoverWriters()`** - List all writers who have contributed to the graph
+
+#### Checkpoints
+- **`CheckpointService`** - Create, load, and incrementally rebuild from checkpoints
+- **`graph.createCheckpoint()`** - Snapshot current state for fast recovery
+- Checkpoint format: `state.cbor`, `frontier.cbor` in Git tree
+
+#### Coverage & Sync
+- **`graph.syncCoverage()`** - Create octopus anchor ensuring all writers reachable from single ref
+
+#### CRDT Foundation
+- **`LWW` (Last-Writer-Wins)** - Register type for conflict resolution
+- **`EventId`** - Total ordering tuple `(lamport, writerId, patchSha, opIndex)`
+- **`Reducer`** - Deterministic fold algorithm with LWW semantics
+- **`Frontier`** - Writer progress tracking `Map<writerId, lastPatchSha>`
+- **`StateSerializer`** - Canonical state hashing for determinism verification
+
+#### Infrastructure
+- **`WarpMessageCodec`** - Encode/decode patch, checkpoint, and anchor commit messages with Git trailers
+- **`CborCodec`** - Canonical CBOR encoding for deterministic serialization
+- **`RefLayout`** - Ref path builders and validators for WARP ref structure
+- **`LegacyAnchorDetector`** - Backward compatibility for v3 JSON anchors
+
+#### GitGraphAdapter Extensions
+- **`commitNodeWithTree()`** - Create commits pointing to custom trees (for patch attachments)
+- **`listRefs(prefix)`** - List refs under a prefix (for writer discovery)
+
+### Performance
+- 10K patches reduce in ~100ms (50x faster than 5s requirement)
+- Memory usage ~35MB for 10K patches (well under 500MB limit)
+- Incremental materialization from checkpoints for O(new patches) recovery
+
+### Documentation
+- Added "Multi-Writer API (WARP v4)" section to README
+- Created `docs/MULTI-WRITER-GUIDE.md` - Comprehensive user guide
+- Created `docs/WARP-TECH-SPEC-ROADMAP.md` - Full protocol specification
+- Created `docs/WARP-V5-HANDOFF.md` - Handoff notes for v5 implementation
+
+### Testing
+- Determinism tests: verify `reduce([A,B]) === reduce([B,A])`
+- Tombstone stability tests: concurrent add/tombstone/property scenarios
+- Performance benchmarks: 1K, 5K, 10K, 25K patch scaling
+- v3 backward compatibility tests: legacy anchor detection
+- Integration tests: real Git operations with multiple writers
+
+## [3.0.0] - 2025-01-30
+
+### Added
+
+#### Managed Mode & Durability
+- **`EmptyGraph.open()`** - New static factory for creating managed graphs with automatic durability guarantees
+- **Anchor commits** - Automatic creation of anchor commits to prevent GC of disconnected subgraphs
+- **`graph.sync(sha)`** - Manual ref synchronization for `autoSync: 'manual'` mode
+- **`graph.anchor(ref, shas)`** - Power user method for explicit anchor creation
+
+#### Batching API
+- **`graph.beginBatch()`** - Start a batch for efficient bulk writes
+- **`GraphBatch.createNode()`** - Create nodes without per-write ref updates
+- **`GraphBatch.commit()`** - Single octopus anchor for all batch nodes
+- **`graph.compactAnchors()`** - Utility to compact anchor chains into single octopus
+
+#### Validation & Error Handling
+- **`EmptyMessageError`** - New error type for empty message validation (code: `EMPTY_MESSAGE`)
+- Empty messages now rejected at write time (prevents "ghost nodes")
+
+#### Index Improvements
+- **Canonical JSON checksums** - Deterministic checksums for cross-engine compatibility
+- **Shard version 2** - New format with backward compatibility for v1
+- **`SUPPORTED_SHARD_VERSIONS`** - Reader accepts both v1 and v2 shards
+
+#### Performance
+- **`isAncestor()`** - New method on GitGraphAdapter for ancestry checking
+- **Fast-forward detection** - `syncHead()` skips anchor creation for linear history
+- **Octopus anchoring** - Batch.commit() creates single anchor with N parents
+
+#### Cancellation
+- AbortSignal propagation added to all TraversalService methods
+- AbortSignal support in StreamingBitmapIndexBuilder finalization
+
+#### Node Query API
+- **`getNode(sha)`** - Returns full GraphNode with all metadata (sha, author, date, message, parents)
+- **`hasNode(sha)`** - Boolean existence check without loading full node data
+- **`countNodes(ref)`** - Count nodes reachable from a ref without loading all nodes into memory
+
+#### Batch Operations
+- **`createNodes(nodes)`** - Create multiple nodes in a single operation with placeholder parent refs
+
+#### Caching & Resilience
+- **LRU Cache** - Loaded shards now use an LRU cache to bound memory usage
+- **Retry Logic** - `GitGraphAdapter` now retries transient Git failures with exponential backoff and decorrelated jitter
+  - Uses `@git-stunts/alfred` resilience library
+  - Retries on: "cannot lock ref", "resource temporarily unavailable", "connection timed out"
+  - Configurable via `retryOptions` constructor parameter
+- **CachedValue Utility** - Reusable TTL-based caching utility in `src/domain/utils/CachedValue.js`
+- **Memory Warning** - `BitmapIndexReader` logs a warning when ID-to-SHA cache exceeds 1M entries (~40MB)
+
+### Changed
+- `SHARD_VERSION` bumped from 1 to 2 (v1 still readable)
+- **TraversalService** - Refactored path reconstruction into unified `_walkPredecessors()` and `_walkSuccessors()` helpers
+- **HealthCheckService** - Now uses `CachedValue` utility instead of inline caching logic
+
+### Fixed
+- **Durability bug** - Nodes created via `createNode()` were not reachable from any ref, making them vulnerable to Git GC
+- **Ghost nodes** - Empty messages allowed at write time but rejected during iteration
+
+### Documentation
+- Added `SEMANTICS.md` - Durability contract and anchor commit semantics
+- Updated `README.md` - Durability warning, mode selection guide, new API docs
+- Added **Memory Considerations** section documenting memory requirements for large graphs
 
 ## [2.5.0] - 2026-01-29
 

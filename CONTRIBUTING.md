@@ -10,6 +10,9 @@
 ## Git Hooks
 
 This project uses custom git hooks located in `scripts/hooks/`. Run `npm run setup:hooks` to enable them.
+- Hooks are also auto-configured on `npm install` (no-op if not a git repo).
+- `pre-commit` runs eslint on staged JS files.
+- `pre-push` runs `npm run lint`, `npm test`, `npm run benchmark`, and the Docker bats CLI suite (`git-warp` commands).
 
 ### Pre-commit Hook
 
@@ -38,6 +41,11 @@ git commit --no-verify
 npm test                 # Run all tests
 npm test -- <pattern>    # Run specific tests
 ```
+
+### No-Coordination Invariant
+
+The no-coordination regression suite is non-negotiable for multi-writer safety.
+Ensure `test/unit/domain/WarpGraph.noCoordination.test.js` passes before submitting changes.
 
 ## Pull Requests
 

@@ -1,0 +1,99 @@
+import { encode, decode } from '../../infrastructure/codecs/CborCodec.js';
+
+/**
+ * Frontier: Map of writerId -> lastSeenPatchSha
+ * @typedef {Map<string, string>} Frontier
+ */
+
+/**
+ * Creates an empty frontier.
+ * @returns {Frontier}
+ */
+export function createFrontier() {
+  return new Map();
+}
+
+/**
+ * Updates the frontier with a new patch.
+ * @param {Frontier} frontier - Mutated in place
+ * @param {string} writerId
+ * @param {string} patchSha
+ */
+export function updateFrontier(frontier, writerId, patchSha) {
+  frontier.set(writerId, patchSha);
+}
+
+/**
+ * Gets the last-seen patch SHA for a writer.
+ * @param {Frontier} frontier
+ * @param {string} writerId
+ * @returns {string | undefined}
+ */
+export function getFrontierEntry(frontier, writerId) {
+  return frontier.get(writerId);
+}
+
+/**
+ * Lists all writers in the frontier.
+ * @param {Frontier} frontier
+ * @returns {string[]} Sorted list of writer IDs
+ */
+export function getWriters(frontier) {
+  return Array.from(frontier.keys()).sort();
+}
+
+/**
+ * Serializes frontier to canonical CBOR bytes.
+ * Keys are sorted for determinism.
+ * @param {Frontier} frontier
+ * @returns {Buffer}
+ */
+export function serializeFrontier(frontier) {
+  // Convert Map to sorted object for deterministic encoding
+  const obj = {};
+  const sortedKeys = Array.from(frontier.keys()).sort();
+  for (const key of sortedKeys) {
+    obj[key] = frontier.get(key);
+  }
+  return encode(obj);
+}
+
+/**
+ * Deserializes frontier from CBOR bytes.
+ * @param {Buffer} buffer
+ * @returns {Frontier}
+ */
+export function deserializeFrontier(buffer) {
+  const obj = decode(buffer);
+  const frontier = new Map();
+  for (const [writerId, patchSha] of Object.entries(obj)) {
+    frontier.set(writerId, patchSha);
+  }
+  return frontier;
+}
+
+/**
+ * Clones a frontier.
+ * @param {Frontier} frontier
+ * @returns {Frontier}
+ */
+export function cloneFrontier(frontier) {
+  return new Map(frontier);
+}
+
+/**
+ * Merges two frontiers, taking the "later" entry for each writer.
+ * Note: This is a simple merge that takes entries from both.
+ * For proper "later" detection, you'd need to compare patch ancestry.
+ * @param {Frontier} a
+ * @param {Frontier} b
+ * @returns {Frontier}
+ */
+export function mergeFrontiers(a, b) {
+  const merged = new Map(a);
+  for (const [writerId, patchSha] of b) {
+    // Simple: b overwrites a (caller determines order)
+    merged.set(writerId, patchSha);
+  }
+  return merged;
+}

@@ -1,11 +1,10 @@
 import { createHash } from 'crypto';
 
-import roaring from 'roaring';
-const { RoaringBitmap32 } = roaring;
-
 import ShardCorruptionError from '../errors/ShardCorruptionError.js';
 import ShardValidationError from '../errors/ShardValidationError.js';
 import NoOpLogger from '../../infrastructure/adapters/NoOpLogger.js';
+import { checkAborted } from '../utils/cancellation.js';
+import { getRoaringBitmap32 } from '../utils/roaring.js';
 
 /**
  * Current shard format version.
@@ -302,13 +301,16 @@ export default class StreamingBitmapIndexBuilder {
   /**
    * Processes bitmap shards, merging chunks if necessary.
    *
+   * @param {Object} [options] - Options
+   * @param {AbortSignal} [options.signal] - Optional AbortSignal for cancellation
    * @returns {Promise<string[]>} Array of tree entry strings
    * @private
    */
-  async _processBitmapShards() {
+  async _processBitmapShards({ signal } = {}) {
     return Promise.all(
       Array.from(this.flushedChunks.entries()).map(async ([path, oids]) => {
-        const finalOid = oids.length === 1 ? oids[0] : await this._mergeChunks(oids);
+        checkAborted(signal, 'processBitmapShards');
+        const finalOid = oids.length === 1 ? oids[0] : await this._mergeChunks(oids, { signal });
         return `100644 blob ${finalOid}\t${path}`;
       })
     );
@@ -326,9 +328,11 @@ export default class StreamingBitmapIndexBuilder {
    * Meta shards and bitmap shards are processed in parallel using Promise.all
    * since they are independent (prefix-based partitioning).
    *
+   * @param {Object} [options] - Finalization options
+   * @param {AbortSignal} [options.signal] - Optional AbortSignal for cancellation
    * @returns {Promise<string>} OID of the created tree containing the index
    */
-  async finalize() {
+  async finalize({ signal } = {}) {
     this.logger.debug('Finalizing index', {
       operation: 'finalize',
       nodeCount: this.shaToId.size,
@@ -336,11 +340,15 @@ export default class StreamingBitmapIndexBuilder {
       flushCount: this.flushCount,
     });
 
+    checkAborted(signal, 'finalize');
     await this.flush();
 
+    checkAborted(signal, 'finalize');
     const idShards = this._buildMetaShards();
     const metaEntries = await this._writeMetaShards(idShards);
-    const bitmapEntries = await this._processBitmapShards();
+
+    checkAborted(signal, 'finalize');
+    const bitmapEntries = await this._processBitmapShards({ signal });
     const flatEntries = [...metaEntries, ...bitmapEntries];
     const treeOid = await this.storage.writeTree(flatEntries);
 
@@ -405,7 +413,7 @@ export default class StreamingBitmapIndexBuilder {
   _addToBitmap({ sha, id, type }) {
     const key = `${type}_${sha}`;
     if (!this.bitmaps.has(key)) {
-      this.bitmaps.set(key, new RoaringBitmap32());
+      this.bitmaps.set(key, new (getRoaringBitmap32())());
       this.estimatedBitmapBytes += BITMAP_BASE_OVERHEAD;
     }
 
@@ -482,7 +490,7 @@ export default class StreamingBitmapIndexBuilder {
   _mergeDeserializedBitmap({ merged, sha, base64Bitmap, oid }) {
     let bitmap;
     try {
-      bitmap = RoaringBitmap32.deserialize(Buffer.from(base64Bitmap, 'base64'), true);
+      bitmap = getRoaringBitmap32().deserialize(Buffer.from(base64Bitmap, 'base64'), true);
     } catch (err) {
       throw new ShardCorruptionError('Failed to deserialize bitmap', {
         oid,
@@ -506,16 +514,19 @@ export default class StreamingBitmapIndexBuilder {
    * Throws ShardValidationError on version mismatch or ShardCorruptionError on checksum mismatch.
    *
    * @param {string[]} oids - Blob OIDs of chunks to merge
+   * @param {Object} [options] - Options
+   * @param {AbortSignal} [options.signal] - Optional AbortSignal for cancellation
    * @returns {Promise<string>} OID of merged shard blob
    * @throws {ShardValidationError} If a chunk has an unsupported version
    * @throws {ShardCorruptionError} If a chunk's checksum does not match
    * @private
    */
-  async _mergeChunks(oids) {
+  async _mergeChunks(oids, { signal } = {}) {
     // Load all chunks and merge bitmaps by SHA
     const merged = {};
 
     for (const oid of oids) {
+      checkAborted(signal, 'mergeChunks');
       const chunk = await this._loadAndValidateChunk(oid);
 
       for (const [sha, base64Bitmap] of Object.entries(chunk)) {

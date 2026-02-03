@@ -8,6 +8,7 @@
 
 ## Key highlights:
 
+- **Multi-writer support** via WARP protocol with deterministic LWW merge
 - **Hexagonal architecture** with ports/adapters and DDD patterns
 - **Roaring Bitmap indexes for O(1) parent/child lookups**
 - Graph traversal algorithms (BFS, DFS, Dijkstra, A*, bidirectional)
@@ -65,70 +66,17 @@ Because all commits point to the "Empty Tree" (`4b825dc642cb6eb9a060e54bf8d69288
 
 Let's pump the brakes... Just because you *can* store a graph in Git doesn't mean you *should*. Here's an honest assessment.
 
-### When EmptyGraph Makes Sense
-
-#### You need offline-first graph data.
-
-Git works without a network. Clone the repo, query locally, sync when you reconnect. Perfect for edge computing, field work, or airplane mode.
-
-#### You want Git-native replication.
-
-Your graph automatically inherits Git's distributed model. Fork it. Push to multiple remotes. Merge branches of graph data (carefully). No separate replication infrastructure.
-
-#### Your graph is append-mostly.
-
-Git loves immutable data. Add nodes, add edges, never delete? Perfect fit. *The reflog even lets you recover "deleted" nodes.*
-
-#### You're already in a Git ecosystem.
-
-If your workflow is Git-centric (CI/CD, GitOps, infrastructure-as-code), adding a graph that lives in Git means one less system to manage.
-
-#### You need an audit trail for free.
-
-Every mutation is a commit. `git log` is your audit log. `git blame` tells you when a node was added. `git bisect` can find when a relationship broke.
-
-#### The graph is small-to-medium (< 10M nodes).
-
-The bitmap index handles millions of nodes comfortably. At 1M nodes, you're looking at ~150-200MB of index data. That's fine.
-
-#### You value simplicity over features.
-
-No query language to learn. No cluster to manage. No connection pools. It's just JavaScript and Git.
-
-### When EmptyGraph Is A Bad Idea
-
-You should probably consider a more legit and powerful solution if:
-
-#### You need ACID transactions.
-
-Git commits are atomic, but there's no rollback, no isolation levels, no multi-statement transactions. If you need "transfer money from A to B" semantics, *please* use a real database.
-
-#### You need real-time updates.
-
-Git has no pubsub. No change streams. No WebSocket notifications. Polling `git fetch` is your only option, and it's not fast.
-
-#### You need complex queries.
-
-"Find all users who bought product X and also reviewed product Y in the last 30 days" - this requires a query planner, indexes, and probably Cypher or Gremlin. EmptyGraph gives you raw traversal primitives, not a query language (... *yet*).
-
-#### Your graph is write-heavy.
-
-Every write is a `git commit-tree` + `git commit`. That's fast, but not "10,000 writes per second" fast. Write-heavy workloads need a database that is designed for writes.
-
-#### You need to delete data (for real).
-
-GDPR "right to be forgotten"? Git's immutability works against you. Yes, you can rewrite history with `git filter-branch`, but it's painful and breaks every clone.
-
-#### The graph is huge (> 100M nodes).
-
-At some point, you're fighting Git's assumptions. Pack files get unwieldy. Index shards multiply. Clone times become brutal. Neo4j, DGraph, or TigerGraph exist for a reason.
-
-#### You need fine-grained access control.
-
-Git repos are all-or-nothing. Either you can clone it or you can't. There's no "user A can see nodes 1-100 but not 101-200." If you need row-level security, look elsewhere.
-
-> [!note]
-> There *is* a trick to accomplish this, and I'll post it in a blog post sometime. You can run a [git startgate](https://github.com/flyingrobots/git-stargate) that uses git receive hooks + encryption to achieve "distributed opaque data", but it's too hacky to include in this project and you might want to question why you want to have private data live in git in the first place.
+| Scenario                 | ✅ Good Fit                                           | ❌ Bad Fit                               | Notes                                                            |
+| ------------------------ | ---------------------------------------------------- | --------------------------------------- | ---------------------------------------------------------------- |
+| **Network connectivity** | Offline-first, edge computing, field work            | Real-time updates needed                | Git has no pubsub/WebSocket; polling `git fetch` is slow         |
+| **Replication model**    | Git-native (fork, push, merge branches)              | Fine-grained access control             | Git repos are all-or-nothing; no row-level security              |
+| **Write patterns**       | Append-mostly, immutable data                        | Write-heavy (10k+ writes/sec)           | Every write = `git commit-tree` + `git commit`                   |
+| **Existing ecosystem**   | Already Git-centric (CI/CD, GitOps, IaC)             | Team unfamiliar with Git                | Debugging corrupt indexes after force-push requires Git fluency  |
+| **Audit requirements**   | Need free audit trail (`git log`, `blame`, `bisect`) | Need true ACID transactions             | Git commits are atomic but no rollback/isolation levels          |
+| **Graph size**           | Small-to-medium (< 10M nodes)                        | Huge (> 100M nodes)                     | 1M nodes ≈ 150-200MB index; beyond 100M, pack files get unwieldy |
+| **Query complexity**     | Raw traversal primitives, simple patterns            | Complex multi-hop queries with filters  | No query planner; Cypher/Gremlin needed for complex queries      |
+| **Data deletion**        | Rarely delete (reflog recovers "deleted" nodes)      | GDPR compliance / right to be forgotten | `git filter-branch` is painful and breaks all clones             |
+| **Philosophy**           | Value simplicity over features                       | Need enterprise DB features             | No query language, no cluster, no connection pools—just JS + Git |
 
 #### Your team doesn't know Git.
 
@@ -177,6 +125,58 @@ That's the stunt. Take something everyone has, use it for something no one inten
 npm install @git-stunts/empty-graph @git-stunts/plumbing
 ```
 
+### CLI (git warp)
+
+The canonical CLI entrypoint is `git warp` (a `git-warp` shim).
+
+```bash
+git warp --help
+git warp info
+git warp query --help
+```
+
+#### Local install (clone + npm install)
+
+```bash
+./scripts/install-git-warp.sh
+```
+
+Defaults:
+- Repo: `https://github.com/git-stunts/empty-graph.git`
+- Install dir: `~/.git-warp`
+
+Overrides:
+- `GIT_WARP_REPO_URL` to point at a fork
+- `GIT_WARP_HOME` to change install dir
+
+## API Status
+
+| API                    | Status          | Use For                 |
+| ---------------------- | --------------- | ----------------------- |
+| `WarpGraph` (schema:2) | **Recommended** | All new projects        |
+| `WarpGraph` (schema:1) | Legacy          | Existing v4 graphs only |
+| `EmptyGraph`           | Deprecated      | Migration path only     |
+
+> **V7 Note**: The codebase is transitioning to "One WARP Core" - schema:2 only, no commit-per-node engine. See [docs/V7_CONTRACT.md](./docs/V7_CONTRACT.md) for architectural invariants.
+
+### Migration from EmptyGraph
+
+EmptyGraph predates WARP and does not support multi-writer collaboration, checkpoints, or CRDT merge semantics. New projects should use WarpGraph.
+
+### Migration from WARP v4 to v5
+
+```javascript
+import { migrateV4toV5 } from '@git-stunts/empty-graph';
+
+// Migrate v4 state to v5 format
+const v5State = migrateV4toV5(v4State, 'migration-writer-id');
+// Creates a v5 state from v4 visible projection
+```
+
+## Durability
+
+> **Warning**: If you don't use managed mode or call `sync()`/`anchor()`, Git GC can prune unreachable nodes. See [SEMANTICS.md](./SEMANTICS.md) for details.
+
 ## Quick Start
 
 ```javascript
@@ -187,13 +187,15 @@ import EmptyGraph, { GitGraphAdapter } from '@git-stunts/empty-graph';
 const plumbing = new GitPlumbing({ cwd: './my-db' });
 const persistence = new GitGraphAdapter({ plumbing });
 
-// Create the graph with injected adapter
-const graph = new EmptyGraph({ persistence });
+// Open graph in managed mode (recommended)
+const graph = await EmptyGraph.open({
+  persistence,
+  ref: 'refs/empty-graph/events',
+  mode: 'managed',  // default - automatic durability
+});
 
-// Create a node (commit)
+// Create nodes - automatically synced to ref
 const parentSha = await graph.createNode({ message: 'First Entry' });
-
-// Create a child node
 const childSha = await graph.createNode({
   message: 'Second Entry',
   parents: [parentSha]
@@ -202,14 +204,128 @@ const childSha = await graph.createNode({
 // Read data
 const message = await graph.readNode(childSha);
 
-// List linear history (small graphs)
-const nodes = await graph.listNodes({ ref: childSha, limit: 50 });
-
 // Stream large graphs (millions of nodes)
-for await (const node of graph.iterateNodes({ ref: childSha })) {
+for await (const node of graph.iterateNodes({ ref: 'refs/empty-graph/events' })) {
   console.log(node.message);
 }
 ```
+
+## Sync Transport (HTTP)
+
+WarpGraph includes a one-line sync server for peer-to-peer replication.
+
+```javascript
+const server = await graph.serve({ port: 8080 });
+console.log(server.url); // http://127.0.0.1:8080/sync
+
+// ... later
+await server.close();
+```
+
+Clients should POST a `sync-request` JSON payload (use `graph.createSyncRequest()` on the caller).
+
+```javascript
+// Sync with a remote HTTP peer (uses /sync by default)
+await graph.syncWith('http://127.0.0.1:8080');
+
+// Sync directly with another graph instance
+await graph.syncWith(otherGraph);
+```
+
+## Choosing a Mode
+
+### Beginner (Recommended)
+
+Use `EmptyGraph.open()` with managed mode for automatic durability:
+
+```javascript
+const graph = await EmptyGraph.open({
+  persistence,
+  ref: 'refs/empty-graph/events',
+  mode: 'managed',  // default
+});
+
+// Every write is automatically made durable
+await graph.createNode({ message: 'Safe from GC' });
+```
+
+### Batch Writer
+
+For bulk imports, use batching to reduce ref update overhead:
+
+```javascript
+const tx = graph.beginBatch();
+for (const item of items) {
+  await tx.createNode({ message: JSON.stringify(item) });
+}
+await tx.commit();  // Single ref update
+```
+
+### Power User
+
+For custom ref management, use manual mode:
+
+```javascript
+const graph = await EmptyGraph.open({
+  persistence,
+  ref: 'refs/my-graph',
+  mode: 'managed',
+  autoSync: 'manual',
+});
+
+// Create nodes without automatic ref updates
+const sha1 = await graph.createNode({ message: 'Node 1' });
+const sha2 = await graph.createNode({ message: 'Node 2' });
+
+// Explicit sync when ready
+await graph.sync(sha2);
+
+// Or use anchor() for fine-grained control
+await graph.anchor('refs/my-graph', [sha1, sha2]);
+```
+
+### Direct Constructor (Legacy)
+
+For backward compatibility, you can still use the constructor directly:
+
+```javascript
+const graph = new EmptyGraph({ persistence });
+
+// But you must manage durability yourself!
+const sha = await graph.createNode({ message: 'May be GC\'d!' });
+```
+
+## How Durability Works
+
+EmptyGraph nodes are Git commits. Git garbage collection (GC) prunes commits that are not reachable from any ref. Without ref management, your data can be silently deleted.
+
+In **managed mode**, EmptyGraph automatically maintains reachability using **anchor commits**:
+
+- **Linear history**: Fast-forward updates (no anchor needed)
+- **Disconnected roots**: Creates an anchor commit with parents `[old_tip, new_commit]`
+- **Batch imports**: Single octopus anchor with all tips as parents
+
+Anchor commits have the message `{"_type":"anchor"}` and are filtered from graph traversals—they are infrastructure, not domain data.
+
+See [docs/ANCHORING.md](./docs/ANCHORING.md) for the full algorithm and [SEMANTICS.md](./SEMANTICS.md) for the durability contract.
+
+## Performance Considerations
+
+Anchor commit overhead depends on your write pattern:
+
+| Pattern | Anchor Overhead | Notes |
+|---------|-----------------|-------|
+| Linear history | Zero | Fast-forward updates |
+| Disconnected roots (`autoSync: 'onWrite'`) | O(N) chained anchors | One anchor per disconnected write |
+| Batch imports (`beginBatch()`) | O(1) octopus anchor | Single anchor regardless of batch size |
+
+**Recommendations:**
+
+- Use `beginBatch()` for bulk imports to avoid anchor chains
+- Call `compactAnchors()` periodically to consolidate chained anchors into one octopus
+- For streaming writes with disconnected roots, consider batching or periodic compaction
+
+See [docs/ANCHORING.md](./docs/ANCHORING.md) for traversal complexity analysis.
 
 ## Interactive Demo
 
@@ -287,9 +403,33 @@ Path: 0148a1e4 → 6771a15f → 20744421 → 6025e6ca → d2abe22c → fb285001 
 
 ### `EmptyGraph`
 
+#### `static async open({ persistence, ref, mode?, autoSync?, ... })`
+
+Opens a managed graph with automatic durability guarantees. **This is the recommended way to create an EmptyGraph instance.**
+
+**Parameters:**
+- `persistence` (GitGraphAdapter): Adapter implementing `GraphPersistencePort` & `IndexStoragePort`
+- `ref` (string): The ref to manage (e.g., `'refs/empty-graph/events'`)
+- `mode` ('managed' | 'manual', optional): Durability mode. Defaults to `'managed'`
+- `autoSync` ('onWrite' | 'manual', optional): When to sync refs. Defaults to `'onWrite'`
+- `maxMessageBytes` (number, optional): Maximum message size. Defaults to 1MB
+- `logger` (LoggerPort, optional): Logger for structured logging
+- `clock` (ClockPort, optional): Clock for timing operations
+
+**Returns:** `Promise<EmptyGraph>` - Configured graph instance
+
+**Example:**
+```javascript
+const graph = await EmptyGraph.open({
+  persistence,
+  ref: 'refs/empty-graph/events',
+  mode: 'managed',
+});
+```
+
 #### `constructor({ persistence, clock?, healthCacheTtlMs? })`
 
-Creates a new EmptyGraph instance.
+Creates a new EmptyGraph instance (legacy API). Prefer `EmptyGraph.open()` for automatic durability.
 
 **Parameters:**
 - `persistence` (GitGraphAdapter): Adapter implementing `GraphPersistencePort` & `IndexStoragePort`
@@ -343,6 +483,87 @@ const shas = await graph.createNodes([
   { message: 'Merge', parents: ['$1', '$2'] },
 ]);
 ```
+
+#### `beginBatch()`
+
+Begins a batch operation for efficient bulk writes. Delays ref updates until `commit()` is called. **Requires managed mode.**
+
+**Returns:** `GraphBatch` - A batch context
+
+**Example:**
+```javascript
+const tx = graph.beginBatch();
+const a = await tx.createNode({ message: 'Node A' });
+const b = await tx.createNode({ message: 'Node B', parents: [a] });
+const result = await tx.commit();  // Single ref update
+console.log(result.count);  // 2
+console.log(result.anchor); // SHA if anchor was created, undefined otherwise
+```
+
+#### `async sync(sha)`
+
+Manually syncs the ref to make a node reachable. Only needed when `autoSync='manual'`.
+
+**Parameters:**
+- `sha` (string): The SHA to sync to the managed ref
+
+**Returns:** `Promise<{ updated: boolean, anchor: boolean, sha: string }>`
+
+**Throws:** `Error` if not in managed mode or sha is not provided
+
+**Example:**
+```javascript
+const graph = await EmptyGraph.open({
+  persistence,
+  ref: 'refs/my-graph',
+  mode: 'managed',
+  autoSync: 'manual',
+});
+
+const sha = await graph.createNode({ message: 'My node' });
+await graph.sync(sha);  // Explicitly make durable
+```
+
+#### `async anchor(ref, shas)`
+
+Creates an anchor commit to make SHAs reachable from a ref. This is an advanced method for power users who want fine-grained control over ref management.
+
+**Parameters:**
+- `ref` (string): The ref to update
+- `shas` (string | string[]): SHA(s) to anchor
+
+**Returns:** `Promise<string>` - The anchor commit SHA
+
+**Example:**
+```javascript
+// Anchor a single disconnected node
+const anchorSha = await graph.anchor('refs/my-graph', nodeSha);
+
+// Anchor multiple nodes at once
+const anchorSha = await graph.anchor('refs/my-graph', [sha1, sha2, sha3]);
+```
+
+#### `async compactAnchors(ref?)`
+
+Consolidates chained anchor commits into a single octopus anchor. Use this to clean up after many incremental writes that created disconnected roots.
+
+**Parameters:**
+- `ref` (string, optional): The ref to compact. Defaults to the managed ref.
+
+**Returns:** `Promise<{ compacted: boolean, oldAnchors: number, tips: number }>`
+- `compacted`: Whether compaction occurred
+- `oldAnchors`: Number of anchor commits replaced
+- `tips`: Number of real node tips in the new octopus anchor
+
+**Example:**
+```javascript
+// After many incremental writes with disconnected roots
+const result = await graph.compactAnchors();
+console.log(`Replaced ${result.oldAnchors} anchors with 1 octopus anchor`);
+console.log(`Now tracking ${result.tips} tips`);
+```
+
+See [docs/ANCHORING.md](./docs/ANCHORING.md) for details on when compaction is beneficial.
 
 #### `async readNode(sha)`
 
@@ -956,6 +1177,124 @@ const children = await graph.getChildren(someSha);
 | Iterate Nodes (large) | O(n) | Streaming, constant memory |
 | Bitmap Index Lookup | O(1) | With `BitmapIndexService` |
 
+## Memory Considerations
+
+The `BitmapIndexReader` caches all SHA-to-ID mappings in memory for O(1) lookups. Each entry consumes approximately 40 bytes (SHA string + numeric ID). For a graph with 10 million nodes, this equates to roughly 400MB of memory.
+
+A warning is logged when the cache exceeds 1 million entries to help identify memory pressure early. For very large graphs (>10M nodes), consider:
+- Pagination strategies to limit active working sets
+- External indexing solutions (Redis, SQLite)
+- Periodic index rebuilds to remove unreachable nodes
+
+## Multi-Writer API (WARP v4)
+
+EmptyGraph supports multi-writer convergent graphs via the WARP protocol. Multiple writers can independently create patches that deterministically merge.
+
+### Quick Start
+
+```javascript
+import { EmptyGraph, GitGraphAdapter } from '@git-stunts/empty-graph';
+import Plumbing from '@git-stunts/plumbing';
+
+// Setup
+const plumbing = new Plumbing({ cwd: '/path/to/repo' });
+const persistence = new GitGraphAdapter({ plumbing });
+
+// Open multi-writer graph
+const graph = await EmptyGraph.openMultiWriter({
+  persistence,
+  graphName: 'my-graph',
+  writerId: 'writer-1',
+});
+
+// Create a patch with graph mutations
+await graph.createPatch()
+  .addNode('user:alice')
+  .setProperty('user:alice', 'name', 'Alice')
+  .addEdge('user:alice', 'group:admins', 'member-of')
+  .commit();
+
+// Materialize current state (merges all writers)
+const state = await graph.materialize();
+
+// Create checkpoint for fast recovery
+const checkpointSha = await graph.createCheckpoint();
+
+// Later: materialize incrementally from checkpoint
+const state2 = await graph.materializeAt(checkpointSha);
+```
+
+### Key Concepts
+
+| Concept | Description |
+|---------|-------------|
+| **Writer** | Independent actor with unique ID. Each writer has its own patch chain. |
+| **Patch** | Atomic batch of graph operations from a single writer. |
+| **EventId** | Tuple `(lamport, writerId, patchSha, opIndex)` for total ordering. |
+| **Frontier** | Map of `writerId → lastPatchSha` representing processed state. |
+| **Checkpoint** | Snapshot of materialized state for fast recovery. |
+
+### Conflict Resolution
+
+WARP uses Last-Writer-Wins (LWW) semantics. When two writers modify the same entity:
+- Higher Lamport timestamp wins
+- Same timestamp: lexicographically greater writerId wins
+- Same writerId: greater patchSha wins
+
+This guarantees **deterministic convergence** - all replicas reach identical state.
+
+### Multi-Writer Example
+
+```javascript
+// Writer 1 (on machine A)
+const alice = await EmptyGraph.openMultiWriter({
+  persistence, graphName: 'shared', writerId: 'alice'
+});
+await alice.createPatch().addNode('doc:1').commit();
+
+// Writer 2 (on machine B)
+const bob = await EmptyGraph.openMultiWriter({
+  persistence, graphName: 'shared', writerId: 'bob'
+});
+await bob.createPatch().addNode('doc:2').commit();
+
+// After git sync, either writer can materialize combined state
+const writers = await alice.discoverWriters(); // ['alice', 'bob']
+const state = await alice.materialize(); // Contains doc:1 and doc:2
+```
+
+### API Reference
+
+#### `EmptyGraph.openMultiWriter(options)`
+Opens a multi-writer graph.
+- `options.persistence` - GitGraphAdapter instance
+- `options.graphName` - Graph namespace (allows multiple graphs per repo)
+- `options.writerId` - Unique identifier for this writer
+
+#### `graph.createPatch()`
+Returns a `PatchBuilder` for fluent patch construction.
+- `.addNode(nodeId)` - Add a node
+- `.removeNode(nodeId)` - Tombstone a node
+- `.addEdge(from, to, label)` - Add an edge
+- `.removeEdge(from, to, label)` - Tombstone an edge
+- `.setProperty(nodeId, key, value)` - Set a property
+- `.commit()` - Commit the patch, returns SHA
+
+#### `graph.materialize()`
+Reduces all patches from all writers to current state.
+
+#### `graph.materializeAt(checkpointSha)`
+Incrementally materializes from a checkpoint.
+
+#### `graph.createCheckpoint()`
+Creates a checkpoint of current state. Returns checkpoint SHA.
+
+#### `graph.syncCoverage()`
+Creates octopus anchor ensuring all writers are reachable from single ref.
+
+#### `graph.discoverWriters()`
+Returns sorted array of all writer IDs.
+
 ## Architecture
 
 EmptyGraph follows hexagonal architecture (ports & adapters):
@@ -1052,7 +1391,9 @@ This project uses custom git hooks (no husky). To enable pre-commit linting:
 npm run setup:hooks
 ```
 
-This configures git to use the hooks in `scripts/hooks/`. The pre-commit hook runs ESLint on staged JavaScript files.
+This configures git to use the hooks in `scripts/hooks/`.
+- `pre-commit` runs ESLint on staged JavaScript files.
+- `pre-push` runs lint, unit tests, benchmarks, and the Docker bats CLI suite.
 
 To bypass the hook temporarily (not recommended):
 ```bash
@@ -1065,4 +1406,18 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for development guidelines.
 
 ## License
 
-Apache-2.0 © James Ross
+Apache-2.0 © 2026 by James Ross
+
+---
+
+## AIΩN Foundations Series
+
+This project is part of the [AIΩN Foundations Series](https://github.com/flyingrobots/aion/)—a reference implementation of WARP (Worldline Algebra for Recursive Provenance) graphs. empty-graph is the Git-native, JavaScript implementation: accessible, distributed, and built on CRDTs for coordination-free multi-writer collaboration.
+
+---
+
+<p align="center">
+
+<sub>Built by <a href="https://github.com/flyingrobots">FLYING•ROBOTS</a></sub>
+
+</p>

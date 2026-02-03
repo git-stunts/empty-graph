@@ -1,17 +1,16 @@
-import roaring from 'roaring';
 import { createHash } from 'crypto';
 import { ShardLoadError, ShardCorruptionError, ShardValidationError } from '../errors/index.js';
 import NoOpLogger from '../../infrastructure/adapters/NoOpLogger.js';
 import LRUCache from '../utils/LRUCache.js';
-
-const { RoaringBitmap32 } = roaring;
+import { getRoaringBitmap32 } from '../utils/roaring.js';
 
 /**
- * Shard format version for forward compatibility.
- * Must match the version used by BitmapIndexBuilder.
- * @const {number}
+ * Supported shard format versions for backward compatibility.
+ * Version 1: Original format using JSON.stringify for checksums
+ * Version 2: Uses canonicalStringify for deterministic checksums
+ * @const {number[]}
  */
-const SHARD_VERSION = 1;
+const SUPPORTED_SHARD_VERSIONS = [1, 2];
 
 /**
  * Default maximum number of shards to cache.
@@ -20,14 +19,34 @@ const SHARD_VERSION = 1;
 const DEFAULT_MAX_CACHED_SHARDS = 100;
 
 /**
+ * Produces a canonical JSON string with deterministic key ordering.
+ * Recursively sorts object keys alphabetically to ensure consistent
+ * output across different JavaScript engines.
+ *
+ * @param {*} obj - The value to stringify
+ * @returns {string} Canonical JSON string
+ */
+const canonicalStringify = (obj) => {
+  if (obj === null || typeof obj !== 'object') {
+    return JSON.stringify(obj);
+  }
+  if (Array.isArray(obj)) {
+    return `[${obj.map(canonicalStringify).join(',')}]`;
+  }
+  const keys = Object.keys(obj).sort();
+  return `{${keys.map(k => `${JSON.stringify(k)}:${canonicalStringify(obj[k])}`).join(',')}}`;
+};
+
+/**
  * Computes a SHA-256 checksum of the given data.
  * Used to verify shard integrity on load.
  *
  * @param {Object} data - The data object to checksum
+ * @param {number} [version=2] - Shard version (1 uses JSON.stringify, 2+ uses canonicalStringify)
  * @returns {string} Hex-encoded SHA-256 hash
  */
-const computeChecksum = (data) => {
-  const json = JSON.stringify(data);
+const computeChecksum = (data, version = 2) => {
+  const json = version === 1 ? JSON.stringify(data) : canonicalStringify(data);
   return createHash('sha256').update(json).digest('hex');
 };
 
@@ -176,6 +195,7 @@ export default class BitmapIndexReader {
     const buffer = Buffer.from(encoded, 'base64');
     let ids;
     try {
+      const RoaringBitmap32 = getRoaringBitmap32();
       const bitmap = RoaringBitmap32.deserialize(buffer, true);
       ids = bitmap.toArray();
     } catch (err) {
@@ -219,6 +239,16 @@ export default class BitmapIndexReader {
       }
     }
 
+    const entryCount = this._idToShaCache.length;
+    if (entryCount > 1_000_000) {
+      this.logger.warn('ID-to-SHA cache has high memory usage', {
+        operation: '_buildIdToShaMapping',
+        entryCount,
+        estimatedMemoryBytes: entryCount * 40,
+        message: `Cache contains ${entryCount} entries (~40 bytes per entry). Consider pagination or streaming for very large graphs.`,
+      });
+    }
+
     return this._idToShaCache;
   }
 
@@ -249,15 +279,16 @@ export default class BitmapIndexReader {
         reason: 'missing_or_invalid_data',
       });
     }
-    if (envelope.version !== SHARD_VERSION) {
-      throw new ShardValidationError('Version mismatch', {
+    if (!SUPPORTED_SHARD_VERSIONS.includes(envelope.version)) {
+      throw new ShardValidationError('Unsupported version', {
         shardPath: path,
-        expected: SHARD_VERSION,
+        expected: SUPPORTED_SHARD_VERSIONS,
         actual: envelope.version,
         field: 'version',
       });
     }
-    const actualChecksum = computeChecksum(envelope.data);
+    // Use version-appropriate checksum computation for backward compatibility
+    const actualChecksum = computeChecksum(envelope.data, envelope.version);
     if (envelope.checksum !== actualChecksum) {
       throw new ShardValidationError('Checksum mismatch', {
         shardPath: path,
@@ -294,7 +325,7 @@ export default class BitmapIndexReader {
       expected: err.expected,
       actual: err.actual,
     });
-    const emptyShard = format === 'json' ? {} : new RoaringBitmap32();
+    const emptyShard = format === 'json' ? {} : new (getRoaringBitmap32())();
     this.loadedShards.set(path, emptyShard);
     return emptyShard;
   }
@@ -390,7 +421,7 @@ export default class BitmapIndexReader {
     }
 
     const oid = this.shardOids.get(path);
-    const emptyShard = format === 'json' ? {} : new RoaringBitmap32();
+    const emptyShard = format === 'json' ? {} : new (getRoaringBitmap32())();
     if (!oid) {
       return emptyShard;
     }
