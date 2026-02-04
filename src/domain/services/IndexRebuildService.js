@@ -2,6 +2,7 @@ import { performance } from 'perf_hooks';
 import BitmapIndexBuilder from './BitmapIndexBuilder.js';
 import BitmapIndexReader from './BitmapIndexReader.js';
 import StreamingBitmapIndexBuilder from './StreamingBitmapIndexBuilder.js';
+import { loadIndexFrontier, checkStaleness } from './IndexStalenessChecker.js';
 import NoOpLogger from '../../infrastructure/adapters/NoOpLogger.js';
 import { checkAborted } from '../utils/cancellation.js';
 
@@ -69,6 +70,8 @@ export default class IndexRebuildService {
    *   Receives { processedNodes, currentMemoryBytes }.
    * @param {AbortSignal} [options.signal] - Optional AbortSignal for cancellation support.
    *   When aborted, throws OperationAbortedError at the next loop boundary.
+   * @param {Map<string, string>} [options.frontier] - Frontier to persist alongside the rebuilt index.
+   *   Maps writer IDs to their tip SHAs; stored in the index tree for staleness detection.
    * @returns {Promise<string>} OID of the created tree containing the index
    * @throws {Error} If ref is invalid or limit is out of range
    *
@@ -83,7 +86,7 @@ export default class IndexRebuildService {
    *   onFlush: ({ flushCount }) => console.log(`Flush #${flushCount}`),
    * });
    */
-  async rebuild(ref, { limit = 10_000_000, maxMemoryBytes, onFlush, onProgress, signal } = {}) {
+  async rebuild(ref, { limit = 10_000_000, maxMemoryBytes, onFlush, onProgress, signal, frontier } = {}) {
     if (maxMemoryBytes !== undefined && maxMemoryBytes <= 0) {
       throw new Error('maxMemoryBytes must be a positive number');
     }
@@ -101,9 +104,9 @@ export default class IndexRebuildService {
     try {
       let treeOid;
       if (maxMemoryBytes !== undefined) {
-        treeOid = await this._rebuildStreaming(ref, { limit, maxMemoryBytes, onFlush, onProgress, signal });
+        treeOid = await this._rebuildStreaming(ref, { limit, maxMemoryBytes, onFlush, onProgress, signal, frontier });
       } else {
-        treeOid = await this._rebuildInMemory(ref, { limit, onProgress, signal });
+        treeOid = await this._rebuildInMemory(ref, { limit, onProgress, signal, frontier });
       }
 
       const durationMs = performance.now() - startTime;
@@ -140,7 +143,7 @@ export default class IndexRebuildService {
    * @returns {Promise<string>} Tree OID
    * @private
    */
-  async _rebuildInMemory(ref, { limit, onProgress, signal }) {
+  async _rebuildInMemory(ref, { limit, onProgress, signal, frontier }) {
     const builder = new BitmapIndexBuilder();
     let processedNodes = 0;
 
@@ -159,7 +162,7 @@ export default class IndexRebuildService {
       }
     }
 
-    return await this._persistIndex(builder);
+    return await this._persistIndex(builder, { frontier });
   }
 
   /**
@@ -175,7 +178,7 @@ export default class IndexRebuildService {
    * @returns {Promise<string>} Tree OID
    * @private
    */
-  async _rebuildStreaming(ref, { limit, maxMemoryBytes, onFlush, onProgress, signal }) {
+  async _rebuildStreaming(ref, { limit, maxMemoryBytes, onFlush, onProgress, signal, frontier }) {
     const builder = new StreamingBitmapIndexBuilder({
       storage: this.storage,
       maxMemoryBytes,
@@ -203,7 +206,7 @@ export default class IndexRebuildService {
       }
     }
 
-    return await builder.finalize({ signal });
+    return await builder.finalize({ signal, frontier });
   }
 
   /**
@@ -216,8 +219,8 @@ export default class IndexRebuildService {
    * @returns {Promise<string>} OID of the created tree
    * @private
    */
-  async _persistIndex(builder) {
-    const treeStructure = builder.serialize();
+  async _persistIndex(builder, { frontier } = {}) {
+    const treeStructure = builder.serialize({ frontier });
     const flatEntries = [];
     for (const [path, buffer] of Object.entries(treeStructure)) {
       const oid = await this.storage.writeBlob(buffer);
@@ -251,6 +254,12 @@ export default class IndexRebuildService {
    * @param {boolean} [options.strict=true] - Enable strict integrity verification (fail-closed).
    *   When true, throws on any shard validation or corruption errors.
    *   When false, attempts graceful degradation.
+   * @param {Map<string, string>} [options.currentFrontier] - Frontier to compare for staleness.
+   *   Maps writer IDs to their current tip SHAs. When provided, triggers a staleness
+   *   check against the frontier stored in the index.
+   * @param {boolean} [options.autoRebuild=false] - Auto-rebuild when a stale index is detected.
+   *   Requires `rebuildRef` to be set.
+   * @param {string} [options.rebuildRef] - Git ref to rebuild from when `autoRebuild` is true.
    * @returns {Promise<BitmapIndexReader>} Configured reader ready for O(1) queries
    * @throws {Error} If treeOid is invalid or tree cannot be read
    * @throws {ShardValidationError} (strict mode) If shard structure validation fails
@@ -278,7 +287,7 @@ export default class IndexRebuildService {
    * const savedOid = await storage.readRef('refs/empty-graph/index');
    * const reader = await rebuildService.load(savedOid);
    */
-  async load(treeOid, { strict = true } = {}) {
+  async load(treeOid, { strict = true, currentFrontier, autoRebuild = false, rebuildRef } = {}) {
     this.logger.debug('Loading index', {
       operation: 'load',
       treeOid,
@@ -288,6 +297,29 @@ export default class IndexRebuildService {
     const startTime = performance.now();
     const shardOids = await this.storage.readTreeOids(treeOid);
     const shardCount = Object.keys(shardOids).length;
+
+    // Staleness check
+    if (currentFrontier) {
+      const indexFrontier = await loadIndexFrontier(shardOids, this.storage);
+      if (indexFrontier) {
+        const result = checkStaleness(indexFrontier, currentFrontier);
+        if (result.stale) {
+          this.logger.warn('Index is stale', {
+            operation: 'load',
+            reason: result.reason,
+            hint: 'Rebuild the index or pass autoRebuild: true',
+          });
+          if (autoRebuild && rebuildRef) {
+            const newTreeOid = await this.rebuild(rebuildRef, { frontier: currentFrontier });
+            return await this.load(newTreeOid, { strict });
+          }
+        }
+      } else {
+        this.logger.debug('No frontier in index (legacy); skipping staleness check', {
+          operation: 'load',
+        });
+      }
+    }
 
     const reader = new BitmapIndexReader({ storage: this.storage, strict, logger: this.logger.child({ component: 'BitmapIndexReader' }) });
     reader.setup(shardOids);

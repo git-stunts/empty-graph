@@ -92,8 +92,9 @@ export default class WarpGraph {
    * @param {number} [options.adjacencyCacheSize] - Max materialized adjacency cache entries
    * @param {{every: number}} [options.checkpointPolicy] - Auto-checkpoint policy; creates a checkpoint every N patches
    * @param {boolean} [options.autoMaterialize=false] - If true, query methods auto-materialize instead of throwing
+   * @param {import('../ports/LoggerPort.js').default} [options.logger] - Logger for structured logging
    */
-  constructor({ persistence, graphName, writerId, gcPolicy = {}, adjacencyCacheSize = DEFAULT_ADJACENCY_CACHE_SIZE, checkpointPolicy, autoMaterialize = false }) {
+  constructor({ persistence, graphName, writerId, gcPolicy = {}, adjacencyCacheSize = DEFAULT_ADJACENCY_CACHE_SIZE, checkpointPolicy, autoMaterialize = false, logger }) {
     /** @type {import('../ports/GraphPersistencePort.js').default} */
     this._persistence = persistence;
 
@@ -141,6 +142,12 @@ export default class WarpGraph {
 
     /** @type {import('./utils/LRUCache.js').default|null} */
     this._adjacencyCache = adjacencyCacheSize > 0 ? new LRUCache(adjacencyCacheSize) : null;
+
+    /** @type {Map<string, string>|null} */
+    this._lastFrontier = null;
+
+    /** @type {import('../ports/LoggerPort.js').default|null} */
+    this._logger = logger || null;
   }
 
   /**
@@ -154,6 +161,7 @@ export default class WarpGraph {
    * @param {number} [options.adjacencyCacheSize] - Max materialized adjacency cache entries
    * @param {{every: number}} [options.checkpointPolicy] - Auto-checkpoint policy; creates a checkpoint every N patches
    * @param {boolean} [options.autoMaterialize] - If true, query methods auto-materialize instead of throwing
+   * @param {import('../ports/LoggerPort.js').default} [options.logger] - Logger for structured logging
    * @returns {Promise<WarpGraph>} The opened graph instance
    * @throws {Error} If graphName, writerId, or checkpointPolicy is invalid
    *
@@ -164,7 +172,7 @@ export default class WarpGraph {
    *   writerId: 'node-1'
    * });
    */
-  static async open({ persistence, graphName, writerId, gcPolicy = {}, adjacencyCacheSize, checkpointPolicy, autoMaterialize }) {
+  static async open({ persistence, graphName, writerId, gcPolicy = {}, adjacencyCacheSize, checkpointPolicy, autoMaterialize, logger }) {
     // Validate inputs
     validateGraphName(graphName);
     validateWriterId(writerId);
@@ -188,7 +196,7 @@ export default class WarpGraph {
       throw new Error('autoMaterialize must be a boolean');
     }
 
-    const graph = new WarpGraph({ persistence, graphName, writerId, gcPolicy, adjacencyCacheSize, checkpointPolicy, autoMaterialize });
+    const graph = new WarpGraph({ persistence, graphName, writerId, gcPolicy, adjacencyCacheSize, checkpointPolicy, autoMaterialize, logger });
 
     // Validate migration boundary
     await graph._validateMigrationBoundary();
@@ -503,6 +511,7 @@ export default class WarpGraph {
     }
 
     this._setMaterializedState(state);
+    this._lastFrontier = await this.getFrontier();
     this._patchesSinceCheckpoint = patchCount;
 
     // Auto-checkpoint if policy is set and threshold exceeded.
@@ -515,6 +524,8 @@ export default class WarpGraph {
         // Checkpoint failure does not break materialize — continue silently
       }
     }
+
+    this._maybeRunGC(state);
 
     return state;
   }
@@ -1016,6 +1027,46 @@ export default class WarpGraph {
   // ============================================================================
 
   /**
+   * Post-materialize GC check. Warn by default; execute only when enabled.
+   * GC failure never breaks materialize.
+   *
+   * @param {import('./services/JoinReducer.js').WarpStateV5} state
+   * @private
+   */
+  _maybeRunGC(state) {
+    try {
+      const metrics = collectGCMetrics(state);
+      const inputMetrics = {
+        ...metrics,
+        patchesSinceCompaction: this._patchesSinceGC,
+        timeSinceCompaction: Date.now() - this._lastGCTime,
+      };
+      const { shouldRun, reasons } = shouldRunGC(inputMetrics, this._gcPolicy);
+
+      if (!shouldRun) {
+        return;
+      }
+
+      if (this._gcPolicy.enabled) {
+        const appliedVV = computeAppliedVV(state);
+        const result = executeGC(state, appliedVV);
+        this._lastGCTime = Date.now();
+        this._patchesSinceGC = 0;
+        if (this._logger) {
+          this._logger.info('Auto-GC completed', { ...result, reasons });
+        }
+      } else if (this._logger) {
+        this._logger.warn(
+          'GC thresholds exceeded but auto-GC is disabled. Set gcPolicy: { enabled: true } to auto-compact.',
+          { reasons },
+        );
+      }
+    } catch {
+      // GC failure never breaks materialize
+    }
+  }
+
+  /**
    * Checks if GC should run based on current metrics and policy.
    * If thresholds are exceeded, runs GC on the cached state.
    *
@@ -1131,6 +1182,34 @@ export default class WarpGraph {
     }
 
     return frontier;
+  }
+
+  /**
+   * Checks whether any writer tip has changed since the last materialize.
+   *
+   * O(writers) comparison of stored writer tip SHAs against current refs.
+   * Cheap "has anything changed?" check without materialization.
+   *
+   * @returns {Promise<boolean>} True if frontier has changed (or never materialized)
+   */
+  async hasFrontierChanged() {
+    if (this._lastFrontier === null) {
+      return true;
+    }
+
+    const current = await this.getFrontier();
+
+    if (current.size !== this._lastFrontier.size) {
+      return true;
+    }
+
+    for (const [writerId, tipSha] of current) {
+      if (this._lastFrontier.get(writerId) !== tipSha) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   /**

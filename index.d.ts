@@ -504,7 +504,7 @@ export class BitmapIndexBuilder {
   addEdge(srcSha: string, tgtSha: string): void;
 
   /** Serializes the index to a tree structure of buffers */
-  serialize(): Record<string, Buffer>;
+  serialize(options?: { frontier?: Map<string, string> }): Record<string, Buffer>;
 }
 
 /**
@@ -888,7 +888,16 @@ export default class WarpGraph {
     writerId: string;
     logger?: LoggerPort;
     adjacencyCacheSize?: number;
-    gcPolicy?: { type: string; [key: string]: unknown };
+    gcPolicy?: {
+      enabled?: boolean;
+      tombstoneRatioThreshold?: number;
+      entryCountThreshold?: number;
+      minPatchesSinceCompaction?: number;
+      maxTimeSinceCompaction?: number;
+      compactOnCheckpoint?: boolean;
+    };
+    checkpointPolicy?: { every: number };
+    autoMaterialize?: boolean;
   }): Promise<WarpGraph>;
 
   /**
@@ -952,6 +961,12 @@ export default class WarpGraph {
    * Gets the current frontier (map of writerId to tip SHA).
    */
   getFrontier(): Promise<Map<string, string>>;
+
+  /**
+   * Checks whether any writer tip has changed since the last materialize.
+   * O(writers) comparison — cheap "has anything changed?" check without materialization.
+   */
+  hasFrontierChanged(): Promise<boolean>;
 
   /**
    * Creates a checkpoint snapshot of the current materialized state.

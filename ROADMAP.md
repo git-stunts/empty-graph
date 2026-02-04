@@ -1,7 +1,8 @@
 # Roadmap
 
 > Execution plan for `@git-stunts/empty-graph` from v7.1.0 onward.
-> Current version: v7.0.0. All milestones prior to this document (M1–M4) are complete.
+> Current release: v7.0.0. Main branch: v7.1.0 complete (AUTOPILOT merged, unreleased).
+> Active milestone: GROUNDSKEEPER (v7.2.0).
 
 ## How to Read This Document
 
@@ -44,15 +45,15 @@ Eliminates manual state freshness management. Cached state stays fresh after loc
 
 Indexes, GC, and frontier tracking manage themselves.
 
-**Features:**
+**Features (recommended order):**
+- GK/FRONTIER — Frontier change detection (multiplier — unlocks PULSE, useful for status/debug/CI)
 - GK/IDX — Index staleness tracking
-- GK/GC — Auto-GC after materialization
-- GK/FRONTIER — Frontier change detection
+- GK/GC — Auto-GC after materialization (last — most likely to cause surprise perf behavior)
 
 **User-Facing Changes:**
-- Bitmap index stores frontier at build time; `loadIndex()` warns or auto-rebuilds when stale.
-- `materialize()` automatically runs GC when tombstone ratio exceeds threshold.
 - New `graph.hasFrontierChanged()` method for cheap "has anything changed?" polling.
+- Bitmap index stores frontier at build time; `loadIndex()` warns when stale, opt-in `autoRebuild: true` to rebuild automatically.
+- `materialize()` runs GC when `gcPolicy: { enabled: true }` is set and tombstone ratio exceeds threshold. Default: warn only, no automatic GC.
 
 ### v7.3.0 — WEIGHTED
 
@@ -70,7 +71,7 @@ Extends the data model with properties on edges.
 - New `patch.setEdgeProperty(from, to, label, key, value)` API.
 - `getEdges()` and query results include edge `props` field.
 - Schema v3 with backward-compatible v2 reader support.
-- Mixed-version sync safety between v2 and v3 writers.
+- Mixed-version sync: v2 readers fail fast with `E_SCHEMA_UNSUPPORTED` on unknown edge prop ops (never silently drop data).
 
 ### v7.4.0 — HANDSHAKE
 
@@ -186,8 +187,8 @@ Observer-scoped views, translation costs, and temporal queries from Paper IV.
 
 | # | Codename | Version | Theme | Status |
 |---|----------|---------|-------|--------|
-| 1 | **AUTOPILOT** | v7.1.0 | Kill the Materialize Tax | In progress |
-| 2 | **GROUNDSKEEPER** | v7.2.0 | Self-Managing Infrastructure | Planned |
+| 1 | **AUTOPILOT** | v7.1.0 | Kill the Materialize Tax | Complete (merged, unreleased) |
+| 2 | **GROUNDSKEEPER** | v7.2.0 | Self-Managing Infrastructure | In progress |
 | 3 | **WEIGHTED** | v7.3.0 | Edge Properties | Planned |
 | 4 | **HANDSHAKE** | v7.4.0 | Multi-Writer Ergonomics | Planned |
 | 5 | **COMPASS** | v7.5.0 | Advanced Query Language | Planned |
@@ -238,11 +239,11 @@ AUTOPILOT        (v7.1.0)  █████████████████�
   ■ AP/LAZY/1           →  AP/LAZY/2
   ■ AP/LAZY/2         
 
-GROUNDSKEEPER    (v7.2.0)  ░░░░░░░░░░░░░░░░░░░░    0%  (0/4)
-  ◆ GK/FRONTIER/1       →  PL/WATCH/2
-  ◆ GK/GC/1           
-  ◆ GK/IDX/1            →  GK/IDX/2
-  ○ GK/IDX/2          
+GROUNDSKEEPER    (v7.2.0)  ████████████████████  100%  (4/4)
+  ■ GK/FRONTIER/1       →  PL/WATCH/2
+  ■ GK/GC/1           
+  ■ GK/IDX/1            →  GK/IDX/2
+  ■ GK/IDX/2          
 
 WEIGHTED         (v7.3.0)  ░░░░░░░░░░░░░░░░░░░░    0%  (0/7)
   ◆ WT/EPKEY/1          →  WT/OPS/1, WT/SCHEMA/1
@@ -427,23 +428,25 @@ The single biggest DX problem. Developers manually orchestrate state freshness a
   - Affected methods: `hasNode()`, `getNodeProps()`, `neighbors()`, `getNodes()`, `getEdges()`, `query().run()`, all `traverse.*` methods.
   - When `autoMaterialize === false`, preserve current behavior (throw or return stale).
   - Guard must be async-safe (callers already await these methods).
+  - **Core invariant: concurrent auto-materialize calls MUST coalesce.** Store one in-flight materialize promise on the graph instance; concurrent callers await it; clear when resolved/rejected. Without this, N concurrent queries trigger N materializations and the library becomes unusable under load.
 - **Acceptance Criteria:**
   - With autoMaterialize on: open graph → addNode → commit → hasNode returns true (no explicit materialize).
   - With autoMaterialize on: open graph → query().run() works on first call (no prior materialize).
   - With autoMaterialize off: current behavior unchanged.
-- **Scope:** Add guard to all query entry points.
+  - 20 concurrent queries trigger exactly 1 materialize() call (coalescing invariant).
+- **Scope:** Add guard to all query entry points with materialize coalescing.
 - **Out of Scope:** Incremental/partial materialization strategy.
 - **Estimated Hours:** 4
 - **Estimated LOC:** ~60 prod + ~200 test
 - **Blocked by:** AP/LAZY/1, AP/INVAL/1
 - **Blocking:** None
-- **Definition of Done:** All query methods auto-materialize when enabled. Existing tests unaffected.
+- **Definition of Done:** All query methods auto-materialize when enabled. Concurrent calls coalesce. Existing tests unaffected.
 - **Test Plan:**
   - Golden path: fresh open → query with autoMaterialize → results returned.
   - Golden path: dirty state → query → auto-rematerializes → fresh results.
   - Known failures: autoMaterialize off → null state → appropriate error.
-  - Edge cases: concurrent auto-materialize calls coalesce (no double work).
-  - Stress: 50 rapid queries, only one materialize() call triggered.
+  - **Core invariant test:** 20 concurrent queries → exactly 1 materialize() call triggered.
+  - Stress: 50 rapid queries, coalescing verified via spy count.
 
 ---
 
@@ -587,50 +590,58 @@ Once the materialize tax is gone, the next friction layer is infrastructure that
 
 #### GK/IDX/1 — Store frontier snapshot in index metadata at build time
 
-- **Status:** `OPEN`
+- **Status:** `CLOSED`
 - **User Story:** As the system, I need to record the frontier when an index was built so I can later detect staleness.
 - **Requirements:**
   - At `BitmapIndexBuilder.serialize()` time, accept and store current frontier (writer ID → tip SHA map).
-  - Write as `frontier.json` blob in the index tree alongside existing shard files.
-  - Format: `{ "version": 1, "frontier": { "alice": "abc...", "bob": "def..." } }`.
+  - **Authoritative format:** Write `frontier.cbor` blob in the index tree using the existing CborCodec. CBOR gives deterministic bytes, faster parsing on the hot staleness-check path, and prevents manual edits from creating lies.
+  - **Debug artifact:** Also write `frontier.json` blob as a human-readable debug artifact, generated from the same data. This is optional output — the system never reads from it.
+  - CBOR payload: `{ version: 1, writerCount: N, frontier: { "alice": "abc...", "bob": "def..." } }`.
+  - JSON payload: identical structure, canonical JSON (sorted keys, no whitespace variance, UTF-8).
+  - On read (GK/IDX/2), prefer `frontier.cbor`; fall back to `frontier.json` if CBOR missing (forward compat during rollout).
 - **Acceptance Criteria:**
-  - Built index contains `frontier.json` with correct writer tips.
-  - Existing index loading code ignores `frontier.json` if not present (backward compat).
+  - Built index contains `frontier.cbor` with correct writer tips.
+  - Built index contains `frontier.json` as debug artifact.
+  - Existing index loading code ignores both files if not present (backward compat).
 - **Scope:** Write frontier metadata at build time.
 - **Out of Scope:** Reading/comparing frontier (that's GK/IDX/2).
 - **Estimated Hours:** 3
-- **Estimated LOC:** ~50 prod + ~80 test
+- **Estimated LOC:** ~60 prod + ~80 test
 - **Blocked by:** None
 - **Blocking:** GK/IDX/2
-- **Definition of Done:** Index tree contains frontier metadata. Backward compatible with existing indexes.
+- **Definition of Done:** Index tree contains frontier metadata in both CBOR (authoritative) and JSON (debug). Backward compatible with existing indexes.
 - **Test Plan:**
-  - Golden path: build index → frontier.json present with correct data.
+  - Golden path: build index → frontier.cbor present with correct data, frontier.json present and matches.
   - Edge cases: empty frontier (no writers), single writer.
+  - Round-trip: CBOR encode → decode matches original frontier map.
 
 #### GK/IDX/2 — Detect and report index staleness on load
 
-- **Status:** `BLOCKED`
+- **Status:** `CLOSED`
 - **User Story:** As a developer, I want to know if my index is stale so I can decide whether to rebuild.
 - **Requirements:**
-  - On `loadIndex()`, read `frontier.json` from index tree.
+  - On `loadIndex()`, read `frontier.cbor` (or `frontier.json` fallback) from index tree.
   - Compare stored frontier against current writer refs.
-  - If diverged, log warning via LoggerPort: `[warp] Index is stale. N writers have advanced since last build.`
-  - Add `autoRebuild: boolean` option (default `false`). When true, trigger rebuild on staleness.
+  - **Default behavior: warn only.** If diverged, log warning via LoggerPort: `[warp] Index is stale. N writers have advanced since last build. Call rebuildIndex() to update.`
+  - **Opt-in rebuild:** Add `autoRebuild: boolean` option (default `false`). When `true`, trigger rebuild on staleness. Users must explicitly opt in to expensive work.
+  - Warning message must include clear "what to do next" guidance.
 - **Acceptance Criteria:**
-  - Stale index → warning logged.
+  - Stale index → warning logged with recovery guidance.
   - Fresh index → no warning.
   - `autoRebuild: true` → index rebuilt automatically.
+  - `autoRebuild: false` (default) → warning only, no rebuild.
 - **Scope:** Staleness detection and optional auto-rebuild.
 - **Out of Scope:** Incremental index update (always full rebuild).
 - **Estimated Hours:** 4
 - **Estimated LOC:** ~60 prod + ~120 test
 - **Blocked by:** GK/IDX/1
 - **Blocking:** None
-- **Definition of Done:** Stale indexes detected and reported. Auto-rebuild works when enabled.
+- **Definition of Done:** Stale indexes detected and reported with guidance. Auto-rebuild works only when explicitly enabled.
 - **Test Plan:**
-  - Golden path: build index → advance writer → load → warning.
+  - Golden path: build index → advance writer → load → warning logged with guidance.
   - Golden path: build index → load immediately → no warning.
-  - Known failures: index has no frontier.json (legacy) → no warning, no crash.
+  - Golden path: build index → advance writer → load with autoRebuild:true → index rebuilt.
+  - Known failures: index has no frontier.cbor/frontier.json (legacy) → no warning, no crash.
   - Edge cases: new writer added since index build, writer removed.
 
 ---
@@ -641,29 +652,32 @@ Once the materialize tax is gone, the next friction layer is infrastructure that
 
 #### GK/GC/1 — Wire GC check into post-materialize path
 
-- **Status:** `OPEN`
+- **Status:** `CLOSED`
 - **User Story:** As a developer, I want tombstones cleaned up automatically so I don't have to think about GC.
 - **Requirements:**
-  - After `materialize()` completes (and after optional auto-checkpoint from AP/CKPT/3), check `getGCMetrics()` against configured `gcPolicy`.
-  - If `shouldRunGC()` returns true, execute GC.
-  - Flow: `materialize() → apply patches → maybe checkpoint → maybe GC`.
+  - Accept `gcPolicy` option on `WarpGraph.open()`: `{ enabled: boolean, tombstoneRatioThreshold?: number, ... }`.
+  - **Default behavior: warn only.** When no `gcPolicy` is set (or `enabled: false`), log a warning via LoggerPort when thresholds are exceeded but do NOT execute GC. Users must never be surprised by expensive work they didn't ask for.
+  - **Opt-in execution:** When `gcPolicy: { enabled: true }` is set, after `materialize()` completes (and after optional auto-checkpoint), check `getGCMetrics()` against policy thresholds and execute GC if exceeded.
+  - Flow: `materialize() → apply patches → maybe checkpoint → maybe warn/GC`.
   - Log GC execution and results via LoggerPort.
   - GC failure does not break materialize — log warning and continue.
 - **Acceptance Criteria:**
-  - After materialize with 40% tombstone ratio (threshold 30%), GC runs automatically.
-  - After materialize with 10% tombstone ratio, GC does not run.
+  - No gcPolicy set + 40% tombstone ratio → warning logged, GC does NOT run.
+  - `gcPolicy: { enabled: true }` + 40% tombstone ratio (threshold 30%) → GC runs automatically.
+  - `gcPolicy: { enabled: true }` + 10% tombstone ratio → GC does not run.
   - GC failure logged but materialize still returns valid state.
-- **Scope:** Wire existing GC into materialize path.
+- **Scope:** Wire existing GC into materialize path with opt-in semantics.
 - **Out of Scope:** New GC algorithms, concurrent GC.
 - **Estimated Hours:** 3
 - **Estimated LOC:** ~30 prod + ~100 test
 - **Blocked by:** None (uses existing GC infrastructure)
 - **Blocking:** None
-- **Definition of Done:** GC runs automatically when thresholds exceeded after materialize.
+- **Definition of Done:** GC warns by default, runs only when explicitly enabled, and never surprises users with unexpected latency.
 - **Test Plan:**
-  - Golden path: create graph with many tombstones → materialize → GC runs.
+  - Golden path: gcPolicy enabled + many tombstones → materialize → GC runs.
+  - Golden path: gcPolicy absent + many tombstones → warning logged, no GC.
   - Known failures: GC throws → materialize still succeeds.
-  - Edge cases: exactly at threshold, gcPolicy not configured.
+  - Edge cases: exactly at threshold, gcPolicy not configured, gcPolicy enabled with custom thresholds.
 
 ---
 
@@ -673,7 +687,7 @@ Once the materialize tax is gone, the next friction layer is infrastructure that
 
 #### GK/FRONTIER/1 — Implement hasFrontierChanged() method
 
-- **Status:** `OPEN`
+- **Status:** `CLOSED`
 - **User Story:** As a developer, I want to cheaply check if the graph has new data without materializing.
 - **Requirements:**
   - `graph.hasFrontierChanged()` compares `_cachedState.observedFrontier` against current writer refs.
@@ -868,23 +882,28 @@ Extends the data model to support properties on edges, enabling weighted graphs,
 - **Status:** `BLOCKED`
 - **User Story:** As a developer, I want to sync between v2 and v3 writers without data loss.
 - **Requirements:**
-  - v3 writer syncing with v2 writer: v2 patches applied normally (no edge props).
-  - v2 writer syncing with v3 writer: v3 patches with edge prop ops decoded but edge props silently dropped (v2 has no edge prop support).
-  - Alternatively: v2 writer encountering v3 patch throws clear error with upgrade guidance.
-  - Choose one strategy and document the decision.
+  - **Decision: fail fast. Never silently drop data.**
+  - v3 writer syncing with v2 writer: v2 patches applied normally (no edge props). This direction is safe.
+  - v2 writer encountering v3 patch: throw `E_SCHEMA_UNSUPPORTED` with message: "Upgrade to >=7.3.0 (WEIGHTED) to sync edge properties."
+  - **Rationale:** Silent dropping is data corruption with a smile. Users will sync, lose edge property semantics, and only notice when it's too late. Failing fast forces a conscious upgrade decision.
+  - Exception: v3 patches containing only node/edge ops (no edge property ops) SHOULD be accepted by v2 readers — the schema bump alone is not a rejection criterion; only unknown op types trigger rejection.
 - **Acceptance Criteria:**
-  - Mixed-version sync either degrades gracefully or fails clearly.
-  - No silent data corruption.
+  - v3→v2 sync with edge prop ops → `E_SCHEMA_UNSUPPORTED` error with upgrade guidance.
+  - v3→v2 sync with only node/edge ops → succeeds (no edge prop ops to misunderstand).
+  - v2→v3 sync → succeeds (v2 patches are always valid v3 input).
+  - No silent data corruption in any direction.
 - **Scope:** Sync compatibility behavior.
-- **Out of Scope:** Online migration, schema negotiation protocol.
+- **Out of Scope:** Online migration, schema negotiation protocol, explicit version downgrade path.
 - **Estimated Hours:** 4
 - **Estimated LOC:** ~60 prod + ~150 test
 - **Blocked by:** WT/SCHEMA/1
 - **Blocking:** None
-- **Definition of Done:** Mixed-version sync tested and behavior documented.
+- **Definition of Done:** Mixed-version sync tested. v2 readers fail fast on unknown ops with actionable error.
 - **Test Plan:**
-  - Golden path: v2 writer ↔ v3 writer sync in both directions.
-  - Known failures: unsupported schema error path.
+  - Golden path: v2→v3 sync succeeds.
+  - Golden path: v3→v2 sync with edge prop ops → E_SCHEMA_UNSUPPORTED.
+  - Golden path: v3→v2 sync with node-only ops → succeeds.
+  - Known failures: unsupported schema error includes version and upgrade guidance.
   - Edge cases: v3 patch with only node ops (should work with v2).
 
 ---
@@ -1059,27 +1078,31 @@ The multi-writer story works but has sharp edges around writer identity, sync wo
 - **Status:** `BLOCKED`
 - **User Story:** As a developer, I want node deletion to fail or warn when the node has attached data.
 - **Requirements:**
-  - In `commitPatch()`, before finalizing: inspect `NodeRemove` ops.
-  - For each removed node, check current state for properties and connected edges.
+  - **Two-layer validation:**
+    - **PatchBuilder (best-effort):** When `removeNode()` is called, check cached state for attached edges/props. If found, fail early (reject) or warn immediately. This catches most issues at build time with zero network cost.
+    - **Commit path (authoritative):** In `commitPatch()`, before finalizing, re-inspect `NodeRemove` ops against the state at commit time (post-CAS). This is the ground truth because patches may be built against stale state.
   - `'reject'`: throw error listing the attached data.
   - `'warn'`: log warning via LoggerPort, proceed with deletion.
+  - **Rationale:** Fail early when possible, recheck at commit time because of CAS and sync realities.
 - **Acceptance Criteria:**
   - Reject mode: delete node with props → error thrown, commit aborted.
   - Reject mode: delete node with edges → error thrown, commit aborted.
   - Warn mode: delete node with props → warning logged, commit succeeds.
   - Delete node with no data → succeeds in all modes.
-- **Scope:** Reject and warn validation.
+  - Best-effort validation catches issues even when commit-time check isn't reached.
+- **Scope:** Reject and warn validation at both patch-build and commit time.
 - **Out of Scope:** Cascade mode (that's HS/DELGUARD/3).
 - **Estimated Hours:** 4
 - **Estimated LOC:** ~80 prod + ~150 test
 - **Blocked by:** HS/DELGUARD/1
 - **Blocking:** None
-- **Definition of Done:** Reject and warn modes work correctly for all cases.
+- **Definition of Done:** Reject and warn modes work correctly at both validation layers.
 - **Test Plan:**
   - Golden path: reject mode blocks deletion of node with props.
   - Golden path: reject mode blocks deletion of node with edges.
   - Golden path: warn mode logs and proceeds.
-  - Edge cases: node with both props and edges, node with only outgoing edges, node with only incoming edges.
+  - Golden path: best-effort validation catches issue at build time (before commit).
+  - Edge cases: node with both props and edges, node with only outgoing edges, node with only incoming edges, stale state at build time but fresh at commit time.
 
 #### HS/DELGUARD/3 — Implement cascade mode
 
@@ -1363,7 +1386,7 @@ The library is opaque at runtime. Users can't see what's happening without addin
   - For OR-Set add: record whether dot was new or re-add.
   - For OR-Set remove: record whether remove was effective.
   - Return receipts in materialize result: `{ state, receipts }`.
-  - When `{ receipts: false }` (default), no overhead — receipts array not allocated.
+  - **Zero-cost invariant:** When `{ receipts: false }` (default), strictly zero overhead — no receipt array allocated, no decision strings constructed, no allocations on the hot path. This is non-negotiable. Receipts must never become a permanent perf tax that leaks into normal materialization.
 - **Acceptance Criteria:**
   - `materialize({ receipts: true })` returns receipts array.
   - Each receipt corresponds to one patch with per-op decisions.
