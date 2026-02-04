@@ -21,7 +21,7 @@ import {
   createPropSetV2,
   createPatchV2,
 } from '../types/WarpTypesV2.js';
-import { encodeEdgeKey } from './JoinReducer.js';
+import { encodeEdgeKey, EDGE_PROP_PREFIX } from './JoinReducer.js';
 import { encode } from '../../infrastructure/codecs/CborCodec.js';
 import { encodePatchMessage, decodePatchMessage } from './WarpMessageCodec.js';
 import { buildWriterRef } from '../utils/RefLayout.js';
@@ -160,6 +160,36 @@ export class PatchBuilderV2 {
   setProperty(nodeId, key, value) {
     // Props don't use dots - they use EventId from patch context
     this._ops.push(createPropSetV2(nodeId, key, value));
+    return this;
+  }
+
+  /**
+   * Sets a property on an edge.
+   * Props use EventId from patch context (lamport + writer), not dots.
+   *
+   * The edge is identified by (from, to, label). The property is stored
+   * under the edge property key namespace using the \x01 prefix, so that
+   * JoinReducer's `encodePropKey(op.node, op.key)` produces the canonical
+   * `encodeEdgePropKey(from, to, label, key)` encoding.
+   *
+   * @param {string} from - Source node ID
+   * @param {string} to - Target node ID
+   * @param {string} label - Edge label/type
+   * @param {string} key - Property key
+   * @param {*} value - Property value (any JSON-serializable type)
+   * @returns {PatchBuilderV2} This builder for chaining
+   *
+   * @example
+   * builder.setEdgeProperty('user:alice', 'user:bob', 'follows', 'since', '2025-01-01');
+   */
+  setEdgeProperty(from, to, label, key, value) {
+    // Encode the edge identity as the "node" field with the \x01 prefix.
+    // When JoinReducer processes: encodePropKey(op.node, op.key)
+    //   = `\x01from\0to\0label` + `\0` + key
+    //   = `\x01from\0to\0label\0key`
+    //   = encodeEdgePropKey(from, to, label, key)
+    const edgeNode = `${EDGE_PROP_PREFIX}${from}\0${to}\0${label}`;
+    this._ops.push(createPropSetV2(edgeNode, key, value));
     return this;
   }
 
