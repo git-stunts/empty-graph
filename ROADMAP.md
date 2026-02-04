@@ -239,11 +239,11 @@ AUTOPILOT        (v7.1.0)  █████████████████�
   ■ AP/LAZY/1           →  AP/LAZY/2
   ■ AP/LAZY/2         
 
-GROUNDSKEEPER    (v7.2.0)  █████░░░░░░░░░░░░░░░   25%  (1/4)
+GROUNDSKEEPER    (v7.2.0)  ██████████░░░░░░░░░░   50%  (2/4)
   ■ GK/FRONTIER/1       →  PL/WATCH/2
   ◆ GK/GC/1           
-  ◆ GK/IDX/1            →  GK/IDX/2
-  ○ GK/IDX/2          
+  ■ GK/IDX/1            →  GK/IDX/2
+  ◆ GK/IDX/2          
 
 WEIGHTED         (v7.3.0)  ░░░░░░░░░░░░░░░░░░░░    0%  (0/7)
   ◆ WT/EPKEY/1          →  WT/OPS/1, WT/SCHEMA/1
@@ -590,7 +590,7 @@ Once the materialize tax is gone, the next friction layer is infrastructure that
 
 #### GK/IDX/1 — Store frontier snapshot in index metadata at build time
 
-- **Status:** `OPEN`
+- **Status:** `CLOSED`
 - **User Story:** As the system, I need to record the frontier when an index was built so I can later detect staleness.
 - **Requirements:**
   - At `BitmapIndexBuilder.serialize()` time, accept and store current frontier (writer ID → tip SHA map).
@@ -617,7 +617,7 @@ Once the materialize tax is gone, the next friction layer is infrastructure that
 
 #### GK/IDX/2 — Detect and report index staleness on load
 
-- **Status:** `BLOCKED`
+- **Status:** `OPEN`
 - **User Story:** As a developer, I want to know if my index is stale so I can decide whether to rebuild.
 - **Requirements:**
   - On `loadIndex()`, read `frontier.cbor` (or `frontier.json` fallback) from index tree.
