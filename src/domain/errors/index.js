@@ -13,4 +13,5 @@ export { default as ShardCorruptionError } from './ShardCorruptionError.js';
 export { default as ShardLoadError } from './ShardLoadError.js';
 export { default as ShardValidationError } from './ShardValidationError.js';
 export { default as StorageError } from './StorageError.js';
+export { default as SchemaUnsupportedError } from './SchemaUnsupportedError.js';
 export { default as TraversalError } from './TraversalError.js';

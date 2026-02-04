@@ -765,6 +765,20 @@ export class QueryError extends Error {
 }
 
 /**
+ * Error thrown when a patch contains operations unsupported by the current schema version.
+ * Raised during sync when a v2 reader encounters edge property ops (schema v3).
+ */
+export class SchemaUnsupportedError extends Error {
+  readonly name: 'SchemaUnsupportedError';
+  readonly code: 'E_SCHEMA_UNSUPPORTED';
+  readonly context: Record<string, unknown>;
+
+  constructor(message: string, options?: {
+    context?: Record<string, unknown>;
+  });
+}
+
+/**
  * Error class for sync transport operations.
  */
 export class SyncError extends Error {

@@ -17,7 +17,7 @@
  */
 
 import { decode } from '../../infrastructure/codecs/CborCodec.js';
-import { decodePatchMessage } from './WarpMessageCodec.js';
+import { decodePatchMessage, assertOpsCompatible, SCHEMA_V3 } from './WarpMessageCodec.js';
 import { join, cloneStateV5 } from './JoinReducer.js';
 import { cloneFrontier, updateFrontier } from './Frontier.js';
 import { vvDeserialize } from '../crdt/VersionVector.js';
@@ -322,6 +322,11 @@ export function applySyncResponse(response, state, frontier) {
     for (const { sha, patch } of writerPatches) {
       // Normalize patch context (in case it came from network serialization)
       const normalizedPatch = normalizePatch(patch);
+      // Guard: reject patches containing ops we don't understand.
+      // Currently SCHEMA_V3 is the max, so this is a no-op for this
+      // codebase. If a future schema adds new op types, this check
+      // will prevent silent data loss until the reader is upgraded.
+      assertOpsCompatible(normalizedPatch.ops, SCHEMA_V3);
       // Apply patch to state
       join(newState, normalizedPatch, sha);
       applied++;

@@ -224,7 +224,7 @@ LIGHTHOUSE ────────────────→ HOLOGRAM ──�
 ## Task DAG
 
 <!-- ROADMAP:DAG:START -->
-```text
+```
 Key: ■ CLOSED   ◆ OPEN   ○ BLOCKED
 
 AUTOPILOT        (v7.1.0)  ████████████████████  100%  (10/10)
@@ -245,14 +245,14 @@ GROUNDSKEEPER    (v7.2.0)  █████████████████�
   ■ GK/IDX/1            →  GK/IDX/2
   ■ GK/IDX/2          
 
-WEIGHTED         (v7.3.0)  ░░░░░░░░░░░░░░░░░░░░    0%  (0/7)
-  ◆ WT/EPKEY/1          →  WT/OPS/1, WT/SCHEMA/1
-  ○ WT/OPS/1            →  WT/OPS/2, WT/OPS/3
-  ○ WT/OPS/2          
-  ○ WT/OPS/3            →  WT/VIS/1
-  ○ WT/SCHEMA/1         →  WT/SCHEMA/2
-  ○ WT/SCHEMA/2       
-  ○ WT/VIS/1          
+WEIGHTED         (v7.3.0)  █████████████████░░░   86%  (6/7)
+  ■ WT/EPKEY/1          →  WT/OPS/1, WT/SCHEMA/1
+  ■ WT/OPS/1            →  WT/OPS/2, WT/OPS/3
+  ■ WT/OPS/2          
+  ■ WT/OPS/3            →  WT/VIS/1
+  ■ WT/SCHEMA/1         →  WT/SCHEMA/2
+  ■ WT/SCHEMA/2       
+  ◆ WT/VIS/1          
 
 HANDSHAKE        (v7.4.0)  ░░░░░░░░░░░░░░░░░░░░    0%  (0/8)
   ◆ HS/CAS/1          
@@ -724,7 +724,7 @@ Extends the data model to support properties on edges, enabling weighted graphs,
 
 #### WT/EPKEY/1 — Design and implement encode/decode utilities
 
-- **Status:** `OPEN`
+- **Status:** `CLOSED`
 - **User Story:** As the system, I need a canonical encoding for edge property keys that is injective, reversible, and collision-free with node property keys.
 - **Requirements:**
   - `encodeEdgePropKey(from, to, label, propKey)` → deterministic string.
@@ -756,7 +756,7 @@ Extends the data model to support properties on edges, enabling weighted graphs,
 
 #### WT/OPS/1 — Extend PatchBuilderV2 with edge property ops
 
-- **Status:** `BLOCKED`
+- **Status:** `CLOSED`
 - **User Story:** As a developer, I want to set properties on edges using the patch builder API.
 - **Requirements:**
   - Add `setEdgeProperty(from, to, label, key, value)` to `PatchBuilderV2`.
@@ -779,7 +779,7 @@ Extends the data model to support properties on edges, enabling weighted graphs,
 
 #### WT/OPS/2 — LWW semantics for edge properties in JoinReducer
 
-- **Status:** `BLOCKED`
+- **Status:** `CLOSED`
 - **User Story:** As the system, concurrent edge property writes must resolve deterministically via LWW.
 - **Requirements:**
   - Edge property `PropSet` ops processed identically to node property `PropSet` ops in JoinReducer.
@@ -802,7 +802,7 @@ Extends the data model to support properties on edges, enabling weighted graphs,
 
 #### WT/OPS/3 — Surface edge properties in materialization and queries
 
-- **Status:** `BLOCKED`
+- **Status:** `CLOSED`
 - **User Story:** As a developer, I want to read edge properties after materialization.
 - **Requirements:**
   - `getEdges()` returns edge objects with `props` field.
@@ -832,7 +832,7 @@ Extends the data model to support properties on edges, enabling weighted graphs,
 
 #### WT/VIS/1 — Gate edge property visibility on edge aliveness
 
-- **Status:** `BLOCKED`
+- **Status:** `OPEN`
 - **User Story:** As a developer, I expect edge properties to disappear when the edge is removed.
 - **Requirements:**
   - `getEdges()` and query results omit props for edges not in `edgeAlive` OR-Set.
@@ -860,7 +860,7 @@ Extends the data model to support properties on edges, enabling weighted graphs,
 
 #### WT/SCHEMA/1 — Define schema v3 format
 
-- **Status:** `BLOCKED`
+- **Status:** `CLOSED`
 - **User Story:** As the system, I need a new schema version that supports edge properties while remaining backward compatible.
 - **Requirements:**
   - Bump patch schema to `3`.
@@ -879,7 +879,7 @@ Extends the data model to support properties on edges, enabling weighted graphs,
 
 #### WT/SCHEMA/2 — Mixed-version sync safety
 
-- **Status:** `BLOCKED`
+- **Status:** `CLOSED`
 - **User Story:** As a developer, I want to sync between v2 and v3 writers without data loss.
 - **Requirements:**
   - **Decision: fail fast. Never silently drop data.**
