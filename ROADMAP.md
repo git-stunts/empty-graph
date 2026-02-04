@@ -226,17 +226,17 @@ LIGHTHOUSE ────────────────→ HOLOGRAM ──�
 ```
 Key: ■ CLOSED   ◆ OPEN   ○ BLOCKED
 
-AUTOPILOT        (v7.1.0)  ░░░░░░░░░░░░░░░░░░░░    0%  (0/10)
-  ◆ AP/CKPT/1           →  AP/CKPT/3
-  ◆ AP/CKPT/2           →  AP/CKPT/3, LH/STATUS/1
-  ○ AP/CKPT/3         
+AUTOPILOT        (v7.1.0)  ██████████░░░░░░░░░░   50%  (5/10)
+  ■ AP/CKPT/1           →  AP/CKPT/3
+  ■ AP/CKPT/2           →  AP/CKPT/3, LH/STATUS/1
+  ◆ AP/CKPT/3         
   ◆ AP/HOOK/1           →  AP/HOOK/2
-  ○ AP/HOOK/2         
-  ◆ AP/INVAL/1          →  AP/INVAL/2, AP/LAZY/2, LH/STATUS/1
-  ○ AP/INVAL/2          →  AP/INVAL/3
-  ○ AP/INVAL/3        
-  ◆ AP/LAZY/1           →  AP/LAZY/2
-  ○ AP/LAZY/2         
+  ○ AP/HOOK/2
+  ■ AP/INVAL/1          →  AP/INVAL/2, AP/LAZY/2, LH/STATUS/1
+  ■ AP/INVAL/2          →  AP/INVAL/3
+  ◆ AP/INVAL/3        
+  ■ AP/LAZY/1           →  AP/LAZY/2
+  ◆ AP/LAZY/2         
 
 GROUNDSKEEPER    (v7.2.0)  ░░░░░░░░░░░░░░░░░░░░    0%  (0/4)
   ◆ GK/FRONTIER/1       →  PL/WATCH/2
@@ -272,7 +272,7 @@ LIGHTHOUSE       (v7.6.0)  ░░░░░░░░░░░░░░░░░�
   ○ LH/CLI/1          
   ◆ LH/RECEIPTS/1       →  LH/RECEIPTS/2
   ○ LH/RECEIPTS/2       →  HG/IO/1
-  ○ LH/STATUS/1         →  LH/CLI/1
+  ◆ LH/STATUS/1         →  LH/CLI/1
   ◆ LH/TIMING/1       
 
 PULSE            (v7.7.0)  ░░░░░░░░░░░░░░░░░░░░    0%  (0/5)
@@ -320,7 +320,7 @@ The single biggest DX problem. Developers manually orchestrate state freshness a
 
 #### AP/INVAL/1 — Add dirty flag to WarpGraph state tracking
 
-- **Status:** `OPEN`
+- **Status:** `CLOSED`
 - **User Story:** As a developer, I want the graph to know when cached state is stale so I'm never silently reading outdated data.
 - **Requirements:**
   - Add `_stateDirty` boolean flag to `WarpGraph` instance.
@@ -345,7 +345,7 @@ The single biggest DX problem. Developers manually orchestrate state freshness a
 
 #### AP/INVAL/2 — Eager incremental re-materialize on commit
 
-- **Status:** `BLOCKED`
+- **Status:** `CLOSED`
 - **User Story:** As a developer, I want my cached state to stay fresh after local writes without calling `materialize()` again.
 - **Requirements:**
   - After `PatchBuilderV2.commit()` succeeds, apply the just-committed patch to `_cachedState` in-place via `JoinReducer.join()`.
@@ -372,7 +372,7 @@ The single biggest DX problem. Developers manually orchestrate state freshness a
 
 #### AP/INVAL/3 — Wire Writer.commitPatch() to trigger invalidation
 
-- **Status:** `BLOCKED`
+- **Status:** `OPEN`
 - **User Story:** As a developer using the Writer API, I want the same freshness guarantees as the low-level patch API.
 - **Requirements:**
   - `Writer.commitPatch()` and `PatchSession.commit()` trigger the same eager re-materialize as `PatchBuilderV2.commit()`.
@@ -398,7 +398,7 @@ The single biggest DX problem. Developers manually orchestrate state freshness a
 
 #### AP/LAZY/1 — Add autoMaterialize option to WarpGraph.open()
 
-- **Status:** `OPEN`
+- **Status:** `CLOSED`
 - **User Story:** As a developer, I want to opt in to automatic materialization so I never see stale-state errors.
 - **Requirements:**
   - Add `autoMaterialize: boolean` option to `WarpGraph.open()` (default `false`).
@@ -420,7 +420,7 @@ The single biggest DX problem. Developers manually orchestrate state freshness a
 
 #### AP/LAZY/2 — Guard query methods with auto-materialize
 
-- **Status:** `BLOCKED`
+- **Status:** `OPEN`
 - **User Story:** As a developer with autoMaterialize enabled, I want query methods to just work without manual state management.
 - **Requirements:**
   - When `autoMaterialize === true` and `_cachedState` is null or `_stateDirty === true`, call `materialize()` before returning results.
@@ -453,7 +453,7 @@ The single biggest DX problem. Developers manually orchestrate state freshness a
 
 #### AP/CKPT/1 — Add checkpointPolicy option to WarpGraph.open()
 
-- **Status:** `OPEN`
+- **Status:** `CLOSED`
 - **User Story:** As a developer, I want to configure automatic checkpointing so materialization stays fast without manual intervention.
 - **Requirements:**
   - Add `checkpointPolicy: { every: number }` option to `WarpGraph.open()`.
@@ -476,7 +476,7 @@ The single biggest DX problem. Developers manually orchestrate state freshness a
 
 #### AP/CKPT/2 — Track patch count since last checkpoint
 
-- **Status:** `OPEN`
+- **Status:** `CLOSED`
 - **User Story:** As the system, I need to know how many patches have been applied since the last checkpoint to decide when to auto-checkpoint.
 - **Requirements:**
   - During `materialize()`, count patches loaded since the last checkpoint (or total if no checkpoint).
@@ -499,7 +499,7 @@ The single biggest DX problem. Developers manually orchestrate state freshness a
 
 #### AP/CKPT/3 — Wire auto-checkpoint into materialize() path
 
-- **Status:** `BLOCKED`
+- **Status:** `OPEN`
 - **User Story:** As a developer, I want checkpoints created automatically when my patch count exceeds the threshold.
 - **Requirements:**
   - At the end of `materialize()`, if `checkpointPolicy` is set and `_patchesSinceCheckpoint >= policy.every`, call `createCheckpoint()`.
@@ -554,7 +554,7 @@ The single biggest DX problem. Developers manually orchestrate state freshness a
 
 #### AP/HOOK/2 — Integrate hook into install scripts
 
-- **Status:** `BLOCKED`
+- **Status:** `OPEN`
 - **User Story:** As a developer, I want the post-merge hook installed automatically alongside existing hooks.
 - **Requirements:**
   - Add `post-merge` to the hooks installed by `scripts/setup-hooks.js`.
@@ -1226,7 +1226,7 @@ The library is opaque at runtime. Users can't see what's happening without addin
 
 #### LH/STATUS/1 — Implement graph.status() method
 
-- **Status:** `BLOCKED`
+- **Status:** `OPEN`
 - **User Story:** As a developer, I want a single call that tells me everything about my graph's health.
 - **Requirements:**
   - Returns:

@@ -80,9 +80,9 @@ export default class CommitDagTraversalService {
    */
   async _getNeighbors(sha, direction) {
     if (direction === 'forward') {
-      return this._indexReader.getChildren(sha);
+      return await this._indexReader.getChildren(sha);
     }
-    return this._indexReader.getParents(sha);
+    return await this._indexReader.getParents(sha);
   }
 
   /**

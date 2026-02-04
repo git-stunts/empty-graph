@@ -51,7 +51,7 @@ export class Writer {
    * @param {import('../crdt/VersionVector.js').VersionVector} options.versionVector - Current version vector
    * @param {Function} options.getCurrentState - Function to get current materialized state
    */
-  constructor({ persistence, graphName, writerId, versionVector, getCurrentState }) {
+  constructor({ persistence, graphName, writerId, versionVector, getCurrentState, onCommitSuccess }) {
     validateWriterId(writerId);
 
     /** @type {import('../../ports/GraphPersistencePort.js').default} */
@@ -68,6 +68,9 @@ export class Writer {
 
     /** @type {Function} */
     this._getCurrentState = getCurrentState;
+
+    /** @type {Function|undefined} */
+    this._onCommitSuccess = onCommitSuccess;
   }
 
   /**
@@ -93,7 +96,7 @@ export class Writer {
    */
   async head() {
     const writerRef = buildWriterRef(this._graphName, this._writerId);
-    return this._persistence.readRef(writerRef);
+    return await this._persistence.readRef(writerRef);
   }
 
   /**
@@ -140,6 +143,7 @@ export class Writer {
       versionVector: vvClone(this._versionVector),
       getCurrentState: this._getCurrentState,
       expectedParentSha: expectedOldHead,
+      onCommitSuccess: this._onCommitSuccess,
     });
 
     // Return PatchSession wrapping the builder
@@ -167,6 +171,6 @@ export class Writer {
   async commitPatch(build) {
     const patch = await this.beginPatch();
     await build(patch);
-    return patch.commit();
+    return await patch.commit();
   }
 }

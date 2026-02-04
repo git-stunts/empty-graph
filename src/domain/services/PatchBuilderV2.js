@@ -268,9 +268,9 @@ export class PatchBuilderV2 {
     // 9. Update writer ref to point to new commit
     await this._persistence.updateRef(writerRef, newCommitSha);
 
-    // 10. Notify success callback (updates graph's version vector)
+    // 10. Notify success callback (updates graph's version vector + eager re-materialize)
     if (this._onCommitSuccess) {
-      this._onCommitSuccess();
+      this._onCommitSuccess({ patch, sha: newCommitSha });
     }
 
     // 11. Return the new commit SHA

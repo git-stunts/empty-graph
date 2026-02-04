@@ -80,7 +80,7 @@ export default class LogicalTraversal {
   async _prepare(start, { dir, labelFilter, maxDepth }) {
     const materialized = await this._graph._materializeGraph();
 
-    if (!this._graph.hasNode(start)) {
+    if (!(await this._graph.hasNode(start))) {
       throw new TraversalError(`Start node not found: ${start}`, {
         code: 'NODE_NOT_FOUND',
         context: { start },
@@ -255,6 +255,6 @@ export default class LogicalTraversal {
    * @returns {Promise<string[]>} Node IDs in visit order
    */
   async connectedComponent(start, options = {}) {
-    return this.bfs(start, { ...options, dir: 'both' });
+    return await this.bfs(start, { ...options, dir: 'both' });
   }
 }

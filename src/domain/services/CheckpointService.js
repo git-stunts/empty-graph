@@ -52,7 +52,7 @@ import { encodeEdgeKey, encodePropKey, cloneStateV5, reduceV5 } from './JoinRedu
  * @returns {Promise<string>} The checkpoint commit SHA
  */
 export async function create({ persistence, graphName, state, frontier, parents = [], compact = true }) {
-  return createV5({ persistence, graphName, state, frontier, parents, compact });
+  return await createV5({ persistence, graphName, state, frontier, parents, compact });
 }
 
 /**

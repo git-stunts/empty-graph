@@ -69,7 +69,7 @@ export default class GitGraphAdapter extends GraphPersistencePort {
    * @private
    */
   async _executeWithRetry(options) {
-    return retry(() => this.plumbing.execute(options), this._retryOptions);
+    return await retry(() => this.plumbing.execute(options), this._retryOptions);
   }
 
   get emptyTree() {

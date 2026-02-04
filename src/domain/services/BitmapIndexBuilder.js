@@ -135,7 +135,7 @@ export default class BitmapIndexBuilder {
     const wrapShard = (data) => ({
       version: SHARD_VERSION,
       checksum: computeChecksum(data),
-      data: data,
+      data,
     });
 
     // Serialize ID mappings (sharded by prefix)

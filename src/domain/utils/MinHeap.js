@@ -69,12 +69,13 @@ class MinHeap {
    * @private
    * @param {number} index - Starting index
    */
-  _bubbleUp(index) {
-    while (index > 0) {
-      const parentIndex = Math.floor((index - 1) / 2);
-      if (this.heap[parentIndex].priority <= this.heap[index].priority) { break; }
-      [this.heap[parentIndex], this.heap[index]] = [this.heap[index], this.heap[parentIndex]];
-      index = parentIndex;
+  _bubbleUp(pos) {
+    let current = pos;
+    while (current > 0) {
+      const parentIndex = Math.floor((current - 1) / 2);
+      if (this.heap[parentIndex].priority <= this.heap[current].priority) { break; }
+      [this.heap[parentIndex], this.heap[current]] = [this.heap[current], this.heap[parentIndex]];
+      current = parentIndex;
     }
   }
 
@@ -84,12 +85,13 @@ class MinHeap {
    * @private
    * @param {number} index - Starting index
    */
-  _bubbleDown(index) {
-    const length = this.heap.length;
+  _bubbleDown(pos) {
+    const {length} = this.heap;
+    let current = pos;
     while (true) {
-      const leftChild = 2 * index + 1;
-      const rightChild = 2 * index + 2;
-      let smallest = index;
+      const leftChild = 2 * current + 1;
+      const rightChild = 2 * current + 2;
+      let smallest = current;
 
       if (leftChild < length && this.heap[leftChild].priority < this.heap[smallest].priority) {
         smallest = leftChild;
@@ -97,10 +99,10 @@ class MinHeap {
       if (rightChild < length && this.heap[rightChild].priority < this.heap[smallest].priority) {
         smallest = rightChild;
       }
-      if (smallest === index) { break; }
+      if (smallest === current) { break; }
 
-      [this.heap[index], this.heap[smallest]] = [this.heap[smallest], this.heap[index]];
-      index = smallest;
+      [this.heap[current], this.heap[smallest]] = [this.heap[smallest], this.heap[current]];
+      current = smallest;
     }
   }
 }

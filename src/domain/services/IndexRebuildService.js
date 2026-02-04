@@ -159,7 +159,7 @@ export default class IndexRebuildService {
       }
     }
 
-    return this._persistIndex(builder);
+    return await this._persistIndex(builder);
   }
 
   /**
@@ -203,7 +203,7 @@ export default class IndexRebuildService {
       }
     }
 
-    return builder.finalize({ signal });
+    return await builder.finalize({ signal });
   }
 
   /**
@@ -223,7 +223,7 @@ export default class IndexRebuildService {
       const oid = await this.storage.writeBlob(buffer);
       flatEntries.push(`100644 blob ${oid}\t${path}`);
     }
-    return this.storage.writeTree(flatEntries);
+    return await this.storage.writeTree(flatEntries);
   }
 
   /**

@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 
+import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
+import readline from 'node:readline';
+import { execSync } from 'node:child_process';
 import GitPlumbing, { ShellRunnerFactory } from '@git-stunts/plumbing';
 import WarpGraph from '../src/domain/WarpGraph.js';
 import GitGraphAdapter from '../src/infrastructure/adapters/GitGraphAdapter.js';
@@ -14,6 +17,7 @@ import {
   buildWritersPrefix,
   parseWriterIdFromRef,
 } from '../src/domain/utils/RefLayout.js';
+import { HookInstaller, classifyExistingHook } from '../src/domain/services/HookInstaller.js';
 
 const EXIT_CODES = {
   OK: 0,
@@ -26,11 +30,13 @@ const HELP_TEXT = `warp-graph <command> [options]
 (or: git warp <command> [options])
 
 Commands:
-  info       Summarize graphs in the repo
-  query      Run a logical graph query
-  path       Find a logical path between two nodes
-  history    Show writer history
-  check      Report graph health/GC status
+  info             Summarize graphs in the repo
+  query            Run a logical graph query
+  path             Find a logical path between two nodes
+  history          Show writer history
+  check            Report graph health/GC status
+  materialize      Materialize and checkpoint all graphs
+  install-hooks    Install post-merge git hook
 
 Options:
   --repo <path>     Path to git repo (default: cwd)
@@ -38,6 +44,9 @@ Options:
   --graph <name>    Graph name (required if repo has multiple graphs)
   --writer <id>     Writer id (default: cli)
   -h, --help        Show this help
+
+Install-hooks options:
+  --force           Replace existing hook (backs up original)
 
 Query options:
   --match <glob>        Match node ids (default: *)
@@ -589,7 +598,24 @@ function renderCheck(payload) {
     lines.push(`Tombstone Ratio: ${payload.gc.tombstoneRatio}`);
   }
 
+  if (payload.hook) {
+    lines.push(formatHookStatusLine(payload.hook));
+  }
+
   return `${lines.join('\n')}\n`;
+}
+
+function formatHookStatusLine(hook) {
+  if (!hook.installed && hook.foreign) {
+    return "Hook: foreign hook present — run 'git warp install-hooks'";
+  }
+  if (!hook.installed) {
+    return "Hook: not installed — run 'git warp install-hooks'";
+  }
+  if (hook.current) {
+    return `Hook: installed (v${hook.version}) — up to date`;
+  }
+  return `Hook: installed (v${hook.version}) — upgrade available, run 'git warp install-hooks'`;
 }
 
 function renderHistory(payload) {
@@ -642,6 +668,16 @@ function emit(payload, { json, command }) {
 
   if (command === 'history') {
     process.stdout.write(renderHistory(payload));
+    return;
+  }
+
+  if (command === 'materialize') {
+    process.stdout.write(renderMaterialize(payload));
+    return;
+  }
+
+  if (command === 'install-hooks') {
+    process.stdout.write(renderInstallHooks(payload));
     return;
   }
 
@@ -792,6 +828,7 @@ async function handleCheck({ options }) {
   const writerHeads = await collectWriterHeads(graph);
   const checkpoint = await loadCheckpointInfo(persistence, graphName);
   const coverage = await loadCoverageInfo(persistence, graphName, writerHeads);
+  const hook = getHookStatusForCheck(options.repo);
 
   return {
     payload: buildCheckPayload({
@@ -802,6 +839,7 @@ async function handleCheck({ options }) {
       writerHeads,
       coverage,
       gcMetrics,
+      hook,
     }),
     exitCode: EXIT_CODES.OK,
   };
@@ -810,7 +848,7 @@ async function handleCheck({ options }) {
 async function getHealth(persistence) {
   const clock = new PerformanceClockAdapter();
   const healthService = new HealthCheckService({ persistence, clock });
-  return healthService.getHealth();
+  return await healthService.getHealth();
 }
 
 async function getGcMetrics(graph) {
@@ -891,6 +929,7 @@ function buildCheckPayload({
   writerHeads,
   coverage,
   gcMetrics,
+  hook,
 }) {
   return {
     repo,
@@ -903,6 +942,7 @@ function buildCheckPayload({
     },
     coverage,
     gc: gcMetrics,
+    hook: hook || null,
   };
 }
 
@@ -934,12 +974,252 @@ async function handleHistory({ options, args }) {
   return { payload, exitCode: EXIT_CODES.OK };
 }
 
+async function materializeOneGraph({ persistence, graphName, writerId }) {
+  const graph = await WarpGraph.open({ persistence, graphName, writerId });
+  await graph.materialize();
+  const nodes = await graph.getNodes();
+  const edges = await graph.getEdges();
+  const checkpoint = await graph.createCheckpoint();
+  return { graph: graphName, nodes: nodes.length, edges: edges.length, checkpoint };
+}
+
+async function handleMaterialize({ options }) {
+  const { persistence } = await createPersistence(options.repo);
+  const graphNames = await listGraphNames(persistence);
+
+  if (graphNames.length === 0) {
+    return {
+      payload: { graphs: [] },
+      exitCode: EXIT_CODES.OK,
+    };
+  }
+
+  const targets = options.graph
+    ? [options.graph]
+    : graphNames;
+
+  if (options.graph && !graphNames.includes(options.graph)) {
+    throw notFoundError(`Graph not found: ${options.graph}`);
+  }
+
+  const results = [];
+  for (const name of targets) {
+    try {
+      const result = await materializeOneGraph({
+        persistence,
+        graphName: name,
+        writerId: options.writer,
+      });
+      results.push(result);
+    } catch (error) {
+      results.push({
+        graph: name,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  const allFailed = results.every((r) => r.error);
+  return {
+    payload: { graphs: results },
+    exitCode: allFailed ? EXIT_CODES.INTERNAL : EXIT_CODES.OK,
+  };
+}
+
+function renderMaterialize(payload) {
+  if (payload.graphs.length === 0) {
+    return 'No graphs found in repo.\n';
+  }
+
+  const lines = [];
+  for (const entry of payload.graphs) {
+    if (entry.error) {
+      lines.push(`${entry.graph}: error — ${entry.error}`);
+    } else {
+      lines.push(`${entry.graph}: ${entry.nodes} nodes, ${entry.edges} edges, checkpoint ${entry.checkpoint}`);
+    }
+  }
+  return `${lines.join('\n')}\n`;
+}
+
+function renderInstallHooks(payload) {
+  if (payload.action === 'up-to-date') {
+    return `Hook: already up to date (v${payload.version}) at ${payload.hookPath}\n`;
+  }
+  if (payload.action === 'skipped') {
+    return 'Hook: installation skipped\n';
+  }
+  const lines = [`Hook: ${payload.action} (v${payload.version})`, `Path: ${payload.hookPath}`];
+  if (payload.backupPath) {
+    lines.push(`Backup: ${payload.backupPath}`);
+  }
+  return `${lines.join('\n')}\n`;
+}
+
+function createHookInstaller() {
+  return new HookInstaller({
+    fs,
+    execGitConfig: execGitConfigValue,
+  });
+}
+
+function execGitConfigValue(repoPath, key) {
+  try {
+    if (key === '--git-dir') {
+      return execSync(`git -C ${repoPath} rev-parse --git-dir`, {
+        encoding: 'utf8',
+      }).trim();
+    }
+    return execSync(`git -C ${repoPath} config ${key}`, {
+      encoding: 'utf8',
+    }).trim();
+  } catch {
+    return null;
+  }
+}
+
+function isInteractive() {
+  return Boolean(process.stderr.isTTY);
+}
+
+function promptUser(question) {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stderr,
+  });
+  return new Promise((resolve) => {
+    rl.question(question, (answer) => {
+      rl.close();
+      resolve(answer.trim());
+    });
+  });
+}
+
+function parseInstallHooksArgs(args) {
+  const options = { force: false };
+  for (const arg of args) {
+    if (arg === '--force') {
+      options.force = true;
+    } else if (arg.startsWith('-')) {
+      throw usageError(`Unknown install-hooks option: ${arg}`);
+    }
+  }
+  return options;
+}
+
+async function resolveStrategy(classification, hookOptions) {
+  if (hookOptions.force) {
+    return 'replace';
+  }
+
+  if (classification.kind === 'none') {
+    return 'install';
+  }
+
+  if (classification.kind === 'ours') {
+    return await promptForOursStrategy(classification);
+  }
+
+  return await promptForForeignStrategy();
+}
+
+async function promptForOursStrategy(classification) {
+  const installer = createHookInstaller();
+  if (classification.version === installer._version) {
+    return 'up-to-date';
+  }
+
+  if (!isInteractive()) {
+    throw usageError('Existing hook found. Use --force or run interactively.');
+  }
+
+  const answer = await promptUser(
+    `Upgrade hook from v${classification.version} to v${installer._version}? [Y/n] `,
+  );
+  if (answer === '' || answer.toLowerCase() === 'y') {
+    return 'upgrade';
+  }
+  return 'skip';
+}
+
+async function promptForForeignStrategy() {
+  if (!isInteractive()) {
+    throw usageError('Existing hook found. Use --force or run interactively.');
+  }
+
+  process.stderr.write('Existing post-merge hook found.\n');
+  process.stderr.write('  1) Append (keep existing hook, add warp section)\n');
+  process.stderr.write('  2) Replace (back up existing, install fresh)\n');
+  process.stderr.write('  3) Skip\n');
+  const answer = await promptUser('Choose [1-3]: ');
+
+  if (answer === '1') {
+    return 'append';
+  }
+  if (answer === '2') {
+    return 'replace';
+  }
+  return 'skip';
+}
+
+async function handleInstallHooks({ options, args }) {
+  const hookOptions = parseInstallHooksArgs(args);
+  const installer = createHookInstaller();
+  const status = installer.getHookStatus(options.repo);
+  const content = readHookContent(status.hookPath);
+  const classification = classifyExistingHook(content);
+  const strategy = await resolveStrategy(classification, hookOptions);
+
+  if (strategy === 'up-to-date') {
+    return {
+      payload: {
+        action: 'up-to-date',
+        hookPath: status.hookPath,
+        version: installer._version,
+      },
+      exitCode: EXIT_CODES.OK,
+    };
+  }
+
+  if (strategy === 'skip') {
+    return {
+      payload: { action: 'skipped' },
+      exitCode: EXIT_CODES.OK,
+    };
+  }
+
+  const result = installer.install(options.repo, { strategy });
+  return {
+    payload: result,
+    exitCode: EXIT_CODES.OK,
+  };
+}
+
+function readHookContent(hookPath) {
+  try {
+    return fs.readFileSync(hookPath, 'utf8');
+  } catch {
+    return null;
+  }
+}
+
+function getHookStatusForCheck(repoPath) {
+  try {
+    const installer = createHookInstaller();
+    return installer.getHookStatus(repoPath);
+  } catch {
+    return null;
+  }
+}
+
 const COMMANDS = new Map([
   ['info', handleInfo],
   ['query', handleQuery],
   ['path', handlePath],
   ['history', handleHistory],
   ['check', handleCheck],
+  ['materialize', handleMaterialize],
+  ['install-hooks', handleInstallHooks],
 ]);
 
 async function main() {

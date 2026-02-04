@@ -10,7 +10,7 @@
 
 import { validateGraphName, validateWriterId, buildWriterRef, buildCoverageRef, buildCheckpointRef, buildWritersPrefix, parseWriterIdFromRef } from './utils/RefLayout.js';
 import { PatchBuilderV2 } from './services/PatchBuilderV2.js';
-import { reduceV5, createEmptyStateV5, joinStates, decodeEdgeKey, decodePropKey } from './services/JoinReducer.js';
+import { reduceV5, createEmptyStateV5, joinStates, join as joinPatch, decodeEdgeKey, decodePropKey } from './services/JoinReducer.js';
 import { orsetContains, orsetElements } from './crdt/ORSet.js';
 import { decode } from '../infrastructure/codecs/CborCodec.js';
 import { decodePatchMessage, detectMessageKind, encodeAnchorMessage } from './services/WarpMessageCodec.js';
@@ -90,7 +90,7 @@ export default class WarpGraph {
    * @param {Object} [options.gcPolicy] - GC policy configuration (overrides defaults)
    * @param {number} [options.adjacencyCacheSize] - Max materialized adjacency cache entries
    */
-  constructor({ persistence, graphName, writerId, gcPolicy = {}, adjacencyCacheSize = DEFAULT_ADJACENCY_CACHE_SIZE }) {
+  constructor({ persistence, graphName, writerId, gcPolicy = {}, adjacencyCacheSize = DEFAULT_ADJACENCY_CACHE_SIZE, checkpointPolicy, autoMaterialize = false }) {
     /** @type {import('../ports/GraphPersistencePort.js').default} */
     this._persistence = persistence;
 
@@ -106,6 +106,9 @@ export default class WarpGraph {
     /** @type {import('./services/JoinReducer.js').WarpStateV5|null} */
     this._cachedState = null;
 
+    /** @type {boolean} */
+    this._stateDirty = false;
+
     /** @type {Object} */
     this._gcPolicy = { ...DEFAULT_GC_POLICY, ...gcPolicy };
 
@@ -114,6 +117,15 @@ export default class WarpGraph {
 
     /** @type {number} */
     this._patchesSinceGC = 0;
+
+    /** @type {number} */
+    this._patchesSinceCheckpoint = 0;
+
+    /** @type {{every: number}|null} */
+    this._checkpointPolicy = checkpointPolicy || null;
+
+    /** @type {boolean} */
+    this._autoMaterialize = autoMaterialize;
 
     /** @type {LogicalTraversal} */
     this.traverse = new LogicalTraversal(this);
@@ -143,7 +155,7 @@ export default class WarpGraph {
    *   writerId: 'node-1'
    * });
    */
-  static async open({ persistence, graphName, writerId, gcPolicy = {}, adjacencyCacheSize }) {
+  static async open({ persistence, graphName, writerId, gcPolicy = {}, adjacencyCacheSize, checkpointPolicy, autoMaterialize }) {
     // Validate inputs
     validateGraphName(graphName);
     validateWriterId(writerId);
@@ -152,7 +164,22 @@ export default class WarpGraph {
       throw new Error('persistence is required');
     }
 
-    const graph = new WarpGraph({ persistence, graphName, writerId, gcPolicy, adjacencyCacheSize });
+    // Validate checkpointPolicy
+    if (checkpointPolicy !== undefined && checkpointPolicy !== null) {
+      if (typeof checkpointPolicy !== 'object' || checkpointPolicy === null) {
+        throw new Error('checkpointPolicy must be an object with { every: number }');
+      }
+      if (!Number.isInteger(checkpointPolicy.every) || checkpointPolicy.every <= 0) {
+        throw new Error('checkpointPolicy.every must be a positive integer');
+      }
+    }
+
+    // Validate autoMaterialize
+    if (autoMaterialize !== undefined && typeof autoMaterialize !== 'boolean') {
+      throw new Error('autoMaterialize must be a boolean');
+    }
+
+    const graph = new WarpGraph({ persistence, graphName, writerId, gcPolicy, adjacencyCacheSize, checkpointPolicy, autoMaterialize });
 
     // Validate migration boundary
     await graph._validateMigrationBoundary();
@@ -206,8 +233,16 @@ export default class WarpGraph {
       versionVector: this._versionVector,
       getCurrentState: () => this._cachedState,
       expectedParentSha: parentSha,
-      onCommitSuccess: () => {
+      onCommitSuccess: ({ patch, sha } = {}) => {
         vvIncrement(this._versionVector, this._writerId);
+        this._patchesSinceCheckpoint++;
+        // Eager re-materialize: apply the just-committed patch to cached state
+        if (this._cachedState && patch && sha) {
+          joinPatch(this._cachedState, patch, sha);
+          this._setMaterializedState(this._cachedState);
+        } else {
+          this._stateDirty = true;
+        }
       },
     });
   }
@@ -220,7 +255,7 @@ export default class WarpGraph {
    * @returns {Promise<Array<{patch: import('./types/WarpTypes.js').PatchV1, sha: string}>>} Array of patches
    */
   async getWriterPatches(writerId, stopAtSha = null) {
-    return this._loadWriterPatches(writerId, stopAtSha);
+    return await this._loadWriterPatches(writerId, stopAtSha);
   }
 
   /**
@@ -285,7 +320,7 @@ export default class WarpGraph {
     while (currentSha && currentSha !== stopAtSha) {
       // Get commit info and message
       const nodeInfo = await this._persistence.getNodeInfo(currentSha);
-      const message = nodeInfo.message;
+      const {message} = nodeInfo;
 
       // Check if this is a patch commit
       const kind = detectMessageKind(message);
@@ -371,6 +406,7 @@ export default class WarpGraph {
    */
   _setMaterializedState(state) {
     this._cachedState = state;
+    this._stateDirty = false;
     this._versionVector = vvClone(state.observedFrontier);
 
     const stateHash = computeStateHashV5(state);
@@ -417,41 +453,53 @@ export default class WarpGraph {
     // Check for checkpoint
     const checkpoint = await this._loadLatestCheckpoint();
 
+    let state;
+    let patchCount = 0;
+
     // If checkpoint exists, use incremental materialization
     if (checkpoint?.schema === 2) {
       const patches = await this._loadPatchesSince(checkpoint);
-      const state = reduceV5(patches, checkpoint.state);
-      this._setMaterializedState(state);
-      return state;
+      state = reduceV5(patches, checkpoint.state);
+      patchCount = patches.length;
+    } else {
+      // 1. Discover all writers
+      const writerIds = await this.discoverWriters();
+
+      // 2. If no writers, return empty state
+      if (writerIds.length === 0) {
+        state = createEmptyStateV5();
+      } else {
+        // 3. For each writer, collect all patches
+        const allPatches = [];
+        for (const writerId of writerIds) {
+          const writerPatches = await this._loadWriterPatches(writerId);
+          allPatches.push(...writerPatches);
+        }
+
+        // 4. If no patches, return empty state
+        if (allPatches.length === 0) {
+          state = createEmptyStateV5();
+        } else {
+          // 5. Reduce all patches to state
+          state = reduceV5(allPatches);
+          patchCount = allPatches.length;
+        }
+      }
     }
 
-    // 1. Discover all writers
-    const writerIds = await this.discoverWriters();
-
-    // 2. If no writers, return empty state
-    if (writerIds.length === 0) {
-      const emptyState = createEmptyStateV5();
-      this._setMaterializedState(emptyState);
-      return emptyState;
-    }
-
-    // 3. For each writer, collect all patches
-    const allPatches = [];
-    for (const writerId of writerIds) {
-      const writerPatches = await this._loadWriterPatches(writerId);
-      allPatches.push(...writerPatches);
-    }
-
-    // 4. If no patches, return empty state
-    if (allPatches.length === 0) {
-      const emptyState = createEmptyStateV5();
-      this._setMaterializedState(emptyState);
-      return emptyState;
-    }
-
-    // 5. Reduce all patches to state
-    const state = reduceV5(allPatches);
     this._setMaterializedState(state);
+    this._patchesSinceCheckpoint = patchCount;
+
+    // Auto-checkpoint if policy is set and threshold exceeded
+    if (this._checkpointPolicy && patchCount >= this._checkpointPolicy.every) {
+      try {
+        await this.createCheckpoint();
+        this._patchesSinceCheckpoint = 0;
+      } catch {
+        // Checkpoint failure does not break materialize — continue silently
+      }
+    }
+
     return state;
   }
 
@@ -586,7 +634,7 @@ export default class WarpGraph {
 
       while (currentSha && currentSha !== fromSha) {
         const nodeInfo = await this._persistence.getNodeInfo(currentSha);
-        const message = nodeInfo.message;
+        const {message} = nodeInfo;
 
         const kind = detectMessageKind(message);
         if (kind !== 'patch') {
@@ -1081,7 +1129,7 @@ export default class WarpGraph {
    */
   async processSyncRequest(request) {
     const localFrontier = await this.getFrontier();
-    return processSyncRequest(
+    return await processSyncRequest(
       request,
       localFrontier,
       this._persistence,
@@ -1169,7 +1217,8 @@ export default class WarpGraph {
       } catch {
         throw new SyncError('Invalid remote URL', {
           code: 'E_SYNC_REMOTE_URL',
-          context: { remote: String(remote) },
+          // eslint-disable-next-line @typescript-eslint/no-base-to-string -- remote is a string or URL
+        context: { remote: String(remote) },
         });
       }
 
@@ -1360,6 +1409,7 @@ export default class WarpGraph {
     const normalizedPath = path.startsWith('/') ? path : `/${path}`;
     const { createServer } = await import('node:http');
 
+    // eslint-disable-next-line @typescript-eslint/require-await -- handler dispatches to async methods internally
     const server = createServer(async (req, res) => {
       const contentType = (req.headers['content-type'] || '').toLowerCase();
       if (contentType && !contentType.startsWith('application/json')) {
@@ -1488,8 +1538,8 @@ export default class WarpGraph {
    */
   async writer(writerId) {
     // Build config adapters for resolveWriterId
-    const configGet = async (key) => this._persistence.configGet(key);
-    const configSet = async (key, value) => this._persistence.configSet(key, value);
+    const configGet = async (key) => await this._persistence.configGet(key);
+    const configSet = async (key, value) => await this._persistence.configSet(key, value);
 
     // Resolve the writer ID
     const resolvedWriterId = await resolveWriterId({
@@ -1505,6 +1555,16 @@ export default class WarpGraph {
       writerId: resolvedWriterId,
       versionVector: this._versionVector,
       getCurrentState: () => this._cachedState,
+      onCommitSuccess: ({ patch, sha } = {}) => {
+        vvIncrement(this._versionVector, resolvedWriterId);
+        this._patchesSinceCheckpoint++;
+        if (this._cachedState && patch && sha) {
+          joinPatch(this._cachedState, patch, sha);
+          this._setMaterializedState(this._cachedState);
+        } else {
+          this._stateDirty = true;
+        }
+      },
     });
   }
 
@@ -1548,7 +1608,38 @@ export default class WarpGraph {
       writerId: freshWriterId,
       versionVector: this._versionVector,
       getCurrentState: () => this._cachedState,
+      onCommitSuccess: ({ patch, sha } = {}) => {
+        vvIncrement(this._versionVector, freshWriterId);
+        this._patchesSinceCheckpoint++;
+        if (this._cachedState && patch && sha) {
+          joinPatch(this._cachedState, patch, sha);
+          this._setMaterializedState(this._cachedState);
+        } else {
+          this._stateDirty = true;
+        }
+      },
     });
+  }
+
+  // ============================================================================
+  // Auto-Materialize Guard
+  // ============================================================================
+
+  /**
+   * Ensures cached state is fresh. When autoMaterialize is enabled,
+   * materializes if state is null or dirty. Otherwise throws.
+   *
+   * @returns {Promise<void>}
+   * @private
+   */
+  async _ensureFreshState() {
+    if (this._autoMaterialize && (!this._cachedState || this._stateDirty)) {
+      await this.materialize();
+      return;
+    }
+    if (!this._cachedState) {
+      throw new Error('No cached state. Call materialize() first.');
+    }
   }
 
   // ============================================================================
@@ -1570,7 +1661,7 @@ export default class WarpGraph {
    * **Requires a cached state.** Call materialize() first if not already cached.
    *
    * @param {string} nodeId - The node ID to check
-   * @returns {boolean} True if the node exists in the materialized state
+   * @returns {Promise<boolean>} True if the node exists in the materialized state
    * @throws {Error} If no cached state exists
    *
    * @example
@@ -1579,10 +1670,8 @@ export default class WarpGraph {
    *   console.log('Alice exists in the graph');
    * }
    */
-  hasNode(nodeId) {
-    if (!this._cachedState) {
-      throw new Error('No cached state. Call materialize() first.');
-    }
+  async hasNode(nodeId) {
+    await this._ensureFreshState();
     return orsetContains(this._cachedState.nodeAlive, nodeId);
   }
 
@@ -1595,7 +1684,7 @@ export default class WarpGraph {
    * **Requires a cached state.** Call materialize() first if not already cached.
    *
    * @param {string} nodeId - The node ID to get properties for
-   * @returns {Map<string, *>|null} Map of property key → value, or null if node doesn't exist
+   * @returns {Promise<Map<string, *>|null>} Map of property key → value, or null if node doesn't exist
    * @throws {Error} If no cached state exists
    *
    * @example
@@ -1605,10 +1694,8 @@ export default class WarpGraph {
    *   console.log('Name:', props.get('name'));
    * }
    */
-  getNodeProps(nodeId) {
-    if (!this._cachedState) {
-      throw new Error('No cached state. Call materialize() first.');
-    }
+  async getNodeProps(nodeId) {
+    await this._ensureFreshState();
 
     // Check if node exists
     if (!orsetContains(this._cachedState.nodeAlive, nodeId)) {
@@ -1640,7 +1727,7 @@ export default class WarpGraph {
    * @param {string} nodeId - The node ID to get neighbors for
    * @param {'outgoing' | 'incoming' | 'both'} [direction='both'] - Edge direction to follow
    * @param {string} [edgeLabel] - Optional edge label filter
-   * @returns {Array<{nodeId: string, label: string, direction: 'outgoing' | 'incoming'}>} Array of neighbor info
+   * @returns {Promise<Array<{nodeId: string, label: string, direction: 'outgoing' | 'incoming'}>>} Array of neighbor info
    * @throws {Error} If no cached state exists
    *
    * @example
@@ -1650,10 +1737,8 @@ export default class WarpGraph {
    * // Get neighbors connected by 'follows' edges
    * const follows = graph.neighbors('user:alice', 'outgoing', 'follows');
    */
-  neighbors(nodeId, direction = 'both', edgeLabel = undefined) {
-    if (!this._cachedState) {
-      throw new Error('No cached state. Call materialize() first.');
-    }
+  async neighbors(nodeId, direction = 'both', edgeLabel = undefined) {
+    await this._ensureFreshState();
 
     const neighbors = [];
 
@@ -1690,7 +1775,7 @@ export default class WarpGraph {
    *
    * **Requires a cached state.** Call materialize() first if not already cached.
    *
-   * @returns {string[]} Array of node IDs
+   * @returns {Promise<string[]>} Array of node IDs
    * @throws {Error} If no cached state exists
    *
    * @example
@@ -1699,10 +1784,8 @@ export default class WarpGraph {
    *   console.log(nodeId);
    * }
    */
-  getNodes() {
-    if (!this._cachedState) {
-      throw new Error('No cached state. Call materialize() first.');
-    }
+  async getNodes() {
+    await this._ensureFreshState();
     return [...orsetElements(this._cachedState.nodeAlive)];
   }
 
@@ -1711,7 +1794,7 @@ export default class WarpGraph {
    *
    * **Requires a cached state.** Call materialize() first if not already cached.
    *
-   * @returns {Array<{from: string, to: string, label: string}>} Array of edge info
+   * @returns {Promise<Array<{from: string, to: string, label: string}>>} Array of edge info
    * @throws {Error} If no cached state exists
    *
    * @example
@@ -1720,10 +1803,8 @@ export default class WarpGraph {
    *   console.log(`${edge.from} --${edge.label}--> ${edge.to}`);
    * }
    */
-  getEdges() {
-    if (!this._cachedState) {
-      throw new Error('No cached state. Call materialize() first.');
-    }
+  async getEdges() {
+    await this._ensureFreshState();
 
     const edges = [];
     for (const edgeKey of orsetElements(this._cachedState.edgeAlive)) {

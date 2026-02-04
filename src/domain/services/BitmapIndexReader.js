@@ -162,7 +162,7 @@ export default class BitmapIndexReader {
    * @returns {Promise<string[]>} Array of parent SHAs
    */
   async getParents(sha) {
-    return this._getEdges(sha, 'rev');
+    return await this._getEdges(sha, 'rev');
   }
 
   /**
@@ -171,7 +171,7 @@ export default class BitmapIndexReader {
    * @returns {Promise<string[]>} Array of child SHAs
    */
   async getChildren(sha) {
-    return this._getEdges(sha, 'fwd');
+    return await this._getEdges(sha, 'fwd');
   }
 
   /**

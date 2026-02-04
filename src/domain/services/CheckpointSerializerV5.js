@@ -48,8 +48,8 @@ export function serializeFullStateV5(state) {
   }
   // Sort by key for determinism
   propArray.sort((a, b) => {
-    const keyA = String(a[0]);
-    const keyB = String(b[0]);
+    const keyA = /** @type {string} */ (a[0]);
+    const keyB = /** @type {string} */ (b[0]);
     return keyA < keyB ? -1 : keyA > keyB ? 1 : 0;
   });
 

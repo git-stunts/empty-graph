@@ -241,7 +241,7 @@ export default class QueryBuilder {
   async run() {
     const materialized = await this._graph._materializeGraph();
     const { adjacency, stateHash } = materialized;
-    const allNodes = sortIds(this._graph.getNodes());
+    const allNodes = sortIds(await this._graph.getNodes());
 
     const pattern = this._pattern ?? DEFAULT_PATTERN;
 
@@ -252,7 +252,7 @@ export default class QueryBuilder {
       if (op.type === 'where') {
         const filtered = [];
         for (const nodeId of workingSet) {
-          const propsMap = this._graph.getNodeProps(nodeId) || new Map();
+          const propsMap = (await this._graph.getNodeProps(nodeId)) || new Map();
           const edgesOut = adjacency.outgoing.get(nodeId) || [];
           const edgesIn = adjacency.incoming.get(nodeId) || [];
           const snapshot = createNodeSnapshot({
@@ -296,20 +296,21 @@ export default class QueryBuilder {
     const includeId = !selectFields || selectFields.includes('id');
     const includeProps = !selectFields || selectFields.includes('props');
 
-    const nodes = workingSet.map((nodeId) => {
+    const nodes = [];
+    for (const nodeId of workingSet) {
       const entry = {};
       if (includeId) {
         entry.id = nodeId;
       }
       if (includeProps) {
-        const propsMap = this._graph.getNodeProps(nodeId) || new Map();
+        const propsMap = (await this._graph.getNodeProps(nodeId)) || new Map();
         const props = buildPropsSnapshot(propsMap);
         if (selectFields || Object.keys(props).length > 0) {
           entry.props = props;
         }
       }
-      return entry;
-    });
+      nodes.push(entry);
+    }
 
     return { stateHash, nodes };
   }
