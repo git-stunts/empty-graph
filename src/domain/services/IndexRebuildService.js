@@ -2,6 +2,7 @@ import { performance } from 'perf_hooks';
 import BitmapIndexBuilder from './BitmapIndexBuilder.js';
 import BitmapIndexReader from './BitmapIndexReader.js';
 import StreamingBitmapIndexBuilder from './StreamingBitmapIndexBuilder.js';
+import { loadIndexFrontier, checkStaleness } from './IndexStalenessChecker.js';
 import NoOpLogger from '../../infrastructure/adapters/NoOpLogger.js';
 import { checkAborted } from '../utils/cancellation.js';
 
@@ -278,7 +279,7 @@ export default class IndexRebuildService {
    * const savedOid = await storage.readRef('refs/empty-graph/index');
    * const reader = await rebuildService.load(savedOid);
    */
-  async load(treeOid, { strict = true } = {}) {
+  async load(treeOid, { strict = true, currentFrontier, autoRebuild = false, rebuildRef } = {}) {
     this.logger.debug('Loading index', {
       operation: 'load',
       treeOid,
@@ -288,6 +289,29 @@ export default class IndexRebuildService {
     const startTime = performance.now();
     const shardOids = await this.storage.readTreeOids(treeOid);
     const shardCount = Object.keys(shardOids).length;
+
+    // Staleness check
+    if (currentFrontier) {
+      const indexFrontier = await loadIndexFrontier(shardOids, this.storage);
+      if (indexFrontier) {
+        const result = checkStaleness(indexFrontier, currentFrontier);
+        if (result.stale) {
+          this.logger.warn('Index is stale', {
+            operation: 'load',
+            reason: result.reason,
+            hint: 'Rebuild the index or pass autoRebuild: true',
+          });
+          if (autoRebuild && rebuildRef) {
+            const newTreeOid = await this.rebuild(rebuildRef, { frontier: currentFrontier });
+            return await this.load(newTreeOid, { strict });
+          }
+        }
+      } else {
+        this.logger.debug('No frontier in index (legacy); skipping staleness check', {
+          operation: 'load',
+        });
+      }
+    }
 
     const reader = new BitmapIndexReader({ storage: this.storage, strict, logger: this.logger.child({ component: 'BitmapIndexReader' }) });
     reader.setup(shardOids);
