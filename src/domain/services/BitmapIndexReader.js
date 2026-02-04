@@ -124,6 +124,7 @@ export default class BitmapIndexReader {
    * - `shards_rev_XX.json` - Reverse edge bitmaps (child→parents)
    *
    * @param {Record<string, string>} shardOids - Map of shard path to blob OID
+   * @returns {void}
    * @example
    * // Typical shardOids structure from IndexRebuildService.load()
    * reader.setup({

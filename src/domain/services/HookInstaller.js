@@ -20,7 +20,9 @@ const VERSION_MARKER_PREFIX = '# warp-hook-version:';
 const VERSION_PLACEHOLDER = '__WARP_HOOK_VERSION__';
 
 /**
- * Classify an existing hook file's content.
+ * Classifies an existing hook file's content.
+ *
+ * Determines whether the hook is absent, ours (with version), or foreign (third-party).
  *
  * @param {string|null} content - File content or null if missing
  * @returns {{ kind: 'none'|'ours'|'foreign', version?: string, appended?: boolean }}
@@ -54,9 +56,11 @@ function extractVersion(content) {
 
 export class HookInstaller {
   /**
-   * @param {object} deps
-   * @param {object} deps.fs - { readFileSync, writeFileSync, mkdirSync, existsSync, chmodSync, copyFileSync }
-   * @param {function} deps.execGitConfig - (repoPath, key) => string|null
+   * Creates a new HookInstaller.
+   *
+   * @param {Object} deps - Injected dependencies
+   * @param {Object} deps.fs - Filesystem adapter with methods: readFileSync, writeFileSync, mkdirSync, existsSync, chmodSync, copyFileSync
+   * @param {(repoPath: string, key: string) => string|null} deps.execGitConfig - Function to read git config values
    * @param {string} [deps.version] - Package version (default: read from package.json)
    * @param {string} [deps.templateDir] - Directory containing hook templates
    */
@@ -96,12 +100,13 @@ export class HookInstaller {
   }
 
   /**
-   * Install the post-merge hook.
+   * Installs the post-merge hook.
    *
    * @param {string} repoPath - Path to git repo
-   * @param {object} opts
-   * @param {'install'|'upgrade'|'append'|'replace'} opts.strategy
+   * @param {Object} opts - Install options
+   * @param {'install'|'upgrade'|'append'|'replace'} opts.strategy - Installation strategy
    * @returns {{ action: string, hookPath: string, version: string, backupPath?: string }}
+   * @throws {Error} If the strategy is unknown
    */
   install(repoPath, { strategy }) {
     const hooksDir = this._resolveHooksDir(repoPath);

@@ -5,6 +5,9 @@
  * @class MinHeap
  */
 class MinHeap {
+  /**
+   * Creates an empty MinHeap.
+   */
   constructor() {
     /** @type {Array<{item: *, priority: number}>} */
     this.heap = [];
@@ -67,7 +70,7 @@ class MinHeap {
    * Restore heap property by bubbling up from index.
    *
    * @private
-   * @param {number} index - Starting index
+   * @param {number} pos - Starting index
    */
   _bubbleUp(pos) {
     let current = pos;
@@ -83,7 +86,7 @@ class MinHeap {
    * Restore heap property by bubbling down from index.
    *
    * @private
-   * @param {number} index - Starting index
+   * @param {number} pos - Starting index
    */
   _bubbleDown(pos) {
     const {length} = this.heap;

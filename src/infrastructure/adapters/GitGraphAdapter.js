@@ -35,6 +35,13 @@ const DEFAULT_RETRY_OPTIONS = {
   shouldRetry: isTransientError,
 };
 
+/**
+ * Checks whether a Git ref exists without resolving it.
+ * @param {function(Object): Promise<string>} execute - The git command executor function
+ * @param {string} ref - The ref to check (e.g., 'refs/warp/events/writers/alice')
+ * @returns {Promise<boolean>} True if the ref exists, false otherwise
+ * @throws {Error} If the git command fails for reasons other than a missing ref
+ */
 async function refExists(execute, ref) {
   try {
     await execute({ args: ['show-ref', '--verify', '--quiet', ref] });
@@ -49,6 +56,11 @@ async function refExists(execute, ref) {
 
 /**
  * Implementation of GraphPersistencePort using GitPlumbing.
+ *
+ * Translates graph persistence operations into Git plumbing commands
+ * (commit-tree, hash-object, update-ref, etc.). All write operations
+ * use retry logic with exponential backoff to handle transient Git
+ * lock contention in concurrent multi-writer scenarios.
  */
 export default class GitGraphAdapter extends GraphPersistencePort {
   /**
@@ -72,10 +84,24 @@ export default class GitGraphAdapter extends GraphPersistencePort {
     return await retry(() => this.plumbing.execute(options), this._retryOptions);
   }
 
+  /**
+   * The well-known SHA for Git's empty tree object.
+   * @type {string}
+   * @readonly
+   */
   get emptyTree() {
     return this.plumbing.emptyTree;
   }
 
+  /**
+   * Creates a commit pointing to the empty tree.
+   * @param {Object} options
+   * @param {string} options.message - The commit message (typically CBOR-encoded patch data)
+   * @param {string[]} [options.parents=[]] - Parent commit SHAs
+   * @param {boolean} [options.sign=false] - Whether to GPG-sign the commit
+   * @returns {Promise<string>} The SHA of the created commit
+   * @throws {Error} If any parent OID is invalid
+   */
   async commitNode({ message, parents = [], sign = false }) {
     for (const p of parents) {
       this._validateOid(p);
@@ -111,6 +137,12 @@ export default class GitGraphAdapter extends GraphPersistencePort {
     return oid.trim();
   }
 
+  /**
+   * Retrieves the raw commit message for a given SHA.
+   * @param {string} sha - The commit SHA to read
+   * @returns {Promise<string>} The raw commit message content
+   * @throws {Error} If the SHA is invalid
+   */
   async showNode(sha) {
     this._validateOid(sha);
     return await this._executeWithRetry({ args: ['show', '-s', '--format=%B', sha] });
@@ -120,7 +152,8 @@ export default class GitGraphAdapter extends GraphPersistencePort {
    * Gets full commit metadata for a node.
    * @param {string} sha - The commit SHA to retrieve
    * @returns {Promise<{sha: string, message: string, author: string, date: string, parents: string[]}>}
-   *   Full commit metadata
+   *   Full commit metadata including SHA, message, author, date, and parent SHAs
+   * @throws {Error} If the SHA is invalid or the commit format is malformed
    */
   async getNodeInfo(sha) {
     this._validateOid(sha);
@@ -149,6 +182,15 @@ export default class GitGraphAdapter extends GraphPersistencePort {
     };
   }
 
+  /**
+   * Returns raw git log output for a ref.
+   * @param {Object} options
+   * @param {string} options.ref - The Git ref to log from
+   * @param {number} [options.limit=50] - Maximum number of commits to return
+   * @param {string} [options.format] - Custom format string for git log
+   * @returns {Promise<string>} The raw log output
+   * @throws {Error} If the ref is invalid or the limit is out of range
+   */
   async logNodes({ ref, limit = 50, format }) {
     this._validateRef(ref);
     this._validateLimit(limit);
@@ -169,7 +211,8 @@ export default class GitGraphAdapter extends GraphPersistencePort {
    * @param {string} options.ref - The ref to log from
    * @param {number} [options.limit=1000000] - Maximum number of commits to return
    * @param {string} [options.format] - Custom format string for git log
-   * @returns {Promise<Stream>} A stream of git log output (NUL-terminated records)
+   * @returns {Promise<import('node:stream').Readable>} A readable stream of git log output (NUL-terminated records)
+   * @throws {Error} If the ref is invalid or the limit is out of range
    */
   async logNodesStream({ ref, limit = 1000000, format }) {
     this._validateRef(ref);
@@ -215,6 +258,11 @@ export default class GitGraphAdapter extends GraphPersistencePort {
     }
   }
 
+  /**
+   * Writes content as a Git blob and returns its OID.
+   * @param {Buffer|string} content - The blob content to write
+   * @returns {Promise<string>} The Git OID of the created blob
+   */
   async writeBlob(content) {
     const oid = await this._executeWithRetry({
       args: ['hash-object', '-w', '--stdin'],
@@ -223,6 +271,11 @@ export default class GitGraphAdapter extends GraphPersistencePort {
     return oid.trim();
   }
 
+  /**
+   * Creates a Git tree from mktree-formatted entries.
+   * @param {string[]} entries - Lines in git mktree format (e.g., "100644 blob <oid>\t<path>")
+   * @returns {Promise<string>} The Git OID of the created tree
+   */
   async writeTree(entries) {
     const oid = await this._executeWithRetry({
       args: ['mktree'],
@@ -231,6 +284,12 @@ export default class GitGraphAdapter extends GraphPersistencePort {
     return oid.trim();
   }
 
+  /**
+   * Reads a tree and returns a map of path to content.
+   * Processes blobs sequentially to avoid spawning too many concurrent reads.
+   * @param {string} treeOid - The tree OID to read
+   * @returns {Promise<Record<string, Buffer>>} Map of file path to blob content
+   */
   async readTree(treeOid) {
     const oids = await this.readTreeOids(treeOid);
     const files = {};
@@ -241,6 +300,13 @@ export default class GitGraphAdapter extends GraphPersistencePort {
     return files;
   }
 
+  /**
+   * Reads a tree and returns a map of path to blob OID.
+   * Useful for lazy-loading shards without reading all blob contents.
+   * @param {string} treeOid - The tree OID to read
+   * @returns {Promise<Record<string, string>>} Map of file path to blob OID
+   * @throws {Error} If the tree OID is invalid
+   */
   async readTreeOids(treeOid) {
     this._validateOid(treeOid);
     const output = await this._executeWithRetry({
@@ -267,6 +333,12 @@ export default class GitGraphAdapter extends GraphPersistencePort {
     return oids;
   }
 
+  /**
+   * Reads the content of a Git blob.
+   * @param {string} oid - The blob OID to read
+   * @returns {Promise<Buffer>} The blob content
+   * @throws {Error} If the OID is invalid
+   */
   async readBlob(oid) {
     this._validateOid(oid);
     const stream = await this.plumbing.executeStream({
@@ -277,9 +349,10 @@ export default class GitGraphAdapter extends GraphPersistencePort {
 
   /**
    * Updates a ref to point to an OID.
-   * @param {string} ref - The ref name (e.g., 'refs/empty-graph/index')
+   * @param {string} ref - The ref name (e.g., 'refs/warp/events/writers/alice')
    * @param {string} oid - The OID to point to
    * @returns {Promise<void>}
+   * @throws {Error} If the ref or OID is invalid
    */
   async updateRef(ref, oid) {
     this._validateRef(ref);
@@ -292,7 +365,8 @@ export default class GitGraphAdapter extends GraphPersistencePort {
   /**
    * Reads the OID a ref points to.
    * @param {string} ref - The ref name
-   * @returns {Promise<string|null>} The OID or null if ref doesn't exist
+   * @returns {Promise<string|null>} The OID, or null if the ref does not exist
+   * @throws {Error} If the ref format is invalid
    */
   async readRef(ref) {
     this._validateRef(ref);
@@ -310,6 +384,7 @@ export default class GitGraphAdapter extends GraphPersistencePort {
    * Deletes a ref.
    * @param {string} ref - The ref name to delete
    * @returns {Promise<void>}
+   * @throws {Error} If the ref format is invalid
    */
   async deleteRef(ref) {
     this._validateRef(ref);
@@ -363,6 +438,7 @@ export default class GitGraphAdapter extends GraphPersistencePort {
    * Uses `git cat-file -e` for efficient existence checking without loading content.
    * @param {string} sha - The commit SHA to check
    * @returns {Promise<boolean>} True if the node exists, false otherwise
+   * @throws {Error} If the SHA format is invalid
    */
   async nodeExists(sha) {
     this._validateOid(sha);
@@ -376,8 +452,9 @@ export default class GitGraphAdapter extends GraphPersistencePort {
 
   /**
    * Lists refs matching a prefix.
-   * @param {string} prefix - The ref prefix to match (e.g., 'refs/empty-graph/events/writers/')
+   * @param {string} prefix - The ref prefix to match (e.g., 'refs/warp/events/writers/')
    * @returns {Promise<string[]>} Array of matching ref paths
+   * @throws {Error} If the prefix is invalid
    */
   async listRefs(prefix) {
     this._validateRef(prefix);
@@ -410,6 +487,7 @@ export default class GitGraphAdapter extends GraphPersistencePort {
    * Uses `git rev-list --count` for O(1) memory efficiency.
    * @param {string} ref - Git ref to count from (e.g., 'HEAD', 'main', SHA)
    * @returns {Promise<number>} The count of reachable nodes
+   * @throws {Error} If the ref is invalid
    */
   async countNodes(ref) {
     this._validateRef(ref);
@@ -426,6 +504,7 @@ export default class GitGraphAdapter extends GraphPersistencePort {
    * @param {string} potentialAncestor - The commit that might be an ancestor
    * @param {string} descendant - The commit that might be a descendant
    * @returns {Promise<boolean>} True if potentialAncestor is an ancestor of descendant
+   * @throws {Error} If either OID is invalid
    */
   async isAncestor(potentialAncestor, descendant) {
     this._validateOid(potentialAncestor);
@@ -444,6 +523,7 @@ export default class GitGraphAdapter extends GraphPersistencePort {
    * Reads a git config value.
    * @param {string} key - The config key to read (e.g., 'warp.writerId.events')
    * @returns {Promise<string|null>} The config value or null if not set
+   * @throws {Error} If the key format is invalid
    */
   async configGet(key) {
     this._validateConfigKey(key);
@@ -469,6 +549,7 @@ export default class GitGraphAdapter extends GraphPersistencePort {
    * @param {string} key - The config key to set (e.g., 'warp.writerId.events')
    * @param {string} value - The value to set
    * @returns {Promise<void>}
+   * @throws {Error} If the key format is invalid or value is not a string
    */
   async configSet(key, value) {
     this._validateConfigKey(key);

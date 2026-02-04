@@ -60,9 +60,7 @@ export class PatchSession {
    *
    * @param {string} nodeId - The node ID to add
    * @returns {this} This session for chaining
-   *
-   * @example
-   * patch.addNode('user:alice');
+   * @throws {Error} If this session has already been committed
    */
   addNode(nodeId) {
     this._ensureNotCommitted();
@@ -77,9 +75,7 @@ export class PatchSession {
    *
    * @param {string} nodeId - The node ID to remove
    * @returns {this} This session for chaining
-   *
-   * @example
-   * patch.removeNode('user:alice');
+   * @throws {Error} If this session has already been committed
    */
   removeNode(nodeId) {
     this._ensureNotCommitted();
@@ -94,9 +90,7 @@ export class PatchSession {
    * @param {string} to - Target node ID
    * @param {string} label - Edge label/type
    * @returns {this} This session for chaining
-   *
-   * @example
-   * patch.addEdge('user:alice', 'user:bob', 'follows');
+   * @throws {Error} If this session has already been committed
    */
   addEdge(from, to, label) {
     this._ensureNotCommitted();
@@ -113,9 +107,7 @@ export class PatchSession {
    * @param {string} to - Target node ID
    * @param {string} label - Edge label/type
    * @returns {this} This session for chaining
-   *
-   * @example
-   * patch.removeEdge('user:alice', 'user:bob', 'follows');
+   * @throws {Error} If this session has already been committed
    */
   removeEdge(from, to, label) {
     this._ensureNotCommitted();
@@ -130,10 +122,7 @@ export class PatchSession {
    * @param {string} key - Property key
    * @param {*} value - Property value (must be JSON-serializable)
    * @returns {this} This session for chaining
-   *
-   * @example
-   * patch.setProperty('user:alice', 'name', 'Alice');
-   * patch.setProperty('user:alice', 'age', 30);
+   * @throws {Error} If this session has already been committed
    */
   setProperty(nodeId, key, value) {
     this._ensureNotCommitted();

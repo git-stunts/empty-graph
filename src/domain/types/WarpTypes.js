@@ -87,6 +87,51 @@ export function createBlobValue(oid) {
 }
 
 // ============================================================================
+// Operations
+// ============================================================================
+
+/**
+ * Node add operation
+ * @typedef {Object} OpNodeAdd
+ * @property {'NodeAdd'} type - Operation type discriminator
+ * @property {NodeId} node - Node ID to add
+ */
+
+/**
+ * Node tombstone operation
+ * @typedef {Object} OpNodeTombstone
+ * @property {'NodeTombstone'} type - Operation type discriminator
+ * @property {NodeId} node - Node ID to tombstone
+ */
+
+/**
+ * Edge add operation
+ * @typedef {Object} OpEdgeAdd
+ * @property {'EdgeAdd'} type - Operation type discriminator
+ * @property {NodeId} from - Source node ID
+ * @property {NodeId} to - Target node ID
+ * @property {string} label - Edge label/type
+ */
+
+/**
+ * Edge tombstone operation
+ * @typedef {Object} OpEdgeTombstone
+ * @property {'EdgeTombstone'} type - Operation type discriminator
+ * @property {NodeId} from - Source node ID
+ * @property {NodeId} to - Target node ID
+ * @property {string} label - Edge label/type
+ */
+
+/**
+ * Property set operation
+ * @typedef {Object} OpPropSet
+ * @property {'PropSet'} type - Operation type discriminator
+ * @property {NodeId} node - Node ID to set property on
+ * @property {string} key - Property key
+ * @property {ValueRef} value - Property value reference
+ */
+
+// ============================================================================
 // Factory Functions - Operations
 // ============================================================================
 

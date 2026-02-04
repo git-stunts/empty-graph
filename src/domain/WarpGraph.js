@@ -90,6 +90,8 @@ export default class WarpGraph {
    * @param {string} options.writerId - This writer's ID
    * @param {Object} [options.gcPolicy] - GC policy configuration (overrides defaults)
    * @param {number} [options.adjacencyCacheSize] - Max materialized adjacency cache entries
+   * @param {{every: number}} [options.checkpointPolicy] - Auto-checkpoint policy; creates a checkpoint every N patches
+   * @param {boolean} [options.autoMaterialize=false] - If true, query methods auto-materialize instead of throwing
    */
   constructor({ persistence, graphName, writerId, gcPolicy = {}, adjacencyCacheSize = DEFAULT_ADJACENCY_CACHE_SIZE, checkpointPolicy, autoMaterialize = false }) {
     /** @type {import('../ports/GraphPersistencePort.js').default} */
@@ -149,8 +151,11 @@ export default class WarpGraph {
    * @param {string} options.graphName - Graph namespace
    * @param {string} options.writerId - This writer's ID
    * @param {Object} [options.gcPolicy] - GC policy configuration (overrides defaults)
+   * @param {number} [options.adjacencyCacheSize] - Max materialized adjacency cache entries
+   * @param {{every: number}} [options.checkpointPolicy] - Auto-checkpoint policy; creates a checkpoint every N patches
+   * @param {boolean} [options.autoMaterialize] - If true, query methods auto-materialize instead of throwing
    * @returns {Promise<WarpGraph>} The opened graph instance
-   * @throws {Error} If graphName or writerId is invalid
+   * @throws {Error} If graphName, writerId, or checkpointPolicy is invalid
    *
    * @example
    * const graph = await WarpGraph.open({
@@ -217,6 +222,11 @@ export default class WarpGraph {
 
   /**
    * Creates a new PatchBuilder for building and committing patches.
+   *
+   * On successful commit, the internal `onCommitSuccess` callback receives
+   * `{ patch, sha }` where `patch` is the committed patch object and `sha`
+   * is the Git commit SHA. This updates the version vector and applies the
+   * patch to cached state for eager re-materialization.
    *
    * @returns {Promise<PatchBuilderV2>} A fluent patch builder
    *
@@ -527,7 +537,7 @@ export default class WarpGraph {
    *     frontierMerged: boolean
    *   }
    * }} The merged state and a receipt describing the merge
-   * @throws {Error} If no cached state exists
+   * @throws {QueryError} If no cached state exists (code: `E_NO_STATE`)
    *
    * @example
    * const graph = await WarpGraph.open({ persistence, graphName, writerId });
@@ -804,6 +814,7 @@ export default class WarpGraph {
    * Graphs cannot be opened if there is schema:1 history without
    * a migration checkpoint. This ensures data consistency during migration.
    *
+   * @returns {Promise<void>}
    * @throws {Error} If v1 history exists without migration checkpoint
    * @private
    */
@@ -882,8 +893,8 @@ export default class WarpGraph {
   /**
    * Loads patches since a checkpoint for incremental materialization.
    *
-   * @param {Object} checkpoint - The checkpoint to start from
-   * @returns {Promise<Array<{patch: Object, sha: string}>>} Patches since checkpoint
+   * @param {{state: Object, frontier: Map<string, string>, stateHash: string, schema: number}} checkpoint - The checkpoint to start from
+   * @returns {Promise<Array<{patch: import('./types/WarpTypes.js').PatchV1, sha: string}>>} Patches since checkpoint
    * @private
    */
   async _loadPatchesSince(checkpoint) {
@@ -965,8 +976,10 @@ export default class WarpGraph {
    *
    * @param {string} writerId - The writer ID for this patch
    * @param {string} incomingSha - The incoming patch commit SHA
-   * @param {Object} checkpoint - The checkpoint to validate against
-   * @throws {Error} if patch is backfill or diverged
+   * @param {{state: Object, frontier: Map<string, string>, stateHash: string, schema: number}} checkpoint - The checkpoint to validate against
+   * @returns {Promise<void>}
+   * @throws {Error} If patch is behind/same as checkpoint frontier (backfill rejected)
+   * @throws {Error} If patch does not extend checkpoint head (writer fork detected)
    * @private
    */
   async _validatePatchAgainstCheckpoint(writerId, incomingSha, checkpoint) {
@@ -1042,7 +1055,7 @@ export default class WarpGraph {
    * **Requires a cached state.**
    *
    * @returns {{nodesCompacted: number, edgesCompacted: number, tombstonesRemoved: number, durationMs: number}}
-   * @throws {Error} If no cached state exists
+   * @throws {QueryError} If no cached state exists (code: `E_NO_STATE`)
    *
    * @example
    * await graph.materialize();
@@ -1163,7 +1176,7 @@ export default class WarpGraph {
    *
    * @param {{type: 'sync-response', frontier: Map, patches: Map}} response - The sync response
    * @returns {{state: Object, frontier: Map, applied: number}} Result with updated state
-   * @throws {Error} If no cached state exists
+   * @throws {QueryError} If no cached state exists (code: `E_NO_STATE`)
    *
    * @example
    * await graph.materialize(); // Cache state first
@@ -1213,6 +1226,10 @@ export default class WarpGraph {
    * @param {AbortSignal} [options.signal] - Optional abort signal to cancel sync
    * @param {(event: {type: string, attempt: number, durationMs?: number, status?: number, error?: Error}) => void} [options.onStatus]
    * @returns {Promise<{applied: number, attempts: number}>}
+   * @throws {SyncError} If remote URL is invalid (code: `E_SYNC_REMOTE_URL`)
+   * @throws {SyncError} If remote returns error or invalid response (code: `E_SYNC_REMOTE`, `E_SYNC_PROTOCOL`)
+   * @throws {SyncError} If request times out (code: `E_SYNC_TIMEOUT`)
+   * @throws {OperationAbortedError} If abort signal fires
    */
   async syncWith(remote, options = {}) {
     const {
@@ -1419,6 +1436,7 @@ export default class WarpGraph {
    * @param {string} [options.path='/sync'] - Path to handle sync requests
    * @param {number} [options.maxRequestBytes=4194304] - Max request size in bytes
    * @returns {Promise<{close: () => Promise<void>, url: string}>} Server handle
+   * @throws {Error} If port is not a number
    */
   async serve({ port, host = '127.0.0.1', path = '/sync', maxRequestBytes = DEFAULT_SYNC_SERVER_MAX_BYTES } = {}) {
     if (typeof port !== 'number') {
@@ -1648,6 +1666,8 @@ export default class WarpGraph {
    * materializes if state is null or dirty. Otherwise throws.
    *
    * @returns {Promise<void>}
+   * @throws {QueryError} If no cached state and autoMaterialize is off (code: `E_NO_STATE`)
+   * @throws {QueryError} If cached state is dirty and autoMaterialize is off (code: `E_STALE_STATE`)
    * @private
    */
   async _ensureFreshState() {
@@ -1687,7 +1707,8 @@ export default class WarpGraph {
    *
    * @param {string} nodeId - The node ID to check
    * @returns {Promise<boolean>} True if the node exists in the materialized state
-   * @throws {Error} If no cached state exists
+   * @throws {QueryError} If no cached state exists (code: `E_NO_STATE`)
+   * @throws {QueryError} If cached state is dirty (code: `E_STALE_STATE`)
    *
    * @example
    * await graph.materialize();
@@ -1710,7 +1731,8 @@ export default class WarpGraph {
    *
    * @param {string} nodeId - The node ID to get properties for
    * @returns {Promise<Map<string, *>|null>} Map of property key → value, or null if node doesn't exist
-   * @throws {Error} If no cached state exists
+   * @throws {QueryError} If no cached state exists (code: `E_NO_STATE`)
+   * @throws {QueryError} If cached state is dirty (code: `E_STALE_STATE`)
    *
    * @example
    * await graph.materialize();
@@ -1753,7 +1775,8 @@ export default class WarpGraph {
    * @param {'outgoing' | 'incoming' | 'both'} [direction='both'] - Edge direction to follow
    * @param {string} [edgeLabel] - Optional edge label filter
    * @returns {Promise<Array<{nodeId: string, label: string, direction: 'outgoing' | 'incoming'}>>} Array of neighbor info
-   * @throws {Error} If no cached state exists
+   * @throws {QueryError} If no cached state exists (code: `E_NO_STATE`)
+   * @throws {QueryError} If cached state is dirty (code: `E_STALE_STATE`)
    *
    * @example
    * await graph.materialize();
@@ -1801,7 +1824,8 @@ export default class WarpGraph {
    * **Requires a cached state.** Call materialize() first if not already cached.
    *
    * @returns {Promise<string[]>} Array of node IDs
-   * @throws {Error} If no cached state exists
+   * @throws {QueryError} If no cached state exists (code: `E_NO_STATE`)
+   * @throws {QueryError} If cached state is dirty (code: `E_STALE_STATE`)
    *
    * @example
    * await graph.materialize();
@@ -1820,7 +1844,8 @@ export default class WarpGraph {
    * **Requires a cached state.** Call materialize() first if not already cached.
    *
    * @returns {Promise<Array<{from: string, to: string, label: string}>>} Array of edge info
-   * @throws {Error} If no cached state exists
+   * @throws {QueryError} If no cached state exists (code: `E_NO_STATE`)
+   * @throws {QueryError} If cached state is dirty (code: `E_STALE_STATE`)
    *
    * @example
    * await graph.materialize();

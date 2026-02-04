@@ -157,11 +157,18 @@ function applyHop({ direction, label, workingSet, adjacency }) {
 }
 
 /**
- * Fluent query builder.
+ * Fluent query builder for materialized WARP state.
+ *
+ * Supports pattern matching, predicate filtering, multi-hop traversal
+ * over outgoing/incoming edges, and field selection.
+ *
+ * @throws {QueryError} On invalid match patterns, where predicates, label types, or select fields
  */
 export default class QueryBuilder {
   /**
-   * @param {import('../WarpGraph.js').default} graph
+   * Creates a new QueryBuilder.
+   *
+   * @param {import('../WarpGraph.js').default} graph - The WarpGraph instance to query
    */
   constructor(graph) {
     this._graph = graph;
@@ -235,8 +242,10 @@ export default class QueryBuilder {
   }
 
   /**
-   * Runs the query and returns a result.
-   * @returns {Promise<{stateHash: string, nodes: string[]}>}
+   * Runs the query and returns matching nodes with their state hash.
+   *
+   * @returns {Promise<{stateHash: string, nodes: Array<{id?: string, props?: Record<string, unknown>}>}>}
+   * @throws {QueryError} If an unknown select field is specified
    */
   async run() {
     const materialized = await this._graph._materializeGraph();

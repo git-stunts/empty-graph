@@ -109,6 +109,7 @@ export function vvSerialize(vv) {
  *
  * @param {Object<string, number>} obj
  * @returns {VersionVector}
+ * @throws {Error} If any counter value is not a non-negative integer
  */
 export function vvDeserialize(obj) {
   const vv = new Map();

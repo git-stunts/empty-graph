@@ -15,9 +15,12 @@ export function createFrontier() {
 
 /**
  * Updates the frontier with a new patch.
- * @param {Frontier} frontier - Mutated in place
- * @param {string} writerId
- * @param {string} patchSha
+ * Mutates the frontier in place.
+ *
+ * @param {Frontier} frontier - The frontier to update
+ * @param {string} writerId - Writer ID
+ * @param {string} patchSha - Latest patch SHA for this writer
+ * @returns {void}
  */
 export function updateFrontier(frontier, writerId, patchSha) {
   frontier.set(writerId, patchSha);

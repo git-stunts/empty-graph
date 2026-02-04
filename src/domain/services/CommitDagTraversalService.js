@@ -815,6 +815,11 @@ export default class CommitDagTraversalService {
 
   /**
    * Reconstructs path from weighted search previous pointers.
+   *
+   * @param {Map<string, string>} previous - Maps each node to its predecessor
+   * @param {string} from - Start node
+   * @param {string} to - End node
+   * @returns {string[]} Path from start to end
    * @private
    */
   _reconstructWeightedPath(previous, from, to) {
@@ -823,6 +828,11 @@ export default class CommitDagTraversalService {
 
   /**
    * Reconstructs path from parent map.
+   *
+   * @param {Map<string, string>} parentMap - Maps each node to its predecessor
+   * @param {string} from - Start node
+   * @param {string} to - End node
+   * @returns {string[]} Path from start to end
    * @private
    */
   _reconstructPath(parentMap, from, to) {
@@ -831,6 +841,13 @@ export default class CommitDagTraversalService {
 
   /**
    * Reconstructs path from bidirectional search.
+   *
+   * @param {Map<string, string>} fwdParent - Forward search predecessor map
+   * @param {Map<string, string>} bwdParent - Backward search successor map
+   * @param {string} from - Start node
+   * @param {string} to - End node
+   * @param {string} meeting - Meeting point node
+   * @returns {string[]} Complete path from start to end
    * @private
    */
   _reconstructBidirectionalPath(fwdParent, bwdParent, from, to, meeting) {

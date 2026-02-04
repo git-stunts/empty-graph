@@ -47,6 +47,7 @@ const CANONICAL_RE = /^w_[0-9a-hjkmnp-tv-z]{26}$/;
  * - Total length: 28 chars
  *
  * @param {string} id - The writer ID to validate
+ * @returns {void}
  * @throws {WriterIdError} If the ID is not canonical
  *
  * @example

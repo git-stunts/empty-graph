@@ -66,7 +66,17 @@ History options:
   --node <id>           Filter patches touching node id
 `;
 
+/**
+ * Structured CLI error with exit code and error code.
+ */
 class CliError extends Error {
+  /**
+   * @param {string} message - Human-readable error message
+   * @param {Object} [options]
+   * @param {string} [options.code='E_CLI'] - Machine-readable error code
+   * @param {number} [options.exitCode=3] - Process exit code
+   * @param {Error} [options.cause] - Underlying cause
+   */
   constructor(message, { code = 'E_CLI', exitCode = EXIT_CODES.INTERNAL, cause } = {}) {
     super(message);
     this.code = code;
@@ -689,6 +699,13 @@ function emit(payload, { json, command }) {
   process.stdout.write(`${stableStringify(payload)}\n`);
 }
 
+/**
+ * Handles the `info` command: summarizes graphs in the repository.
+ * @param {Object} params
+ * @param {Object} params.options - Parsed CLI options
+ * @returns {Promise<{repo: string, graphs: Object[]}>} Info payload
+ * @throws {CliError} If the specified graph is not found
+ */
 async function handleInfo({ options }) {
   const { persistence } = await createPersistence(options.repo);
   const graphNames = await listGraphNames(persistence);
@@ -719,6 +736,14 @@ async function handleInfo({ options }) {
   };
 }
 
+/**
+ * Handles the `query` command: runs a logical graph query.
+ * @param {Object} params
+ * @param {Object} params.options - Parsed CLI options
+ * @param {string[]} params.args - Remaining positional arguments (query spec)
+ * @returns {Promise<{payload: Object, exitCode: number}>} Query result payload
+ * @throws {CliError} On invalid query options or query execution errors
+ */
 async function handleQuery({ options, args }) {
   const querySpec = parseQueryArgs(args);
   const { graph, graphName } = await openGraph(options);
@@ -789,6 +814,14 @@ function mapQueryError(error) {
   throw error;
 }
 
+/**
+ * Handles the `path` command: finds a shortest path between two nodes.
+ * @param {Object} params
+ * @param {Object} params.options - Parsed CLI options
+ * @param {string[]} params.args - Remaining positional arguments (path spec)
+ * @returns {Promise<{payload: Object, exitCode: number}>} Path result payload
+ * @throws {CliError} If --from/--to are missing or a node is not found
+ */
 async function handlePath({ options, args }) {
   const pathOptions = parsePathArgs(args);
   const { graph, graphName } = await openGraph(options);
@@ -821,6 +854,12 @@ async function handlePath({ options, args }) {
   }
 }
 
+/**
+ * Handles the `check` command: reports graph health, GC, and hook status.
+ * @param {Object} params
+ * @param {Object} params.options - Parsed CLI options
+ * @returns {Promise<{payload: Object, exitCode: number}>} Health check payload
+ */
 async function handleCheck({ options }) {
   const { graph, graphName, persistence } = await openGraph(options);
   const health = await getHealth(persistence);
@@ -946,6 +985,14 @@ function buildCheckPayload({
   };
 }
 
+/**
+ * Handles the `history` command: shows patch history for a writer.
+ * @param {Object} params
+ * @param {Object} params.options - Parsed CLI options
+ * @param {string[]} params.args - Remaining positional arguments (history options)
+ * @returns {Promise<{payload: Object, exitCode: number}>} History payload
+ * @throws {CliError} If no patches are found for the writer
+ */
 async function handleHistory({ options, args }) {
   const historyOptions = parseHistoryArgs(args);
   const { graph, graphName } = await openGraph(options);
@@ -983,6 +1030,13 @@ async function materializeOneGraph({ persistence, graphName, writerId }) {
   return { graph: graphName, nodes: nodes.length, edges: edges.length, checkpoint };
 }
 
+/**
+ * Handles the `materialize` command: materializes and checkpoints all graphs.
+ * @param {Object} params
+ * @param {Object} params.options - Parsed CLI options
+ * @returns {Promise<{payload: Object, exitCode: number}>} Materialize result payload
+ * @throws {CliError} If the specified graph is not found
+ */
 async function handleMaterialize({ options }) {
   const { persistence } = await createPersistence(options.repo);
   const graphNames = await listGraphNames(persistence);
@@ -1162,6 +1216,14 @@ async function promptForForeignStrategy() {
   return 'skip';
 }
 
+/**
+ * Handles the `install-hooks` command: installs or upgrades the post-merge git hook.
+ * @param {Object} params
+ * @param {Object} params.options - Parsed CLI options
+ * @param {string[]} params.args - Remaining positional arguments (install-hooks options)
+ * @returns {Promise<{payload: Object, exitCode: number}>} Install result payload
+ * @throws {CliError} If an existing hook is found and the session is not interactive
+ */
 async function handleInstallHooks({ options, args }) {
   const hookOptions = parseInstallHooksArgs(args);
   const installer = createHookInstaller();
@@ -1222,6 +1284,11 @@ const COMMANDS = new Map([
   ['install-hooks', handleInstallHooks],
 ]);
 
+/**
+ * CLI entry point. Parses arguments, dispatches to the appropriate command handler,
+ * and emits the result to stdout (JSON or human-readable).
+ * @returns {Promise<void>}
+ */
 async function main() {
   const { options, positionals } = parseArgs(process.argv.slice(2));
 

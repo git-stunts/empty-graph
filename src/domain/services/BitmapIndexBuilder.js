@@ -104,6 +104,7 @@ export default class BitmapIndexBuilder {
    *
    * @param {string} srcSha - Source node SHA (parent)
    * @param {string} tgtSha - Target node SHA (child)
+   * @returns {void}
    */
   addEdge(srcSha, tgtSha) {
     const srcId = this._getOrCreateId(srcSha);

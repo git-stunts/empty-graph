@@ -36,6 +36,7 @@ import { collectGCMetrics } from './GCMetrics.js';
  * @property {number} timeSinceCompaction - Time (ms) since last GC
  */
 
+/** @type {GCPolicy} */
 export const DEFAULT_GC_POLICY = {
   tombstoneRatioThreshold: 0.3, // 30% tombstones triggers GC
   entryCountThreshold: 50000, // 50K entries triggers GC

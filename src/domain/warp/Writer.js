@@ -22,6 +22,13 @@ import { vvClone } from '../crdt/VersionVector.js';
 
 /**
  * Error class for Writer operations.
+ *
+ * @class WriterError
+ * @extends Error
+ *
+ * @property {string} name - The error name ('WriterError')
+ * @property {string} code - Error code for programmatic handling
+ * @property {Error} [cause] - Original error that caused this error
  */
 export class WriterError extends Error {
   /**
@@ -39,6 +46,8 @@ export class WriterError extends Error {
 
 /**
  * Writer class for creating and committing patches to a WARP graph.
+ *
+ * @class Writer
  */
 export class Writer {
   /**
@@ -162,6 +171,9 @@ export class Writer {
    *
    * @param {(p: PatchSession) => void | Promise<void>} build - Function to build the patch
    * @returns {Promise<string>} The commit SHA of the new patch
+   * @throws {WriterError} EMPTY_PATCH if no operations were added
+   * @throws {WriterError} WRITER_REF_ADVANCED if CAS fails (ref moved since beginPatch)
+   * @throws {WriterError} PERSIST_WRITE_FAILED if git operations fail
    *
    * @example
    * const sha = await writer.commitPatch(p => {

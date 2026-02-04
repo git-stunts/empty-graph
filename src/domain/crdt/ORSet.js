@@ -199,7 +199,7 @@ export function orsetCompact(set, includedVV) {
  * Tombstones are sorted.
  *
  * @param {ORSet} set
- * @returns {Object}
+ * @returns {{entries: Array<[*, string[]]>, tombstones: string[]}}
  */
 export function orsetSerialize(set) {
   // Serialize entries: convert Map to array of [element, sortedDots]
@@ -236,7 +236,7 @@ export function orsetSerialize(set) {
 /**
  * Deserializes a plain object back to an ORSet.
  *
- * @param {Object} obj
+ * @param {{entries?: Array<[*, string[]]>, tombstones?: string[]}} obj
  * @returns {ORSet}
  */
 export function orsetDeserialize(obj) {
