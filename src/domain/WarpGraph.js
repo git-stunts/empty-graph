@@ -34,6 +34,7 @@ import QueryBuilder from './services/QueryBuilder.js';
 import LogicalTraversal from './services/LogicalTraversal.js';
 import LRUCache from './utils/LRUCache.js';
 import SyncError from './errors/SyncError.js';
+import QueryError from './errors/QueryError.js';
 import { checkAborted } from './utils/cancellation.js';
 import OperationAbortedError from './errors/OperationAbortedError.js';
 
@@ -541,7 +542,9 @@ export default class WarpGraph {
    */
   join(otherState) {
     if (!this._cachedState) {
-      throw new Error('No cached state. Call materialize() first.');
+      throw new QueryError('No cached state. Call materialize() first.', {
+        code: 'E_NO_STATE',
+      });
     }
 
     if (!otherState || !otherState.nodeAlive || !otherState.edgeAlive) {
@@ -1048,7 +1051,9 @@ export default class WarpGraph {
    */
   runGC() {
     if (!this._cachedState) {
-      throw new Error('No cached state. Call materialize() first.');
+      throw new QueryError('No cached state. Call materialize() first.', {
+        code: 'E_NO_STATE',
+      });
     }
 
     // Compute appliedVV from current state
@@ -1167,7 +1172,9 @@ export default class WarpGraph {
    */
   applySyncResponse(response) {
     if (!this._cachedState) {
-      throw new Error('No cached state. Call materialize() first.');
+      throw new QueryError('No cached state. Call materialize() first.', {
+        code: 'E_NO_STATE',
+      });
     }
 
     const currentFrontier = this._cachedState.observedFrontier;
@@ -1649,10 +1656,14 @@ export default class WarpGraph {
       return;
     }
     if (!this._cachedState) {
-      throw new Error('No cached state. Call materialize() first.');
+      throw new QueryError('No cached state. Call materialize() first.', {
+        code: 'E_NO_STATE',
+      });
     }
     if (this._stateDirty) {
-      throw new Error('Cached state is dirty. Call materialize() to refresh.');
+      throw new QueryError('Cached state is dirty. Call materialize() to refresh.', {
+        code: 'E_STALE_STATE',
+      });
     }
   }
 

@@ -18,6 +18,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import WarpGraph from '../../../src/domain/WarpGraph.js';
+import QueryError from '../../../src/domain/errors/QueryError.js';
 import { encodePatchMessage } from '../../../src/domain/services/WarpMessageCodec.js';
 import { createEmptyStateV5, encodeEdgeKey, encodePropKey } from '../../../src/domain/services/JoinReducer.js';
 import { orsetAdd } from '../../../src/domain/crdt/ORSet.js';
@@ -228,33 +229,23 @@ describe('AP/LAZY/2: auto-materialize guards on query methods', () => {
     });
 
     it('hasNode throws without prior materialize()', async () => {
-      await expect(graph.hasNode('test:x')).rejects.toThrow(
-        'No cached state. Call materialize() first.',
-      );
+      await expect(graph.hasNode('test:x')).rejects.toThrow(QueryError);
     });
 
     it('getNodes throws without prior materialize()', async () => {
-      await expect(graph.getNodes()).rejects.toThrow(
-        'No cached state. Call materialize() first.',
-      );
+      await expect(graph.getNodes()).rejects.toThrow(QueryError);
     });
 
     it('getEdges throws without prior materialize()', async () => {
-      await expect(graph.getEdges()).rejects.toThrow(
-        'No cached state. Call materialize() first.',
-      );
+      await expect(graph.getEdges()).rejects.toThrow(QueryError);
     });
 
     it('getNodeProps throws without prior materialize()', async () => {
-      await expect(graph.getNodeProps('test:x')).rejects.toThrow(
-        'No cached state. Call materialize() first.',
-      );
+      await expect(graph.getNodeProps('test:x')).rejects.toThrow(QueryError);
     });
 
     it('neighbors throws without prior materialize()', async () => {
-      await expect(graph.neighbors('test:x')).rejects.toThrow(
-        'No cached state. Call materialize() first.',
-      );
+      await expect(graph.neighbors('test:x')).rejects.toThrow(QueryError);
     });
   });
 
@@ -602,9 +593,7 @@ describe('AP/LAZY/2: auto-materialize guards on query methods', () => {
         writerId: 'writer-1',
       });
 
-      await expect(graph.hasNode('test:x')).rejects.toThrow(
-        'No cached state. Call materialize() first.',
-      );
+      await expect(graph.hasNode('test:x')).rejects.toThrow(QueryError);
     });
 
     it('_ensureFreshState does not materialize when autoMaterialize is true and state is clean', async () => {
@@ -675,7 +664,7 @@ describe('AP/LAZY/2: auto-materialize guards on query methods', () => {
       await graph.materialize();
       graph._stateDirty = true;
 
-      await expect(graph.getNodes()).rejects.toThrow('Cached state is dirty. Call materialize() to refresh.');
+      await expect(graph.getNodes()).rejects.toThrow(QueryError);
     });
   });
 });

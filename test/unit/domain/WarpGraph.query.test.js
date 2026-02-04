@@ -11,6 +11,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import WarpGraph from '../../../src/domain/WarpGraph.js';
+import QueryError from '../../../src/domain/errors/QueryError.js';
 import { createEmptyStateV5, encodeEdgeKey, encodePropKey } from '../../../src/domain/services/JoinReducer.js';
 import { orsetAdd } from '../../../src/domain/crdt/ORSet.js';
 import { createDot } from '../../../src/domain/crdt/Dot.js';
@@ -37,7 +38,7 @@ describe('WarpGraph Query API', () => {
 
   describe('hasNode()', () => {
     it('throws if no cached state', async () => {
-      await expect(graph.hasNode('node-1')).rejects.toThrow('No cached state');
+      await expect(graph.hasNode('node-1')).rejects.toThrow(QueryError);
     });
 
     it('returns true for existing nodes', async () => {
@@ -59,7 +60,7 @@ describe('WarpGraph Query API', () => {
 
   describe('getNodeProps()', () => {
     it('throws if no cached state', async () => {
-      await expect(graph.getNodeProps('node-1')).rejects.toThrow('No cached state');
+      await expect(graph.getNodeProps('node-1')).rejects.toThrow(QueryError);
     });
 
     it('returns null for non-existing nodes', async () => {
@@ -100,7 +101,7 @@ describe('WarpGraph Query API', () => {
 
   describe('neighbors()', () => {
     it('throws if no cached state', async () => {
-      await expect(graph.neighbors('node-1')).rejects.toThrow('No cached state');
+      await expect(graph.neighbors('node-1')).rejects.toThrow(QueryError);
     });
 
     it('returns empty array for node with no edges', async () => {
@@ -210,7 +211,7 @@ describe('WarpGraph Query API', () => {
 
   describe('getNodes()', () => {
     it('throws if no cached state', async () => {
-      await expect(graph.getNodes()).rejects.toThrow('No cached state');
+      await expect(graph.getNodes()).rejects.toThrow(QueryError);
     });
 
     it('returns empty array for empty graph', async () => {
@@ -236,7 +237,7 @@ describe('WarpGraph Query API', () => {
 
   describe('getEdges()', () => {
     it('throws if no cached state', async () => {
-      await expect(graph.getEdges()).rejects.toThrow('No cached state');
+      await expect(graph.getEdges()).rejects.toThrow(QueryError);
     });
 
     it('returns empty array for empty graph', async () => {
