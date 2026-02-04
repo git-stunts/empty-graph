@@ -20,6 +20,7 @@ import GlobalClockAdapter from './src/infrastructure/adapters/GlobalClockAdapter
 import {
   IndexError,
   QueryError,
+  SchemaUnsupportedError,
   ShardLoadError,
   ShardCorruptionError,
   ShardValidationError,
@@ -74,6 +75,7 @@ export {
   // Error types for integrity failure handling
   IndexError,
   QueryError,
+  SchemaUnsupportedError,
   ShardLoadError,
   ShardCorruptionError,
   ShardValidationError,

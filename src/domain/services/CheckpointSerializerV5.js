@@ -56,11 +56,21 @@ export function serializeFullStateV5(state) {
   // Serialize observedFrontier
   const observedFrontierObj = vvSerialize(state.observedFrontier);
 
+  // Serialize edgeBirthEvent as sorted array of [edgeKey, eventId] pairs
+  const edgeBirthArray = [];
+  if (state.edgeBirthEvent) {
+    for (const [key, eventId] of state.edgeBirthEvent) {
+      edgeBirthArray.push([key, { lamport: eventId.lamport, writerId: eventId.writerId, patchSha: eventId.patchSha, opIndex: eventId.opIndex }]);
+    }
+    edgeBirthArray.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+  }
+
   const obj = {
     nodeAlive: nodeAliveObj,
     edgeAlive: edgeAliveObj,
     prop: propArray,
     observedFrontier: observedFrontierObj,
+    edgeBirthEvent: edgeBirthArray,
   };
 
   return encode(obj);
@@ -90,7 +100,21 @@ export function deserializeFullStateV5(buffer) {
   // Deserialize observedFrontier
   const observedFrontier = vvDeserialize(obj.observedFrontier || {});
 
-  return { nodeAlive, edgeAlive, prop, observedFrontier };
+  // Deserialize edgeBirthEvent (supports both old edgeBirthLamport and new edgeBirthEvent format)
+  const edgeBirthEvent = new Map();
+  const birthData = obj.edgeBirthEvent || obj.edgeBirthLamport;
+  if (birthData && Array.isArray(birthData)) {
+    for (const [key, val] of birthData) {
+      if (typeof val === 'number') {
+        // Legacy format: bare lamport number → synthesize minimal EventId
+        edgeBirthEvent.set(key, { lamport: val, writerId: '', patchSha: '0000', opIndex: 0 });
+      } else {
+        edgeBirthEvent.set(key, val);
+      }
+    }
+  }
+
+  return { nodeAlive, edgeAlive, prop, observedFrontier, edgeBirthEvent };
 }
 
 // ============================================================================

@@ -12,7 +12,7 @@
 import { createORSet, orsetAdd, orsetRemove, orsetJoin } from '../crdt/ORSet.js';
 import { createVersionVector, vvMerge, vvClone, vvDeserialize } from '../crdt/VersionVector.js';
 import { lwwSet, lwwMax } from '../crdt/LWW.js';
-import { createEventId } from '../utils/EventId.js';
+import { createEventId, compareEventIds } from '../utils/EventId.js';
 
 /**
  * Encodes an EdgeKey to a string for Map storage.
@@ -56,11 +56,57 @@ export function decodePropKey(key) {
 }
 
 /**
+ * Prefix byte for edge property keys. Guarantees no collision with node
+ * property keys (which start with a node-ID character, never \x01).
+ * @const {string}
+ */
+export const EDGE_PROP_PREFIX = '\x01';
+
+/**
+ * Encodes an edge property key for Map storage.
+ *
+ * Format: `\x01from\0to\0label\0propKey`
+ *
+ * The \x01 prefix guarantees collision-freedom with node property keys
+ * (format `nodeId\0propKey`) since node IDs never start with \x01.
+ *
+ * @param {string} from - Source node ID
+ * @param {string} to - Target node ID
+ * @param {string} label - Edge label
+ * @param {string} propKey - Property name
+ * @warning Fields must not contain the null character (\0) as it is used as the internal separator.
+ * @returns {string}
+ */
+export function encodeEdgePropKey(from, to, label, propKey) {
+  return `${EDGE_PROP_PREFIX}${from}\0${to}\0${label}\0${propKey}`;
+}
+
+/**
+ * Decodes an edge property key string.
+ * @param {string} encoded - Encoded edge property key (must start with \x01)
+ * @returns {{from: string, to: string, label: string, propKey: string}}
+ */
+export function decodeEdgePropKey(encoded) {
+  const [from, to, label, propKey] = encoded.slice(1).split('\0');
+  return { from, to, label, propKey };
+}
+
+/**
+ * Returns true if the encoded key is an edge property key.
+ * @param {string} key - Encoded property key
+ * @returns {boolean}
+ */
+export function isEdgePropKey(key) {
+  return key[0] === EDGE_PROP_PREFIX;
+}
+
+/**
  * @typedef {Object} WarpStateV5
  * @property {import('../crdt/ORSet.js').ORSet} nodeAlive - ORSet of alive nodes
  * @property {import('../crdt/ORSet.js').ORSet} edgeAlive - ORSet of alive edges
  * @property {Map<string, import('../crdt/LWW.js').LWWRegister>} prop - Properties with LWW
  * @property {import('../crdt/VersionVector.js').VersionVector} observedFrontier - Observed version vector
+ * @property {Map<string, import('../utils/EventId.js').EventId>} edgeBirthEvent - EdgeKey → EventId of most recent EdgeAdd (for clean-slate prop visibility)
  */
 
 /**
@@ -73,6 +119,7 @@ export function createEmptyStateV5() {
     edgeAlive: createORSet(),
     prop: new Map(),
     observedFrontier: createVersionVector(),
+    edgeBirthEvent: new Map(),
   };
 }
 
@@ -92,9 +139,20 @@ export function applyOpV2(state, op, eventId) {
     case 'NodeRemove':
       orsetRemove(state.nodeAlive, op.observedDots);
       break;
-    case 'EdgeAdd':
-      orsetAdd(state.edgeAlive, encodeEdgeKey(op.from, op.to, op.label), op.dot);
+    case 'EdgeAdd': {
+      const edgeKey = encodeEdgeKey(op.from, op.to, op.label);
+      orsetAdd(state.edgeAlive, edgeKey, op.dot);
+      // Track the EventId at which this edge incarnation was born.
+      // On re-add after remove, the greater EventId replaces the old one,
+      // allowing the query layer to filter out stale properties.
+      if (state.edgeBirthEvent) {
+        const prev = state.edgeBirthEvent.get(edgeKey);
+        if (!prev || compareEventIds(eventId, prev) > 0) {
+          state.edgeBirthEvent.set(edgeKey, eventId);
+        }
+      }
       break;
+    }
     case 'EdgeRemove':
       orsetRemove(state.edgeAlive, op.observedDots);
       break;
@@ -147,6 +205,7 @@ export function joinStates(a, b) {
     edgeAlive: orsetJoin(a.edgeAlive, b.edgeAlive),
     prop: mergeProps(a.prop, b.prop),
     observedFrontier: vvMerge(a.observedFrontier, b.observedFrontier),
+    edgeBirthEvent: mergeEdgeBirthEvent(a.edgeBirthEvent, b.edgeBirthEvent),
   };
 }
 
@@ -165,6 +224,26 @@ function mergeProps(a, b) {
     result.set(key, lwwMax(regA, regB));
   }
 
+  return result;
+}
+
+/**
+ * Merges two edgeBirthEvent maps by taking the greater EventId per key.
+ *
+ * @param {Map<string, import('../utils/EventId.js').EventId>} a
+ * @param {Map<string, import('../utils/EventId.js').EventId>} b
+ * @returns {Map<string, import('../utils/EventId.js').EventId>}
+ */
+function mergeEdgeBirthEvent(a, b) {
+  const result = new Map(a || []);
+  if (b) {
+    for (const [key, eventId] of b) {
+      const existing = result.get(key);
+      if (!existing || compareEventIds(eventId, existing) > 0) {
+        result.set(key, eventId);
+      }
+    }
+  }
   return result;
 }
 
@@ -195,5 +274,6 @@ export function cloneStateV5(state) {
     edgeAlive: orsetJoin(state.edgeAlive, createORSet()),
     prop: new Map(state.prop),
     observedFrontier: vvClone(state.observedFrontier),
+    edgeBirthEvent: new Map(state.edgeBirthEvent || []),
   };
 }

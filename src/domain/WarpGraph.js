@@ -10,7 +10,7 @@
 
 import { validateGraphName, validateWriterId, buildWriterRef, buildCoverageRef, buildCheckpointRef, buildWritersPrefix, parseWriterIdFromRef } from './utils/RefLayout.js';
 import { PatchBuilderV2 } from './services/PatchBuilderV2.js';
-import { reduceV5, createEmptyStateV5, joinStates, join as joinPatch, decodeEdgeKey, decodePropKey } from './services/JoinReducer.js';
+import { reduceV5, createEmptyStateV5, joinStates, join as joinPatch, decodeEdgeKey, decodePropKey, isEdgePropKey, decodeEdgePropKey, encodeEdgeKey } from './services/JoinReducer.js';
 import { orsetContains, orsetElements } from './crdt/ORSet.js';
 import { decode } from '../infrastructure/codecs/CborCodec.js';
 import { decodePatchMessage, detectMessageKind, encodeAnchorMessage } from './services/WarpMessageCodec.js';
@@ -37,6 +37,7 @@ import SyncError from './errors/SyncError.js';
 import QueryError from './errors/QueryError.js';
 import { checkAborted } from './utils/cancellation.js';
 import OperationAbortedError from './errors/OperationAbortedError.js';
+import { compareEventIds } from './utils/EventId.js';
 
 const DEFAULT_SYNC_SERVER_MAX_BYTES = 4 * 1024 * 1024;
 const DEFAULT_SYNC_WITH_RETRIES = 3;
@@ -480,7 +481,7 @@ export default class WarpGraph {
     let patchCount = 0;
 
     // If checkpoint exists, use incremental materialization
-    if (checkpoint?.schema === 2) {
+    if (checkpoint?.schema === 2 || checkpoint?.schema === 3) {
       const patches = await this._loadPatchesSince(checkpoint);
       state = reduceV5(patches, checkpoint.state);
       patchCount = patches.length;
@@ -832,7 +833,7 @@ export default class WarpGraph {
    */
   async _validateMigrationBoundary() {
     const checkpoint = await this._loadLatestCheckpoint();
-    if (checkpoint?.schema === 2) {
+    if (checkpoint?.schema === 2 || checkpoint?.schema === 3) {
       return;  // Already migrated
     }
 
@@ -995,7 +996,7 @@ export default class WarpGraph {
    * @private
    */
   async _validatePatchAgainstCheckpoint(writerId, incomingSha, checkpoint) {
-    if (!checkpoint || checkpoint.schema !== 2) {
+    if (!checkpoint || (checkpoint.schema !== 2 && checkpoint.schema !== 3)) {
       return;
     }
 
@@ -1842,6 +1843,65 @@ export default class WarpGraph {
   }
 
   /**
+   * Gets all properties for an edge from the materialized state.
+   *
+   * Returns properties as a plain object of key → value. Only returns
+   * properties for edges that exist in the materialized state.
+   *
+   * **Requires a cached state.** Call materialize() first if not already cached.
+   *
+   * @param {string} from - Source node ID
+   * @param {string} to - Target node ID
+   * @param {string} label - Edge label
+   * @returns {Promise<Record<string, *>|null>} Object of property key → value, or null if edge doesn't exist
+   * @throws {QueryError} If no cached state exists (code: `E_NO_STATE`)
+   * @throws {QueryError} If cached state is dirty (code: `E_STALE_STATE`)
+   *
+   * @example
+   * await graph.materialize();
+   * const props = await graph.getEdgeProps('user:alice', 'user:bob', 'follows');
+   * if (props) {
+   *   console.log('Weight:', props.weight);
+   * }
+   */
+  async getEdgeProps(from, to, label) {
+    await this._ensureFreshState();
+
+    // Check if edge exists
+    const edgeKey = encodeEdgeKey(from, to, label);
+    if (!orsetContains(this._cachedState.edgeAlive, edgeKey)) {
+      return null;
+    }
+
+    // Check node liveness for both endpoints
+    if (!orsetContains(this._cachedState.nodeAlive, from) ||
+        !orsetContains(this._cachedState.nodeAlive, to)) {
+      return null;
+    }
+
+    // Determine the birth EventId for clean-slate filtering
+    const birthEvent = this._cachedState.edgeBirthEvent?.get(edgeKey);
+
+    // Collect all properties for this edge, filtering out stale props
+    // (props set before the edge's most recent re-add)
+    const props = {};
+    for (const [propKey, register] of this._cachedState.prop) {
+      if (!isEdgePropKey(propKey)) {
+        continue;
+      }
+      const decoded = decodeEdgePropKey(propKey);
+      if (decoded.from === from && decoded.to === to && decoded.label === label) {
+        if (birthEvent && register.eventId && compareEventIds(register.eventId, birthEvent) < 0) {
+          continue; // stale prop from before the edge's current incarnation
+        }
+        props[decoded.propKey] = register.value;
+      }
+    }
+
+    return props;
+  }
+
+  /**
    * Gets neighbors of a node from the materialized state.
    *
    * Returns node IDs connected to the given node by edges in the specified direction.
@@ -1921,20 +1981,48 @@ export default class WarpGraph {
   /**
    * Gets all visible edges in the materialized state.
    *
+   * Each edge includes a `props` object containing any edge properties
+   * from the materialized state.
+   *
    * **Requires a cached state.** Call materialize() first if not already cached.
    *
-   * @returns {Promise<Array<{from: string, to: string, label: string}>>} Array of edge info
+   * @returns {Promise<Array<{from: string, to: string, label: string, props: Record<string, *>}>>} Array of edge info
    * @throws {QueryError} If no cached state exists (code: `E_NO_STATE`)
    * @throws {QueryError} If cached state is dirty (code: `E_STALE_STATE`)
    *
    * @example
    * await graph.materialize();
    * for (const edge of await graph.getEdges()) {
-   *   console.log(`${edge.from} --${edge.label}--> ${edge.to}`);
+   *   console.log(`${edge.from} --${edge.label}--> ${edge.to}`, edge.props);
    * }
    */
   async getEdges() {
     await this._ensureFreshState();
+
+    // Pre-collect edge props into a lookup: "from\0to\0label" → {propKey: value}
+    // Filters out stale props using full EventId ordering via compareEventIds
+    // against the edge's birth EventId (clean-slate semantics on re-add)
+    const edgePropsByKey = new Map();
+    for (const [propKey, register] of this._cachedState.prop) {
+      if (!isEdgePropKey(propKey)) {
+        continue;
+      }
+      const decoded = decodeEdgePropKey(propKey);
+      const ek = encodeEdgeKey(decoded.from, decoded.to, decoded.label);
+
+      // Clean-slate filter: skip props from before the edge's current incarnation
+      const birthEvent = this._cachedState.edgeBirthEvent?.get(ek);
+      if (birthEvent && register.eventId && compareEventIds(register.eventId, birthEvent) < 0) {
+        continue;
+      }
+
+      let bag = edgePropsByKey.get(ek);
+      if (!bag) {
+        bag = {};
+        edgePropsByKey.set(ek, bag);
+      }
+      bag[decoded.propKey] = register.value;
+    }
 
     const edges = [];
     for (const edgeKey of orsetElements(this._cachedState.edgeAlive)) {
@@ -1942,7 +2030,8 @@ export default class WarpGraph {
       // Only include edges where both endpoints are visible
       if (orsetContains(this._cachedState.nodeAlive, from) &&
           orsetContains(this._cachedState.nodeAlive, to)) {
-        edges.push({ from, to, label });
+        const props = edgePropsByKey.get(edgeKey) || {};
+        edges.push({ from, to, label, props });
       }
     }
     return edges;

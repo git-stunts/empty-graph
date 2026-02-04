@@ -383,7 +383,7 @@ describe('AP/LAZY/2: auto-materialize guards on query methods', () => {
 
       const edges = await graph.getEdges();
       expect(edges).toHaveLength(1);
-      expect(edges[0]).toEqual({ from: 'test:alice', to: 'test:bob', label: 'knows' });
+      expect(edges[0]).toEqual({ from: 'test:alice', to: 'test:bob', label: 'knows', props: {} });
 
       const props = await graph.getNodeProps('test:alice');
       expect(props.get('name')).toBe('Alice');

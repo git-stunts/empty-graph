@@ -12,7 +12,7 @@
  */
 
 import { vvIncrement, vvClone, vvSerialize } from '../crdt/VersionVector.js';
-import { orsetGetDots } from '../crdt/ORSet.js';
+import { orsetGetDots, orsetContains } from '../crdt/ORSet.js';
 import {
   createNodeAddV2,
   createNodeRemoveV2,
@@ -21,7 +21,7 @@ import {
   createPropSetV2,
   createPatchV2,
 } from '../types/WarpTypesV2.js';
-import { encodeEdgeKey } from './JoinReducer.js';
+import { encodeEdgeKey, EDGE_PROP_PREFIX } from './JoinReducer.js';
 import { encode } from '../../infrastructure/codecs/CborCodec.js';
 import { encodePatchMessage, decodePatchMessage } from './WarpMessageCodec.js';
 import { buildWriterRef } from '../utils/RefLayout.js';
@@ -70,6 +70,9 @@ export class PatchBuilderV2 {
 
     /** @type {import('../types/WarpTypesV2.js').OpV2[]} */
     this._ops = [];
+
+    /** @type {Set<string>} Edge keys added in this patch (for setEdgeProperty validation) */
+    this._edgesAdded = new Set();
   }
 
   /**
@@ -121,6 +124,7 @@ export class PatchBuilderV2 {
   addEdge(from, to, label) {
     const dot = vvIncrement(this._vv, this._writerId);
     this._ops.push(createEdgeAddV2(from, to, label, dot));
+    this._edgesAdded.add(encodeEdgeKey(from, to, label));
     return this;
   }
 
@@ -164,13 +168,53 @@ export class PatchBuilderV2 {
   }
 
   /**
+   * Sets a property on an edge.
+   * Props use EventId from patch context (lamport + writer), not dots.
+   *
+   * The edge is identified by (from, to, label). The property is stored
+   * under the edge property key namespace using the \x01 prefix, so that
+   * JoinReducer's `encodePropKey(op.node, op.key)` produces the canonical
+   * `encodeEdgePropKey(from, to, label, key)` encoding.
+   *
+   * @param {string} from - Source node ID
+   * @param {string} to - Target node ID
+   * @param {string} label - Edge label/type
+   * @param {string} key - Property key
+   * @param {*} value - Property value (any JSON-serializable type)
+   * @returns {PatchBuilderV2} This builder for chaining
+   *
+   * @example
+   * builder.setEdgeProperty('user:alice', 'user:bob', 'follows', 'since', '2025-01-01');
+   */
+  setEdgeProperty(from, to, label, key, value) {
+    // Validate edge exists in this patch or in current state
+    const ek = encodeEdgeKey(from, to, label);
+    if (!this._edgesAdded.has(ek)) {
+      const state = this._getCurrentState();
+      if (!state || !orsetContains(state.edgeAlive, ek)) {
+        throw new Error(`Cannot set property on unknown edge (${from} → ${to} [${label}]): add the edge first`);
+      }
+    }
+
+    // Encode the edge identity as the "node" field with the \x01 prefix.
+    // When JoinReducer processes: encodePropKey(op.node, op.key)
+    //   = `\x01from\0to\0label` + `\0` + key
+    //   = `\x01from\0to\0label\0key`
+    //   = encodeEdgePropKey(from, to, label, key)
+    const edgeNode = `${EDGE_PROP_PREFIX}${from}\0${to}\0${label}`;
+    this._ops.push(createPropSetV2(edgeNode, key, value));
+    return this;
+  }
+
+  /**
    * Builds the PatchV2 object.
    *
    * @returns {import('../types/WarpTypesV2.js').PatchV2} The constructed patch
    */
   build() {
+    const schema = this._ops.some(op => op.type === 'PropSet' && op.node.charCodeAt(0) === 1) ? 3 : 2;
     return createPatchV2({
-      schema: 2,
+      schema,
       writer: this._writerId,
       lamport: this._lamport,
       context: this._vv,
@@ -229,8 +273,9 @@ export class PatchBuilderV2 {
     // Note: Dots were assigned using constructor lamport, but commit lamport may differ.
     // For now, we use the calculated lamport for the patch metadata.
     // The dots themselves are independent of patch lamport (they use VV counters).
+    const schema = this._ops.some(op => op.type === 'PropSet' && op.node.charCodeAt(0) === 1) ? 3 : 2;
     const patch = {
-      schema: 2,
+      schema,
       writer: this._writerId,
       lamport,
       context: vvSerialize(this._vv),
@@ -254,7 +299,7 @@ export class PatchBuilderV2 {
       writer: this._writerId,
       lamport,
       patchOid: patchBlobOid,
-      schema: 2,
+      schema,
     });
 
     // 8. Create commit with tree, linking to previous patch as parent if exists

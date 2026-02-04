@@ -1,10 +1,10 @@
 /**
  * Checkpoint Service for WARP multi-writer graph database.
  *
- * Provides functionality for creating and loading schema:2 checkpoints,
- * as well as incremental state materialization from checkpoints.
+ * Provides functionality for creating and loading schema:2 and schema:3
+ * checkpoints, as well as incremental state materialization from checkpoints.
  *
- * This service only supports schema:2 (V5) checkpoints. Schema:1 (V4)
+ * This service supports schema:2 and schema:3 (V5) checkpoints. Schema:1 (V4)
  * checkpoints must be migrated before use.
  *
  * @module CheckpointService
@@ -175,10 +175,10 @@ export async function loadCheckpoint(persistence, checkpointSha) {
   const decoded = decodeCheckpointMessage(message);
 
   // 2. Reject schema:1 checkpoints - migration required
-  if (decoded.schema !== 2) {
+  if (decoded.schema !== 2 && decoded.schema !== 3) {
     throw new Error(
       `Checkpoint ${checkpointSha} is schema:${decoded.schema}. ` +
-        `Only schema:2 checkpoints are supported. Please migrate using MigrationService.`
+        `Only schema:2 and schema:3 checkpoints are supported. Please migrate using MigrationService.`
     );
   }
 
@@ -332,5 +332,13 @@ export function reconstructStateV5FromCheckpoint(visibleProjection) {
     });
   }
 
-  return { nodeAlive, edgeAlive, prop, observedFrontier };
+  // Reconstruct edgeBirthEvent: synthetic birth at lamport 0
+  // so checkpoint-loaded props pass the visibility filter
+  const edgeBirthEvent = new Map();
+  for (const edge of edges) {
+    const edgeKey = encodeEdgeKey(edge.from, edge.to, edge.label);
+    edgeBirthEvent.set(edgeKey, { lamport: 0, writerId: '', patchSha: '0000', opIndex: 0 });
+  }
+
+  return { nodeAlive, edgeAlive, prop, observedFrontier, edgeBirthEvent };
 }
