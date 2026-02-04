@@ -83,7 +83,7 @@ export default class IndexRebuildService {
    *   onFlush: ({ flushCount }) => console.log(`Flush #${flushCount}`),
    * });
    */
-  async rebuild(ref, { limit = 10_000_000, maxMemoryBytes, onFlush, onProgress, signal } = {}) {
+  async rebuild(ref, { limit = 10_000_000, maxMemoryBytes, onFlush, onProgress, signal, frontier } = {}) {
     if (maxMemoryBytes !== undefined && maxMemoryBytes <= 0) {
       throw new Error('maxMemoryBytes must be a positive number');
     }
@@ -101,9 +101,9 @@ export default class IndexRebuildService {
     try {
       let treeOid;
       if (maxMemoryBytes !== undefined) {
-        treeOid = await this._rebuildStreaming(ref, { limit, maxMemoryBytes, onFlush, onProgress, signal });
+        treeOid = await this._rebuildStreaming(ref, { limit, maxMemoryBytes, onFlush, onProgress, signal, frontier });
       } else {
-        treeOid = await this._rebuildInMemory(ref, { limit, onProgress, signal });
+        treeOid = await this._rebuildInMemory(ref, { limit, onProgress, signal, frontier });
       }
 
       const durationMs = performance.now() - startTime;
@@ -140,7 +140,7 @@ export default class IndexRebuildService {
    * @returns {Promise<string>} Tree OID
    * @private
    */
-  async _rebuildInMemory(ref, { limit, onProgress, signal }) {
+  async _rebuildInMemory(ref, { limit, onProgress, signal, frontier }) {
     const builder = new BitmapIndexBuilder();
     let processedNodes = 0;
 
@@ -159,7 +159,7 @@ export default class IndexRebuildService {
       }
     }
 
-    return await this._persistIndex(builder);
+    return await this._persistIndex(builder, { frontier });
   }
 
   /**
@@ -175,7 +175,7 @@ export default class IndexRebuildService {
    * @returns {Promise<string>} Tree OID
    * @private
    */
-  async _rebuildStreaming(ref, { limit, maxMemoryBytes, onFlush, onProgress, signal }) {
+  async _rebuildStreaming(ref, { limit, maxMemoryBytes, onFlush, onProgress, signal, frontier }) {
     const builder = new StreamingBitmapIndexBuilder({
       storage: this.storage,
       maxMemoryBytes,
@@ -203,7 +203,7 @@ export default class IndexRebuildService {
       }
     }
 
-    return await builder.finalize({ signal });
+    return await builder.finalize({ signal, frontier });
   }
 
   /**
@@ -216,8 +216,8 @@ export default class IndexRebuildService {
    * @returns {Promise<string>} OID of the created tree
    * @private
    */
-  async _persistIndex(builder) {
-    const treeStructure = builder.serialize();
+  async _persistIndex(builder, { frontier } = {}) {
+    const treeStructure = builder.serialize({ frontier });
     const flatEntries = [];
     for (const [path, buffer] of Object.entries(treeStructure)) {
       const oid = await this.storage.writeBlob(buffer);

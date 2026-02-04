@@ -5,6 +5,7 @@ import ShardValidationError from '../errors/ShardValidationError.js';
 import NoOpLogger from '../../infrastructure/adapters/NoOpLogger.js';
 import { checkAborted } from '../utils/cancellation.js';
 import { getRoaringBitmap32 } from '../utils/roaring.js';
+import { encode as cborEncode } from '../../infrastructure/codecs/CborCodec.js';
 
 /**
  * Current shard format version.
@@ -332,7 +333,7 @@ export default class StreamingBitmapIndexBuilder {
    * @param {AbortSignal} [options.signal] - Optional AbortSignal for cancellation
    * @returns {Promise<string>} OID of the created tree containing the index
    */
-  async finalize({ signal } = {}) {
+  async finalize({ signal, frontier } = {}) {
     this.logger.debug('Finalizing index', {
       operation: 'finalize',
       nodeCount: this.shaToId.size,
@@ -350,6 +351,20 @@ export default class StreamingBitmapIndexBuilder {
     checkAborted(signal, 'finalize');
     const bitmapEntries = await this._processBitmapShards({ signal });
     const flatEntries = [...metaEntries, ...bitmapEntries];
+
+    // Store frontier metadata for staleness detection
+    if (frontier) {
+      const sorted = {};
+      for (const key of Array.from(frontier.keys()).sort()) {
+        sorted[key] = frontier.get(key);
+      }
+      const envelope = { version: 1, writerCount: frontier.size, frontier: sorted };
+      const cborOid = await this.storage.writeBlob(Buffer.from(cborEncode(envelope)));
+      flatEntries.push(`100644 blob ${cborOid}\tfrontier.cbor`);
+      const jsonOid = await this.storage.writeBlob(Buffer.from(JSON.stringify(envelope)));
+      flatEntries.push(`100644 blob ${jsonOid}\tfrontier.json`);
+    }
+
     const treeOid = await this.storage.writeTree(flatEntries);
 
     this.logger.debug('Index finalized', {

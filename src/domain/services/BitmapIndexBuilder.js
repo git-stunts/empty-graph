@@ -1,5 +1,6 @@
 import { createHash } from 'crypto';
 import { getRoaringBitmap32, getNativeRoaringAvailable } from '../utils/roaring.js';
+import { encode as cborEncode } from '../../infrastructure/codecs/CborCodec.js';
 
 /**
  * Shard format version for forward compatibility.
@@ -50,6 +51,32 @@ const ensureRoaringBitmap32 = () => {
   }
   return RoaringBitmap32;
 };
+
+/**
+ * Wraps data in a version/checksum envelope.
+ * @param {Object} data - The data to wrap
+ * @returns {Object} Envelope with version, checksum, and data
+ */
+const wrapShard = (data) => ({
+  version: SHARD_VERSION,
+  checksum: computeChecksum(data),
+  data,
+});
+
+/**
+ * Serializes a frontier Map into CBOR and JSON blobs in the given tree.
+ * @param {Map<string, string>} frontier - Writer→tip SHA map
+ * @param {Record<string, Buffer>} tree - Target tree to add entries to
+ */
+function serializeFrontierToTree(frontier, tree) {
+  const sorted = {};
+  for (const key of Array.from(frontier.keys()).sort()) {
+    sorted[key] = frontier.get(key);
+  }
+  const envelope = { version: 1, writerCount: frontier.size, frontier: sorted };
+  tree['frontier.cbor'] = Buffer.from(cborEncode(envelope));
+  tree['frontier.json'] = Buffer.from(canonicalStringify(envelope));
+}
 
 /**
  * Builder for constructing bitmap indexes in memory.
@@ -125,19 +152,8 @@ export default class BitmapIndexBuilder {
    *
    * @returns {Record<string, Buffer>} Map of path → serialized content
    */
-  serialize() {
+  serialize({ frontier } = {}) {
     const tree = {};
-
-    /**
-     * Wraps data in a version/checksum envelope.
-     * @param {Object} data - The data to wrap
-     * @returns {Object} Envelope with version, checksum, and data
-     */
-    const wrapShard = (data) => ({
-      version: SHARD_VERSION,
-      checksum: computeChecksum(data),
-      data,
-    });
 
     // Serialize ID mappings (sharded by prefix)
     const idShards = {};
@@ -170,6 +186,10 @@ export default class BitmapIndexBuilder {
       for (const [prefix, shardData] of Object.entries(bitmapShards[type])) {
         tree[`shards_${type}_${prefix}.json`] = Buffer.from(JSON.stringify(wrapShard(shardData)));
       }
+    }
+
+    if (frontier) {
+      serializeFrontierToTree(frontier, tree);
     }
 
     return tree;
