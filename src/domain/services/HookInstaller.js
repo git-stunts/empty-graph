@@ -134,6 +134,7 @@ export class HookInstaller {
 
   _freshInstall(hookPath, content) {
     this._fs.writeFileSync(hookPath, content, { mode: 0o755 });
+    this._fs.chmodSync(hookPath, 0o755);
     return {
       action: 'installed',
       hookPath,
@@ -184,6 +185,7 @@ export class HookInstaller {
     if (existing) {
       backupPath = `${hookPath}.backup`;
       this._fs.writeFileSync(backupPath, existing);
+      this._fs.chmodSync(backupPath, 0o755);
     }
 
     this._fs.writeFileSync(hookPath, stamped, { mode: 0o755 });
