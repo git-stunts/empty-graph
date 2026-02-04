@@ -56,6 +56,50 @@ export function decodePropKey(key) {
 }
 
 /**
+ * Prefix byte for edge property keys. Guarantees no collision with node
+ * property keys (which start with a node-ID character, never \x01).
+ * @const {string}
+ */
+export const EDGE_PROP_PREFIX = '\x01';
+
+/**
+ * Encodes an edge property key for Map storage.
+ *
+ * Format: `\x01from\0to\0label\0propKey`
+ *
+ * The \x01 prefix guarantees collision-freedom with node property keys
+ * (format `nodeId\0propKey`) since node IDs never start with \x01.
+ *
+ * @param {string} from - Source node ID
+ * @param {string} to - Target node ID
+ * @param {string} label - Edge label
+ * @param {string} propKey - Property name
+ * @returns {string}
+ */
+export function encodeEdgePropKey(from, to, label, propKey) {
+  return `\x01${from}\0${to}\0${label}\0${propKey}`;
+}
+
+/**
+ * Decodes an edge property key string.
+ * @param {string} encoded - Encoded edge property key (must start with \x01)
+ * @returns {{from: string, to: string, label: string, propKey: string}}
+ */
+export function decodeEdgePropKey(encoded) {
+  const [from, to, label, propKey] = encoded.slice(1).split('\0');
+  return { from, to, label, propKey };
+}
+
+/**
+ * Returns true if the encoded key is an edge property key.
+ * @param {string} key - Encoded property key
+ * @returns {boolean}
+ */
+export function isEdgePropKey(key) {
+  return key.charCodeAt(0) === 1;
+}
+
+/**
  * @typedef {Object} WarpStateV5
  * @property {import('../crdt/ORSet.js').ORSet} nodeAlive - ORSet of alive nodes
  * @property {import('../crdt/ORSet.js').ORSet} edgeAlive - ORSet of alive edges
