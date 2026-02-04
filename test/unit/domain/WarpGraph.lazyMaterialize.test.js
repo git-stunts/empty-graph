@@ -663,7 +663,7 @@ describe('AP/LAZY/2: auto-materialize guards on query methods', () => {
       expect(spy).toHaveBeenCalled();
     });
 
-    it('autoMaterialize false with dirty state still throws (no auto-materialize)', async () => {
+    it('autoMaterialize false with dirty state throws', async () => {
       const persistence = createMockPersistence();
       const graph = await WarpGraph.open({
         persistence,
@@ -675,11 +675,7 @@ describe('AP/LAZY/2: auto-materialize guards on query methods', () => {
       await graph.materialize();
       graph._stateDirty = true;
 
-      // Even though state is dirty, autoMaterialize is off so the
-      // existing _cachedState is used (it's not null).
-      // _ensureFreshState only throws when _cachedState IS null.
-      const result = await graph.getNodes();
-      expect(result).toEqual([]);
+      await expect(graph.getNodes()).rejects.toThrow('Cached state is dirty. Call materialize() to refresh.');
     });
   });
 });

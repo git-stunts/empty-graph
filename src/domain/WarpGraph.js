@@ -1651,6 +1651,9 @@ export default class WarpGraph {
     if (!this._cachedState) {
       throw new Error('No cached state. Call materialize() first.');
     }
+    if (this._stateDirty) {
+      throw new Error('Cached state is dirty. Call materialize() to refresh.');
+    }
   }
 
   // ============================================================================
@@ -1677,7 +1680,7 @@ export default class WarpGraph {
    *
    * @example
    * await graph.materialize();
-   * if (graph.hasNode('user:alice')) {
+   * if (await graph.hasNode('user:alice')) {
    *   console.log('Alice exists in the graph');
    * }
    */
@@ -1700,7 +1703,7 @@ export default class WarpGraph {
    *
    * @example
    * await graph.materialize();
-   * const props = graph.getNodeProps('user:alice');
+   * const props = await graph.getNodeProps('user:alice');
    * if (props) {
    *   console.log('Name:', props.get('name'));
    * }
@@ -1744,9 +1747,9 @@ export default class WarpGraph {
    * @example
    * await graph.materialize();
    * // Get all outgoing neighbors
-   * const outgoing = graph.neighbors('user:alice', 'outgoing');
+   * const outgoing = await graph.neighbors('user:alice', 'outgoing');
    * // Get neighbors connected by 'follows' edges
-   * const follows = graph.neighbors('user:alice', 'outgoing', 'follows');
+   * const follows = await graph.neighbors('user:alice', 'outgoing', 'follows');
    */
   async neighbors(nodeId, direction = 'both', edgeLabel = undefined) {
     await this._ensureFreshState();
@@ -1791,7 +1794,7 @@ export default class WarpGraph {
    *
    * @example
    * await graph.materialize();
-   * for (const nodeId of graph.getNodes()) {
+   * for (const nodeId of await graph.getNodes()) {
    *   console.log(nodeId);
    * }
    */
@@ -1810,7 +1813,7 @@ export default class WarpGraph {
    *
    * @example
    * await graph.materialize();
-   * for (const edge of graph.getEdges()) {
+   * for (const edge of await graph.getEdges()) {
    *   console.log(`${edge.from} --${edge.label}--> ${edge.to}`);
    * }
    */
