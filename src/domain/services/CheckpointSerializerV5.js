@@ -56,11 +56,21 @@ export function serializeFullStateV5(state) {
   // Serialize observedFrontier
   const observedFrontierObj = vvSerialize(state.observedFrontier);
 
+  // Serialize edgeBirthLamport as sorted array of [edgeKey, lamport] pairs
+  const edgeBirthArray = [];
+  if (state.edgeBirthLamport) {
+    for (const [key, lamport] of state.edgeBirthLamport) {
+      edgeBirthArray.push([key, lamport]);
+    }
+    edgeBirthArray.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+  }
+
   const obj = {
     nodeAlive: nodeAliveObj,
     edgeAlive: edgeAliveObj,
     prop: propArray,
     observedFrontier: observedFrontierObj,
+    edgeBirthLamport: edgeBirthArray,
   };
 
   return encode(obj);
@@ -90,7 +100,15 @@ export function deserializeFullStateV5(buffer) {
   // Deserialize observedFrontier
   const observedFrontier = vvDeserialize(obj.observedFrontier || {});
 
-  return { nodeAlive, edgeAlive, prop, observedFrontier };
+  // Deserialize edgeBirthLamport
+  const edgeBirthLamport = new Map();
+  if (obj.edgeBirthLamport && Array.isArray(obj.edgeBirthLamport)) {
+    for (const [key, lamport] of obj.edgeBirthLamport) {
+      edgeBirthLamport.set(key, lamport);
+    }
+  }
+
+  return { nodeAlive, edgeAlive, prop, observedFrontier, edgeBirthLamport };
 }
 
 // ============================================================================

@@ -105,6 +105,7 @@ export function isEdgePropKey(key) {
  * @property {import('../crdt/ORSet.js').ORSet} edgeAlive - ORSet of alive edges
  * @property {Map<string, import('../crdt/LWW.js').LWWRegister>} prop - Properties with LWW
  * @property {import('../crdt/VersionVector.js').VersionVector} observedFrontier - Observed version vector
+ * @property {Map<string, number>} edgeBirthLamport - EdgeKey → lamport of most recent EdgeAdd (for clean-slate prop visibility)
  */
 
 /**
@@ -117,6 +118,7 @@ export function createEmptyStateV5() {
     edgeAlive: createORSet(),
     prop: new Map(),
     observedFrontier: createVersionVector(),
+    edgeBirthLamport: new Map(),
   };
 }
 
@@ -136,9 +138,20 @@ export function applyOpV2(state, op, eventId) {
     case 'NodeRemove':
       orsetRemove(state.nodeAlive, op.observedDots);
       break;
-    case 'EdgeAdd':
-      orsetAdd(state.edgeAlive, encodeEdgeKey(op.from, op.to, op.label), op.dot);
+    case 'EdgeAdd': {
+      const edgeKey = encodeEdgeKey(op.from, op.to, op.label);
+      orsetAdd(state.edgeAlive, edgeKey, op.dot);
+      // Track the lamport at which this edge incarnation was born.
+      // On re-add after remove, the higher lamport replaces the old one,
+      // allowing the query layer to filter out stale properties.
+      if (state.edgeBirthLamport) {
+        const prevBirth = state.edgeBirthLamport.get(edgeKey);
+        if (prevBirth === undefined || eventId.lamport > prevBirth) {
+          state.edgeBirthLamport.set(edgeKey, eventId.lamport);
+        }
+      }
       break;
+    }
     case 'EdgeRemove':
       orsetRemove(state.edgeAlive, op.observedDots);
       break;
@@ -191,6 +204,7 @@ export function joinStates(a, b) {
     edgeAlive: orsetJoin(a.edgeAlive, b.edgeAlive),
     prop: mergeProps(a.prop, b.prop),
     observedFrontier: vvMerge(a.observedFrontier, b.observedFrontier),
+    edgeBirthLamport: mergeEdgeBirthLamport(a.edgeBirthLamport, b.edgeBirthLamport),
   };
 }
 
@@ -209,6 +223,26 @@ function mergeProps(a, b) {
     result.set(key, lwwMax(regA, regB));
   }
 
+  return result;
+}
+
+/**
+ * Merges two edgeBirthLamport maps by taking the max lamport per key.
+ *
+ * @param {Map<string, number>} a
+ * @param {Map<string, number>} b
+ * @returns {Map<string, number>}
+ */
+function mergeEdgeBirthLamport(a, b) {
+  const result = new Map(a || []);
+  if (b) {
+    for (const [key, lamport] of b) {
+      const existing = result.get(key);
+      if (existing === undefined || lamport > existing) {
+        result.set(key, lamport);
+      }
+    }
+  }
   return result;
 }
 
@@ -239,5 +273,6 @@ export function cloneStateV5(state) {
     edgeAlive: orsetJoin(state.edgeAlive, createORSet()),
     prop: new Map(state.prop),
     observedFrontier: vvClone(state.observedFrontier),
+    edgeBirthLamport: new Map(state.edgeBirthLamport || []),
   };
 }

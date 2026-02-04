@@ -332,5 +332,13 @@ export function reconstructStateV5FromCheckpoint(visibleProjection) {
     });
   }
 
-  return { nodeAlive, edgeAlive, prop, observedFrontier };
+  // Reconstruct edgeBirthLamport: synthetic birth at lamport 0
+  // so checkpoint-loaded props pass the visibility filter
+  const edgeBirthLamport = new Map();
+  for (const edge of edges) {
+    const edgeKey = encodeEdgeKey(edge.from, edge.to, edge.label);
+    edgeBirthLamport.set(edgeKey, 0);
+  }
+
+  return { nodeAlive, edgeAlive, prop, observedFrontier, edgeBirthLamport };
 }

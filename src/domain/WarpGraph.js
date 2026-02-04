@@ -1872,7 +1872,11 @@ export default class WarpGraph {
       return null;
     }
 
-    // Collect all properties for this edge
+    // Determine the birth lamport for clean-slate filtering
+    const birthLamport = this._cachedState.edgeBirthLamport?.get(edgeKey) ?? 0;
+
+    // Collect all properties for this edge, filtering out stale props
+    // (props set before the edge's most recent re-add)
     const props = {};
     for (const [propKey, register] of this._cachedState.prop) {
       if (!isEdgePropKey(propKey)) {
@@ -1880,6 +1884,9 @@ export default class WarpGraph {
       }
       const decoded = decodeEdgePropKey(propKey);
       if (decoded.from === from && decoded.to === to && decoded.label === label) {
+        if (register.eventId && register.eventId.lamport < birthLamport) {
+          continue; // stale prop from before the edge's current incarnation
+        }
         props[decoded.propKey] = register.value;
       }
     }
@@ -1986,6 +1993,7 @@ export default class WarpGraph {
     await this._ensureFreshState();
 
     // Pre-collect edge props into a lookup: "from\0to\0label" → {propKey: value}
+    // Filters out stale props whose eventId.lamport < the edge's birth lamport
     const edgePropsByKey = new Map();
     for (const [propKey, register] of this._cachedState.prop) {
       if (!isEdgePropKey(propKey)) {
@@ -1993,6 +2001,13 @@ export default class WarpGraph {
       }
       const decoded = decodeEdgePropKey(propKey);
       const ek = encodeEdgeKey(decoded.from, decoded.to, decoded.label);
+
+      // Clean-slate filter: skip props from before the edge's current incarnation
+      const birthLamport = this._cachedState.edgeBirthLamport?.get(ek) ?? 0;
+      if (register.eventId && register.eventId.lamport < birthLamport) {
+        continue;
+      }
+
       let bag = edgePropsByKey.get(ek);
       if (!bag) {
         bag = {};

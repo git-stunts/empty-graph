@@ -245,14 +245,14 @@ GROUNDSKEEPER    (v7.2.0)  █████████████████�
   ■ GK/IDX/1            →  GK/IDX/2
   ■ GK/IDX/2          
 
-WEIGHTED         (v7.3.0)  █████████████████░░░   86%  (6/7)
+WEIGHTED         (v7.3.0)  ████████████████████  100%  (7/7)
   ■ WT/EPKEY/1          →  WT/OPS/1, WT/SCHEMA/1
   ■ WT/OPS/1            →  WT/OPS/2, WT/OPS/3
   ■ WT/OPS/2          
   ■ WT/OPS/3            →  WT/VIS/1
   ■ WT/SCHEMA/1         →  WT/SCHEMA/2
   ■ WT/SCHEMA/2       
-  ◆ WT/VIS/1          
+  ■ WT/VIS/1          
 
 HANDSHAKE        (v7.4.0)  ░░░░░░░░░░░░░░░░░░░░    0%  (0/8)
   ◆ HS/CAS/1          
@@ -832,7 +832,7 @@ Extends the data model to support properties on edges, enabling weighted graphs,
 
 #### WT/VIS/1 — Gate edge property visibility on edge aliveness
 
-- **Status:** `OPEN`
+- **Status:** `CLOSED`
 - **User Story:** As a developer, I expect edge properties to disappear when the edge is removed.
 - **Requirements:**
   - `getEdges()` and query results omit props for edges not in `edgeAlive` OR-Set.
