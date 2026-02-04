@@ -160,7 +160,7 @@ describe('AP/LAZY/2: auto-materialize guards on query methods', () => {
         schema: 2,
       });
       persistence.listRefs.mockResolvedValue([
-        { ref: 'refs/warp/test/writers/writer-1', sha: FAKE_COMMIT_SHA },
+        'refs/warp/test/writers/writer-1',
       ]);
       persistence.showNode.mockResolvedValue(patchMessage);
       persistence.readBlob.mockResolvedValue(
