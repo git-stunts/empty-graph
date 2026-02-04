@@ -25,6 +25,7 @@ const graph = await WarpGraph.open({
   persistence,
   graphName: 'demo',
   writerId: 'writer-1',
+  autoMaterialize: true,  // auto-materialize on query
 });
 
 // Write data using the patch builder
@@ -36,9 +37,6 @@ await (await graph.createPatch())
   .setProperty('user:bob', 'name', 'Bob')
   .addEdge('user:alice', 'user:bob', 'manages')
   .commit();
-
-// Materialize state from all writers
-await graph.materialize();
 
 // Query the graph
 const result = await graph.query()
@@ -90,8 +88,8 @@ await (await graphB.createPatch())
 
 // After git push/pull, materialize merges both writers
 const state = await graphA.materialize();
-graphA.hasNode('doc:1'); // true
-graphA.hasNode('doc:2'); // true
+await graphA.hasNode('doc:1'); // true
+await graphA.hasNode('doc:2'); // true
 ```
 
 ### HTTP Sync
@@ -115,18 +113,18 @@ await graphA.syncWith(graphB);
 
 ## Querying
 
-All query methods require a materialized state. Call `materialize()` first.
+Query methods require materialized state. Either call `materialize()` first, or pass `autoMaterialize: true` to `WarpGraph.open()` to handle this automatically.
 
 ### Simple Queries
 
 ```javascript
 await graph.materialize();
 
-graph.getNodes();                              // ['user:alice', 'user:bob']
-graph.hasNode('user:alice');                   // true
-graph.getNodeProps('user:alice');              // Map { 'name' => 'Alice', 'role' => 'admin' }
-graph.neighbors('user:alice', 'outgoing');    // [{ nodeId: 'user:bob', label: 'manages', direction: 'outgoing' }]
-graph.getEdges();                              // [{ from: 'user:alice', to: 'user:bob', label: 'manages' }]
+await graph.getNodes();                              // ['user:alice', 'user:bob']
+await graph.hasNode('user:alice');                   // true
+await graph.getNodeProps('user:alice');              // Map { 'name' => 'Alice', 'role' => 'admin' }
+await graph.neighbors('user:alice', 'outgoing');    // [{ nodeId: 'user:bob', label: 'manages', direction: 'outgoing' }]
+await graph.getEdges();                              // [{ from: 'user:alice', to: 'user:bob', label: 'manages' }]
 ```
 
 ### Fluent Query Builder
@@ -194,6 +192,14 @@ await graph.createCheckpoint();
 // GC removes tombstones when safe
 const metrics = graph.getGCMetrics();
 const { ran, result } = graph.maybeRunGC();
+
+// Or configure automatic checkpointing
+const graph = await WarpGraph.open({
+  persistence,
+  graphName: 'demo',
+  writerId: 'writer-1',
+  checkpointPolicy: { every: 500 },  // auto-checkpoint every 500 patches
+});
 ```
 
 ## CLI

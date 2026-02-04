@@ -118,6 +118,60 @@ const state = await graph.materialize();
 // Edge 'temp->other' is not visible
 ```
 
+## Auto-Materialize and Auto-Checkpoint
+
+### Auto-Materialize
+
+By default, query methods throw if no materialized state exists. With `autoMaterialize: true`, query methods automatically materialize before returning results:
+
+```javascript
+const graph = await WarpGraph.open({
+  persistence,
+  graphName: 'my-graph',
+  writerId: 'local',
+  autoMaterialize: true,
+});
+
+// No explicit materialize() needed — queries auto-materialize
+const nodes = await graph.getNodes();
+const exists = await graph.hasNode('user:alice');
+const result = await graph.query().match('user:*').run();
+```
+
+When `autoMaterialize` is off (the default), querying dirty state throws `QueryError` with code `E_STALE_STATE`, and querying without any cached state throws `QueryError` with code `E_NO_STATE`.
+
+### Auto-Checkpoint
+
+Configure automatic checkpointing to keep materialization fast:
+
+```javascript
+const graph = await WarpGraph.open({
+  persistence,
+  graphName: 'my-graph',
+  writerId: 'local',
+  checkpointPolicy: { every: 500 },
+});
+```
+
+After `materialize()` processes 500+ patches, a checkpoint is created automatically. The counter resets after each checkpoint. Checkpoint failures are swallowed — they never break materialization.
+
+### Eager Re-Materialize
+
+After a local commit, the patch is applied eagerly to cached state. This means queries immediately reflect local writes without calling `materialize()` again:
+
+```javascript
+await graph.materialize();
+
+await (await graph.createPatch())
+  .addNode('user:carol')
+  .commit();
+
+// No re-materialize needed — eager apply already updated state
+await graph.hasNode('user:carol'); // true
+```
+
+This works for all write paths: `createPatch().commit()`, `writer.commitPatch()`, and `PatchSession.commit()`.
+
 ### Frontiers and Checkpoints
 
 A **frontier** tracks the last-seen patch from each writer:
@@ -211,6 +265,21 @@ console.log(`Checkpoint created: ${checkpointSha}`);
 // Fast startup: materialize from checkpoint
 const state = await graph.materializeAt(checkpointSha);
 // Only processes patches since checkpoint, not entire history
+```
+
+#### Automatic Checkpointing
+
+```javascript
+// Auto-checkpoint: no manual intervention needed
+const graph = await WarpGraph.open({
+  persistence,
+  graphName: 'todos',
+  writerId: 'local',
+  checkpointPolicy: { every: 500 },
+});
+
+// After 500+ patches, materialize() creates a checkpoint automatically
+await graph.materialize();
 ```
 
 ### Discovering Writers
@@ -337,9 +406,10 @@ Example output lines:
 
 ### "Materialization is slow"
 
-1. Create checkpoints periodically
-2. Use `materializeAt(checkpointSha)` for incremental recovery
-3. Consider reducing patch frequency (batch operations)
+1. Enable auto-checkpointing: `checkpointPolicy: { every: 500 }` on `WarpGraph.open()`
+2. Create checkpoints manually with `graph.createCheckpoint()` if not using auto-checkpointing
+3. Use `materializeAt(checkpointSha)` for incremental recovery
+4. Consider reducing patch frequency (batch operations)
 
 ### "Node should be deleted but still appears"
 
@@ -355,7 +425,7 @@ Solution: Ensure tombstones have higher lamport than adds.
 ## Performance Tips
 
 1. **Batch operations** - Group related changes into single patches
-2. **Checkpoint regularly** - Every 500-1000 patches
+2. **Checkpoint regularly** - Use `checkpointPolicy: { every: 500 }` for automatic checkpointing, or call `createCheckpoint()` manually
 3. **Use incremental materialization** - `materializeAt()` vs `materialize()`
 4. **Limit concurrent writers** - More writers = more merge overhead
 
