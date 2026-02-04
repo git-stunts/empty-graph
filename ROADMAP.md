@@ -226,17 +226,17 @@ LIGHTHOUSE ────────────────→ HOLOGRAM ──�
 ```
 Key: ■ CLOSED   ◆ OPEN   ○ BLOCKED
 
-AUTOPILOT        (v7.1.0)  ██████████░░░░░░░░░░   50%  (5/10)
+AUTOPILOT        (v7.1.0)  ████████████████████  100%  (10/10)
   ■ AP/CKPT/1           →  AP/CKPT/3
   ■ AP/CKPT/2           →  AP/CKPT/3, LH/STATUS/1
-  ◆ AP/CKPT/3         
-  ◆ AP/HOOK/1           →  AP/HOOK/2
-  ○ AP/HOOK/2
+  ■ AP/CKPT/3         
+  ■ AP/HOOK/1           →  AP/HOOK/2
+  ■ AP/HOOK/2         
   ■ AP/INVAL/1          →  AP/INVAL/2, AP/LAZY/2, LH/STATUS/1
   ■ AP/INVAL/2          →  AP/INVAL/3
-  ◆ AP/INVAL/3        
+  ■ AP/INVAL/3        
   ■ AP/LAZY/1           →  AP/LAZY/2
-  ◆ AP/LAZY/2         
+  ■ AP/LAZY/2         
 
 GROUNDSKEEPER    (v7.2.0)  ░░░░░░░░░░░░░░░░░░░░    0%  (0/4)
   ◆ GK/FRONTIER/1       →  PL/WATCH/2
@@ -372,7 +372,7 @@ The single biggest DX problem. Developers manually orchestrate state freshness a
 
 #### AP/INVAL/3 — Wire Writer.commitPatch() to trigger invalidation
 
-- **Status:** `OPEN`
+- **Status:** `CLOSED`
 - **User Story:** As a developer using the Writer API, I want the same freshness guarantees as the low-level patch API.
 - **Requirements:**
   - `Writer.commitPatch()` and `PatchSession.commit()` trigger the same eager re-materialize as `PatchBuilderV2.commit()`.
@@ -420,7 +420,7 @@ The single biggest DX problem. Developers manually orchestrate state freshness a
 
 #### AP/LAZY/2 — Guard query methods with auto-materialize
 
-- **Status:** `OPEN`
+- **Status:** `CLOSED`
 - **User Story:** As a developer with autoMaterialize enabled, I want query methods to just work without manual state management.
 - **Requirements:**
   - When `autoMaterialize === true` and `_cachedState` is null or `_stateDirty === true`, call `materialize()` before returning results.
@@ -499,7 +499,7 @@ The single biggest DX problem. Developers manually orchestrate state freshness a
 
 #### AP/CKPT/3 — Wire auto-checkpoint into materialize() path
 
-- **Status:** `OPEN`
+- **Status:** `CLOSED`
 - **User Story:** As a developer, I want checkpoints created automatically when my patch count exceeds the threshold.
 - **Requirements:**
   - At the end of `materialize()`, if `checkpointPolicy` is set and `_patchesSinceCheckpoint >= policy.every`, call `createCheckpoint()`.
@@ -530,7 +530,7 @@ The single biggest DX problem. Developers manually orchestrate state freshness a
 
 #### AP/HOOK/1 — Write post-merge hook script
 
-- **Status:** `OPEN`
+- **Status:** `CLOSED`
 - **User Story:** As a developer, I want to be notified when a git pull changes warp refs so I know to rematerialize.
 - **Requirements:**
   - Shell script that runs after `git merge` / `git pull`.
@@ -554,7 +554,7 @@ The single biggest DX problem. Developers manually orchestrate state freshness a
 
 #### AP/HOOK/2 — Integrate hook into install scripts
 
-- **Status:** `OPEN`
+- **Status:** `CLOSED`
 - **User Story:** As a developer, I want the post-merge hook installed automatically alongside existing hooks.
 - **Requirements:**
   - Add `post-merge` to the hooks installed by `scripts/setup-hooks.js`.
