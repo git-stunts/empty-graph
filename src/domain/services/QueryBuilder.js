@@ -157,11 +157,18 @@ function applyHop({ direction, label, workingSet, adjacency }) {
 }
 
 /**
- * Fluent query builder.
+ * Fluent query builder for materialized WARP state.
+ *
+ * Supports pattern matching, predicate filtering, multi-hop traversal
+ * over outgoing/incoming edges, and field selection.
+ *
+ * @throws {QueryError} On invalid match patterns, where predicates, label types, or select fields
  */
 export default class QueryBuilder {
   /**
-   * @param {import('../WarpGraph.js').default} graph
+   * Creates a new QueryBuilder.
+   *
+   * @param {import('../WarpGraph.js').default} graph - The WarpGraph instance to query
    */
   constructor(graph) {
     this._graph = graph;
@@ -235,13 +242,15 @@ export default class QueryBuilder {
   }
 
   /**
-   * Runs the query and returns a result.
-   * @returns {Promise<{stateHash: string, nodes: string[]}>}
+   * Runs the query and returns matching nodes with their state hash.
+   *
+   * @returns {Promise<{stateHash: string, nodes: Array<{id?: string, props?: Record<string, unknown>}>}>}
+   * @throws {QueryError} If an unknown select field is specified
    */
   async run() {
     const materialized = await this._graph._materializeGraph();
     const { adjacency, stateHash } = materialized;
-    const allNodes = sortIds(this._graph.getNodes());
+    const allNodes = sortIds(await this._graph.getNodes());
 
     const pattern = this._pattern ?? DEFAULT_PATTERN;
 
@@ -250,21 +259,20 @@ export default class QueryBuilder {
 
     for (const op of this._operations) {
       if (op.type === 'where') {
-        const filtered = [];
-        for (const nodeId of workingSet) {
-          const propsMap = this._graph.getNodeProps(nodeId) || new Map();
-          const edgesOut = adjacency.outgoing.get(nodeId) || [];
-          const edgesIn = adjacency.incoming.get(nodeId) || [];
-          const snapshot = createNodeSnapshot({
-            id: nodeId,
-            propsMap,
-            edgesOut,
-            edgesIn,
-          });
-          if (op.fn(snapshot)) {
-            filtered.push(nodeId);
-          }
-        }
+        const snapshots = await Promise.all(
+          workingSet.map(async (nodeId) => {
+            const propsMap = (await this._graph.getNodeProps(nodeId)) || new Map();
+            const edgesOut = adjacency.outgoing.get(nodeId) || [];
+            const edgesIn = adjacency.incoming.get(nodeId) || [];
+            return {
+              nodeId,
+              snapshot: createNodeSnapshot({ id: nodeId, propsMap, edgesOut, edgesIn }),
+            };
+          })
+        );
+        const filtered = snapshots
+          .filter(({ snapshot }) => op.fn(snapshot))
+          .map(({ nodeId }) => nodeId);
         workingSet = sortIds(filtered);
         continue;
       }
@@ -296,20 +304,22 @@ export default class QueryBuilder {
     const includeId = !selectFields || selectFields.includes('id');
     const includeProps = !selectFields || selectFields.includes('props');
 
-    const nodes = workingSet.map((nodeId) => {
-      const entry = {};
-      if (includeId) {
-        entry.id = nodeId;
-      }
-      if (includeProps) {
-        const propsMap = this._graph.getNodeProps(nodeId) || new Map();
-        const props = buildPropsSnapshot(propsMap);
-        if (selectFields || Object.keys(props).length > 0) {
-          entry.props = props;
+    const nodes = await Promise.all(
+      workingSet.map(async (nodeId) => {
+        const entry = {};
+        if (includeId) {
+          entry.id = nodeId;
         }
-      }
-      return entry;
-    });
+        if (includeProps) {
+          const propsMap = (await this._graph.getNodeProps(nodeId)) || new Map();
+          const props = buildPropsSnapshot(propsMap);
+          if (selectFields || Object.keys(props).length > 0) {
+            entry.props = props;
+          }
+        }
+        return entry;
+      })
+    );
 
     return { stateHash, nodes };
   }

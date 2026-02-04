@@ -71,7 +71,9 @@ function getNeighbors({ nodeId, direction, adjacency, labelSet }) {
 
 export default class LogicalTraversal {
   /**
-   * @param {import('../WarpGraph.js').default} graph
+   * Creates a new LogicalTraversal.
+   *
+   * @param {import('../WarpGraph.js').default} graph - The WarpGraph instance to traverse
    */
   constructor(graph) {
     this._graph = graph;
@@ -80,7 +82,7 @@ export default class LogicalTraversal {
   async _prepare(start, { dir, labelFilter, maxDepth }) {
     const materialized = await this._graph._materializeGraph();
 
-    if (!this._graph.hasNode(start)) {
+    if (!(await this._graph.hasNode(start))) {
       throw new TraversalError(`Start node not found: ${start}`, {
         code: 'NODE_NOT_FOUND',
         context: { start },
@@ -98,9 +100,13 @@ export default class LogicalTraversal {
   /**
    * Breadth-first traversal.
    *
-   * @param {string} start
-   * @param {{maxDepth?: number, dir?: 'out'|'in'|'both', labelFilter?: string | string[]}} [options]
+   * @param {string} start - Starting node ID
+   * @param {Object} [options] - Traversal options
+   * @param {number} [options.maxDepth] - Maximum depth to traverse
+   * @param {'out'|'in'|'both'} [options.dir] - Edge direction to follow
+   * @param {string|string[]} [options.labelFilter] - Edge label(s) to include
    * @returns {Promise<string[]>} Node IDs in visit order
+   * @throws {TraversalError} If the start node is not found or direction is invalid
    */
   async bfs(start, options = {}) {
     const { dir, labelSet, adjacency, depthLimit } = await this._prepare(start, options);
@@ -144,9 +150,13 @@ export default class LogicalTraversal {
   /**
    * Depth-first traversal (pre-order).
    *
-   * @param {string} start
-   * @param {{maxDepth?: number, dir?: 'out'|'in'|'both', labelFilter?: string | string[]}} [options]
+   * @param {string} start - Starting node ID
+   * @param {Object} [options] - Traversal options
+   * @param {number} [options.maxDepth] - Maximum depth to traverse
+   * @param {'out'|'in'|'both'} [options.dir] - Edge direction to follow
+   * @param {string|string[]} [options.labelFilter] - Edge label(s) to include
    * @returns {Promise<string[]>} Node IDs in visit order
+   * @throws {TraversalError} If the start node is not found or direction is invalid
    */
   async dfs(start, options = {}) {
     const { dir, labelSet, adjacency, depthLimit } = await this._prepare(start, options);
@@ -191,10 +201,14 @@ export default class LogicalTraversal {
   /**
    * Shortest path (unweighted) using BFS.
    *
-   * @param {string} from
-   * @param {string} to
-   * @param {{maxDepth?: number, dir?: 'out'|'in'|'both', labelFilter?: string | string[]}} [options]
+   * @param {string} from - Source node ID
+   * @param {string} to - Target node ID
+   * @param {Object} [options] - Traversal options
+   * @param {number} [options.maxDepth] - Maximum search depth
+   * @param {'out'|'in'|'both'} [options.dir] - Edge direction to follow
+   * @param {string|string[]} [options.labelFilter] - Edge label(s) to include
    * @returns {Promise<{found: boolean, path: string[], length: number}>}
+   * @throws {TraversalError} If the start node is not found or direction is invalid
    */
   async shortestPath(from, to, options = {}) {
     const { dir, labelSet, adjacency, depthLimit } = await this._prepare(from, options);
@@ -250,11 +264,13 @@ export default class LogicalTraversal {
   /**
    * Connected component (undirected by default).
    *
-   * @param {string} start
-   * @param {{labelFilter?: string | string[]}} [options]
+   * @param {string} start - Starting node ID
+   * @param {Object} [options] - Traversal options
+   * @param {string|string[]} [options.labelFilter] - Edge label(s) to include
    * @returns {Promise<string[]>} Node IDs in visit order
+   * @throws {TraversalError} If the start node is not found
    */
   async connectedComponent(start, options = {}) {
-    return this.bfs(start, { ...options, dir: 'both' });
+    return await this.bfs(start, { ...options, dir: 'both' });
   }
 }

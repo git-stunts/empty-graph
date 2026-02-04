@@ -124,6 +124,7 @@ export default class BitmapIndexReader {
    * - `shards_rev_XX.json` - Reverse edge bitmaps (child→parents)
    *
    * @param {Record<string, string>} shardOids - Map of shard path to blob OID
+   * @returns {void}
    * @example
    * // Typical shardOids structure from IndexRebuildService.load()
    * reader.setup({
@@ -162,7 +163,7 @@ export default class BitmapIndexReader {
    * @returns {Promise<string[]>} Array of parent SHAs
    */
   async getParents(sha) {
-    return this._getEdges(sha, 'rev');
+    return await this._getEdges(sha, 'rev');
   }
 
   /**
@@ -171,7 +172,7 @@ export default class BitmapIndexReader {
    * @returns {Promise<string[]>} Array of child SHAs
    */
   async getChildren(sha) {
-    return this._getEdges(sha, 'fwd');
+    return await this._getEdges(sha, 'fwd');
   }
 
   /**

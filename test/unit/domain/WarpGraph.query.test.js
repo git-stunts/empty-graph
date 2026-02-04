@@ -11,6 +11,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import WarpGraph from '../../../src/domain/WarpGraph.js';
+import QueryError from '../../../src/domain/errors/QueryError.js';
 import { createEmptyStateV5, encodeEdgeKey, encodePropKey } from '../../../src/domain/services/JoinReducer.js';
 import { orsetAdd } from '../../../src/domain/crdt/ORSet.js';
 import { createDot } from '../../../src/domain/crdt/Dot.js';
@@ -36,8 +37,8 @@ describe('WarpGraph Query API', () => {
   });
 
   describe('hasNode()', () => {
-    it('throws if no cached state', () => {
-      expect(() => graph.hasNode('node-1')).toThrow('No cached state');
+    it('throws if no cached state', async () => {
+      await expect(graph.hasNode('node-1')).rejects.toThrow(QueryError);
     });
 
     it('returns true for existing nodes', async () => {
@@ -48,23 +49,23 @@ describe('WarpGraph Query API', () => {
       const state = graph._cachedState;
       orsetAdd(state.nodeAlive, 'user:alice', createDot('w1', 1));
 
-      expect(graph.hasNode('user:alice')).toBe(true);
+      expect(await graph.hasNode('user:alice')).toBe(true);
     });
 
     it('returns false for non-existing nodes', async () => {
       await graph.materialize();
-      expect(graph.hasNode('user:nonexistent')).toBe(false);
+      expect(await graph.hasNode('user:nonexistent')).toBe(false);
     });
   });
 
   describe('getNodeProps()', () => {
-    it('throws if no cached state', () => {
-      expect(() => graph.getNodeProps('node-1')).toThrow('No cached state');
+    it('throws if no cached state', async () => {
+      await expect(graph.getNodeProps('node-1')).rejects.toThrow(QueryError);
     });
 
     it('returns null for non-existing nodes', async () => {
       await graph.materialize();
-      expect(graph.getNodeProps('user:nonexistent')).toBe(null);
+      expect(await graph.getNodeProps('user:nonexistent')).toBe(null);
     });
 
     it('returns empty map for node with no props', async () => {
@@ -72,7 +73,7 @@ describe('WarpGraph Query API', () => {
       const state = graph._cachedState;
       orsetAdd(state.nodeAlive, 'user:alice', createDot('w1', 1));
 
-      const props = graph.getNodeProps('user:alice');
+      const props = await graph.getNodeProps('user:alice');
       expect(props).toBeInstanceOf(Map);
       expect(props.size).toBe(0);
     });
@@ -92,15 +93,15 @@ describe('WarpGraph Query API', () => {
       state.prop.set(propKey1, { value: 'Alice', lamport: 1, writerId: 'w1' });
       state.prop.set(propKey2, { value: 30, lamport: 1, writerId: 'w1' });
 
-      const props = graph.getNodeProps('user:alice');
+      const props = await graph.getNodeProps('user:alice');
       expect(props.get('name')).toBe('Alice');
       expect(props.get('age')).toBe(30);
     });
   });
 
   describe('neighbors()', () => {
-    it('throws if no cached state', () => {
-      expect(() => graph.neighbors('node-1')).toThrow('No cached state');
+    it('throws if no cached state', async () => {
+      await expect(graph.neighbors('node-1')).rejects.toThrow(QueryError);
     });
 
     it('returns empty array for node with no edges', async () => {
@@ -108,7 +109,7 @@ describe('WarpGraph Query API', () => {
       const state = graph._cachedState;
       orsetAdd(state.nodeAlive, 'user:alice', createDot('w1', 1));
 
-      expect(graph.neighbors('user:alice')).toEqual([]);
+      expect(await graph.neighbors('user:alice')).toEqual([]);
     });
 
     it('returns outgoing neighbors', async () => {
@@ -123,7 +124,7 @@ describe('WarpGraph Query API', () => {
       const edgeKey = encodeEdgeKey('user:alice', 'user:bob', 'follows');
       orsetAdd(state.edgeAlive, edgeKey, createDot('w1', 3));
 
-      const outgoing = graph.neighbors('user:alice', 'outgoing');
+      const outgoing = await graph.neighbors('user:alice', 'outgoing');
       expect(outgoing).toHaveLength(1);
       expect(outgoing[0]).toEqual({
         nodeId: 'user:bob',
@@ -144,7 +145,7 @@ describe('WarpGraph Query API', () => {
       const edgeKey = encodeEdgeKey('user:alice', 'user:bob', 'follows');
       orsetAdd(state.edgeAlive, edgeKey, createDot('w1', 3));
 
-      const incoming = graph.neighbors('user:bob', 'incoming');
+      const incoming = await graph.neighbors('user:bob', 'incoming');
       expect(incoming).toHaveLength(1);
       expect(incoming[0]).toEqual({
         nodeId: 'user:alice',
@@ -167,7 +168,7 @@ describe('WarpGraph Query API', () => {
       // carol --follows--> alice
       orsetAdd(state.edgeAlive, encodeEdgeKey('user:carol', 'user:alice', 'follows'), createDot('w1', 5));
 
-      const neighbors = graph.neighbors('user:alice');
+      const neighbors = await graph.neighbors('user:alice');
       expect(neighbors).toHaveLength(2);
       expect(neighbors.find(n => n.nodeId === 'user:bob' && n.direction === 'outgoing')).toBeDefined();
       expect(neighbors.find(n => n.nodeId === 'user:carol' && n.direction === 'incoming')).toBeDefined();
@@ -187,7 +188,7 @@ describe('WarpGraph Query API', () => {
       // alice --blocks--> carol
       orsetAdd(state.edgeAlive, encodeEdgeKey('user:alice', 'user:carol', 'blocks'), createDot('w1', 5));
 
-      const follows = graph.neighbors('user:alice', 'outgoing', 'follows');
+      const follows = await graph.neighbors('user:alice', 'outgoing', 'follows');
       expect(follows).toHaveLength(1);
       expect(follows[0].nodeId).toBe('user:bob');
     });
@@ -203,19 +204,19 @@ describe('WarpGraph Query API', () => {
       orsetAdd(state.edgeAlive, encodeEdgeKey('user:alice', 'user:bob', 'follows'), createDot('w1', 2));
 
       // Should not return bob since it doesn't exist
-      const neighbors = graph.neighbors('user:alice', 'outgoing');
+      const neighbors = await graph.neighbors('user:alice', 'outgoing');
       expect(neighbors).toHaveLength(0);
     });
   });
 
   describe('getNodes()', () => {
-    it('throws if no cached state', () => {
-      expect(() => graph.getNodes()).toThrow('No cached state');
+    it('throws if no cached state', async () => {
+      await expect(graph.getNodes()).rejects.toThrow(QueryError);
     });
 
     it('returns empty array for empty graph', async () => {
       await graph.materialize();
-      expect(graph.getNodes()).toEqual([]);
+      expect(await graph.getNodes()).toEqual([]);
     });
 
     it('returns all visible nodes', async () => {
@@ -226,7 +227,7 @@ describe('WarpGraph Query API', () => {
       orsetAdd(state.nodeAlive, 'node-b', createDot('w1', 2));
       orsetAdd(state.nodeAlive, 'node-c', createDot('w1', 3));
 
-      const nodes = graph.getNodes();
+      const nodes = await graph.getNodes();
       expect(nodes).toHaveLength(3);
       expect(nodes).toContain('node-a');
       expect(nodes).toContain('node-b');
@@ -235,13 +236,13 @@ describe('WarpGraph Query API', () => {
   });
 
   describe('getEdges()', () => {
-    it('throws if no cached state', () => {
-      expect(() => graph.getEdges()).toThrow('No cached state');
+    it('throws if no cached state', async () => {
+      await expect(graph.getEdges()).rejects.toThrow(QueryError);
     });
 
     it('returns empty array for empty graph', async () => {
       await graph.materialize();
-      expect(graph.getEdges()).toEqual([]);
+      expect(await graph.getEdges()).toEqual([]);
     });
 
     it('returns all visible edges', async () => {
@@ -257,7 +258,7 @@ describe('WarpGraph Query API', () => {
       orsetAdd(state.edgeAlive, encodeEdgeKey('a', 'b', 'e1'), createDot('w1', 4));
       orsetAdd(state.edgeAlive, encodeEdgeKey('b', 'c', 'e2'), createDot('w1', 5));
 
-      const edges = graph.getEdges();
+      const edges = await graph.getEdges();
       expect(edges).toHaveLength(2);
       expect(edges.find(e => e.from === 'a' && e.to === 'b' && e.label === 'e1')).toBeDefined();
       expect(edges.find(e => e.from === 'b' && e.to === 'c' && e.label === 'e2')).toBeDefined();
@@ -273,7 +274,7 @@ describe('WarpGraph Query API', () => {
       // Add edge to non-existent 'b'
       orsetAdd(state.edgeAlive, encodeEdgeKey('a', 'b', 'e1'), createDot('w1', 2));
 
-      const edges = graph.getEdges();
+      const edges = await graph.getEdges();
       expect(edges).toHaveLength(0);
     });
   });

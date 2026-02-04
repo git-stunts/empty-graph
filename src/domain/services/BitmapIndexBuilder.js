@@ -104,6 +104,7 @@ export default class BitmapIndexBuilder {
    *
    * @param {string} srcSha - Source node SHA (parent)
    * @param {string} tgtSha - Target node SHA (child)
+   * @returns {void}
    */
   addEdge(srcSha, tgtSha) {
     const srcId = this._getOrCreateId(srcSha);
@@ -135,7 +136,7 @@ export default class BitmapIndexBuilder {
     const wrapShard = (data) => ({
       version: SHARD_VERSION,
       checksum: computeChecksum(data),
-      data: data,
+      data,
     });
 
     // Serialize ID mappings (sharded by prefix)

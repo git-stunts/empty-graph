@@ -44,6 +44,7 @@
     "demo:lagrangian": "cd examples && docker compose exec demo node /app/examples/lagrangian-path.js",
     "demo:bench-streaming": "cd examples && docker compose up -d && docker compose exec demo node /app/examples/streaming-benchmark.js",
     "demo:bench-traversal": "cd examples && docker compose up -d && docker compose exec demo node /app/examples/traversal-benchmark.js",
+    "roadmap": "node scripts/roadmap.js",
     "setup:hooks": "node scripts/setup-hooks.js",
     "postinstall": "patch-package && node scripts/setup-hooks.js",
     "install:git-warp": "bash scripts/install-git-warp.sh",
@@ -63,9 +64,13 @@
   "devDependencies": {
     "@eslint/js": "^9.17.0",
     "@git-stunts/docker-guard": "^0.1.0",
+    "@typescript-eslint/eslint-plugin": "^8.54.0",
+    "@typescript-eslint/parser": "^8.54.0",
     "eslint": "^9.17.0",
     "fast-check": "^4.5.3",
     "prettier": "^3.4.2",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.54.0",
     "vitest": "^2.1.8"
   },
   "files": [

@@ -45,6 +45,7 @@ export default class WarpStateIndexBuilder {
    *
    * @param {import('./JoinReducer.js').WarpStateV5} state - The materialized state
    * @returns {{builder: BitmapIndexBuilder, stats: {nodes: number, edges: number}}} The populated builder and stats
+   * @throws {Error} If state is null or missing nodeAlive/edgeAlive fields
    *
    * @example
    * const state = await graph.materialize();

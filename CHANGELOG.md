@@ -16,6 +16,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`graph.syncWith()`** - sync with HTTP peer or direct graph instance
 - **`graph.getWriterPatches(writerId)`** - public API for writer patch history
 
+#### AUTOPILOT — Kill the Materialize Tax
+- **Auto-invalidation** (`AP/INVAL/1-3`): `_stateDirty` flag tracks staleness. Local commits via `createPatch()`, `writer.commitPatch()`, and `PatchSession.commit()` eagerly apply patches to cached state — no stale reads after writes.
+- **Auto-materialize** (`AP/LAZY/1-2`): `autoMaterialize: boolean` option on `WarpGraph.open()`. When enabled, query methods (`hasNode`, `getNodeProps`, `neighbors`, `getNodes`, `getEdges`, `query().run()`, `traverse.*`) auto-materialize instead of throwing.
+- **Auto-checkpointing** (`AP/CKPT/1-3`): `checkpointPolicy: { every: N }` option on `WarpGraph.open()`. After `materialize()` processes N+ patches, a checkpoint is created automatically. Failures are swallowed — never breaks materialize.
+- **Post-merge hook** (`AP/HOOK/1-2`): `post-merge` Git hook detects warp ref changes after `git pull` and prints a warning (or auto-materializes if `warp.autoMaterialize` git config is set). Installed via `scripts/hooks/` on `npm install`.
+- **`git warp materialize`** CLI command: materializes and checkpoints all graphs (or a single graph with `--graph`).
+- **`git warp install-hooks`** CLI command: installs/upgrades the post-merge hook with interactive conflict resolution.
+- **ROADMAP.md** with task DAG and `scripts/roadmap.js` tracking tool.
+
+#### Error Handling
+- **`QueryError` with error codes**: State guard throws now use `QueryError` with `E_NO_STATE` (no cached state) and `E_STALE_STATE` (dirty state) instead of bare `Error`.
+
 #### Query API (V7 Task 7)
 - **`graph.hasNode(nodeId)`** - Check if node exists in materialized state
 - **`graph.getNodeProps(nodeId)`** - Get all properties for a node as Map
@@ -31,6 +43,13 @@ All query methods operate on `WarpStateV5` (materialized state), never commit DA
 - Index built from materialized state, not Git commit parents (TECH-SPEC-V7.md compliance)
 
 ### Changed
+- **ESLint hardened** to zero-tolerance: `typescript-eslint` strict type-checked rules on `src/` and `bin/`, max-complexity 10, max-lines-per-function 50, max-depth 3 (with relaxations for algorithm-heavy modules).
+- **`_ensureFreshState()`** now throws `E_STALE_STATE` when cached state is dirty and `autoMaterialize` is off (previously silently returned stale data).
+- **`QueryBuilder.run()`** `where`/`select` loops parallelized with `Promise.all`.
+- **`StreamingBitmapIndexBuilder.registerNode()`** returns `Promise<number>` via `Promise.resolve()` for API compatibility.
+- **`createCheckpoint()`** reuses cached state when fresh, guarded against recursive auto-checkpoint calls.
+- **`execGitConfigValue`** in CLI uses `execFileSync` with argument array instead of shell string (prevents command injection).
+- **`eslint.config.js`** uses `fileURLToPath`-based `__dirname` for broader Node.js compatibility.
 - **Repo ping** now uses `git rev-parse --is-inside-work-tree` for plumbing compatibility
 - **CLI imports** avoid eager `index.js` loading to suppress `url.parse` warnings from optional deps
 - **v7-guards.test.js** - Added `WarpStateIndexBuilder.js` to required V7 components
@@ -39,6 +58,8 @@ All query methods operate on `WarpStateV5` (materialized state), never commit DA
 - **Git ref reads** guard missing refs to avoid fatal `show-ref` errors in empty repos
 
 ### Documentation
+- **Complete JSDoc coverage** across 21 source files
+- **ROADMAP.md** — consolidated task tracking with dependency DAG
 - **`docs/V7_TEST_MAPPING.md`** - Maps TECH-SPEC-V7.md Task 5 requirements to existing test files
   - Documents how existing tests cover WARP contracts (write, materialize, convergence, determinism)
   - Confirms legacy tests deleted (not skipped)
@@ -47,9 +68,17 @@ All query methods operate on `WarpStateV5` (materialized state), never commit DA
 - Example imports clarified for external consumers
 
 ### Tests
+- Added `test/unit/domain/WarpGraph.invalidation.test.js` (11 tests) — dirty flag + eager re-materialize
+- Added `test/unit/domain/WarpGraph.writerInvalidation.test.js` (10 tests) — Writer API invalidation
+- Added `test/unit/domain/WarpGraph.lazyMaterialize.test.js` (46 tests) — auto-materialize guard
+- Added `test/unit/domain/WarpGraph.autoCheckpoint.test.js` (14 tests) — auto-checkpoint trigger
+- Added `test/unit/domain/WarpGraph.autoMaterialize.test.js` (7 tests) — option validation
+- Added `test/unit/domain/WarpGraph.checkpointPolicy.test.js` (9 tests) — option validation
+- Added `test/unit/domain/WarpGraph.patchCount.test.js` (7 tests) — patch counter tracking
+- Added `test/unit/domain/services/HookInstaller.test.js` (29 tests) — hook install/upgrade/append/replace
 - Added `test/unit/domain/WarpGraph.query.test.js` (21 tests) - Query API tests
 - Added `test/unit/domain/services/WarpStateIndexBuilder.test.js` (13 tests) - WARP state index tests
-- Total test count: 1438
+- Total test count: 1571 (67 test files)
 
 ## [6.0.0] - 2026-01-31
 

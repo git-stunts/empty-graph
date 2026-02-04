@@ -118,6 +118,60 @@ const state = await graph.materialize();
 // Edge 'temp->other' is not visible
 ```
 
+## Auto-Materialize and Auto-Checkpoint
+
+### Auto-Materialize
+
+By default, query methods throw if no materialized state exists. With `autoMaterialize: true`, query methods automatically materialize before returning results:
+
+```javascript
+const graph = await WarpGraph.open({
+  persistence,
+  graphName: 'my-graph',
+  writerId: 'local',
+  autoMaterialize: true,
+});
+
+// No explicit materialize() needed — queries auto-materialize
+const nodes = await graph.getNodes();
+const exists = await graph.hasNode('user:alice');
+const result = await graph.query().match('user:*').run();
+```
+
+When `autoMaterialize` is off (the default), querying dirty state throws `QueryError` with code `E_STALE_STATE`, and querying without any cached state throws `QueryError` with code `E_NO_STATE`.
+
+### Auto-Checkpoint
+
+Configure automatic checkpointing to keep materialization fast:
+
+```javascript
+const graph = await WarpGraph.open({
+  persistence,
+  graphName: 'my-graph',
+  writerId: 'local',
+  checkpointPolicy: { every: 500 },
+});
+```
+
+After `materialize()` processes 500+ patches, a checkpoint is created automatically. The counter resets after each checkpoint. Checkpoint failures are swallowed — they never break materialization.
+
+### Eager Re-Materialize
+
+After a local commit, the patch is applied eagerly to cached state. This means queries immediately reflect local writes without calling `materialize()` again:
+
+```javascript
+await graph.materialize();
+
+await (await graph.createPatch())
+  .addNode('user:carol')
+  .commit();
+
+// No re-materialize needed — eager apply already updated state
+await graph.hasNode('user:carol'); // true
+```
+
+This works for all write paths: `createPatch().commit()`, `writer.commitPatch()`, and `PatchSession.commit()`.
+
 ### Frontiers and Checkpoints
 
 A **frontier** tracks the last-seen patch from each writer:
@@ -213,6 +267,21 @@ const state = await graph.materializeAt(checkpointSha);
 // Only processes patches since checkpoint, not entire history
 ```
 
+#### Automatic Checkpointing
+
+```javascript
+// Auto-checkpoint: no manual intervention needed
+const graph = await WarpGraph.open({
+  persistence,
+  graphName: 'todos',
+  writerId: 'local',
+  checkpointPolicy: { every: 500 },
+});
+
+// After 500+ patches, materialize() creates a checkpoint automatically
+await graph.materialize();
+```
+
 ### Discovering Writers
 
 ```javascript
@@ -233,6 +302,94 @@ await graph.syncCoverage();
 // All writer tips are now parents of this commit
 ```
 
+## Git Hooks
+
+### Post-Merge Hook
+
+WarpGraph ships a `post-merge` Git hook that runs after every `git merge` or `git pull` and checks whether any warp writer refs (`refs/empty-graph/`) changed during the merge.
+
+If warp refs changed, the hook prints an informational message:
+
+```
+[warp] Writer refs changed during merge. Call materialize() to see updates.
+```
+
+The hook **never blocks a merge** — it always exits 0.
+
+### Auto-Materialize
+
+Enable automatic materialization and checkpointing after pulls:
+
+```bash
+git config warp.autoMaterialize true
+```
+
+When enabled, the post-merge hook will automatically run `git warp materialize` whenever warp refs change during a merge. This materializes all graphs and creates checkpoints so the local state is always up to date.
+
+When disabled or unset (the default), the hook prints the informational warning shown above.
+
+### `git warp materialize`
+
+Materialize and checkpoint graphs explicitly:
+
+```bash
+git warp materialize                          # All graphs in the repo
+git warp materialize --graph my-graph         # Single graph
+git warp materialize --json                   # JSON output
+```
+
+For each graph, the command materializes state, counts nodes and edges, and creates a checkpoint. Output:
+
+```
+my-graph: 42 nodes, 18 edges, checkpoint abc123...
+```
+
+### Installing the Hook
+
+Use the `install-hooks` CLI command:
+
+```bash
+git warp install-hooks
+# or: warp-graph install-hooks --repo /path/to/repo
+```
+
+If a `post-merge` hook already exists, the command offers three options interactively:
+
+1. **Append** — keeps your existing hook and adds the warp section (delimited, upgradeable)
+2. **Replace** — backs up the existing hook to `post-merge.backup` and installs fresh
+3. **Skip** — do nothing
+
+If the warp hook is already installed, running the command again either reports "up to date" or offers to upgrade to the current version.
+
+### Non-Interactive / CI Usage
+
+In non-interactive environments (no TTY), use `--force` to replace any existing hook:
+
+```bash
+git warp install-hooks --force
+```
+
+The `--force` flag always backs up an existing hook before replacing it.
+
+Both `--json` and `--force` flags are supported:
+
+```bash
+git warp install-hooks --json --force
+```
+
+### Checking Hook Status
+
+The `check` command reports hook status:
+
+```bash
+git warp check
+```
+
+Example output lines:
+- `Hook: installed (v7.1.0) — up to date`
+- `Hook: installed (v7.0.0) — upgrade available, run 'git warp install-hooks'`
+- `Hook: not installed — run 'git warp install-hooks'`
+
 ## Troubleshooting
 
 ### "My changes aren't appearing"
@@ -249,9 +406,10 @@ await graph.syncCoverage();
 
 ### "Materialization is slow"
 
-1. Create checkpoints periodically
-2. Use `materializeAt(checkpointSha)` for incremental recovery
-3. Consider reducing patch frequency (batch operations)
+1. Enable auto-checkpointing: `checkpointPolicy: { every: 500 }` on `WarpGraph.open()`
+2. Create checkpoints manually with `graph.createCheckpoint()` if not using auto-checkpointing
+3. Use `materializeAt(checkpointSha)` for incremental recovery
+4. Consider reducing patch frequency (batch operations)
 
 ### "Node should be deleted but still appears"
 
@@ -267,7 +425,7 @@ Solution: Ensure tombstones have higher lamport than adds.
 ## Performance Tips
 
 1. **Batch operations** - Group related changes into single patches
-2. **Checkpoint regularly** - Every 500-1000 patches
+2. **Checkpoint regularly** - Use `checkpointPolicy: { every: 500 }` for automatic checkpointing, or call `createCheckpoint()` manually
 3. **Use incremental materialization** - `materializeAt()` vs `materialize()`
 4. **Limit concurrent writers** - More writers = more merge overhead
 

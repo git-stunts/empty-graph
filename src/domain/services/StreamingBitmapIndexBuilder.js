@@ -138,8 +138,8 @@ export default class StreamingBitmapIndexBuilder {
    * @param {string} sha - The node's SHA
    * @returns {Promise<number>} The assigned numeric ID
    */
-  async registerNode(sha) {
-    return this._getOrCreateId(sha);
+  registerNode(sha) {
+    return Promise.resolve(this._getOrCreateId(sha));
   }
 
   /**
@@ -283,7 +283,7 @@ export default class StreamingBitmapIndexBuilder {
    * @private
    */
   async _writeMetaShards(idShards) {
-    return Promise.all(
+    return await Promise.all(
       Object.entries(idShards).map(async ([prefix, map]) => {
         const path = `meta_${prefix}.json`;
         const envelope = {
@@ -307,7 +307,7 @@ export default class StreamingBitmapIndexBuilder {
    * @private
    */
   async _processBitmapShards({ signal } = {}) {
-    return Promise.all(
+    return await Promise.all(
       Array.from(this.flushedChunks.entries()).map(async ([path, oids]) => {
         checkAborted(signal, 'processBitmapShards');
         const finalOid = oids.length === 1 ? oids[0] : await this._mergeChunks(oids, { signal });

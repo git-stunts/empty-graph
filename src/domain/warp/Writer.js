@@ -22,6 +22,13 @@ import { vvClone } from '../crdt/VersionVector.js';
 
 /**
  * Error class for Writer operations.
+ *
+ * @class WriterError
+ * @extends Error
+ *
+ * @property {string} name - The error name ('WriterError')
+ * @property {string} code - Error code for programmatic handling
+ * @property {Error} [cause] - Original error that caused this error
  */
 export class WriterError extends Error {
   /**
@@ -39,6 +46,8 @@ export class WriterError extends Error {
 
 /**
  * Writer class for creating and committing patches to a WARP graph.
+ *
+ * @class Writer
  */
 export class Writer {
   /**
@@ -50,8 +59,9 @@ export class Writer {
    * @param {string} options.writerId - This writer's ID
    * @param {import('../crdt/VersionVector.js').VersionVector} options.versionVector - Current version vector
    * @param {Function} options.getCurrentState - Function to get current materialized state
+   * @param {Function} [options.onCommitSuccess] - Callback invoked after successful commit with { patch, sha }
    */
-  constructor({ persistence, graphName, writerId, versionVector, getCurrentState }) {
+  constructor({ persistence, graphName, writerId, versionVector, getCurrentState, onCommitSuccess }) {
     validateWriterId(writerId);
 
     /** @type {import('../../ports/GraphPersistencePort.js').default} */
@@ -68,6 +78,9 @@ export class Writer {
 
     /** @type {Function} */
     this._getCurrentState = getCurrentState;
+
+    /** @type {Function|undefined} */
+    this._onCommitSuccess = onCommitSuccess;
   }
 
   /**
@@ -93,7 +106,7 @@ export class Writer {
    */
   async head() {
     const writerRef = buildWriterRef(this._graphName, this._writerId);
-    return this._persistence.readRef(writerRef);
+    return await this._persistence.readRef(writerRef);
   }
 
   /**
@@ -140,6 +153,7 @@ export class Writer {
       versionVector: vvClone(this._versionVector),
       getCurrentState: this._getCurrentState,
       expectedParentSha: expectedOldHead,
+      onCommitSuccess: this._onCommitSuccess,
     });
 
     // Return PatchSession wrapping the builder
@@ -157,6 +171,9 @@ export class Writer {
    *
    * @param {(p: PatchSession) => void | Promise<void>} build - Function to build the patch
    * @returns {Promise<string>} The commit SHA of the new patch
+   * @throws {WriterError} EMPTY_PATCH if no operations were added
+   * @throws {WriterError} WRITER_REF_ADVANCED if CAS fails (ref moved since beginPatch)
+   * @throws {WriterError} PERSIST_WRITE_FAILED if git operations fail
    *
    * @example
    * const sha = await writer.commitPatch(p => {
@@ -167,6 +184,6 @@ export class Writer {
   async commitPatch(build) {
     const patch = await this.beginPatch();
     await build(patch);
-    return patch.commit();
+    return await patch.commit();
   }
 }

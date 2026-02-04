@@ -105,6 +105,9 @@ export function applyOpV2(state, op, eventId) {
       state.prop.set(key, lwwMax(current, lwwSet(eventId, op.value)));
       break;
     }
+    default:
+      // Unknown op types are silently ignored (forward-compat)
+      break;
   }
 }
 
