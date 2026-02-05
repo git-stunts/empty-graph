@@ -1,5 +1,5 @@
 {
-  "name": "@git-stunts/empty-graph",
+  "name": "@git-stunts/git-warp",
   "version": "7.5.0",
   "description": "An experimental implementation of the WARP architecture",
   "type": "module",
@@ -88,11 +88,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/git-stunts/empty-graph.git"
+    "url": "git+https://github.com/git-stunts/git-warp.git"
   },
-  "homepage": "https://github.com/git-stunts/empty-graph#readme",
+  "homepage": "https://github.com/git-stunts/git-warp#readme",
   "bugs": {
-    "url": "https://github.com/git-stunts/empty-graph/issues"
+    "url": "https://github.com/git-stunts/git-warp/issues"
   },
   "keywords": [
     "git",

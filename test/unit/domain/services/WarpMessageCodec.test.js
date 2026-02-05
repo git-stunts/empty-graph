@@ -25,7 +25,7 @@ describe('WarpMessageCodec', () => {
         schema: 2,
       });
 
-      expect(message).toContain('empty-graph:patch');
+      expect(message).toContain('warp:patch');
       expect(message).toContain('eg-kind: patch');
       expect(message).toContain('eg-graph: events');
       expect(message).toContain('eg-writer: node-1');
@@ -156,7 +156,7 @@ describe('WarpMessageCodec', () => {
         schema: 2,
       });
 
-      expect(message).toContain('empty-graph:checkpoint');
+      expect(message).toContain('warp:checkpoint');
       expect(message).toContain('eg-kind: checkpoint');
       expect(message).toContain('eg-graph: events');
       expect(message).toContain(`eg-state-hash: ${VALID_STATE_HASH}`);
@@ -226,7 +226,7 @@ describe('WarpMessageCodec', () => {
     it('encodes a valid anchor message with required fields', () => {
       const message = encodeAnchorMessage({ graph: 'events', schema: 2 });
 
-      expect(message).toContain('empty-graph:anchor');
+      expect(message).toContain('warp:anchor');
       expect(message).toContain('eg-kind: anchor');
       expect(message).toContain('eg-graph: events');
       expect(message).toContain('eg-schema: 2');
@@ -275,7 +275,7 @@ describe('WarpMessageCodec', () => {
 
     it('throws when eg-graph is missing', () => {
       // Manually construct a malformed message
-      const message = `empty-graph:patch
+      const message = `warp:patch
 
 eg-kind: patch
 eg-writer: node-1
@@ -287,7 +287,7 @@ eg-schema: 1`;
     });
 
     it('throws when eg-writer is missing', () => {
-      const message = `empty-graph:patch
+      const message = `warp:patch
 
 eg-kind: patch
 eg-graph: events
@@ -299,7 +299,7 @@ eg-schema: 1`;
     });
 
     it('throws when eg-lamport is missing', () => {
-      const message = `empty-graph:patch
+      const message = `warp:patch
 
 eg-kind: patch
 eg-graph: events
@@ -311,7 +311,7 @@ eg-schema: 1`;
     });
 
     it('throws when eg-lamport is not a positive integer', () => {
-      const message = `empty-graph:patch
+      const message = `warp:patch
 
 eg-kind: patch
 eg-graph: events
@@ -324,7 +324,7 @@ eg-schema: 1`;
     });
 
     it('throws when eg-lamport is zero', () => {
-      const message = `empty-graph:patch
+      const message = `warp:patch
 
 eg-kind: patch
 eg-graph: events
@@ -337,7 +337,7 @@ eg-schema: 1`;
     });
 
     it('throws when eg-patch-oid is missing', () => {
-      const message = `empty-graph:patch
+      const message = `warp:patch
 
 eg-kind: patch
 eg-graph: events
@@ -349,7 +349,7 @@ eg-schema: 1`;
     });
 
     it('throws when eg-schema is missing', () => {
-      const message = `empty-graph:patch
+      const message = `warp:patch
 
 eg-kind: patch
 eg-graph: events
@@ -395,7 +395,7 @@ eg-patch-oid: ${VALID_OID_SHA1}`;
     });
 
     it('throws when eg-graph is missing', () => {
-      const message = `empty-graph:checkpoint
+      const message = `warp:checkpoint
 
 eg-kind: checkpoint
 eg-state-hash: ${VALID_STATE_HASH}
@@ -407,7 +407,7 @@ eg-schema: 1`;
     });
 
     it('throws when eg-state-hash is missing', () => {
-      const message = `empty-graph:checkpoint
+      const message = `warp:checkpoint
 
 eg-kind: checkpoint
 eg-graph: events
@@ -421,7 +421,7 @@ eg-schema: 1`;
     });
 
     it('throws when eg-frontier-oid is missing', () => {
-      const message = `empty-graph:checkpoint
+      const message = `warp:checkpoint
 
 eg-kind: checkpoint
 eg-graph: events
@@ -435,7 +435,7 @@ eg-schema: 1`;
     });
 
     it('throws when eg-index-oid is missing', () => {
-      const message = `empty-graph:checkpoint
+      const message = `warp:checkpoint
 
 eg-kind: checkpoint
 eg-graph: events
@@ -449,7 +449,7 @@ eg-schema: 1`;
     });
 
     it('throws when eg-schema is missing', () => {
-      const message = `empty-graph:checkpoint
+      const message = `warp:checkpoint
 
 eg-kind: checkpoint
 eg-graph: events
@@ -486,7 +486,7 @@ eg-index-oid: ${VALID_OID_SHA1}`;
     });
 
     it('throws when eg-graph is missing', () => {
-      const message = `empty-graph:anchor
+      const message = `warp:anchor
 
 eg-kind: anchor
 eg-schema: 1`;
@@ -495,7 +495,7 @@ eg-schema: 1`;
     });
 
     it('throws when eg-schema is missing', () => {
-      const message = `empty-graph:anchor
+      const message = `warp:anchor
 
 eg-kind: anchor
 eg-graph: events`;
@@ -504,7 +504,7 @@ eg-graph: events`;
     });
 
     it('throws when eg-schema is invalid', () => {
-      const message = `empty-graph:anchor
+      const message = `warp:anchor
 
 eg-kind: anchor
 eg-graph: events
@@ -552,7 +552,7 @@ eg-schema: invalid`;
     });
 
     it('returns null for messages with unknown eg-kind', () => {
-      const message = `empty-graph:unknown
+      const message = `warp:unknown
 
 eg-kind: unknown
 eg-graph: events
@@ -685,7 +685,7 @@ eg-schema: 1`;
       });
 
       const lines = message.split('\n');
-      expect(lines[0]).toBe('empty-graph:patch');
+      expect(lines[0]).toBe('warp:patch');
     });
 
     it('checkpoint message has correct title', () => {
@@ -698,21 +698,21 @@ eg-schema: 1`;
       });
 
       const lines = message.split('\n');
-      expect(lines[0]).toBe('empty-graph:checkpoint');
+      expect(lines[0]).toBe('warp:checkpoint');
     });
 
     it('anchor message has correct title', () => {
       const message = encodeAnchorMessage({ graph: 'events', schema: 2 });
 
       const lines = message.split('\n');
-      expect(lines[0]).toBe('empty-graph:anchor');
+      expect(lines[0]).toBe('warp:anchor');
     });
 
     it('trailers are separated by blank line from title', () => {
       const message = encodeAnchorMessage({ graph: 'events', schema: 2 });
 
       const lines = message.split('\n');
-      expect(lines[0]).toBe('empty-graph:anchor');
+      expect(lines[0]).toBe('warp:anchor');
       expect(lines[1]).toBe('');
       expect(lines[2]).toMatch(/^eg-/);
     });

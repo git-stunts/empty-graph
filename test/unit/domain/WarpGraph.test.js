@@ -220,7 +220,7 @@ describe('WarpGraph', () => {
 
       // Verify the ref was updated with correct graph/writer path
       expect(persistence.updateRef).toHaveBeenCalledWith(
-        'refs/empty-graph/my-events/writers/writer-42',
+        'refs/warp/my-events/writers/writer-42',
         expect.any(String)
       );
     });
@@ -259,7 +259,7 @@ describe('WarpGraph', () => {
       persistence.listRefs.mockResolvedValue([]);
 
       persistence.showNode.mockResolvedValue(
-        `empty-graph:patch\n\neg-kind: patch\neg-graph: test-graph\neg-writer: writer1\neg-lamport: 7\neg-patch-oid: ${existingPatchOid}\neg-schema: 2`
+        `warp:patch\n\neg-kind: patch\neg-graph: test-graph\neg-writer: writer1\neg-lamport: 7\neg-patch-oid: ${existingPatchOid}\neg-schema: 2`
       );
 
       const graph = await WarpGraph.open({
@@ -291,7 +291,7 @@ describe('WarpGraph', () => {
 
       // Malformed message - eg-lamport has non-integer value
       persistence.showNode.mockResolvedValue(
-        'empty-graph:patch\n\neg-kind: patch\neg-graph: test-graph\neg-writer: writer1\neg-lamport: not-a-number\neg-patch-oid: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\neg-schema: 2'
+        'warp:patch\n\neg-kind: patch\neg-graph: test-graph\neg-writer: writer1\neg-lamport: not-a-number\neg-patch-oid: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\neg-schema: 2'
       );
 
       const graph = await WarpGraph.open({
@@ -315,14 +315,14 @@ describe('WarpGraph', () => {
       });
 
       persistence.listRefs.mockResolvedValue([
-        'refs/empty-graph/events/writers/writer-b',
-        'refs/empty-graph/events/writers/writer-a',
+        'refs/warp/events/writers/writer-b',
+        'refs/warp/events/writers/writer-a',
       ]);
 
       const writers = await graph.discoverWriters();
 
       expect(writers).toEqual(['writer-a', 'writer-b']);
-      expect(persistence.listRefs).toHaveBeenCalledWith('refs/empty-graph/events/writers/');
+      expect(persistence.listRefs).toHaveBeenCalledWith('refs/warp/events/writers/');
     });
 
     it('returns empty array when no writers exist', async () => {
@@ -349,8 +349,8 @@ describe('WarpGraph', () => {
       });
 
       persistence.listRefs.mockResolvedValue([
-        'refs/empty-graph/events/writers/valid-writer',
-        'refs/empty-graph/events/checkpoints/head', // Not a writer ref
+        'refs/warp/events/writers/valid-writer',
+        'refs/warp/events/checkpoints/head', // Not a writer ref
       ]);
 
       const writers = await graph.discoverWriters();
@@ -401,7 +401,7 @@ describe('WarpGraph', () => {
         parentSha: null,
       });
 
-      persistence.listRefs.mockResolvedValue(['refs/empty-graph/events/writers/writer-1']);
+      persistence.listRefs.mockResolvedValue(['refs/warp/events/writers/writer-1']);
       persistence.readRef.mockResolvedValue(commitSha);
       persistence.getNodeInfo.mockResolvedValue(mockPatch.nodeInfo);
       persistence.readBlob.mockResolvedValue(mockPatch.patchBuffer);
@@ -448,8 +448,8 @@ describe('WarpGraph', () => {
       });
 
       persistence.listRefs.mockResolvedValue([
-        'refs/empty-graph/events/writers/writer-1',
-        'refs/empty-graph/events/writers/writer-2',
+        'refs/warp/events/writers/writer-1',
+        'refs/warp/events/writers/writer-2',
       ]);
 
       // materialize() now checks for checkpoint first, then reads writer tips
@@ -509,7 +509,7 @@ describe('WarpGraph', () => {
         context: { 'writer-1': 2 },
       });
 
-      persistence.listRefs.mockResolvedValue(['refs/empty-graph/events/writers/writer-1']);
+      persistence.listRefs.mockResolvedValue(['refs/warp/events/writers/writer-1']);
       persistence.readRef.mockResolvedValue(commitSha2); // tip is the second commit
 
       // getNodeInfo is called for each commit in the chain (newest first)
@@ -537,7 +537,7 @@ describe('WarpGraph', () => {
         schema: 2,
       });
 
-      persistence.listRefs.mockResolvedValue(['refs/empty-graph/events/writers/writer-1']);
+      persistence.listRefs.mockResolvedValue(['refs/warp/events/writers/writer-1']);
       persistence.readRef.mockResolvedValue(null);
 
       const state = await graph.materialize();
@@ -564,7 +564,7 @@ describe('WarpGraph', () => {
       const appliedVVBlobOid = 'h'.repeat(40);
 
       // Mock checkpoint data (schema:2 required)
-      const checkpointMessage = `empty-graph:checkpoint
+      const checkpointMessage = `warp:checkpoint
 
 eg-kind: checkpoint
 eg-graph: events
@@ -573,7 +573,7 @@ eg-frontier-oid: ${'d'.repeat(40)}
 eg-index-oid: ${indexOid}
 eg-schema: 2`;
 
-      persistence.listRefs.mockResolvedValue(['refs/empty-graph/events/writers/writer-1']);
+      persistence.listRefs.mockResolvedValue(['refs/warp/events/writers/writer-1']);
       persistence.readRef.mockResolvedValue(writerTipSha);
       persistence.showNode.mockResolvedValue(checkpointMessage);
       persistence.getNodeInfo.mockResolvedValue({
@@ -673,7 +673,7 @@ eg-schema: 2`;
 
       // Verify commitNode was called with both parents
       expect(persistence.commitNode).toHaveBeenCalledWith({
-        message: expect.stringContaining('empty-graph:anchor'),
+        message: expect.stringContaining('warp:anchor'),
         parents: [writer1Sha, writer2Sha],
       });
     });
@@ -699,7 +699,7 @@ eg-schema: 2`;
 
       // Verify updateRef was called with the correct coverage ref
       expect(persistence.updateRef).toHaveBeenCalledWith(
-        'refs/empty-graph/events/coverage/head',
+        'refs/warp/events/coverage/head',
         anchorSha
       );
     });
@@ -763,7 +763,7 @@ eg-schema: 2`;
 
       // Verify commitNode was called with only writer-1's SHA
       expect(persistence.commitNode).toHaveBeenCalledWith({
-        message: expect.stringContaining('empty-graph:anchor'),
+        message: expect.stringContaining('warp:anchor'),
         parents: [writerSha],
       });
     });
@@ -800,7 +800,7 @@ eg-schema: 2`;
       expect(persistence.commitNodeWithTree).toHaveBeenCalledWith(
         expect.objectContaining({
           parents: [writerSha],
-          message: expect.stringContaining('empty-graph:checkpoint'),
+          message: expect.stringContaining('warp:checkpoint'),
         })
       );
     });
@@ -832,7 +832,7 @@ eg-schema: 2`;
 
       // Verify updateRef was called with the correct checkpoint ref
       expect(persistence.updateRef).toHaveBeenCalledWith(
-        'refs/empty-graph/events/checkpoints/head',
+        'refs/warp/events/checkpoints/head',
         checkpointSha
       );
     });
@@ -987,7 +987,7 @@ eg-schema: 2`;
 
         persistence.listRefs.mockResolvedValue([]);
         persistence.readRef.mockImplementation((ref) => {
-          if (ref === 'refs/empty-graph/events/checkpoints/head') {
+          if (ref === 'refs/warp/events/checkpoints/head') {
             return Promise.resolve(checkpointSha);
           }
           return Promise.resolve(null);
@@ -1503,8 +1503,8 @@ eg-schema: 2`;
         });
 
         persistence.listRefs.mockResolvedValue([
-          'refs/empty-graph/events/writers/writer-a',
-          'refs/empty-graph/events/writers/writer-b',
+          'refs/warp/events/writers/writer-a',
+          'refs/warp/events/writers/writer-b',
         ]);
 
         persistence.readRef
@@ -1606,7 +1606,7 @@ eg-schema: 2`;
         });
 
         persistence.listRefs.mockResolvedValue([
-          'refs/empty-graph/events/writers/writer-other',
+          'refs/warp/events/writers/writer-other',
         ]);
         persistence.readRef.mockImplementation((ref) => {
           if (ref.includes('checkpoints')) return Promise.resolve(null);
@@ -1735,7 +1735,7 @@ eg-schema: 2`;
         });
         persistence.listRefs.mockResolvedValue([]);
         persistence.showNode.mockResolvedValue(
-          `empty-graph:patch\n\neg-kind: patch\neg-graph: events\neg-writer: writer-1\neg-lamport: 5\neg-patch-oid: ${existingPatchOid}\neg-schema: 2`
+          `warp:patch\n\neg-kind: patch\neg-graph: events\neg-writer: writer-1\neg-lamport: 5\neg-patch-oid: ${existingPatchOid}\neg-schema: 2`
         );
 
         const graph = await WarpGraph.open({
@@ -1855,7 +1855,7 @@ eg-schema: 2`;
         persistence.readRef.mockResolvedValue('a'.repeat(40));
         const head = await writer.head();
         expect(head).toBe('a'.repeat(40));
-        expect(persistence.readRef).toHaveBeenCalledWith('refs/empty-graph/events/writers/test-writer');
+        expect(persistence.readRef).toHaveBeenCalledWith('refs/warp/events/writers/test-writer');
       });
     });
 

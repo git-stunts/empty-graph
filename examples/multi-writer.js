@@ -218,9 +218,9 @@ async function main() {
   console.log('- Writers can reference each other\'s data');
 
   console.log('\nGit commands to explore:');
-  console.log('  git for-each-ref refs/empty-graph/shared/writers/');
-  console.log('  git log --oneline refs/empty-graph/shared/writers/alice');
-  console.log('  git log --oneline refs/empty-graph/shared/writers/bob');
+  console.log('  git for-each-ref refs/warp/shared/writers/');
+  console.log('  git log --oneline refs/warp/shared/writers/alice');
+  console.log('  git log --oneline refs/warp/shared/writers/bob');
 
   console.log('\nMulti-writer example complete!');
 }

@@ -1,4 +1,4 @@
-# Contributing to @git-stunts/empty-graph
+# Contributing to @git-stunts/git-warp
 
 ## Getting Started
 

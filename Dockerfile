@@ -7,17 +7,17 @@ RUN apt-get update && apt-get install -y \
     g++ \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
-# Copy empty-graph
-COPY empty-graph/package*.json ./
-COPY empty-graph/scripts ./scripts
-COPY empty-graph/patches ./patches
+# Copy git-warp
+COPY git-warp/package*.json ./
+COPY git-warp/scripts ./scripts
+COPY git-warp/patches ./patches
 RUN npm install
-COPY empty-graph .
+COPY git-warp .
 RUN git init -q \
-  && git config user.email "container@empty-graph.local" \
-  && git config user.name "Empty Graph Container" \
+  && git config user.email "container@git-warp.local" \
+  && git config user.name "Git Warp Container" \
   && git add -A \
-  && git commit --allow-empty -m "seed empty-graph" >/dev/null
+  && git commit --allow-empty -m "seed git-warp" >/dev/null
 RUN printf '%s\n' '#!/usr/bin/env bash' 'exec node /app/bin/warp-graph.js "$@"' > /usr/local/bin/warp-graph
 RUN chmod +x /usr/local/bin/warp-graph \
   && install -m 0755 /app/bin/git-warp /usr/local/bin/git-warp

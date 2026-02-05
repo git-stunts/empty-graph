@@ -563,7 +563,7 @@ describe('PatchBuilderV2', () => {
       expect(persistence.writeTree).toHaveBeenCalledOnce();
       expect(persistence.commitNodeWithTree).toHaveBeenCalledOnce();
       expect(persistence.updateRef).toHaveBeenCalledWith(
-        'refs/empty-graph/test-graph/writers/writer1',
+        'refs/warp/test-graph/writers/writer1',
         'c'.repeat(40)
       );
     });
@@ -613,7 +613,7 @@ describe('PatchBuilderV2', () => {
       // Simulate existing ref with lamport 5
       persistence.readRef.mockResolvedValue(existingSha);
       persistence.showNode.mockResolvedValue(
-        `empty-graph:patch\n\neg-kind: patch\neg-graph: test-graph\neg-writer: writer1\neg-lamport: 5\neg-patch-oid: ${existingPatchOid}\neg-schema: 2`
+        `warp:patch\n\neg-kind: patch\neg-graph: test-graph\neg-writer: writer1\neg-lamport: 5\neg-patch-oid: ${existingPatchOid}\neg-schema: 2`
       );
 
       const builder = new PatchBuilderV2({

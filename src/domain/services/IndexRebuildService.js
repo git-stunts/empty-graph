@@ -238,7 +238,7 @@ export default class IndexRebuildService {
    * - Worst case (all shards loaded): Similar to rebuild memory (~150-200MB for 1M nodes)
    *
    * **Persistence**: Reads from storage. The tree OID can be stored
-   * in a ref (e.g., 'refs/empty-graph/index') for persistence across sessions.
+   * in a ref (e.g., 'refs/warp/index') for persistence across sessions.
    *
    * **Strict Mode** (default: `true`):
    * When `strict` is enabled (fail-closed behavior), the reader will validate
@@ -284,7 +284,7 @@ export default class IndexRebuildService {
    *
    * @example
    * // Load from a saved ref
-   * const savedOid = await storage.readRef('refs/empty-graph/index');
+   * const savedOid = await storage.readRef('refs/warp/index');
    * const reader = await rebuildService.load(savedOid);
    */
   async load(treeOid, { strict = true, currentFrontier, autoRebuild = false, rebuildRef } = {}) {

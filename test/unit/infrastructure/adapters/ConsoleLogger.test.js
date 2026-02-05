@@ -242,14 +242,14 @@ describe('ConsoleLogger', () => {
     it('child inherits parent context', () => {
       const logger = new ConsoleLogger({
         level: LogLevel.DEBUG,
-        context: { service: 'empty-graph' }
+        context: { service: 'warp' }
       });
       const child = logger.child({ component: 'GraphService' });
 
       child.info('test');
 
       const output = JSON.parse(consoleLogSpy.mock.calls[0][0]);
-      expect(output.service).toBe('empty-graph');
+      expect(output.service).toBe('warp');
       expect(output.component).toBe('GraphService');
     });
 

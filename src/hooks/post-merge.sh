@@ -1,10 +1,10 @@
 #!/bin/sh
-# --- @git-stunts/empty-graph post-merge hook __WARP_HOOK_VERSION__ ---
+# --- @git-stunts/git-warp post-merge hook __WARP_HOOK_VERSION__ ---
 # warp-hook-version: __WARP_HOOK_VERSION__
 #
 # Post-merge hook: notify (or auto-materialize) when warp refs changed.
 #
-# Compares refs/empty-graph/ before and after merge by maintaining
+# Compares refs/warp/ before and after merge by maintaining
 # a snapshot file at .git/warp-ref-snapshot. If any warp writer refs
 # changed and warp.autoMaterialize is true, runs `git warp materialize`.
 # Otherwise prints an informational message advising re-materialization.
@@ -14,7 +14,7 @@ GIT_DIR=$(git rev-parse --git-dir 2>/dev/null) || exit 0
 SNAPSHOT="${GIT_DIR}/warp-ref-snapshot"
 
 # Capture current warp refs (sorted for stable comparison)
-CURRENT=$(git for-each-ref --format='%(refname) %(objectname)' --sort=refname refs/empty-graph/ 2>/dev/null) || true
+CURRENT=$(git for-each-ref --format='%(refname) %(objectname)' --sort=refname refs/warp/ 2>/dev/null) || true
 
 if [ -z "$CURRENT" ]; then
   # No warp refs exist — clean up any stale snapshot and exit
@@ -57,4 +57,4 @@ else
 fi
 
 exit 0
-# --- end @git-stunts/empty-graph ---
+# --- end @git-stunts/git-warp ---

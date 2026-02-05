@@ -51,7 +51,7 @@ export default class IndexStoragePort {
 
   /**
    * Updates a ref to point to an OID.
-   * @param {string} ref - The ref name (e.g., 'refs/empty-graph/index')
+   * @param {string} ref - The ref name (e.g., 'refs/warp/index')
    * @param {string} oid - The OID to point to
    * @returns {Promise<void>}
    * @abstract

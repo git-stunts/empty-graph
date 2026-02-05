@@ -38,7 +38,7 @@ Step-by-step (slow):
 
 What is happening in the Git DAG:
 
-- Three commits are created under refs/empty-graph/demo/writers/writer-1.
+- Three commits are created under refs/warp/demo/writers/writer-1.
 - Each commit stores a patch payload.
 - The history is linear.
 
@@ -218,7 +218,7 @@ Step-by-step (slow):
 
 1. Materialize the graph to compute the full CRDT state.
 2. Create a checkpoint commit that writes state blobs to a tree.
-3. Update refs/empty-graph/<graph>/checkpoints/head.
+3. Update refs/warp/<graph>/checkpoints/head.
 4. Read the checkpoint commit and list its tree entries.
 5. Read frontier.cbor to see writer tips.
 6. Use the checkpoint to resume materialization later.

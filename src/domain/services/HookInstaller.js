@@ -14,8 +14,8 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_TEMPLATE_DIR = resolve(__dirname, '..', '..', 'hooks');
 
-const DELIMITER_START_PREFIX = '# --- @git-stunts/empty-graph post-merge hook';
-const DELIMITER_END = '# --- end @git-stunts/empty-graph ---';
+const DELIMITER_START_PREFIX = '# --- @git-stunts/git-warp post-merge hook';
+const DELIMITER_END = '# --- end @git-stunts/git-warp ---';
 const VERSION_MARKER_PREFIX = '# warp-hook-version:';
 const VERSION_PLACEHOLDER = '__WARP_HOOK_VERSION__';
 

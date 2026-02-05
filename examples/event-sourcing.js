@@ -44,7 +44,7 @@ To try it yourself:
 
 Inside the repo you can also run:
 
-  git for-each-ref refs/empty-graph/   # See all graph refs
+  git for-each-ref refs/warp/   # See all graph refs
   git log --oneline <writer-ref>       # View a writer's patch chain
   git show <sha>                       # View raw commit data
 

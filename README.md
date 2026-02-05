@@ -1,22 +1,24 @@
-# @git-stunts/empty-graph
+# @git-stunts/git-warp
 
-[![CI](https://github.com/git-stunts/empty-graph/actions/workflows/ci.yml/badge.svg)](https://github.com/git-stunts/empty-graph/actions/workflows/ci.yml)
+[![CI](https://github.com/git-stunts/git-warp/actions/workflows/ci.yml/badge.svg)](https://github.com/git-stunts/git-warp/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![npm version](https://badge.fury.io/js/%40git-stunts%2Fempty-graph.svg)](https://www.npmjs.com/package/@git-stunts/empty-graph)
+[![npm version](https://badge.fury.io/js/%40git-stunts%2Fgit-warp.svg)](https://www.npmjs.com/package/@git-stunts/git-warp)
 
 A multi-writer graph database that uses Git commits as its storage substrate. Graph state is stored as commits pointing to the empty tree (`4b825dc...`), making the data invisible to normal Git workflows while inheriting Git's content-addressing, cryptographic integrity, and distributed replication.
 
 Writers collaborate without coordination using CRDTs (OR-Set for nodes/edges, LWW registers for properties). Every writer maintains an independent patch chain; materialization deterministically merges all writers into a single consistent view.
 
 ```bash
-npm install @git-stunts/empty-graph @git-stunts/plumbing
+npm install @git-stunts/git-warp @git-stunts/plumbing
 ```
+
+For a comprehensive walkthrough — from setup to advanced features — see the [Guide](docs/GUIDE.md).
 
 ## Quick Start
 
 ```javascript
 import GitPlumbing from '@git-stunts/plumbing';
-import WarpGraph, { GitGraphAdapter } from '@git-stunts/empty-graph';
+import WarpGraph, { GitGraphAdapter } from '@git-stunts/git-warp';
 
 const plumbing = new GitPlumbing({ cwd: './my-repo' });
 const persistence = new GitGraphAdapter({ plumbing });
@@ -269,6 +271,32 @@ const graph = await WarpGraph.open({
 });
 ```
 
+## Observability
+
+```javascript
+// Operational health snapshot (does not trigger materialization)
+const status = await graph.status();
+// {
+//   cachedState: 'fresh',          // 'fresh' | 'stale' | 'none'
+//   patchesSinceCheckpoint: 12,
+//   tombstoneRatio: 0.03,
+//   writers: 2,
+//   frontier: { alice: 'abc...', bob: 'def...' },
+// }
+
+// Tick receipts: see exactly what happened during materialization
+const { state, receipts } = await graph.materialize({ receipts: true });
+for (const receipt of receipts) {
+  for (const op of receipt.ops) {
+    if (op.result === 'superseded') {
+      console.log(`${op.op} on ${op.target}: ${op.reason}`);
+    }
+  }
+}
+```
+
+Core operations (`materialize()`, `syncWith()`, `createCheckpoint()`, `runGC()`) emit structured timing logs via `LoggerPort` when a logger is injected.
+
 ## CLI
 
 The CLI is available as `warp-graph` or as a Git subcommand `git warp`.
@@ -289,7 +317,7 @@ git warp path --from user:alice --to user:bob --dir out
 # Show patch history for a writer
 git warp history --writer alice
 
-# Check graph health and GC status
+# Check graph health, status, and GC metrics
 git warp check
 ```
 
@@ -342,9 +370,9 @@ npm run test:bench      # benchmarks
 npm run test:bats       # CLI integration tests (Docker + BATS)
 ```
 
-## AION Foundations Series
+## AIΩN Foundations Series
 
-This package is the reference implementation of WARP (Worldline Algebra for Recursive Provenance) graphs as described in the [AION Foundations Series](https://github.com/flyingrobots/aion/). The papers define WARP graphs as a minimal recursive state object (Paper I), equip them with deterministic tick-based operational semantics (Paper II), and develop computational holography, provenance payloads, and prefix forks (Paper III). This codebase implements the core data structures and multi-writer collaboration protocol described in those papers.
+This package is the reference implementation of WARP (Worldline Algebra for Recursive Provenance) graphs as described in the AIΩN Foundations Series. The papers define WARP graphs as a minimal recursive state object ([Paper I](https://doi.org/10.5281/zenodo.17908005)), equip them with deterministic tick-based operational semantics ([Paper II](https://doi.org/10.5281/zenodo.17934512)), and develop computational holography, provenance payloads, and prefix forks ([Paper III](https://doi.org/10.5281/zenodo.17963669)). This codebase implements the core data structures and multi-writer collaboration protocol described in those papers.
 
 ## License
 

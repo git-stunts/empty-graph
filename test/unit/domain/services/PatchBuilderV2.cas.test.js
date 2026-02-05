@@ -215,7 +215,7 @@ describe('PatchBuilderV2 CAS conflict detection', () => {
       const persistence = createMockPersistence({
         readRef: vi.fn().mockResolvedValue(parentSha),
         showNode: vi.fn().mockResolvedValue(
-          `empty-graph:patch\n\neg-kind: patch\neg-graph: test-graph\neg-writer: writer1\neg-lamport: 3\neg-patch-oid: ${patchOid}\neg-schema: 2`
+          `warp:patch\n\neg-kind: patch\neg-graph: test-graph\neg-writer: writer1\neg-lamport: 3\neg-patch-oid: ${patchOid}\neg-schema: 2`
         ),
       });
 
