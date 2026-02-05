@@ -342,9 +342,9 @@ npm run test:bench      # benchmarks
 npm run test:bats       # CLI integration tests (Docker + BATS)
 ```
 
-## AION Foundations Series
+## AIΩN Foundations Series
 
-This package is the reference implementation of WARP (Worldline Algebra for Recursive Provenance) graphs as described in the [AION Foundations Series](https://github.com/flyingrobots/aion/). The papers define WARP graphs as a minimal recursive state object (Paper I), equip them with deterministic tick-based operational semantics (Paper II), and develop computational holography, provenance payloads, and prefix forks (Paper III). This codebase implements the core data structures and multi-writer collaboration protocol described in those papers.
+This package is the reference implementation of WARP (Worldline Algebra for Recursive Provenance) graphs as described in the AIΩN Foundations Series. The papers define WARP graphs as a minimal recursive state object ([Paper I](https://doi.org/10.5281/zenodo.17908005)), equip them with deterministic tick-based operational semantics ([Paper II](https://doi.org/10.5281/zenodo.17934512)), and develop computational holography, provenance payloads, and prefix forks ([Paper III](https://doi.org/10.5281/zenodo.17963669)). This codebase implements the core data structures and multi-writer collaboration protocol described in those papers.
 
 ## License
 
