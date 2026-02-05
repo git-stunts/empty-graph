@@ -12,6 +12,8 @@ Writers collaborate without coordination using CRDTs (OR-Set for nodes/edges, LW
 npm install @git-stunts/git-warp @git-stunts/plumbing
 ```
 
+For a comprehensive walkthrough — from setup to advanced features — see the [Guide](docs/GUIDE.md).
+
 ## Quick Start
 
 ```javascript
