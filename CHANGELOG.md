@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.7.0] — PULSE
+
+### Added
+
+#### PULSE — Subscriptions & Reactivity (v7.7.0)
+- **State diff engine** (`PL/DIFF/1`): New `diffStates(before, after)` function computes deterministic diff between two `WarpStateV5` materialized states. Returns `{ nodes: { added, removed }, edges: { added, removed }, props: { set, removed } }`. Handles null `before` (initial state). O(N) single-pass comparison. Deterministic output ordering (sorted keys/IDs). Used by subscription system to notify handlers of graph changes. Includes `isEmptyDiff()` and `createEmptyDiff()` utilities.
+
+### Tests
+- Added `test/unit/domain/services/StateDiff.test.js` (27 tests) — node/edge/prop diffs, null before, identical states, determinism
+
 ## [7.6.0] — LIGHTHOUSE
 
 ### Added

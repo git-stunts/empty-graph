@@ -224,7 +224,7 @@ LIGHTHOUSE ────────────────→ HOLOGRAM ──�
 ## Task DAG
 
 <!-- ROADMAP:DAG:START -->
-```text
+```
 Key: ■ CLOSED   ◆ OPEN   ○ BLOCKED
 
 AUTOPILOT        (v7.1.0)  ████████████████████  100%  (10/10)
@@ -276,9 +276,9 @@ LIGHTHOUSE       (v7.6.0)  █████████████████�
   ■ LH/STATUS/1         →  LH/CLI/1
   ■ LH/TIMING/1       
 
-PULSE            (v7.7.0)  ░░░░░░░░░░░░░░░░░░░░    0%  (0/5)
-  ◆ PL/DIFF/1           →  PL/SUB/1
-  ○ PL/SUB/1            →  PL/WATCH/1, PL/SUB/2
+PULSE            (v7.7.0)  ████░░░░░░░░░░░░░░░░   20%  (1/5)
+  ■ PL/DIFF/1           →  PL/SUB/1
+  ◆ PL/SUB/1            →  PL/WATCH/1, PL/SUB/2
   ○ PL/SUB/2          
   ○ PL/WATCH/1          →  PL/WATCH/2
   ○ PL/WATCH/2        
@@ -1420,7 +1420,7 @@ Enable developers to react to graph changes without polling.
 
 #### PL/DIFF/1 — Implement deterministic state diff
 
-- **Status:** `OPEN`
+- **Status:** `CLOSED`
 - **User Story:** As the system, I need to compute what changed between two materialized states.
 - **Requirements:**
   - `diffStates(before, after)` returns:
@@ -1459,7 +1459,7 @@ Enable developers to react to graph changes without polling.
 
 #### PL/SUB/1 — Implement subscribe/unsubscribe
 
-- **Status:** `BLOCKED`
+- **Status:** `OPEN`
 - **User Story:** As a developer, I want to register handlers that fire when the graph changes.
 - **Requirements:**
   - `graph.subscribe({ onChange(diff), onError?(err) })` returns `{ unsubscribe() }`.
