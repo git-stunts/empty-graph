@@ -10,9 +10,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 #### COMPASS — Advanced Query Language (v7.5.0)
-- **Object shorthand in `where()`** (`CP/WHERE/1`): `where({ role: 'admin' })` filters nodes by property equality. Multiple properties = AND semantics. Object and function forms can be mixed via chaining.
-- **Multi-hop traversal** (`CP/MULTIHOP/1`): `outgoing(label, { depth: [1, 3] })` traverses 1–3 hops in a single call. `depth: 2` shorthand for exactly 2 hops. Default `[1, 1]` preserves existing single-hop behavior. Cycle-safe with deterministic ordering.
-- **Aggregation** (`CP/AGG/1`): `aggregate({ count: true, sum: 'props.total' })` computes count/sum/avg/min/max over matched nodes without materializing the full result set. Terminal operation — calling `select()`, `outgoing()`, or `incoming()` after `aggregate()` throws. Non-numeric values silently skipped.
+- **Object shorthand in `where()`** (`CP/WHERE/1`): `where({ role: 'admin' })` filters nodes by property equality. Multiple properties = AND semantics. Object and function forms can be mixed via chaining. Only primitive values (string, number, boolean, null) are accepted — non-primitive values (objects, arrays, functions) throw `E_QUERY_WHERE_VALUE_TYPE` since cloned property snapshots would never `===` match.
+- **Multi-hop traversal** (`CP/MULTIHOP/1`): `outgoing(label, { depth: [1, 3] })` traverses 1–3 hops in a single call. `depth: 2` shorthand for exactly 2 hops. `depth: [0, N]` includes the start set (self-inclusion at depth 0). Default `[1, 1]` preserves existing single-hop behavior. Cycle-safe with deterministic ordering. Depth values must be non-negative integers with min ≤ max.
+- **Aggregation** (`CP/AGG/1`): `aggregate({ count: true, sum: 'props.total' })` computes count/sum/avg/min/max over matched nodes without materializing the full result set. Terminal operation — calling `select()`, `outgoing()`, or `incoming()` after `aggregate()` throws. Non-numeric values silently skipped. Spec fields are validated: `sum`/`avg`/`min`/`max` must be strings, `count` must be boolean.
+
+### Fixed
+- **`aggregate()` spec validation**: Passing non-string paths (e.g. `sum: true`) or non-boolean count (e.g. `count: 'yes'`) now throws `QueryError` with code `E_QUERY_AGGREGATE_TYPE` instead of a late `TypeError`.
+- **`Math.min/max` stack overflow**: Replaced `Math.min(...values)` / `Math.max(...values)` in aggregation with `.reduce()` to avoid `RangeError` on arrays with >65K elements.
+- **`normalizeDepth` validation**: Negative, non-integer, and min>max depth values now throw `QueryError` (`E_QUERY_DEPTH_TYPE` or `E_QUERY_DEPTH_RANGE`) instead of producing undefined behavior.
+- **`applyMultiHop` depth-0 inclusion**: `depth: [0, N]` now correctly includes the start set in results. Previously, nodes at hop 0 were silently dropped.
+- **`where()` primitive enforcement**: Object shorthand values are validated as primitives. Non-primitive values (objects, arrays, functions) throw `QueryError` with code `E_QUERY_WHERE_VALUE_TYPE`.
+- **ROADMAP.md fenced code block**: Added `text` language identifier to the Task DAG code fence (fixes markdownlint MD040).
 
 ## [Unreleased]
 
