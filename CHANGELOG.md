@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.5.0] — COMPASS
+
+### Added
+
+#### COMPASS — Advanced Query Language (v7.5.0)
+- **Object shorthand in `where()`** (`CP/WHERE/1`): `where({ role: 'admin' })` filters nodes by property equality. Multiple properties = AND semantics. Object and function forms can be mixed via chaining.
+- **Multi-hop traversal** (`CP/MULTIHOP/1`): `outgoing(label, { depth: [1, 3] })` traverses 1–3 hops in a single call. `depth: 2` shorthand for exactly 2 hops. Default `[1, 1]` preserves existing single-hop behavior. Cycle-safe with deterministic ordering.
+- **Aggregation** (`CP/AGG/1`): `aggregate({ count: true, sum: 'props.total' })` computes count/sum/avg/min/max over matched nodes without materializing the full result set. Terminal operation — calling `select()`, `outgoing()`, or `incoming()` after `aggregate()` throws. Non-numeric values silently skipped.
+
 ## [Unreleased]
 
 ### Added

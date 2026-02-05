@@ -26,12 +26,28 @@ function assertMatchPattern(pattern) {
 }
 
 function assertPredicate(fn) {
-  if (typeof fn !== 'function') {
-    throw new QueryError('where() expects a predicate function', {
+  if (typeof fn !== 'function' && !isPlainObject(fn)) {
+    throw new QueryError('where() expects a predicate function or object', {
       code: 'E_QUERY_WHERE_TYPE',
       context: { receivedType: typeof fn },
     });
   }
+}
+
+function isPlainObject(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function objectToPredicate(obj) {
+  const entries = Object.entries(obj);
+  return ({ props }) => {
+    for (const [key, value] of entries) {
+      if (!(key in props) || props[key] !== value) {
+        return false;
+      }
+    }
+    return true;
+  };
 }
 
 function assertLabel(label) {
@@ -138,6 +154,22 @@ function createNodeSnapshot({ id, propsMap, edgesOut, edgesIn }) {
   });
 }
 
+function normalizeDepth(depth) {
+  if (depth === undefined) {
+    return [1, 1];
+  }
+  if (typeof depth === 'number') {
+    return [depth, depth];
+  }
+  if (Array.isArray(depth) && depth.length === 2) {
+    return [depth[0], depth[1]];
+  }
+  throw new QueryError('depth must be a number or [min, max] array', {
+    code: 'E_QUERY_DEPTH_TYPE',
+    context: { receivedType: typeof depth, value: depth },
+  });
+}
+
 function applyHop({ direction, label, workingSet, adjacency }) {
   const next = new Set();
   const source = direction === 'outgoing' ? adjacency.outgoing : adjacency.incoming;
@@ -154,6 +186,43 @@ function applyHop({ direction, label, workingSet, adjacency }) {
   }
 
   return sortIds(next);
+}
+
+function applyMultiHop({ direction, label, workingSet, adjacency, depth }) {
+  const [minDepth, maxDepth] = depth;
+  const source = direction === 'outgoing' ? adjacency.outgoing : adjacency.incoming;
+  const labelFilter = label === undefined ? null : label;
+
+  const result = new Set();
+  let currentLevel = new Set(workingSet);
+  const visited = new Set(workingSet);
+
+  for (let hop = 1; hop <= maxDepth; hop++) {
+    const nextLevel = new Set();
+    for (const nodeId of currentLevel) {
+      const edges = source.get(nodeId) || [];
+      for (const edge of edges) {
+        if (labelFilter && edge.label !== labelFilter) {
+          continue;
+        }
+        const neighbor = edge.neighborId;
+        if (visited.has(neighbor)) {
+          continue;
+        }
+        visited.add(neighbor);
+        nextLevel.add(neighbor);
+        if (hop >= minDepth) {
+          result.add(neighbor);
+        }
+      }
+    }
+    currentLevel = nextLevel;
+    if (currentLevel.size === 0) {
+      break;
+    }
+  }
+
+  return sortIds(result);
 }
 
 /**
@@ -175,6 +244,7 @@ export default class QueryBuilder {
     this._pattern = null;
     this._operations = [];
     this._select = null;
+    this._aggregate = null;
   }
 
   /**
@@ -189,44 +259,74 @@ export default class QueryBuilder {
   }
 
   /**
-   * Filters nodes by predicate.
-   * @param {(node: QueryNodeSnapshot) => boolean} fn
+   * Filters nodes by predicate function or object shorthand.
+   *
+   * Object form: `where({ role: 'admin' })` filters nodes where `props.role === 'admin'`.
+   * Multiple properties in the object = AND semantics.
+   * Function form: `where(n => n.props.age > 18)` for arbitrary predicates.
+   *
+   * @param {((node: QueryNodeSnapshot) => boolean) | Record<string, unknown>} fn
    * @returns {QueryBuilder}
    */
   where(fn) {
     assertPredicate(fn);
-    this._operations.push({ type: 'where', fn });
+    const predicate = isPlainObject(fn) ? objectToPredicate(fn) : fn;
+    this._operations.push({ type: 'where', fn: predicate });
     return this;
   }
 
   /**
-   * Traverses outgoing edges (one hop).
-   * @param {string} [label]
+   * Traverses outgoing edges.
+   *
+   * @param {string} [label] - Edge label filter (undefined = all labels)
+   * @param {{ depth?: number | [number, number] }} [options] - Traversal options
    * @returns {QueryBuilder}
+   * @throws {QueryError} If called after aggregate()
    */
-  outgoing(label) {
+  outgoing(label, options) {
+    if (this._aggregate) {
+      throw new QueryError('outgoing() cannot be called after aggregate()', {
+        code: 'E_QUERY_AGGREGATE_TERMINAL',
+      });
+    }
     assertLabel(label);
-    this._operations.push({ type: 'outgoing', label });
+    const depth = normalizeDepth(options?.depth);
+    this._operations.push({ type: 'outgoing', label, depth });
     return this;
   }
 
   /**
-   * Traverses incoming edges (one hop).
-   * @param {string} [label]
+   * Traverses incoming edges.
+   *
+   * @param {string} [label] - Edge label filter (undefined = all labels)
+   * @param {{ depth?: number | [number, number] }} [options] - Traversal options
    * @returns {QueryBuilder}
+   * @throws {QueryError} If called after aggregate()
    */
-  incoming(label) {
+  incoming(label, options) {
+    if (this._aggregate) {
+      throw new QueryError('incoming() cannot be called after aggregate()', {
+        code: 'E_QUERY_AGGREGATE_TERMINAL',
+      });
+    }
     assertLabel(label);
-    this._operations.push({ type: 'incoming', label });
+    const depth = normalizeDepth(options?.depth);
+    this._operations.push({ type: 'incoming', label, depth });
     return this;
   }
 
   /**
-   * Selects fields for the result (handled in later milestone).
+   * Selects fields for the result.
    * @param {string[]} [fields]
    * @returns {QueryBuilder}
+   * @throws {QueryError} If called after aggregate()
    */
   select(fields) {
+    if (this._aggregate) {
+      throw new QueryError('select() cannot be called after aggregate()', {
+        code: 'E_QUERY_AGGREGATE_TERMINAL',
+      });
+    }
     if (fields === undefined) {
       this._select = null;
       return this;
@@ -238,6 +338,27 @@ export default class QueryBuilder {
       });
     }
     this._select = fields;
+    return this;
+  }
+
+  /**
+   * Computes aggregations over the matched nodes.
+   *
+   * This is a terminal operation — calling `select()`, `outgoing()`, or `incoming()` after
+   * `aggregate()` throws. The result of `run()` will contain aggregation values instead of nodes.
+   *
+   * @param {{ count?: boolean, sum?: string, avg?: string, min?: string, max?: string }} spec
+   * @returns {QueryBuilder}
+   * @throws {QueryError} If spec is not a plain object
+   */
+  aggregate(spec) {
+    if (!isPlainObject(spec)) {
+      throw new QueryError('aggregate() expects an object', {
+        code: 'E_QUERY_AGGREGATE_TYPE',
+        context: { receivedType: typeof spec },
+      });
+    }
+    this._aggregate = spec;
     return this;
   }
 
@@ -278,13 +399,28 @@ export default class QueryBuilder {
       }
 
       if (op.type === 'outgoing' || op.type === 'incoming') {
-        workingSet = applyHop({
-          direction: op.type,
-          label: op.label,
-          workingSet,
-          adjacency,
-        });
+        const [minD, maxD] = op.depth;
+        if (minD === 1 && maxD === 1) {
+          workingSet = applyHop({
+            direction: op.type,
+            label: op.label,
+            workingSet,
+            adjacency,
+          });
+        } else {
+          workingSet = applyMultiHop({
+            direction: op.type,
+            label: op.label,
+            workingSet,
+            adjacency,
+            depth: op.depth,
+          });
+        }
       }
+    }
+
+    if (this._aggregate) {
+      return await this._runAggregate(workingSet, stateHash);
     }
 
     const selected = this._select;
@@ -322,5 +458,60 @@ export default class QueryBuilder {
     );
 
     return { stateHash, nodes };
+  }
+
+  /** @private */
+  async _runAggregate(workingSet, stateHash) {
+    const spec = this._aggregate;
+    const result = { stateHash };
+
+    if (spec.count) {
+      result.count = workingSet.length;
+    }
+
+    const numericAggs = ['sum', 'avg', 'min', 'max'];
+    const activeAggs = numericAggs.filter((key) => spec[key]);
+
+    if (activeAggs.length > 0) {
+      const propsByAgg = new Map();
+      for (const key of activeAggs) {
+        propsByAgg.set(key, {
+          segments: spec[key].replace(/^props\./, '').split('.'),
+          values: [],
+        });
+      }
+
+      for (const nodeId of workingSet) {
+        const propsMap = (await this._graph.getNodeProps(nodeId)) || new Map();
+        for (const { segments, values } of propsByAgg.values()) {
+          let value = propsMap.get(segments[0]);
+          for (let i = 1; i < segments.length; i++) {
+            if (value && typeof value === 'object') {
+              value = value[segments[i]];
+            } else {
+              value = undefined;
+              break;
+            }
+          }
+          if (typeof value === 'number' && !Number.isNaN(value)) {
+            values.push(value);
+          }
+        }
+      }
+
+      for (const [key, { values }] of propsByAgg) {
+        if (key === 'sum') {
+          result.sum = values.length > 0 ? values.reduce((a, b) => a + b, 0) : 0;
+        } else if (key === 'avg') {
+          result.avg = values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : 0;
+        } else if (key === 'min') {
+          result.min = values.length > 0 ? Math.min(...values) : 0;
+        } else if (key === 'max') {
+          result.max = values.length > 0 ? Math.max(...values) : 0;
+        }
+      }
+    }
+
+    return result;
   }
 }
