@@ -139,6 +139,71 @@ const result = await graph.query()
   .run();
 ```
 
+#### Object shorthand in `where()`
+
+Filter nodes by property equality using plain objects. Multiple properties = AND semantics.
+
+```javascript
+// Object shorthand — strict equality on primitive values
+const admins = await graph.query()
+  .match('user:*')
+  .where({ role: 'admin', active: true })
+  .run();
+
+// Chain object and function filters
+const seniorAdmins = await graph.query()
+  .match('user:*')
+  .where({ role: 'admin' })
+  .where(({ props }) => props.age >= 30)
+  .run();
+```
+
+#### Multi-hop traversal
+
+Traverse multiple hops in a single call with `depth`. Default is `[1, 1]` (single hop).
+
+```javascript
+// Depth 2: return only hop-2 neighbors
+const grandchildren = await graph.query()
+  .match('org:root')
+  .outgoing('child', { depth: 2 })
+  .run();
+
+// Range [1, 3]: return neighbors at hops 1, 2, and 3
+const reachable = await graph.query()
+  .match('node:a')
+  .outgoing('next', { depth: [1, 3] })
+  .run();
+
+// Depth [0, 2]: include the start set (self) plus hops 1 and 2
+const selfAndNeighbors = await graph.query()
+  .match('node:a')
+  .outgoing('next', { depth: [0, 2] })
+  .run();
+
+// Incoming edges work the same way
+const ancestors = await graph.query()
+  .match('node:leaf')
+  .incoming('child', { depth: [1, 5] })
+  .run();
+```
+
+#### Aggregation
+
+Compute count, sum, avg, min, max over matched nodes. This is a terminal operation — `select()`, `outgoing()`, and `incoming()` cannot follow `aggregate()`.
+
+```javascript
+const stats = await graph.query()
+  .match('order:*')
+  .where({ status: 'paid' })
+  .aggregate({ count: true, sum: 'props.total', avg: 'props.total' })
+  .run();
+
+// stats = { stateHash: '...', count: 12, sum: 1450, avg: 120.83 }
+```
+
+Non-numeric property values are silently skipped during aggregation.
+
 ### Path Finding
 
 ```javascript

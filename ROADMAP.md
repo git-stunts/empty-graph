@@ -264,10 +264,10 @@ HANDSHAKE        (v7.4.0)  █████████████████�
   ■ HS/SYNC/1         
   ■ HS/WRITER/1       
 
-COMPASS          (v7.5.0)  ░░░░░░░░░░░░░░░░░░░░    0%  (0/3)
-  ◆ CP/AGG/1          
-  ◆ CP/MULTIHOP/1     
-  ◆ CP/WHERE/1        
+COMPASS          (v7.5.0)  ████████████████████  100%  (3/3)
+  ■ CP/AGG/1          
+  ■ CP/MULTIHOP/1     
+  ■ CP/WHERE/1        
 
 LIGHTHOUSE       (v7.6.0)  ░░░░░░░░░░░░░░░░░░░░    0%  (0/5)
   ○ LH/CLI/1          
@@ -1142,7 +1142,7 @@ The fluent query builder is functional but limited. As graphs get larger, users 
 
 #### CP/WHERE/1 — Implement object shorthand in where()
 
-- **Status:** `OPEN`
+- **Status:** `CLOSED`
 - **User Story:** As a developer, I want to filter nodes by property equality without writing a function.
 - **Requirements:**
   - `where({ role: 'admin' })` filters nodes where `props.role === 'admin'`.
@@ -1174,7 +1174,7 @@ The fluent query builder is functional but limited. As graphs get larger, users 
 
 #### CP/MULTIHOP/1 — Add depth option to outgoing/incoming
 
-- **Status:** `OPEN`
+- **Status:** `CLOSED`
 - **User Story:** As a developer, I want to traverse 1–3 hops in a single query call.
 - **Requirements:**
   - `outgoing(label, { depth: [1, 3] })` traverses 1 to 3 hops.
@@ -1208,7 +1208,7 @@ The fluent query builder is functional but limited. As graphs get larger, users 
 
 #### CP/AGG/1 — Implement aggregate() method
 
-- **Status:** `OPEN`
+- **Status:** `CLOSED`
 - **User Story:** As a developer, I want to compute counts and sums over query results without fetching all nodes.
 - **Requirements:**
   - `query().match('order:*').aggregate({ count: true, sum: 'props.total' }).run()`.

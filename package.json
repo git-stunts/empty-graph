@@ -1,6 +1,6 @@
 {
   "name": "@git-stunts/empty-graph",
-  "version": "7.0.0",
+  "version": "7.5.0",
   "description": "An experimental implementation of the WARP architecture",
   "type": "module",
   "main": "index.js",

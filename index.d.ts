@@ -162,7 +162,7 @@ export interface QueryNodeSnapshot {
 }
 
 /**
- * Query result (MVP).
+ * Query result (standard).
  */
 export interface QueryResultV1 {
   stateHash: string;
@@ -173,15 +173,52 @@ export interface QueryResultV1 {
 }
 
 /**
- * Fluent query builder (MVP).
+ * Aggregation specification for query results.
+ */
+export interface AggregateSpec {
+  /** Count matched nodes */
+  count?: boolean;
+  /** Sum a numeric property (dot-notation path, e.g. 'props.total') */
+  sum?: string;
+  /** Average a numeric property */
+  avg?: string;
+  /** Minimum of a numeric property */
+  min?: string;
+  /** Maximum of a numeric property */
+  max?: string;
+}
+
+/**
+ * Result of an aggregate query.
+ */
+export interface AggregateResult {
+  stateHash: string;
+  count?: number;
+  sum?: number;
+  avg?: number;
+  min?: number;
+  max?: number;
+}
+
+/**
+ * Depth option for multi-hop traversal.
+ */
+export interface HopOptions {
+  /** Number of hops or [min, max] range. Default: [1, 1] (single hop). */
+  depth?: number | [number, number];
+}
+
+/**
+ * Fluent query builder.
  */
 export class QueryBuilder {
   match(pattern: string): QueryBuilder;
-  where(fn: (node: QueryNodeSnapshot) => boolean): QueryBuilder;
-  outgoing(label?: string): QueryBuilder;
-  incoming(label?: string): QueryBuilder;
+  where(fn: ((node: QueryNodeSnapshot) => boolean) | Record<string, unknown>): QueryBuilder;
+  outgoing(label?: string, options?: HopOptions): QueryBuilder;
+  incoming(label?: string, options?: HopOptions): QueryBuilder;
   select(fields?: Array<'id' | 'props'>): QueryBuilder;
-  run(): Promise<QueryResultV1>;
+  aggregate(spec: AggregateSpec): QueryBuilder;
+  run(): Promise<QueryResultV1 | AggregateResult>;
 }
 
 /**

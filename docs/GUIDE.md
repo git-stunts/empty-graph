@@ -248,6 +248,155 @@ const checkpointSha = await graph.createCheckpoint();
 const state = await graph.materializeAt(checkpointSha);
 ```
 
+## Query Builder
+
+The fluent query builder provides pattern matching, filtering, multi-hop traversal, field selection, and aggregation over materialized state. All query methods require materialized state — either call `materialize()` first or use `autoMaterialize: true`.
+
+### Basics
+
+```javascript
+const result = await graph.query()
+  .match('user:*')             // glob pattern (* = wildcard)
+  .where({ role: 'admin' })   // filter by property equality
+  .select(['id', 'props'])    // choose output fields
+  .run();
+
+// result = {
+//   stateHash: 'abc123...',
+//   nodes: [
+//     { id: 'user:alice', props: { role: 'admin', name: 'Alice' } },
+//   ]
+// }
+```
+
+### Filtering with `where()`
+
+**Object shorthand** — filters by strict equality on primitive values (string, number, boolean, null). Multiple properties use AND semantics:
+
+```javascript
+// Single property
+.where({ role: 'admin' })
+
+// Multiple properties (AND)
+.where({ role: 'admin', active: true })
+
+// Null values
+.where({ status: null })
+```
+
+**Function form** — for arbitrary predicates:
+
+```javascript
+.where(({ props }) => props.age >= 18)
+.where(({ edgesOut }) => edgesOut.length > 0)
+```
+
+Object and function forms can be chained freely:
+
+```javascript
+const result = await graph.query()
+  .match('user:*')
+  .where({ role: 'admin' })
+  .where(({ props }) => props.age >= 30)
+  .run();
+```
+
+> **Note:** Object shorthand only accepts primitive values. Non-primitive values (objects, arrays, functions) throw `QueryError` with code `E_QUERY_WHERE_VALUE_TYPE` because materialized property snapshots are cloned, so reference equality (`===`) would never match.
+
+### Multi-Hop Traversal
+
+`outgoing()` and `incoming()` accept an optional `{ depth }` option. The default is `[1, 1]` (single hop), preserving backward compatibility.
+
+```javascript
+// Single hop (default) — immediate neighbors
+.outgoing('manages')
+
+// Exactly 2 hops
+.outgoing('child', { depth: 2 })
+
+// Range [1, 3] — neighbors at hops 1, 2, and 3
+.outgoing('next', { depth: [1, 3] })
+
+// Include start set — depth 0 = self-inclusion
+.outgoing('next', { depth: [0, 2] })
+
+// Incoming edges work identically
+.incoming('child', { depth: [1, 5] })
+```
+
+Traversal is cycle-safe — visited nodes are tracked and never revisited. Results are deterministically sorted by node ID.
+
+Depth values must be non-negative integers with min ≤ max. Invalid depths throw `QueryError` with code `E_QUERY_DEPTH_TYPE` or `E_QUERY_DEPTH_RANGE`.
+
+#### Example: Org Chart
+
+```javascript
+// Find all reports (direct and indirect, up to 3 levels deep)
+const reports = await graph.query()
+  .match('user:ceo')
+  .outgoing('manages', { depth: [1, 3] })
+  .run();
+
+// Find all ancestors of a node
+const chain = await graph.query()
+  .match('user:intern')
+  .incoming('manages', { depth: [1, 10] })
+  .run();
+```
+
+### Aggregation
+
+`aggregate()` computes numeric summaries over matched nodes. It is a **terminal operation** — calling `select()`, `outgoing()`, or `incoming()` after `aggregate()` throws.
+
+```javascript
+const stats = await graph.query()
+  .match('order:*')
+  .where({ status: 'paid' })
+  .aggregate({
+    count: true,
+    sum: 'props.total',
+    avg: 'props.total',
+    min: 'props.total',
+    max: 'props.total',
+  })
+  .run();
+
+// stats = { stateHash: '...', count: 5, sum: 250, avg: 50, min: 10, max: 100 }
+```
+
+Property paths use dot notation. The `props.` prefix is optional — `'total'` and `'props.total'` are equivalent. Non-numeric property values are silently skipped during aggregation.
+
+Spec fields are validated: `sum`/`avg`/`min`/`max` must be strings (property paths), `count` must be boolean.
+
+### Composing Query Steps
+
+Query steps compose left-to-right. Each step narrows the working set before the next step runs:
+
+```javascript
+// Start with all users → filter to admins → traverse to their reports → aggregate
+const result = await graph.query()
+  .match('user:*')
+  .where({ role: 'admin' })
+  .outgoing('manages', { depth: [1, 2] })
+  .aggregate({ count: true })
+  .run();
+```
+
+### Error Codes
+
+| Code | Thrown when |
+|---|---|
+| `E_QUERY_MATCH_TYPE` | `match()` receives a non-string |
+| `E_QUERY_WHERE_TYPE` | `where()` receives neither a function nor a plain object |
+| `E_QUERY_WHERE_VALUE_TYPE` | Object shorthand contains a non-primitive value |
+| `E_QUERY_LABEL_TYPE` | Edge label is not a string |
+| `E_QUERY_DEPTH_TYPE` | Depth is not a non-negative integer or valid `[min, max]` array |
+| `E_QUERY_DEPTH_RANGE` | Depth min > max |
+| `E_QUERY_SELECT_FIELD` | `select()` contains an unknown field |
+| `E_QUERY_SELECT_TYPE` | `select()` receives a non-array |
+| `E_QUERY_AGGREGATE_TYPE` | `aggregate()` receives invalid spec or field types |
+| `E_QUERY_AGGREGATE_TERMINAL` | `select()`/`outgoing()`/`incoming()` called after `aggregate()` |
+
 ## Workflows
 
 ### Basic Workflow

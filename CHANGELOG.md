@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.5.0] — COMPASS
+
+### Added
+
+#### COMPASS — Advanced Query Language (v7.5.0)
+- **Object shorthand in `where()`** (`CP/WHERE/1`): `where({ role: 'admin' })` filters nodes by property equality. Multiple properties = AND semantics. Object and function forms can be mixed via chaining. Only primitive values (string, number, boolean, null) are accepted — non-primitive values (objects, arrays, functions) throw `E_QUERY_WHERE_VALUE_TYPE` since cloned property snapshots would never `===` match.
+- **Multi-hop traversal** (`CP/MULTIHOP/1`): `outgoing(label, { depth: [1, 3] })` traverses 1–3 hops in a single call. `depth: 2` shorthand for exactly 2 hops. `depth: [0, N]` includes the start set (self-inclusion at depth 0). Default `[1, 1]` preserves existing single-hop behavior. Cycle-safe with deterministic ordering. Depth values must be non-negative integers with min ≤ max.
+- **Aggregation** (`CP/AGG/1`): `aggregate({ count: true, sum: 'props.total' })` computes count/sum/avg/min/max over matched nodes without materializing the full result set. Terminal operation — calling `select()`, `outgoing()`, or `incoming()` after `aggregate()` throws. Non-numeric values silently skipped. Spec fields are validated: `sum`/`avg`/`min`/`max` must be strings, `count` must be boolean.
+
+### Fixed
+- **`aggregate()` spec validation**: Passing non-string paths (e.g. `sum: true`) or non-boolean count (e.g. `count: 'yes'`) now throws `QueryError` with code `E_QUERY_AGGREGATE_TYPE` instead of a late `TypeError`.
+- **`Math.min/max` stack overflow**: Replaced `Math.min(...values)` / `Math.max(...values)` in aggregation with `.reduce()` to avoid `RangeError` on arrays with >65K elements.
+- **`normalizeDepth` validation**: Negative, non-integer, and min>max depth values now throw `QueryError` (`E_QUERY_DEPTH_TYPE` or `E_QUERY_DEPTH_RANGE`) instead of producing undefined behavior.
+- **`applyMultiHop` depth-0 inclusion**: `depth: [0, N]` now correctly includes the start set in results. Previously, nodes at hop 0 were silently dropped.
+- **`where()` primitive enforcement**: Object shorthand values are validated as primitives. Non-primitive values (objects, arrays, functions) throw `QueryError` with code `E_QUERY_WHERE_VALUE_TYPE`.
+- **ROADMAP.md fenced code block**: Added `text` language identifier to the Task DAG code fence (fixes markdownlint MD040).
+
 ## [Unreleased]
 
 ### Added
@@ -41,6 +58,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Mixed-version sync safety** (`WT/SCHEMA/2`): `assertOpsCompatible()` guard throws `E_SCHEMA_UNSUPPORTED` when v2 reader encounters edge property ops. Node-only v3 patches accepted by v2 readers. Fail fast, never silently drop data.
 - **Edge property visibility gating** (`WT/VIS/1`): Edge props invisible when parent edge is tombstoned. Birth-lamport tracking ensures re-adding an edge starts with a clean slate (old props not restored).
 - **`SchemaUnsupportedError`** — New error class with code `E_SCHEMA_UNSUPPORTED` for sync compatibility failures.
+
+#### HANDSHAKE — Multi-Writer Ergonomics (v7.4.0)
+- **Two-form writer API** (`HS/WRITER/1`): `graph.writer()` returns stable identity writer (resolved from git config or generated); `graph.writer(id)` returns explicit-identity writer. `createWriter()` deprecated with console warning.
+- **Sync-then-materialize** (`HS/SYNC/1`): `syncWith(peer, { materialize: true })` atomically syncs and materializes, returning `{ applied, attempts, state }`.
+- **Error audit** (`HS/ERR/1`): Classified all 93 throw sites across the codebase (documented in `docs/error-audit.md`).
+- **Error codes with recovery hints** (`HS/ERR/2`): `E_NO_STATE` and `E_STALE_STATE` messages now include actionable recovery guidance (call `materialize()` or enable `autoMaterialize`).
+- **CAS failure detection** (`HS/CAS/1`): `PatchBuilderV2.commit()` throws `WriterError` with code `WRITER_CAS_CONFLICT` and `expectedSha`/`actualSha` properties on compare-and-swap mismatch.
+- **Delete guard option** (`HS/DELGUARD/1`): `onDeleteWithData: 'reject' | 'cascade' | 'warn'` option on `WarpGraph.open()` (default `'warn'`).
+- **Reject and warn modes** (`HS/DELGUARD/2`): `removeNode()` throws on nodes with attached data in reject mode; logs `console.warn` in warn mode.
+- **Cascade deletion** (`HS/DELGUARD/3`): Cascade mode auto-generates `EdgeRemove` ops for all connected edges before `NodeRemove`. Generated ops appear in the committed patch for auditability.
 
 #### Query API (V7 Task 7)
 - **`graph.hasNode(nodeId)`** - Check if node exists in materialized state
@@ -92,7 +119,14 @@ All query methods operate on `WarpStateV5` (materialized state), never commit DA
 - Added `test/unit/domain/services/HookInstaller.test.js` (29 tests) — hook install/upgrade/append/replace
 - Added `test/unit/domain/WarpGraph.query.test.js` (21 tests) - Query API tests
 - Added `test/unit/domain/services/WarpStateIndexBuilder.test.js` (13 tests) - WARP state index tests
-- Total test count: 1764 (78 test files)
+- Added `test/unit/domain/WarpGraph.writerApi.test.js` (5 tests) — writer() two-form API
+- Added `test/unit/domain/WarpGraph.syncMaterialize.test.js` (3 tests) — syncWith materialize option
+- Added `test/unit/domain/WarpGraph.errorCodes.test.js` (27 tests) — E_NO_STATE/E_STALE_STATE codes and hints
+- Added `test/unit/domain/services/PatchBuilderV2.cas.test.js` (7 tests) — CAS conflict detection
+- Added `test/unit/domain/WarpGraph.deleteGuard.test.js` (6 tests) — onDeleteWithData option validation
+- Added `test/unit/domain/WarpGraph.deleteGuardEnforce.test.js` (13 tests) — reject/warn/cascade enforcement
+- Added `test/unit/domain/WarpGraph.cascadeDelete.test.js` (8 tests) — cascade deletion with edge cleanup
+- Total test count: 1833 (85 test files)
 
 ## [6.0.0] - 2026-01-31
 
