@@ -22,7 +22,7 @@ Let's dive in!
 
 ## Step 1: Start the Demo Environment
 
-From the `empty-graph` project root, run:
+From the `git-warp` project root, run:
 
 ```bash
 npm run demo:setup
@@ -59,7 +59,7 @@ Initialized empty Git repository in /demo/.git/
 
 📊 Building bitmap index...
 
-  Index saved to refs/empty-graph/index (f8a2b1c4)
+  Index saved to refs/git-warp/index (f8a2b1c4)
 
 ✅ Demo setup complete!
 ```
@@ -467,7 +467,7 @@ For the curious, here's what happens behind the scenes:
    - `graph.traversal.shortestPath()` for path finding
    - `graph.traversal.topologicalSort()` for dependency ordering
 
-4. **The bitmap index** is stored as a Git tree at `refs/empty-graph/index`. It contains sharded JSON files with Roaring Bitmaps that enable O(1) relationship lookups.
+4. **The bitmap index** is stored as a Git tree at `refs/git-warp/index`. It contains sharded JSON files with Roaring Bitmaps that enable O(1) relationship lookups.
 
 ---
 

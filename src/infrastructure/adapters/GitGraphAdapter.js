@@ -248,14 +248,14 @@ export default class GitGraphAdapter extends GraphPersistencePort {
     }
     // Prevent git option injection (must check before pattern matching)
     if (ref.startsWith('-') || ref.startsWith('--')) {
-      throw new Error(`Invalid ref: ${ref}. Refs cannot start with - or --. See https://github.com/git-stunts/empty-graph#security`);
+      throw new Error(`Invalid ref: ${ref}. Refs cannot start with - or --. See https://github.com/git-stunts/git-warp#security`);
     }
     // Allow alphanumeric, ., /, -, _ in names
     // Allow ancestry operators: ^ or ~ optionally followed by digits
     // Allow range operators: .. between names
     const validRefPattern = /^[a-zA-Z0-9._/-]+((~\d*|\^\d*|\.\.[a-zA-Z0-9._/-]+)*)$/;
     if (!validRefPattern.test(ref)) {
-      throw new Error(`Invalid ref format: ${ref}. Only alphanumeric characters, ., /, -, _, ^, ~, and range operators are allowed. See https://github.com/git-stunts/empty-graph#ref-validation`);
+      throw new Error(`Invalid ref format: ${ref}. Only alphanumeric characters, ., /, -, _, ^, ~, and range operators are allowed. See https://github.com/git-stunts/git-warp#ref-validation`);
     }
   }
 

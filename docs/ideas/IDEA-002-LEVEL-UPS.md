@@ -8,7 +8,7 @@ I prioritized ideas that are feasible with our hexagonal architecture (e.g., via
 
 **Why Legendary?** Turn WarpGraph into a reactive system where Git events (pushes, PRs, issues) automatically trigger graph mutations or queries. Imagine: A PR merge auto-rebuilds the index and runs traversals to validate "event chains" (e.g., in event sourcing). This makes it the ultimate GitOps tool—graphs that evolve with your repo, enabling CI/CD for knowledge bases or dependency graphs. Viral potential: "Build a self-healing wiki in GitHub Actions."
 
-**Implementation Sketch:** Add a GitHookAdapter (extending GraphPersistencePort) that listens via GitHub webhooks or local hooks. On push, detect new commits with git rev-list, then call createNodes or incrementalUpdateIndex (from your incremental ideas). Expose as a GitHub Action: uses: git-stunts/empty-graph-action@v1 with inputs like ref and traversal. Integrate health checks for "graph CI" status badges.
+**Implementation Sketch:** Add a GitHookAdapter (extending GraphPersistencePort) that listens via GitHub webhooks or local hooks. On push, detect new commits with git rev-list, then call createNodes or incrementalUpdateIndex (from your incremental ideas). Expose as a GitHub Action: uses: git-stunts/git-warp-action@v1 with inputs like ref and traversal. Integrate health checks for "graph CI" status badges.
 
 **Effort:** 2-3 weeks (webhook server + Action YAML).
 
@@ -45,7 +45,7 @@ I prioritized ideas that are feasible with our hexagonal architecture (e.g., via
 ### 6. **Jupyter Notebook Integration (Graph Notebooks for Data Science)**
 
 - **Why Legendary?** Package as a Jupyter extension/kernel magic (e.g., %graph ancestors --sha HEAD). Data scientists could query Git-stored graphs in notebooks for analysis (e.g., traverse dependency graphs, visualize with Plotly). Export traversals to Pandas DataFrames for ML workflows.
-- **Implementation Sketch:** Create @git-stunts/empty-graph-jupyter with IPython magics. Use iterateNodes for streaming to DataFrames; integrate visualizations (e.g., NetworkX export from traversals).
+- **Implementation Sketch:** Create @git-stunts/git-warp-jupyter with IPython magics. Use iterateNodes for streaming to DataFrames; integrate visualizations (e.g., NetworkX export from traversals).
 - **Effort:** 2-3 weeks (Jupyter magic setup).
 - **Impact:** Niche but powerful – Attracts data/AI users; demo with event sourcing analysis.
 

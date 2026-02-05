@@ -25,9 +25,9 @@ import SchemaUnsupportedError from '../errors/SchemaUnsupportedError.js';
  * @type {Object<string, string>}
  */
 const MESSAGE_TITLES = {
-  patch: 'empty-graph:patch',
-  checkpoint: 'empty-graph:checkpoint',
-  anchor: 'empty-graph:anchor',
+  patch: 'warp:patch',
+  checkpoint: 'warp:checkpoint',
+  anchor: 'warp:anchor',
 };
 
 /**

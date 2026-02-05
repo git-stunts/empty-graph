@@ -2,14 +2,14 @@ services:
   test:
     build:
       context: ..
-      dockerfile: empty-graph/Dockerfile
+      dockerfile: git-warp/Dockerfile
     environment:
       - GIT_STUNTS_DOCKER=1
 
   benchmark:
     build:
       context: ..
-      dockerfile: empty-graph/Dockerfile
+      dockerfile: git-warp/Dockerfile
     volumes:
       - ./benchmarks:/app/benchmarks
     environment:

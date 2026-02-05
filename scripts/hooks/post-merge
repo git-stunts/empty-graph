@@ -7,7 +7,7 @@ GIT_DIR=$(git rev-parse --git-dir 2>/dev/null) || exit 0
 SNAPSHOT="${GIT_DIR}/warp-ref-snapshot"
 
 # Capture current warp refs (sorted for stable comparison)
-CURRENT=$(git for-each-ref --format='%(refname) %(objectname)' --sort=refname refs/empty-graph/ 2>/dev/null) || true
+CURRENT=$(git for-each-ref --format='%(refname) %(objectname)' --sort=refname refs/warp/ 2>/dev/null) || true
 
 if [ -z "$CURRENT" ]; then
   # No warp refs exist — clean up any stale snapshot and exit

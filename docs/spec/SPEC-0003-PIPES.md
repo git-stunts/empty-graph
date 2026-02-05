@@ -1,6 +1,6 @@
-# Evolution of Query Architecture for @git-stunts/empty-graph
+# Evolution of Query Architecture for @git-stunts/git-warp
 
-**Project:** `@git-stunts/empty-graph`
+**Project:** `@git-stunts/git-warp`
 **Date:** January 29, 2026
 **Subject:** From Imperative Traversals to Functional Pipeable Operators
 
@@ -8,7 +8,7 @@
 
 ## 1. Executive Summary
 
-This document traces the architectural evolution of the query layer for `empty-graph`. We began by evaluating industry-standard declarative languages (**Cypher/SPARQL**), transitioned into a proposed fluent **LINQ-inspired DSL**, and ultimately landed on a **Functional Pipeable Operator** architecture.
+This document traces the architectural evolution of the query layer for `git-warp`. We began by evaluating industry-standard declarative languages (**Cypher/SPARQL**), transitioned into a proposed fluent **LINQ-inspired DSL**, and ultimately landed on a **Functional Pipeable Operator** architecture.
 
 **The Conclusion:** While a monolithic DSL is aesthetically pleasing, a functional pipeable architecture best honors the project's existing async-generator-based services while providing the highest performance-to-effort ratio for handling large-scale Git DAGs.
 

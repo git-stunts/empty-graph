@@ -82,9 +82,9 @@ describe('Writer (WARP schema:2)', () => {
   });
 
   describe('ref paths', () => {
-    it('uses refs/empty-graph/<graph>/writers/<writerId> for writer chain tip', () => {
+    it('uses refs/warp/<graph>/writers/<writerId> for writer chain tip', () => {
       const ref = buildWriterRef('events', 'alice');
-      expect(ref).toBe('refs/empty-graph/events/writers/alice');
+      expect(ref).toBe('refs/warp/events/writers/alice');
     });
   });
 
@@ -102,7 +102,7 @@ describe('Writer (WARP schema:2)', () => {
 
       const head = await writer.head();
       expect(head).toBeNull();
-      expect(persistence.readRef).toHaveBeenCalledWith('refs/empty-graph/events/writers/alice');
+      expect(persistence.readRef).toHaveBeenCalledWith('refs/warp/events/writers/alice');
     });
 
     it('returns SHA when commits exist', async () => {
@@ -138,7 +138,7 @@ describe('Writer (WARP schema:2)', () => {
 
       const patch = await writer.beginPatch();
 
-      expect(persistence.readRef).toHaveBeenCalledWith('refs/empty-graph/events/writers/alice');
+      expect(persistence.readRef).toHaveBeenCalledWith('refs/warp/events/writers/alice');
       expect(patch._expectedOldHeadForTest).toBe(oldHead);
     });
 
@@ -319,7 +319,7 @@ describe('Writer (WARP schema:2)', () => {
       await patch.commit();
 
       expect(persistence.updateRef).toHaveBeenCalledWith(
-        'refs/empty-graph/events/writers/alice',
+        'refs/warp/events/writers/alice',
         newSha
       );
     });

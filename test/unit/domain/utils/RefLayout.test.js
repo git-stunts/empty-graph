@@ -13,8 +13,8 @@ import {
 
 describe('RefLayout', () => {
   describe('constants', () => {
-    it('REF_PREFIX is refs/empty-graph', () => {
-      expect(REF_PREFIX).toBe('refs/empty-graph');
+    it('REF_PREFIX is refs/warp', () => {
+      expect(REF_PREFIX).toBe('refs/warp');
     });
 
     it('MAX_WRITER_ID_LENGTH is 64', () => {
@@ -149,19 +149,19 @@ describe('RefLayout', () => {
 
   describe('buildWriterRef', () => {
     it('builds correct writer ref path', () => {
-      expect(buildWriterRef('events', 'node-1')).toBe('refs/empty-graph/events/writers/node-1');
+      expect(buildWriterRef('events', 'node-1')).toBe('refs/warp/events/writers/node-1');
     });
 
     it('builds writer ref for various valid inputs', () => {
-      expect(buildWriterRef('my-graph', 'alice')).toBe('refs/empty-graph/my-graph/writers/alice');
+      expect(buildWriterRef('my-graph', 'alice')).toBe('refs/warp/my-graph/writers/alice');
       expect(buildWriterRef('Graph_v2', 'Writer_01')).toBe(
-        'refs/empty-graph/Graph_v2/writers/Writer_01'
+        'refs/warp/Graph_v2/writers/Writer_01'
       );
     });
 
     it('builds writer ref for nested graph names', () => {
       expect(buildWriterRef('team/events', 'writer-1')).toBe(
-        'refs/empty-graph/team/events/writers/writer-1'
+        'refs/warp/team/events/writers/writer-1'
       );
     });
 
@@ -179,13 +179,13 @@ describe('RefLayout', () => {
 
   describe('buildCheckpointRef', () => {
     it('builds correct checkpoint ref path', () => {
-      expect(buildCheckpointRef('events')).toBe('refs/empty-graph/events/checkpoints/head');
+      expect(buildCheckpointRef('events')).toBe('refs/warp/events/checkpoints/head');
     });
 
     it('builds checkpoint ref for various graph names', () => {
-      expect(buildCheckpointRef('my-graph')).toBe('refs/empty-graph/my-graph/checkpoints/head');
+      expect(buildCheckpointRef('my-graph')).toBe('refs/warp/my-graph/checkpoints/head');
       expect(buildCheckpointRef('team/events')).toBe(
-        'refs/empty-graph/team/events/checkpoints/head'
+        'refs/warp/team/events/checkpoints/head'
       );
     });
 
@@ -198,12 +198,12 @@ describe('RefLayout', () => {
 
   describe('buildCoverageRef', () => {
     it('builds correct coverage ref path', () => {
-      expect(buildCoverageRef('events')).toBe('refs/empty-graph/events/coverage/head');
+      expect(buildCoverageRef('events')).toBe('refs/warp/events/coverage/head');
     });
 
     it('builds coverage ref for various graph names', () => {
-      expect(buildCoverageRef('my-graph')).toBe('refs/empty-graph/my-graph/coverage/head');
-      expect(buildCoverageRef('team/events')).toBe('refs/empty-graph/team/events/coverage/head');
+      expect(buildCoverageRef('my-graph')).toBe('refs/warp/my-graph/coverage/head');
+      expect(buildCoverageRef('team/events')).toBe('refs/warp/team/events/coverage/head');
     });
 
     it('throws for invalid graph name', () => {
@@ -214,17 +214,17 @@ describe('RefLayout', () => {
 
   describe('buildWritersPrefix', () => {
     it('builds correct writers prefix path', () => {
-      expect(buildWritersPrefix('events')).toBe('refs/empty-graph/events/writers/');
+      expect(buildWritersPrefix('events')).toBe('refs/warp/events/writers/');
     });
 
     it('builds writers prefix with trailing slash', () => {
       const prefix = buildWritersPrefix('my-graph');
-      expect(prefix).toBe('refs/empty-graph/my-graph/writers/');
+      expect(prefix).toBe('refs/warp/my-graph/writers/');
       expect(prefix.endsWith('/')).toBe(true);
     });
 
     it('builds writers prefix for nested graph names', () => {
-      expect(buildWritersPrefix('team/events')).toBe('refs/empty-graph/team/events/writers/');
+      expect(buildWritersPrefix('team/events')).toBe('refs/warp/team/events/writers/');
     });
 
     it('throws for invalid graph name', () => {
@@ -235,27 +235,27 @@ describe('RefLayout', () => {
 
   describe('parseWriterIdFromRef', () => {
     it('parses writer ID from valid writer ref', () => {
-      expect(parseWriterIdFromRef('refs/empty-graph/events/writers/alice')).toBe('alice');
+      expect(parseWriterIdFromRef('refs/warp/events/writers/alice')).toBe('alice');
     });
 
     it('parses various writer IDs', () => {
-      expect(parseWriterIdFromRef('refs/empty-graph/events/writers/node-1')).toBe('node-1');
-      expect(parseWriterIdFromRef('refs/empty-graph/my-graph/writers/Writer_01')).toBe('Writer_01');
-      expect(parseWriterIdFromRef('refs/empty-graph/Graph123/writers/a.b.c')).toBe('a.b.c');
+      expect(parseWriterIdFromRef('refs/warp/events/writers/node-1')).toBe('node-1');
+      expect(parseWriterIdFromRef('refs/warp/my-graph/writers/Writer_01')).toBe('Writer_01');
+      expect(parseWriterIdFromRef('refs/warp/Graph123/writers/a.b.c')).toBe('a.b.c');
     });
 
     it('parses writer ID from nested graph path', () => {
-      expect(parseWriterIdFromRef('refs/empty-graph/team/events/writers/writer-1')).toBe(
+      expect(parseWriterIdFromRef('refs/warp/team/events/writers/writer-1')).toBe(
         'writer-1'
       );
     });
 
     it('returns null for non-writer refs', () => {
-      expect(parseWriterIdFromRef('refs/empty-graph/events/checkpoints/head')).toBeNull();
-      expect(parseWriterIdFromRef('refs/empty-graph/events/coverage/head')).toBeNull();
+      expect(parseWriterIdFromRef('refs/warp/events/checkpoints/head')).toBeNull();
+      expect(parseWriterIdFromRef('refs/warp/events/coverage/head')).toBeNull();
     });
 
-    it('returns null for refs outside empty-graph namespace', () => {
+    it('returns null for refs outside warp namespace', () => {
       expect(parseWriterIdFromRef('refs/heads/main')).toBeNull();
       expect(parseWriterIdFromRef('refs/tags/v1.0')).toBeNull();
       expect(parseWriterIdFromRef('refs/other/events/writers/alice')).toBeNull();
@@ -263,22 +263,22 @@ describe('RefLayout', () => {
 
     it('returns null for malformed writer refs', () => {
       // Missing writer ID
-      expect(parseWriterIdFromRef('refs/empty-graph/events/writers/')).toBeNull();
-      expect(parseWriterIdFromRef('refs/empty-graph/events/writers')).toBeNull();
+      expect(parseWriterIdFromRef('refs/warp/events/writers/')).toBeNull();
+      expect(parseWriterIdFromRef('refs/warp/events/writers')).toBeNull();
 
       // Extra segments after writer ID
-      expect(parseWriterIdFromRef('refs/empty-graph/events/writers/alice/extra')).toBeNull();
+      expect(parseWriterIdFromRef('refs/warp/events/writers/alice/extra')).toBeNull();
 
       // Invalid prefix
-      expect(parseWriterIdFromRef('empty-graph/events/writers/alice')).toBeNull();
+      expect(parseWriterIdFromRef('warp/events/writers/alice')).toBeNull();
     });
 
     it('returns null for refs with invalid writer IDs', () => {
       // Writer ID with forward slash would create extra segment
-      expect(parseWriterIdFromRef('refs/empty-graph/events/writers/a/b')).toBeNull();
+      expect(parseWriterIdFromRef('refs/warp/events/writers/a/b')).toBeNull();
 
       // Empty writer ID
-      expect(parseWriterIdFromRef('refs/empty-graph/events/writers/')).toBeNull();
+      expect(parseWriterIdFromRef('refs/warp/events/writers/')).toBeNull();
     });
 
     it('returns null for non-string inputs', () => {
@@ -294,7 +294,7 @@ describe('RefLayout', () => {
 
     it('returns null when writers appears at wrong position', () => {
       // Writers as first segment (no graph name)
-      expect(parseWriterIdFromRef('refs/empty-graph/writers/alice')).toBeNull();
+      expect(parseWriterIdFromRef('refs/warp/writers/alice')).toBeNull();
     });
   });
 
@@ -328,16 +328,16 @@ describe('RefLayout', () => {
 
   describe('edge cases', () => {
     it('handles single-character names', () => {
-      expect(buildWriterRef('g', 'w')).toBe('refs/empty-graph/g/writers/w');
-      expect(buildCheckpointRef('g')).toBe('refs/empty-graph/g/checkpoints/head');
-      expect(buildCoverageRef('g')).toBe('refs/empty-graph/g/coverage/head');
-      expect(buildWritersPrefix('g')).toBe('refs/empty-graph/g/writers/');
+      expect(buildWriterRef('g', 'w')).toBe('refs/warp/g/writers/w');
+      expect(buildCheckpointRef('g')).toBe('refs/warp/g/checkpoints/head');
+      expect(buildCoverageRef('g')).toBe('refs/warp/g/coverage/head');
+      expect(buildWritersPrefix('g')).toBe('refs/warp/g/writers/');
     });
 
     it('handles graph name with periods', () => {
       expect(() => validateGraphName('graph.v1')).not.toThrow();
       expect(buildWriterRef('graph.v1', 'writer')).toBe(
-        'refs/empty-graph/graph.v1/writers/writer'
+        'refs/warp/graph.v1/writers/writer'
       );
     });
 
@@ -365,7 +365,7 @@ describe('RefLayout', () => {
     it('handles numeric-only names', () => {
       expect(() => validateGraphName('123')).not.toThrow();
       expect(() => validateWriterId('123')).not.toThrow();
-      expect(buildWriterRef('123', '456')).toBe('refs/empty-graph/123/writers/456');
+      expect(buildWriterRef('123', '456')).toBe('refs/warp/123/writers/456');
     });
   });
 });

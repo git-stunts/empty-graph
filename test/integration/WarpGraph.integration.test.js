@@ -209,7 +209,7 @@ describe('WarpGraph Integration', () => {
       await alice.syncCoverage();
 
       // Verify coverage ref exists
-      const coverageRef = 'refs/empty-graph/cov/coverage/head';
+      const coverageRef = 'refs/warp/cov/coverage/head';
       const coverageSha = await persistence.readRef(coverageRef);
       expect(coverageSha).toBeTruthy();
     });

@@ -1,6 +1,6 @@
 # Roadmap
 
-> Execution plan for `@git-stunts/empty-graph` from v7.1.0 onward.
+> Execution plan for `@git-stunts/git-warp` from v7.1.0 onward.
 > Current release: v7.0.0. Main branch: v7.1.0 complete (AUTOPILOT merged, unreleased).
 > Active milestone: GROUNDSKEEPER (v7.2.0).
 

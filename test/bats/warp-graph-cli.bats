@@ -130,6 +130,6 @@ data = json.loads(os.environ["JSON"])
 assert data["graph"] == "demo"
 assert "health" in data
 assert "gc" in data
-assert data["checkpoint"]["ref"].endswith("refs/empty-graph/demo/checkpoints/head")
+assert data["checkpoint"]["ref"].endswith("refs/warp/demo/checkpoints/head")
 PY
 }

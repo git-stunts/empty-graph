@@ -1,6 +1,6 @@
 # Security Model
 
-@git-stunts/empty-graph is designed with security-by-default principles, treating the underlying Git binary as an untrusted subsystem through the `@git-stunts/plumbing` layer.
+@git-stunts/git-warp is designed with security-by-default principles, treating the underlying Git binary as an untrusted subsystem through the `@git-stunts/plumbing` layer.
 
 ## 🛡️ Security Through Plumbing
 

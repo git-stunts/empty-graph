@@ -39,11 +39,11 @@ function makeInstaller(fsFiles = {}, gitOverrides = {}) {
 }
 
 const TEMPLATE = `#!/bin/sh
-# --- @git-stunts/empty-graph post-merge hook __WARP_HOOK_VERSION__ ---
+# --- @git-stunts/git-warp post-merge hook __WARP_HOOK_VERSION__ ---
 # warp-hook-version: __WARP_HOOK_VERSION__
 # body
 echo "hello"
-# --- end @git-stunts/empty-graph ---
+# --- end @git-stunts/git-warp ---
 `;
 
 const STAMPED = TEMPLATE.replaceAll('__WARP_HOOK_VERSION__', VERSION);
@@ -83,10 +83,10 @@ describe('classifyExistingHook', () => {
       '#!/bin/sh',
       'echo "foreign stuff"',
       '',
-      '# --- @git-stunts/empty-graph post-merge hook 7.1.0 ---',
+      '# --- @git-stunts/git-warp post-merge hook 7.1.0 ---',
       '# warp-hook-version: 7.1.0',
       'echo "warp"',
-      '# --- end @git-stunts/empty-graph ---',
+      '# --- end @git-stunts/git-warp ---',
     ].join('\n');
     const result = classifyExistingHook(content);
     expect(result.kind).toBe('ours');
@@ -155,10 +155,10 @@ describe('HookInstaller.install', () => {
       '#!/bin/sh',
       'echo "foreign"',
       '',
-      '# --- @git-stunts/empty-graph post-merge hook 7.0.0 ---',
+      '# --- @git-stunts/git-warp post-merge hook 7.0.0 ---',
       '# warp-hook-version: 7.0.0',
       'echo "old warp"',
-      '# --- end @git-stunts/empty-graph ---',
+      '# --- end @git-stunts/git-warp ---',
     ].join('\n');
 
     const { installer, fs } = makeInstaller({
@@ -188,7 +188,7 @@ describe('HookInstaller.install', () => {
     const written = fs._store.get(result.hookPath);
     expect(written).toContain('echo "existing hook"');
     expect(written).toContain(`# warp-hook-version: ${VERSION}`);
-    expect(written).toContain('# --- end @git-stunts/empty-graph ---');
+    expect(written).toContain('# --- end @git-stunts/git-warp ---');
   });
 
   it('replace backs up existing hook', () => {
@@ -328,11 +328,11 @@ describe('template integrity', () => {
   });
 
   it('contains start delimiter', () => {
-    expect(templateContent).toContain('# --- @git-stunts/empty-graph post-merge hook');
+    expect(templateContent).toContain('# --- @git-stunts/git-warp post-merge hook');
   });
 
   it('contains end delimiter', () => {
-    expect(templateContent).toContain('# --- end @git-stunts/empty-graph ---');
+    expect(templateContent).toContain('# --- end @git-stunts/git-warp ---');
   });
 
   it('contains version marker line', () => {

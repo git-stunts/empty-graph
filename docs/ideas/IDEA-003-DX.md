@@ -1,6 +1,6 @@
 ⏺ Explore(Explore DX pain points)
   ⎿  Prompt:
-       I need to understand the developer experience pain points in the @git-stunts/empty-graph codebase at /Users/james/git/git-stunts/empty-graph. Specifically, I want to find:
+       I need to understand the developer experience pain points in the @git-stunts/git-warp codebase at /Users/james/git/git-stunts/git-warp. Specifically, I want to find:
 
        1. What happens after git pull / git fetch? Does the user need to manually re-materialize? Is there any hook or automation? Read through WarpGraph.js to understand if materialization is cached and when it becomes stale.
        2. What does the checkpoint workflow look like? Read CheckpointService.js to understand how checkpoints are created and loaded. Is there auto-checkpointing? Does the user have to manually call createCheckpoint()?
@@ -14,7 +14,7 @@
        10. What errors can the user hit from stale state? Look at error types and when QueryError, SyncError etc are thrown.
 
        Focus on understanding the friction points: manual steps that could be automated, state that gets stale silently, operations that should chain but don't, etc. Do NOT read markdown files.
-  ⎿  ❯ I need to understand the developer experience pain points in the @git-stunts/empty-graph codebase at /Users/james/git/git-stunts/empty-graph. Specifically, I want to find:
+  ⎿  ❯ I need to understand the developer experience pain points in the @git-stunts/git-warp codebase at /Users/james/git/git-stunts/git-warp. Specifically, I want to find:
 
        1. **What happens after `git pull` / `git fetch`?** Does the user need to manually re-materialize? Is there any hook or automation? Read through WarpGraph.js to understand if materialization is cached and when it becomes stale.
 
@@ -37,98 +37,98 @@
        10. **What errors can the user hit from stale state?** Look at error types and when QueryError, SyncError etc are thrown.
 
        Focus on understanding the friction points: manual steps that could be automated, state that gets stale silently, operations that should chain but don't, etc. Do NOT read markdown files.
-  ⎿  Bash(find /Users/james/git/git-stunts/empty-graph -type f -name "*.js" | grep -E "(WarpGraph|Checkpoint|Sync|Bitmap|Index|Frontier|GC|hooks|error|example)" | head -30)
+  ⎿  Bash(find /Users/james/git/git-stunts/git-warp -type f -name "*.js" | grep -E "(WarpGraph|Checkpoint|Sync|Bitmap|Index|Frontier|GC|hooks|error|example)" | head -30)
      Waiting…
   ⎿  
 
-  ⎿  Bash(find /Users/james/git/git-stunts/empty-graph/src -type f -name "*.js" 2>/dev/null | sort)
+  ⎿  Bash(find /Users/james/git/git-stunts/git-warp/src -type f -name "*.js" 2>/dev/null | sort)
      Waiting…
   ⎿  
 
-  ⎿  Bash(find /Users/james/git/git-stunts/empty-graph -type f \( -name "setup.js" -o -name "explore.js" -o -name "multi-writer.js" -o -name "*.hook.*" \) 2>/dev/null)
+  ⎿  Bash(find /Users/james/git/git-stunts/git-warp -type f \( -name "setup.js" -o -name "explore.js" -o -name "multi-writer.js" -o -name "*.hook.*" \) 2>/dev/null)
      Waiting…
   ⎿  
 
-  ⎿  Bash(find /Users/james/git/git-stunts/empty-graph/scripts -type f 2>/dev/null)
+  ⎿  Bash(find /Users/james/git/git-stunts/git-warp/scripts -type f 2>/dev/null)
      Waiting…
   ⎿  
 
-  ⎿  Read(/Users/james/git/git-stunts/empty-graph/src/domain/WarpGraph.js)
+  ⎿  Read(/Users/james/git/git-stunts/git-warp/src/domain/WarpGraph.js)
 
-  ⎿  Read(/Users/james/git/git-stunts/empty-graph/src/domain/services/CheckpointService.js)
-
-  ⎿  
+  ⎿  Read(/Users/james/git/git-stunts/git-warp/src/domain/services/CheckpointService.js)
 
   ⎿  
 
-  ⎿  Read(/Users/james/git/git-stunts/empty-graph/src/domain/services/SyncProtocol.js)
+  ⎿  
+
+  ⎿  Read(/Users/james/git/git-stunts/git-warp/src/domain/services/SyncProtocol.js)
 
   ⎿  
 
-  ⎿  Read(/Users/james/git/git-stunts/empty-graph/src/domain/services/BitmapIndexBuilder.js)
+  ⎿  Read(/Users/james/git/git-stunts/git-warp/src/domain/services/BitmapIndexBuilder.js)
 
   ⎿  
 
-  ⎿  Read(/Users/james/git/git-stunts/empty-graph/src/domain/services/IndexRebuildService.js)
+  ⎿  Read(/Users/james/git/git-stunts/git-warp/src/domain/services/IndexRebuildService.js)
 
   ⎿  
 
-  ⎿  Read(/Users/james/git/git-stunts/empty-graph/src/domain/services/Frontier.js)
+  ⎿  Read(/Users/james/git/git-stunts/git-warp/src/domain/services/Frontier.js)
 
   ⎿  
 
-  ⎿  Read(/Users/james/git/git-stunts/empty-graph/src/domain/services/GCPolicy.js)
+  ⎿  Read(/Users/james/git/git-stunts/git-warp/src/domain/services/GCPolicy.js)
 
   ⎿  
 
-  ⎿  Read(/Users/james/git/git-stunts/empty-graph/src/domain/services/GCMetrics.js)
+  ⎿  Read(/Users/james/git/git-stunts/git-warp/src/domain/services/GCMetrics.js)
 
   ⎿  
 
-  ⎿  Read(/Users/james/git/git-stunts/empty-graph/scripts/setup-hooks.js)
+  ⎿  Read(/Users/james/git/git-stunts/git-warp/scripts/setup-hooks.js)
 
   ⎿  
 
-  ⎿  Read(/Users/james/git/git-stunts/empty-graph/scripts/hooks/pre-commit)
+  ⎿  Read(/Users/james/git/git-stunts/git-warp/scripts/hooks/pre-commit)
 
   ⎿  
 
-  ⎿  Read(/Users/james/git/git-stunts/empty-graph/scripts/hooks/pre-push)
+  ⎿  Read(/Users/james/git/git-stunts/git-warp/scripts/hooks/pre-push)
 
   ⎿  
 
-  ⎿  Read(/Users/james/git/git-stunts/empty-graph/examples/setup.js)
+  ⎿  Read(/Users/james/git/git-stunts/git-warp/examples/setup.js)
 
   ⎿  
 
-  ⎿  Read(/Users/james/git/git-stunts/empty-graph/examples/explore.js)
+  ⎿  Read(/Users/james/git/git-stunts/git-warp/examples/explore.js)
 
   ⎿  
 
-  ⎿  Read(/Users/james/git/git-stunts/empty-graph/examples/multi-writer.js)
+  ⎿  Read(/Users/james/git/git-stunts/git-warp/examples/multi-writer.js)
 
   ⎿  
 
-  ⎿  Bash(ls -la /Users/james/git/git-stunts/empty-graph/src/domain/errors/)
+  ⎿  Bash(ls -la /Users/james/git/git-stunts/git-warp/src/domain/errors/)
      Waiting…
   ⎿  
 
-  ⎿  Read(/Users/james/git/git-stunts/empty-graph/src/domain/errors/QueryError.js)
+  ⎿  Read(/Users/james/git/git-stunts/git-warp/src/domain/errors/QueryError.js)
 
   ⎿  
 
-  ⎿  Read(/Users/james/git/git-stunts/empty-graph/src/domain/errors/SyncError.js)
+  ⎿  Read(/Users/james/git/git-stunts/git-warp/src/domain/errors/SyncError.js)
 
   ⎿  
 
-  ⎿  Read(/Users/james/git/git-stunts/empty-graph/src/domain/warp/Writer.js)
+  ⎿  Read(/Users/james/git/git-stunts/git-warp/src/domain/warp/Writer.js)
 
   ⎿  
 
   ⎿  Response:
        Perfect! Now let me compile my analysis. I have a comprehensive understanding of the codebase. Let me create a detailed report.
 
-       Developer Experience Pain Points Analysis: @git-stunts/empty-graph
+       Developer Experience Pain Points Analysis: @git-stunts/git-warp
 
        Based on my thorough review of the codebase, I've identified 10 significant developer experience (DX) pain points:
 

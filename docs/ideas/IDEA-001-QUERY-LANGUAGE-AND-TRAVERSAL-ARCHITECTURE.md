@@ -1,12 +1,12 @@
 # Query Language & Traversal Architecture
 
-**Project:** `@git-stunts/empty-graph`
+**Project:** `@git-stunts/git-warp`
 **Date:** January 29, 2026
 **Subject:** Feasibility Analysis of Declarative Query Support (Cypher/SPARQL) vs. Custom DSL Implementation
 
 ## 1. Executive Summary
 
-This report evaluates the path forward for querying the `@git-stunts/empty-graph` Directed Acyclic Graph (DAG). While the system currently possesses strong low-level traversal capabilities, it lacks a high-level declarative query interface. We analyzed the feasibility of adopting industry standards like **Cypher** and **SPARQL** versus developing a custom domain-specific language (**WarpQL**).
+This report evaluates the path forward for querying the `@git-stunts/git-warp` Directed Acyclic Graph (DAG). While the system currently possesses strong low-level traversal capabilities, it lacks a high-level declarative query interface. We analyzed the feasibility of adopting industry standards like **Cypher** and **SPARQL** versus developing a custom domain-specific language (**WarpQL**).
 
 > [!important]
 > **Key Finding:** Adopting full Cypher or SPARQL introduces significant architectural mismatch risks due to WarpGraph's specialized immutable commit-based model. 
@@ -134,7 +134,7 @@ To maintain performance at scale ($1M+$ nodes), a custom query planner must be i
 
 ## 1. Abstract
 
-This RFC proposes **WarpQL**, a declarative, deferred-execution query engine for `@git-stunts/empty-graph`. By adopting a LINQ-inspired fluent API, we aim to decouple query intent from traversal implementation. This engine will leverage existing async generators to provide O(1) memory overhead and utilize "predicate push-down" to exploit the bitmap indexing layer for high-speed filtering.
+This RFC proposes **WarpQL**, a declarative, deferred-execution query engine for `@git-stunts/git-warp`. By adopting a LINQ-inspired fluent API, we aim to decouple query intent from traversal implementation. This engine will leverage existing async generators to provide O(1) memory overhead and utilize "predicate push-down" to exploit the bitmap indexing layer for high-speed filtering.
 
 ## 2. Motivation
 
@@ -255,7 +255,7 @@ for await (const order of graph.query().where({ type: 'order' })) {
 
 ---
 
-My Gut™ says the **Pipeable Operators (Functional Composition)** approach is the superior move for the current state of `@git-stunts/empty-graph`.
+My Gut™ says the **Pipeable Operators (Functional Composition)** approach is the superior move for the current state of `@git-stunts/git-warp`.
 
 While the LINQ/WarpQL API is the "sexiest" for the README, your codebase is built on lean, specialized services like `WarpGraph` and `TraversalService`. Forcing a monolithic `QueryBuilder` class on top of them right now feels like building a skyscraper on top of a very high-quality tent.
 

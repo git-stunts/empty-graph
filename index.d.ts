@@ -1,5 +1,5 @@
 /**
- * @git-stunts/empty-graph - A graph database where every node is a Git commit pointing to the Empty Tree.
+ * @git-stunts/git-warp - A graph database where every node is a Git commit pointing to the Empty Tree.
  */
 
 /**

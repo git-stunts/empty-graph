@@ -146,10 +146,10 @@ describe('AP/CKPT/2: _patchesSinceCheckpoint tracking', () => {
 
     // checkpoint ref returns null (no checkpoint)
     persistence.readRef.mockImplementation((ref) => {
-      if (ref === 'refs/empty-graph/test/checkpoints/head') {
+      if (ref === 'refs/warp/test/checkpoints/head') {
         return Promise.resolve(null);
       }
-      if (ref === 'refs/empty-graph/test/writers/w1') {
+      if (ref === 'refs/warp/test/writers/w1') {
         return Promise.resolve(tipSha);
       }
       return Promise.resolve(null);
@@ -157,7 +157,7 @@ describe('AP/CKPT/2: _patchesSinceCheckpoint tracking', () => {
 
     // discoverWriters needs listRefs to return the writer ref
     persistence.listRefs.mockResolvedValue([
-      'refs/empty-graph/test/writers/w1',
+      'refs/warp/test/writers/w1',
     ]);
 
     await graph.materialize();
@@ -222,16 +222,16 @@ describe('AP/CKPT/2: _patchesSinceCheckpoint tracking', () => {
 
     // Phase 1: materialize with 3 patches (no checkpoint)
     persistence.readRef.mockImplementation((ref) => {
-      if (ref === 'refs/empty-graph/test/checkpoints/head') {
+      if (ref === 'refs/warp/test/checkpoints/head') {
         return Promise.resolve(null);
       }
-      if (ref === 'refs/empty-graph/test/writers/w1') {
+      if (ref === 'refs/warp/test/writers/w1') {
         return Promise.resolve(tipSha);
       }
       return Promise.resolve(null);
     });
     persistence.listRefs.mockResolvedValue([
-      'refs/empty-graph/test/writers/w1',
+      'refs/warp/test/writers/w1',
     ]);
 
     await graph.materialize();

@@ -38,7 +38,7 @@ async function main() {
   const plumbing = new GitPlumbing({ cwd: process.cwd(), runner });
   const persistence = new GitGraphAdapter({ plumbing });
 
-  const checkpointRef = `refs/empty-graph/${graphName}/checkpoints/head`;
+  const checkpointRef = `refs/warp/${graphName}/checkpoints/head`;
   let checkpointSha = await persistence.readRef(checkpointRef);
 
   if (!checkpointSha && createIfMissing) {

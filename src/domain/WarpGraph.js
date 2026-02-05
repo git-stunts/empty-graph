@@ -819,7 +819,7 @@ export default class WarpGraph {
   /**
    * Discovers all writers that have contributed to this graph.
    *
-   * Lists all refs under refs/empty-graph/<graphName>/writers/ and
+   * Lists all refs under refs/warp/<graphName>/writers/ and
    * extracts writer IDs from the ref paths.
    *
    * @returns {Promise<string[]>} Sorted array of writer IDs

@@ -130,8 +130,8 @@ async function main() {
   // Step 6: View with git commands
   // ============================================================================
   console.log('\n[6] Git commands to explore:');
-  console.log('    git for-each-ref refs/empty-graph/  # See all graph refs');
-  console.log('    git log --oneline refs/empty-graph/demo/writers/writer-1');
+  console.log('    git for-each-ref refs/warp/  # See all graph refs');
+  console.log('    git log --oneline refs/warp/demo/writers/writer-1');
 
   console.log('\nSetup complete!');
 }

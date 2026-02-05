@@ -6,7 +6,7 @@ These examples assume you already have a WARP-enabled Git repo with data.
 
 ```js
 import GitPlumbing, { ShellRunnerFactory } from '@git-stunts/plumbing';
-import WarpGraph, { GitGraphAdapter } from '@git-stunts/empty-graph';
+import WarpGraph, { GitGraphAdapter } from '@git-stunts/git-warp';
 
 const runner = ShellRunnerFactory.create();
 const plumbing = new GitPlumbing({ cwd: process.cwd(), runner });
@@ -33,7 +33,7 @@ console.log(result);
 
 ```js
 import GitPlumbing, { ShellRunnerFactory } from '@git-stunts/plumbing';
-import WarpGraph, { GitGraphAdapter } from '@git-stunts/empty-graph';
+import WarpGraph, { GitGraphAdapter } from '@git-stunts/git-warp';
 
 const runner = ShellRunnerFactory.create();
 const plumbing = new GitPlumbing({ cwd: process.cwd(), runner });

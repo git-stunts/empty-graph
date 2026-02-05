@@ -17,52 +17,52 @@ describe('GitGraphAdapter', () => {
 
     it('returns parsed refs from git output', async () => {
       mockPlumbing.execute.mockResolvedValue(
-        'refs/empty-graph/events/writers/writer1\nrefs/empty-graph/events/writers/writer2\nrefs/empty-graph/events/writers/writer3\n'
+        'refs/warp/events/writers/writer1\nrefs/warp/events/writers/writer2\nrefs/warp/events/writers/writer3\n'
       );
 
-      const refs = await adapter.listRefs('refs/empty-graph/events/writers/');
+      const refs = await adapter.listRefs('refs/warp/events/writers/');
 
       expect(refs).toEqual([
-        'refs/empty-graph/events/writers/writer1',
-        'refs/empty-graph/events/writers/writer2',
-        'refs/empty-graph/events/writers/writer3',
+        'refs/warp/events/writers/writer1',
+        'refs/warp/events/writers/writer2',
+        'refs/warp/events/writers/writer3',
       ]);
       expect(mockPlumbing.execute).toHaveBeenCalledWith({
-        args: ['for-each-ref', '--format=%(refname)', 'refs/empty-graph/events/writers/'],
+        args: ['for-each-ref', '--format=%(refname)', 'refs/warp/events/writers/'],
       });
     });
 
     it('returns empty array when output is empty', async () => {
       mockPlumbing.execute.mockResolvedValue('');
 
-      const refs = await adapter.listRefs('refs/empty-graph/events/writers/');
+      const refs = await adapter.listRefs('refs/warp/events/writers/');
 
       expect(refs).toEqual([]);
     });
 
     it('filters empty lines from output', async () => {
       mockPlumbing.execute.mockResolvedValue(
-        'refs/empty-graph/events/writers/writer1\n\n\nrefs/empty-graph/events/writers/writer2\n\n'
+        'refs/warp/events/writers/writer1\n\n\nrefs/warp/events/writers/writer2\n\n'
       );
 
-      const refs = await adapter.listRefs('refs/empty-graph/events/writers/');
+      const refs = await adapter.listRefs('refs/warp/events/writers/');
 
       expect(refs).toEqual([
-        'refs/empty-graph/events/writers/writer1',
-        'refs/empty-graph/events/writers/writer2',
+        'refs/warp/events/writers/writer1',
+        'refs/warp/events/writers/writer2',
       ]);
     });
 
     it('filters lines with only whitespace', async () => {
       mockPlumbing.execute.mockResolvedValue(
-        'refs/empty-graph/events/writers/writer1\n   \n\t\nrefs/empty-graph/events/writers/writer2\n'
+        'refs/warp/events/writers/writer1\n   \n\t\nrefs/warp/events/writers/writer2\n'
       );
 
-      const refs = await adapter.listRefs('refs/empty-graph/events/writers/');
+      const refs = await adapter.listRefs('refs/warp/events/writers/');
 
       expect(refs).toEqual([
-        'refs/empty-graph/events/writers/writer1',
-        'refs/empty-graph/events/writers/writer2',
+        'refs/warp/events/writers/writer1',
+        'refs/warp/events/writers/writer2',
       ]);
     });
 
@@ -98,28 +98,28 @@ describe('GitGraphAdapter', () => {
       // First call fails with transient error, second succeeds
       mockPlumbing.execute
         .mockRejectedValueOnce(new Error('cannot lock ref'))
-        .mockResolvedValueOnce('refs/empty-graph/events/writers/writer1\n');
+        .mockResolvedValueOnce('refs/warp/events/writers/writer1\n');
 
-      const refs = await adapter.listRefs('refs/empty-graph/events/writers/');
+      const refs = await adapter.listRefs('refs/warp/events/writers/');
 
-      expect(refs).toEqual(['refs/empty-graph/events/writers/writer1']);
+      expect(refs).toEqual(['refs/warp/events/writers/writer1']);
       expect(mockPlumbing.execute).toHaveBeenCalledTimes(2);
     });
 
     it('handles single ref output', async () => {
-      mockPlumbing.execute.mockResolvedValue('refs/empty-graph/index\n');
+      mockPlumbing.execute.mockResolvedValue('refs/warp/index\n');
 
-      const refs = await adapter.listRefs('refs/empty-graph/');
+      const refs = await adapter.listRefs('refs/warp/');
 
-      expect(refs).toEqual(['refs/empty-graph/index']);
+      expect(refs).toEqual(['refs/warp/index']);
     });
 
     it('handles output without trailing newline', async () => {
-      mockPlumbing.execute.mockResolvedValue('refs/empty-graph/events/writers/writer1');
+      mockPlumbing.execute.mockResolvedValue('refs/warp/events/writers/writer1');
 
-      const refs = await adapter.listRefs('refs/empty-graph/events/writers/');
+      const refs = await adapter.listRefs('refs/warp/events/writers/');
 
-      expect(refs).toEqual(['refs/empty-graph/events/writers/writer1']);
+      expect(refs).toEqual(['refs/warp/events/writers/writer1']);
     });
 
     it('calls git for-each-ref with correct arguments', async () => {

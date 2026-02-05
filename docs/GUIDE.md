@@ -19,7 +19,7 @@ WarpGraph excels when you need:
 ### Writers
 
 A **writer** is an independent actor identified by a unique string ID. Each writer:
-- Maintains its own chain of patches under `refs/empty-graph/<graph>/writers/<writerId>`
+- Maintains its own chain of patches under `refs/warp/<graph>/writers/<writerId>`
 - Assigns Lamport timestamps to operations
 - Can work offline and sync later
 
@@ -402,7 +402,7 @@ const result = await graph.query()
 ### Basic Workflow
 
 ```javascript
-import { WarpGraph, GitGraphAdapter } from '@git-stunts/empty-graph';
+import { WarpGraph, GitGraphAdapter } from '@git-stunts/git-warp';
 import Plumbing from '@git-stunts/plumbing';
 
 const plumbing = new Plumbing({ cwd: './my-repo' });
@@ -503,7 +503,7 @@ Ensure all writers are reachable from a single ref (useful for cloning):
 
 ```javascript
 await graph.syncCoverage();
-// Creates octopus anchor at refs/empty-graph/<graph>/coverage/head
+// Creates octopus anchor at refs/warp/<graph>/coverage/head
 // All writer tips are now parents of this commit
 ```
 
@@ -511,7 +511,7 @@ await graph.syncCoverage();
 
 ### Post-Merge Hook
 
-WarpGraph ships a `post-merge` Git hook that runs after every `git merge` or `git pull` and checks whether any warp writer refs (`refs/empty-graph/`) changed during the merge.
+WarpGraph ships a `post-merge` Git hook that runs after every `git merge` or `git pull` and checks whether any warp writer refs (`refs/warp/`) changed during the merge.
 
 If warp refs changed, the hook prints an informational message:
 
@@ -600,7 +600,7 @@ Example output lines:
 ### "My changes aren't appearing"
 
 1. Check that `commit()` was called on the patch
-2. Verify the writer ref exists: `git show-ref | grep empty-graph`
+2. Verify the writer ref exists: `git show-ref | grep warp`
 3. Ensure you're materializing the same graph name
 
 ### "State differs between writers"
@@ -639,7 +639,7 @@ Solution: Ensure tombstones have higher lamport than adds.
 WARP uses this Git ref structure:
 
 ```text
-refs/empty-graph/<graph>/
+refs/warp/<graph>/
 ├── writers/
 │   ├── alice          # Alice's patch chain tip
 │   ├── bob            # Bob's patch chain tip

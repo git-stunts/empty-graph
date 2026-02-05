@@ -2,7 +2,7 @@
  * Writer - WARP writer abstraction for safe graph mutations.
  *
  * A Writer is the only way to mutate a WarpGraph state. It owns a writerId
- * and maintains a single-writer chain under refs/empty-graph/<graph>/writers/<writerId>.
+ * and maintains a single-writer chain under refs/warp/<graph>/writers/<writerId>.
  *
  * Key guarantees:
  * - Single-writer chain per writerId

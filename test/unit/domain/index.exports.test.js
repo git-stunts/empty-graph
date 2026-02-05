@@ -309,7 +309,7 @@ describe('index.js exports', () => {
   describe('usage patterns', () => {
     it('supports ESM default and named imports for WarpGraph', () => {
       // This test verifies the import syntax works
-      // import WarpGraph, { WarpGraph as MWG } from 'empty-graph';
+      // import WarpGraph, { WarpGraph as MWG } from 'warp';
       expect(WarpGraphDefault).toBeDefined();
       expect(WarpGraph).toBeDefined();
       expect(WarpGraphDefault).toBe(WarpGraph);

@@ -1,22 +1,22 @@
-# @git-stunts/empty-graph
+# @git-stunts/git-warp
 
-[![CI](https://github.com/git-stunts/empty-graph/actions/workflows/ci.yml/badge.svg)](https://github.com/git-stunts/empty-graph/actions/workflows/ci.yml)
+[![CI](https://github.com/git-stunts/git-warp/actions/workflows/ci.yml/badge.svg)](https://github.com/git-stunts/git-warp/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![npm version](https://badge.fury.io/js/%40git-stunts%2Fempty-graph.svg)](https://www.npmjs.com/package/@git-stunts/empty-graph)
+[![npm version](https://badge.fury.io/js/%40git-stunts%2Fgit-warp.svg)](https://www.npmjs.com/package/@git-stunts/git-warp)
 
 A multi-writer graph database that uses Git commits as its storage substrate. Graph state is stored as commits pointing to the empty tree (`4b825dc...`), making the data invisible to normal Git workflows while inheriting Git's content-addressing, cryptographic integrity, and distributed replication.
 
 Writers collaborate without coordination using CRDTs (OR-Set for nodes/edges, LWW registers for properties). Every writer maintains an independent patch chain; materialization deterministically merges all writers into a single consistent view.
 
 ```bash
-npm install @git-stunts/empty-graph @git-stunts/plumbing
+npm install @git-stunts/git-warp @git-stunts/plumbing
 ```
 
 ## Quick Start
 
 ```javascript
 import GitPlumbing from '@git-stunts/plumbing';
-import WarpGraph, { GitGraphAdapter } from '@git-stunts/empty-graph';
+import WarpGraph, { GitGraphAdapter } from '@git-stunts/git-warp';
 
 const plumbing = new GitPlumbing({ cwd: './my-repo' });
 const persistence = new GitGraphAdapter({ plumbing });

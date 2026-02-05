@@ -44,7 +44,7 @@ The `IncrementalIndexBuilder` must extend the existing builder to support statef
 
 ## 3. Storage Changes
 
-- **Metadata Ref:** `refs/empty-graph/index-meta`
+- **Metadata Ref:** `refs/warp/index-meta`
 - **Metadata Shape:**
     
     ```json

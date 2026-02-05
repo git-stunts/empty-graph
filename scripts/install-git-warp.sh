@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_URL=${GIT_WARP_REPO_URL:-https://github.com/git-stunts/empty-graph.git}
+REPO_URL=${GIT_WARP_REPO_URL:-https://github.com/git-stunts/git-warp.git}
 INSTALL_DIR=${GIT_WARP_HOME:-$HOME/.git-warp}
 PROFILE_FILE=${GIT_WARP_PROFILE:-}
 FORCE_CLONE=0

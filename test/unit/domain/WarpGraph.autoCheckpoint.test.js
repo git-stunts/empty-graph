@@ -99,16 +99,16 @@ function buildPatchChain(persistence, writer, count) {
  */
 function wirePersistenceForWriter(persistence, writer, tipSha) {
   persistence.readRef.mockImplementation((ref) => {
-    if (ref === 'refs/empty-graph/test/checkpoints/head') {
+    if (ref === 'refs/warp/test/checkpoints/head') {
       return Promise.resolve(null);
     }
-    if (ref === `refs/empty-graph/test/writers/${writer}`) {
+    if (ref === `refs/warp/test/writers/${writer}`) {
       return Promise.resolve(tipSha);
     }
     return Promise.resolve(null);
   });
   persistence.listRefs.mockResolvedValue([
-    `refs/empty-graph/test/writers/${writer}`,
+    `refs/warp/test/writers/${writer}`,
   ]);
 }
 

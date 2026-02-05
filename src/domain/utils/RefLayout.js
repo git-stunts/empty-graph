@@ -2,12 +2,12 @@
  * Ref layout constants and helpers for WARP (Write-Ahead Reference Protocol).
  *
  * Provides functions for building, parsing, and validating Git ref paths
- * used by the WARP protocol. All refs live under the refs/empty-graph/ namespace.
+ * used by the WARP protocol. All refs live under the refs/warp/ namespace.
  *
  * Ref layout:
- * - refs/empty-graph/<graph>/writers/<writer_id>
- * - refs/empty-graph/<graph>/checkpoints/head
- * - refs/empty-graph/<graph>/coverage/head
+ * - refs/warp/<graph>/writers/<writer_id>
+ * - refs/warp/<graph>/checkpoints/head
+ * - refs/warp/<graph>/coverage/head
  *
  * @module domain/utils/RefLayout
  */
@@ -17,10 +17,10 @@
 // -----------------------------------------------------------------------------
 
 /**
- * The prefix for all empty-graph refs.
+ * The prefix for all warp refs.
  * @type {string}
  */
-export const REF_PREFIX = 'refs/empty-graph';
+export const REF_PREFIX = 'refs/warp';
 
 /**
  * Maximum length for a writer ID.
@@ -162,7 +162,7 @@ export function validateWriterId(id) {
  *
  * @example
  * buildWriterRef('events', 'node-1');
- * // => 'refs/empty-graph/events/writers/node-1'
+ * // => 'refs/warp/events/writers/node-1'
  */
 export function buildWriterRef(graphName, writerId) {
   validateGraphName(graphName);
@@ -179,7 +179,7 @@ export function buildWriterRef(graphName, writerId) {
  *
  * @example
  * buildCheckpointRef('events');
- * // => 'refs/empty-graph/events/checkpoints/head'
+ * // => 'refs/warp/events/checkpoints/head'
  */
 export function buildCheckpointRef(graphName) {
   validateGraphName(graphName);
@@ -195,7 +195,7 @@ export function buildCheckpointRef(graphName) {
  *
  * @example
  * buildCoverageRef('events');
- * // => 'refs/empty-graph/events/coverage/head'
+ * // => 'refs/warp/events/coverage/head'
  */
 export function buildCoverageRef(graphName) {
   validateGraphName(graphName);
@@ -212,7 +212,7 @@ export function buildCoverageRef(graphName) {
  *
  * @example
  * buildWritersPrefix('events');
- * // => 'refs/empty-graph/events/writers/'
+ * // => 'refs/warp/events/writers/'
  */
 export function buildWritersPrefix(graphName) {
   validateGraphName(graphName);
@@ -230,7 +230,7 @@ export function buildWritersPrefix(graphName) {
  * @returns {string|null} The writer ID, or null if the path is not a valid writer ref
  *
  * @example
- * parseWriterIdFromRef('refs/empty-graph/events/writers/alice');
+ * parseWriterIdFromRef('refs/warp/events/writers/alice');
  * // => 'alice'
  *
  * parseWriterIdFromRef('refs/heads/main');
@@ -241,7 +241,7 @@ export function parseWriterIdFromRef(refPath) {
     return null;
   }
 
-  // Match pattern: refs/empty-graph/<graph>/writers/<writerId>
+  // Match pattern: refs/warp/<graph>/writers/<writerId>
   const prefix = `${REF_PREFIX}/`;
   if (!refPath.startsWith(prefix)) {
     return null;

@@ -76,7 +76,7 @@ describe('WarpGraph.hasFrontierChanged() (GK/FRONTIER/1)', () => {
   });
 
   it('returns false after materialize with existing writer and no changes', async () => {
-    const writerRef = 'refs/empty-graph/test/writers/writer-1';
+    const writerRef = 'refs/warp/test/writers/writer-1';
     const patchMessage = encodePatchMessage({
       graph: 'test', writer: 'writer-1', lamport: 1,
       patchOid: FAKE_BLOB_OID, schema: 2,
@@ -89,7 +89,7 @@ describe('WarpGraph.hasFrontierChanged() (GK/FRONTIER/1)', () => {
   });
 
   it('returns true when writer tip SHA changes', async () => {
-    const writerRef = 'refs/empty-graph/test/writers/writer-1';
+    const writerRef = 'refs/warp/test/writers/writer-1';
     const patchMessage = encodePatchMessage({
       graph: 'test', writer: 'writer-1', lamport: 1,
       patchOid: FAKE_BLOB_OID, schema: 2,
@@ -108,7 +108,7 @@ describe('WarpGraph.hasFrontierChanged() (GK/FRONTIER/1)', () => {
   });
 
   it('returns true when new writer appears', async () => {
-    const writerRef1 = 'refs/empty-graph/test/writers/writer-1';
+    const writerRef1 = 'refs/warp/test/writers/writer-1';
     const patchMessage = encodePatchMessage({
       graph: 'test', writer: 'writer-1', lamport: 1,
       patchOid: FAKE_BLOB_OID, schema: 2,
@@ -118,7 +118,7 @@ describe('WarpGraph.hasFrontierChanged() (GK/FRONTIER/1)', () => {
     await graph.materialize();
 
     // Second writer appears
-    const writerRef2 = 'refs/empty-graph/test/writers/writer-2';
+    const writerRef2 = 'refs/warp/test/writers/writer-2';
     persistence.listRefs.mockResolvedValue([writerRef1, writerRef2]);
     persistence.readRef.mockImplementation((ref) => {
       if (ref === writerRef1) return Promise.resolve(FAKE_COMMIT_SHA);
@@ -130,8 +130,8 @@ describe('WarpGraph.hasFrontierChanged() (GK/FRONTIER/1)', () => {
   });
 
   it('returns true when writer removed', async () => {
-    const writerRef1 = 'refs/empty-graph/test/writers/writer-1';
-    const writerRef2 = 'refs/empty-graph/test/writers/writer-2';
+    const writerRef1 = 'refs/warp/test/writers/writer-1';
+    const writerRef2 = 'refs/warp/test/writers/writer-2';
     const patchMessage1 = encodePatchMessage({
       graph: 'test', writer: 'writer-1', lamport: 1,
       patchOid: FAKE_BLOB_OID, schema: 2,
@@ -172,7 +172,7 @@ describe('WarpGraph.hasFrontierChanged() (GK/FRONTIER/1)', () => {
   });
 
   it('returns false after re-materialize incorporates changes', async () => {
-    const writerRef = 'refs/empty-graph/test/writers/writer-1';
+    const writerRef = 'refs/warp/test/writers/writer-1';
     const patchMessage = encodePatchMessage({
       graph: 'test', writer: 'writer-1', lamport: 1,
       patchOid: FAKE_BLOB_OID, schema: 2,

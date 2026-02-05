@@ -45,7 +45,7 @@ export function isLegacyAnchor(message) {
  *
  * @example
  * // v4 trailer anchor
- * isAnyAnchor('empty-graph:anchor\n\neg-kind: anchor\neg-graph: test'); // true
+ * isAnyAnchor('warp:anchor\n\neg-kind: anchor\neg-graph: test'); // true
  *
  * // v3 JSON anchor
  * isAnyAnchor('{"_type":"anchor"}'); // true
