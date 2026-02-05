@@ -1718,8 +1718,9 @@ eg-schema: 2`;
         // Now builder2 tries to commit, but ref has advanced
         persistence.readRef.mockResolvedValueOnce(commit1Sha); // builder2 commit check - now points to commit1
 
-        await expect(builder2.commit()).rejects.toThrow('Commit failed: writer ref was updated by another process');
-        await expect(builder2.commit()).rejects.toThrow('Re-materialize and retry');
+        await expect(builder2.commit()).rejects.toThrow(
+          /Commit failed: writer ref was updated by another process.*Re-materialize and retry/
+        );
       });
 
       it('allows commit when ref matches expected parent', async () => {
