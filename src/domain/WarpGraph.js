@@ -1629,8 +1629,11 @@ export default class WarpGraph {
 
     // Polling: periodically check frontier and auto-materialize if changed
     let pollIntervalId = null;
+    let pollInFlight = false;
     if (poll) {
       pollIntervalId = setInterval(async () => {
+        if (pollInFlight) return;
+        pollInFlight = true;
         try {
           const changed = await this.hasFrontierChanged();
           if (changed) {
@@ -1645,6 +1648,8 @@ export default class WarpGraph {
               // onError itself threw — swallow to prevent cascade
             }
           }
+        } finally {
+          pollInFlight = false;
         }
       }, poll);
     }

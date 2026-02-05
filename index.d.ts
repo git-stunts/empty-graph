@@ -123,6 +123,20 @@ export interface RebuildOptions {
 }
 
 /**
+ * Options for loading a previously built index.
+ */
+export interface LoadOptions {
+  /** Enable strict integrity verification (fail-closed). Default: true */
+  strict?: boolean;
+  /** Frontier to compare for staleness (maps writer IDs to their current tip SHAs) */
+  currentFrontier?: Map<string, string>;
+  /** Auto-rebuild when a stale index is detected. Requires rebuildRef. Default: false */
+  autoRebuild?: boolean;
+  /** Git ref to rebuild from when autoRebuild is true */
+  rebuildRef?: string;
+}
+
+/**
  * Direction for graph traversal.
  */
 export type TraversalDirection = 'forward' | 'reverse';
@@ -610,7 +624,7 @@ export class IndexRebuildService {
    *
    * **Memory**: Lazy loading - O(1) initial, shards loaded on demand.
    */
-  load(treeOid: string): Promise<BitmapIndexReader>;
+  load(treeOid: string, options?: LoadOptions): Promise<BitmapIndexReader>;
 }
 
 /**

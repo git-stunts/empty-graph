@@ -8,7 +8,7 @@
  * @see ROADMAP.md PL/DIFF/1
  */
 
-import { orsetElements, orsetContains } from '../crdt/ORSet.js';
+import { orsetElements } from '../crdt/ORSet.js';
 import { lwwValue } from '../crdt/LWW.js';
 import { decodeEdgeKey, decodePropKey, isEdgePropKey } from './JoinReducer.js';
 
@@ -186,7 +186,7 @@ function diffNodesAndEdges(before, after) {
     ? new Set(
         orsetElements(before.edgeAlive).filter((edgeKey) => {
           const { from, to } = decodeEdgeKey(edgeKey);
-          return orsetContains(before.nodeAlive, from) && orsetContains(before.nodeAlive, to);
+          return beforeNodes.has(from) && beforeNodes.has(to);
         })
       )
     : new Set();
@@ -194,7 +194,7 @@ function diffNodesAndEdges(before, after) {
   const afterEdges = new Set(
     orsetElements(after.edgeAlive).filter((edgeKey) => {
       const { from, to } = decodeEdgeKey(edgeKey);
-      return orsetContains(after.nodeAlive, from) && orsetContains(after.nodeAlive, to);
+      return afterNodes.has(from) && afterNodes.has(to);
     })
   );
 

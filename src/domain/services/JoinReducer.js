@@ -126,10 +126,11 @@ export function decodeEdgePropKey(encoded) {
   if (!isEdgePropKey(encoded)) {
     throw new Error('Invalid edge property key: missing prefix');
   }
-  const [from, to, label, propKey] = encoded.slice(1).split('\0');
-  if (propKey === undefined) {
+  const parts = encoded.slice(1).split('\0');
+  if (parts.length !== 4) {
     throw new Error('Invalid edge property key: expected 4 segments');
   }
+  const [from, to, label, propKey] = parts;
   return { from, to, label, propKey };
 }
 

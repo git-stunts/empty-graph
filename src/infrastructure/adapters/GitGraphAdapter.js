@@ -80,7 +80,9 @@ const TRANSIENT_ERROR_PATTERNS = [
  */
 function isTransientError(error) {
   const message = (error.message || '').toLowerCase();
-  return TRANSIENT_ERROR_PATTERNS.some(pattern => message.includes(pattern));
+  const stderr = (error.details?.stderr || '').toLowerCase();
+  const searchText = `${message} ${stderr}`;
+  return TRANSIENT_ERROR_PATTERNS.some(pattern => searchText.includes(pattern));
 }
 
 /**
@@ -199,6 +201,9 @@ export default class GitGraphAdapter extends GraphPersistencePort {
    */
   constructor({ plumbing, retryOptions = {} }) {
     super();
+    if (!plumbing) {
+      throw new Error('plumbing is required');
+    }
     this.plumbing = plumbing;
     this._retryOptions = { ...DEFAULT_RETRY_OPTIONS, ...retryOptions };
   }
@@ -676,13 +681,15 @@ export default class GitGraphAdapter extends GraphPersistencePort {
       const value = await this._executeWithRetry({
         args: ['config', '--get', key]
       });
-      return value.trim() || null;
+      // Preserve empty-string values; only drop trailing newline
+      return value.replace(/\n$/, '');
     } catch (err) {
       // Exit code 1 means config key not found
+      const exitCode = err?.details?.code ?? err?.exitCode ?? err?.code;
       const msg = (err.message || '').toLowerCase();
       const stderr = (err.details?.stderr || '').toLowerCase();
       const searchText = `${msg} ${stderr}`;
-      if (searchText.includes('exit code 1') || err.exitCode === 1) {
+      if (exitCode === 1 || searchText.includes('exit code 1')) {
         return null;
       }
       throw err;

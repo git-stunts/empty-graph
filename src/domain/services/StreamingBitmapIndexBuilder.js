@@ -8,22 +8,23 @@ import { getRoaringBitmap32 } from '../utils/roaring.js';
 import { encode as cborEncode } from '../../infrastructure/codecs/CborCodec.js';
 
 /**
- * Produces canonical JSON with lexicographically sorted keys at all levels.
- * @param {*} value - Value to serialize
+ * Produces a canonical JSON string with deterministic key ordering.
+ * Recursively sorts object keys alphabetically to ensure consistent
+ * output across different JavaScript engines.
+ *
+ * @param {*} obj - The value to stringify
  * @returns {string} Canonical JSON string
  */
-function canonicalJson(value) {
-  return JSON.stringify(value, (_key, val) => {
-    if (val && typeof val === 'object' && !Array.isArray(val)) {
-      const sorted = {};
-      for (const k of Object.keys(val).sort()) {
-        sorted[k] = val[k];
-      }
-      return sorted;
-    }
-    return val;
-  });
-}
+const canonicalStringify = (obj) => {
+  if (obj === null || typeof obj !== 'object') {
+    return JSON.stringify(obj);
+  }
+  if (Array.isArray(obj)) {
+    return `[${obj.map(canonicalStringify).join(',')}]`;
+  }
+  const keys = Object.keys(obj).sort();
+  return `{${keys.map(k => `${JSON.stringify(k)}:${canonicalStringify(obj[k])}`).join(',')}}`;
+};
 
 /**
  * Current shard format version.
@@ -52,16 +53,16 @@ const BITMAP_BASE_OVERHEAD = 64;
 
 /**
  * Computes a SHA-256 checksum of the given data.
- * Used to verify shard integrity on load.
- * Must match the algorithm in BitmapIndexBuilder and BitmapIndexReader.
+ * Uses canonical JSON stringification for deterministic output
+ * across different JavaScript engines.
  *
  * @param {Object} data - The data object to checksum
  * @returns {string} Hex-encoded SHA-256 hash
  */
-function computeChecksum(data) {
-  const json = canonicalJson(data);
+const computeChecksum = (data) => {
+  const json = canonicalStringify(data);
   return createHash('sha256').update(json).digest('hex');
-}
+};
 
 /**
  * Streaming bitmap index builder with memory-bounded operation.
@@ -163,7 +164,6 @@ export default class StreamingBitmapIndexBuilder {
    *
    * @param {string} sha - The node's SHA (40-character hex string)
    * @returns {Promise<number>} The assigned numeric ID (0-indexed, monotonically increasing)
-   * @async
    */
   registerNode(sha) {
     return Promise.resolve(this._getOrCreateId(sha));
@@ -457,7 +457,7 @@ export default class StreamingBitmapIndexBuilder {
       const envelope = { version: 1, writerCount: frontier.size, frontier: sorted };
       const cborOid = await this.storage.writeBlob(Buffer.from(cborEncode(envelope)));
       flatEntries.push(`100644 blob ${cborOid}\tfrontier.cbor`);
-      const jsonOid = await this.storage.writeBlob(Buffer.from(canonicalJson(envelope)));
+      const jsonOid = await this.storage.writeBlob(Buffer.from(canonicalStringify(envelope)));
       flatEntries.push(`100644 blob ${jsonOid}\tfrontier.json`);
     }
 

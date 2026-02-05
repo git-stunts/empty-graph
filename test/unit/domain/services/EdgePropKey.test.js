@@ -325,7 +325,7 @@ describe('EdgePropKey', () => {
       expect(decoded.propKey).toBe(long);
     });
 
-    it('handles strings that look like the encoding format', () => {
+    it('throws when field contains embedded null character (extra segments)', () => {
       // A from value that itself contains the separator pattern
       const from = 'a\0b';
       const to = 'c';
@@ -333,11 +333,11 @@ describe('EdgePropKey', () => {
       const propKey = 'e';
 
       const encoded = encodeEdgePropKey(from, to, label, propKey);
-      // With embedded \0 in "from", split will produce extra segments,
-      // so decode will not round-trip. This documents the behavior:
-      // the codec assumes fields do not contain \0.
-      const decoded = decodeEdgePropKey(encoded);
-      expect(decoded.from).toBe('a');
+      // With embedded \0 in "from", split produces 5 segments instead of 4.
+      // The codec enforces exactly 4 segments and throws on malformed keys.
+      expect(() => decodeEdgePropKey(encoded)).toThrow(
+        'Invalid edge property key: expected 4 segments',
+      );
     });
 
     it('encoded key always starts with EDGE_PROP_PREFIX', () => {

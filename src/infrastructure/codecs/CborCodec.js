@@ -27,11 +27,19 @@
  *
  * ## Our Solution: Pre-encoding Key Sorting
  *
- * Before encoding, we recursively sort all object keys lexicographically via the
- * {@link sortKeys} function. This ensures:
+ * Before encoding, we recursively sort all object keys using JavaScript's default
+ * lexicographic sort (via {@link sortKeys}). This produces deterministic,
+ * lexicographically-sorted CBOR for WARP patches.
+ *
+ * **Important**: This is NOT RFC 7049 Section 3.9 canonical CBOR, which requires
+ * byte-length-first ordering (shorter keys before longer keys, then lexicographic
+ * within same length). Our approach uses simple lexicographic ordering, which is
+ * sufficient for WARP's content-addressing needs but not interoperable with systems
+ * expecting strict RFC 7049 canonical form.
+ *
+ * This ensures:
  *
  * - **Determinism**: Same input always produces identical bytes
- * - **Interoperability**: Output conforms to RFC 7049 Section 3.9 (Canonical CBOR)
  * - **Verifiability**: Patches can be re-encoded and compared byte-for-byte
  *
  * ## Performance Considerations
@@ -83,7 +91,7 @@ const encoder = new Encoder({
  * | Primitive      | Primitive      | Pass through (number, string, boolean, bigint) |
  * | Array          | Array          | Elements recursively sorted             |
  * | Plain Object   | Plain Object   | Keys sorted, values recursively sorted  |
- * | Map            | Plain Object   | Converted to object with sorted keys    |
+ * | Map            | Plain Object   | Converted to object with sorted keys (keys must be strings) |
  * | Other objects  | Same object    | Pass through (Date, Buffer, etc.)       |
  *
  * ## Why Only Plain Objects?
