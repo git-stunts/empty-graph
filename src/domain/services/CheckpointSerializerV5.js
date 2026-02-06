@@ -84,9 +84,14 @@ export function serializeFullStateV5(state) {
  * @returns {import('./JoinReducer.js').WarpStateV5}
  */
 export function deserializeFullStateV5(buffer) {
+  // Handle null/undefined buffer before attempting decode
+  if (buffer === null || buffer === undefined) {
+    return createEmptyStateV5();
+  }
+
   const obj = decode(buffer);
 
-  // Handle null/undefined: return empty state
+  // Handle null/undefined decoded result: return empty state
   if (obj === null || obj === undefined) {
     return createEmptyStateV5();
   }

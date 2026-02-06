@@ -59,6 +59,24 @@ function buildStateV5({ nodes = [], edges = [], props = [], tombstoneDots = [] }
 
 describe('CheckpointSerializerV5', () => {
   describe('serializeFullStateV5 / deserializeFullStateV5', () => {
+    it('returns empty state when buffer is null', () => {
+      const restored = deserializeFullStateV5(null);
+
+      expect(restored.nodeAlive.entries.size).toBe(0);
+      expect(restored.edgeAlive.entries.size).toBe(0);
+      expect(restored.prop.size).toBe(0);
+      expect(restored.observedFrontier.size).toBe(0);
+    });
+
+    it('returns empty state when buffer is undefined', () => {
+      const restored = deserializeFullStateV5(undefined);
+
+      expect(restored.nodeAlive.entries.size).toBe(0);
+      expect(restored.edgeAlive.entries.size).toBe(0);
+      expect(restored.prop.size).toBe(0);
+      expect(restored.observedFrontier.size).toBe(0);
+    });
+
     it('round-trips empty state', () => {
       const state = createEmptyStateV5();
 
