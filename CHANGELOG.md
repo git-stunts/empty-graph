@@ -23,6 +23,8 @@ Implements Papers III–IV: provenance payloads, slicing, wormholes, BTRs, and p
 
 ### Fixed
 
+- **Consolidated full-state serialization**: `StateSerializerV5.serializeFullStateV5` and `deserializeFullStateV5` now delegate to `CheckpointSerializerV5`, ensuring BTR and Checkpoint use the same canonical format. Eliminates wire-format incompatibility between the two serializers.
+- **`ProvenanceIndex` missing entries guard**: `deserialize()` and `fromJSON()` now throw `"Missing or invalid ProvenanceIndex entries"` if the entries field is undefined or not an array, instead of failing with cryptic iteration errors.
 - **Error surfacing in `_loadPatchBySha`**: Errors during patch loading are now properly thrown instead of being swallowed, improving debuggability when patches fail to load.
 - **Fresh state guard in `materializeSlice`**: Now ensures fresh state before accessing the provenance index, preventing stale index reads after writes.
 - **Dirty state guard in `patchesFor`**: Added state guard to `patchesFor()` to throw `E_STALE_STATE` when cached state is dirty and `autoMaterialize` is off.
