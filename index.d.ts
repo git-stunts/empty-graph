@@ -1238,6 +1238,10 @@ export interface PatchEntry {
     lamport: number;
     context: Record<string, number> | Map<string, number>;
     ops: unknown[];
+    /** Node/edge IDs read by this patch (V2 provenance) */
+    reads?: string[];
+    /** Node/edge IDs written by this patch (V2 provenance) */
+    writes?: string[];
   };
   /** The Git SHA of the patch commit */
   sha: string;
