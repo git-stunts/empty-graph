@@ -188,11 +188,13 @@ class ProvenancePayload {
   /**
    * Returns the patch entry at the given index.
    *
-   * @param {number} index - The zero-based index
+   * Supports negative indices like Array.prototype.at() (e.g., -1 for last element).
+   *
+   * @param {number} index - The index (negative indices count from end)
    * @returns {PatchEntry|undefined} The patch entry, or undefined if out of bounds
    */
   at(index) {
-    return this.#patches[index];
+    return this.#patches.at(index);
   }
 
   /**
