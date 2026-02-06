@@ -295,6 +295,31 @@ describe('ProvenanceIndex', () => {
       it('throws on unsupported version', () => {
         expect(() => ProvenanceIndex.fromJSON({ version: 99, entries: [] })).toThrow('Unsupported');
       });
+
+      it('throws on missing entries in fromJSON', () => {
+        expect(() => ProvenanceIndex.fromJSON({ version: 1 })).toThrow('Missing or invalid ProvenanceIndex entries');
+      });
+
+      it('throws on null entries in fromJSON', () => {
+        expect(() => ProvenanceIndex.fromJSON({ version: 1, entries: null })).toThrow('Missing or invalid ProvenanceIndex entries');
+      });
+
+      it('handles empty entries array in fromJSON', () => {
+        const restored = ProvenanceIndex.fromJSON({ version: 1, entries: [] });
+        expect(restored.size).toBe(0);
+      });
+
+      it('throws on missing entries in deserialize', async () => {
+        const { encode } = await import('../../../../src/infrastructure/codecs/CborCodec.js');
+        const badData = encode({ version: 1 }); // missing entries field
+        expect(() => ProvenanceIndex.deserialize(badData)).toThrow('Missing or invalid ProvenanceIndex entries');
+      });
+
+      it('throws on null entries in deserialize', async () => {
+        const { encode } = await import('../../../../src/infrastructure/codecs/CborCodec.js');
+        const badData = encode({ version: 1, entries: null });
+        expect(() => ProvenanceIndex.deserialize(badData)).toThrow('Missing or invalid ProvenanceIndex entries');
+      });
     });
   });
 

@@ -279,6 +279,10 @@ class ProvenanceIndex {
       throw new Error(`Unsupported ProvenanceIndex version: ${obj.version}`);
     }
 
+    if (!obj.entries || !Array.isArray(obj.entries)) {
+      throw new Error('Missing or invalid ProvenanceIndex entries');
+    }
+
     return new ProvenanceIndex(ProvenanceIndex.#buildIndex(obj.entries));
   }
 
@@ -301,6 +305,10 @@ class ProvenanceIndex {
   static fromJSON(json) {
     if (json.version !== 1) {
       throw new Error(`Unsupported ProvenanceIndex version: ${json.version}`);
+    }
+
+    if (!json.entries || !Array.isArray(json.entries)) {
+      throw new Error('Missing or invalid ProvenanceIndex entries');
     }
 
     return new ProvenanceIndex(ProvenanceIndex.#buildIndex(json.entries));
