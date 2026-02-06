@@ -214,7 +214,7 @@ Implements [Paper III](https://doi.org/10.5281/zenodo.17963669) (Computational H
 - **`where()` primitive enforcement**: Object shorthand values are validated as primitives. Non-primitive values (objects, arrays, functions) throw `QueryError` with code `E_QUERY_WHERE_VALUE_TYPE`.
 - **ROADMAP.md fenced code block**: Added `text` language identifier to the Task DAG code fence (fixes markdownlint MD040).
 
-## [Unreleased]
+## [7.0.0]
 
 ### Added
 - **git-warp CLI** - canonical `git warp` entrypoint (shim + PATH install)

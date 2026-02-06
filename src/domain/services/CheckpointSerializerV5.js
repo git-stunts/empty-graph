@@ -214,7 +214,8 @@ function deserializeEdgeBirthEvent(obj) {
         // this EventId was reconstructed from pre-v5 data, not a real writer.
         edgeBirthEvent.set(key, { lamport: val, writerId: '', patchSha: '0000', opIndex: 0 });
       } else {
-        edgeBirthEvent.set(key, val);
+        // Shallow copy to avoid sharing a reference with the decoded CBOR object
+        edgeBirthEvent.set(key, { lamport: val.lamport, writerId: val.writerId, patchSha: val.patchSha, opIndex: val.opIndex });
       }
     }
   }
