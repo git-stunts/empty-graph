@@ -18,68 +18,18 @@ import {
   encodePropKey,
 } from '../../../../src/domain/services/JoinReducer.js';
 import { computeStateHashV5 } from '../../../../src/domain/services/StateSerializerV5.js';
-import { createDot } from '../../../../src/domain/crdt/Dot.js';
-import { createVersionVector } from '../../../../src/domain/crdt/VersionVector.js';
 import { orsetContains } from '../../../../src/domain/crdt/ORSet.js';
 import { lwwValue } from '../../../../src/domain/crdt/LWW.js';
-import { createInlineValue } from '../../../../src/domain/types/WarpTypes.js';
 import { encode } from '../../../../src/infrastructure/codecs/CborCodec.js';
-
-// Helper functions to create V2 operations
-function createNodeAddV2(node, dot) {
-  return { type: 'NodeAdd', node, dot };
-}
-
-function createEdgeAddV2(from, to, label, dot) {
-  return { type: 'EdgeAdd', from, to, label, dot };
-}
-
-function createPropSetV2(node, key, value) {
-  return { type: 'PropSet', node, key, value };
-}
-
-function createPatchV2({ writer, lamport, ops, context }) {
-  return {
-    schema: 2,
-    writer,
-    lamport,
-    ops,
-    context: context || createVersionVector(),
-  };
-}
-
-// Sample patches for testing
-function createSamplePatches() {
-  return {
-    patchA: {
-      patch: createPatchV2({
-        writer: 'A',
-        lamport: 1,
-        ops: [createNodeAddV2('node-a', createDot('A', 1))],
-      }),
-      sha: 'aaaa1111',
-    },
-    patchB: {
-      patch: createPatchV2({
-        writer: 'B',
-        lamport: 2,
-        ops: [createNodeAddV2('node-b', createDot('B', 1))],
-      }),
-      sha: 'bbbb2222',
-    },
-    patchC: {
-      patch: createPatchV2({
-        writer: 'C',
-        lamport: 3,
-        ops: [
-          createEdgeAddV2('node-a', 'node-b', 'connects', createDot('C', 1)),
-          createPropSetV2('node-a', 'name', createInlineValue('Alice')),
-        ],
-      }),
-      sha: 'cccc3333',
-    },
-  };
-}
+import {
+  createNodeAddV2,
+  createEdgeAddV2,
+  createPropSetV2,
+  createPatchV2,
+  createSamplePatches,
+  createDot,
+  createInlineValue,
+} from '../../../helpers/warpGraphTestUtils.js';
 
 describe('BoundaryTransitionRecord', () => {
   const testKey = 'test-secret-key-for-hmac';

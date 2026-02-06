@@ -1,92 +1,22 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import WarpGraph from '../../../src/domain/WarpGraph.js';
-import { encode } from '../../../src/infrastructure/codecs/CborCodec.js';
-import { encodePatchMessage } from '../../../src/domain/services/WarpMessageCodec.js';
-import { encodeEdgeKey, createEmptyStateV5, encodePropKey } from '../../../src/domain/services/JoinReducer.js';
-import { createDot } from '../../../src/domain/crdt/Dot.js';
+import { encodeEdgeKey, encodePropKey } from '../../../src/domain/services/JoinReducer.js';
 import { orsetContains } from '../../../src/domain/crdt/ORSet.js';
 import { lwwValue } from '../../../src/domain/crdt/LWW.js';
-
-// Generate valid 40-char hex OIDs
-let oidCounter = 0;
-function generateOid() {
-  oidCounter++;
-  return (oidCounter.toString(16)).padStart(40, '0');
-}
-
-/**
- * Creates a mock persistence adapter for testing.
- */
-function createMockPersistence() {
-  return {
-    readRef: vi.fn(),
-    showNode: vi.fn(),
-    writeBlob: vi.fn(),
-    writeTree: vi.fn(),
-    readBlob: vi.fn(),
-    readTreeOids: vi.fn(),
-    commitNode: vi.fn(),
-    commitNodeWithTree: vi.fn(),
-    updateRef: vi.fn(),
-    listRefs: vi.fn().mockResolvedValue([]),
-    getNodeInfo: vi.fn(),
-    ping: vi.fn().mockResolvedValue({ ok: true, latencyMs: 1 }),
-    configGet: vi.fn().mockResolvedValue(null),
-    configSet: vi.fn().mockResolvedValue(undefined),
-    nodeExists: vi.fn().mockResolvedValue(true),
-  };
-}
-
-/**
- * Creates a mock V2 patch with reads/writes I/O declarations.
- */
-function createMockPatchWithIO({ sha, graphName, writerId, lamport, ops, reads, writes, parentSha = null }) {
-  const patchOid = generateOid();
-  const context = { [writerId]: lamport };
-  const patch = {
-    schema: 2,
-    writer: writerId,
-    lamport,
-    context,
-    ops,
-  };
-  if (reads && reads.length > 0) {
-    patch.reads = reads;
-  }
-  if (writes && writes.length > 0) {
-    patch.writes = writes;
-  }
-  const patchBuffer = encode(patch);
-  const message = encodePatchMessage({
-    graph: graphName,
-    writer: writerId,
-    lamport,
-    patchOid,
-    schema: 2,
-  });
-
-  return {
-    sha,
-    patchOid,
-    patchBuffer,
-    message,
-    patch,
-    nodeInfo: {
-      sha,
-      message,
-      author: 'Test <test@example.com>',
-      date: new Date().toISOString(),
-      parents: parentSha ? [parentSha] : [],
-    },
-  };
-}
+import {
+  createOidGenerator,
+  createMockPersistence,
+  createMockPatchWithIO,
+  createDot,
+} from '../../helpers/warpGraphTestUtils.js';
 
 describe('WarpGraph.materializeSlice() (HG/SLICE/1)', () => {
   let persistence;
+  let oidGen;
 
   beforeEach(() => {
     persistence = createMockPersistence();
-    oidCounter = 0;
+    oidGen = createOidGenerator();
   });
 
   describe('error handling', () => {
@@ -122,7 +52,7 @@ describe('WarpGraph.materializeSlice() (HG/SLICE/1)', () => {
 
   describe('single node slicing', () => {
     it('slices a single node with one patch', async () => {
-      const sha1 = generateOid();
+      const sha1 = oidGen.next();
       const patch1 = createMockPatchWithIO({
         sha: sha1,
         graphName: 'test',
@@ -131,7 +61,7 @@ describe('WarpGraph.materializeSlice() (HG/SLICE/1)', () => {
         ops: [{ type: 'NodeAdd', node: 'user:alice', dot: createDot('alice', 1) }],
         reads: [],
         writes: ['user:alice'],
-      });
+      }, oidGen.next);
 
       persistence.listRefs.mockResolvedValue(['refs/warp/test/writers/alice']);
       persistence.readRef.mockImplementation((ref) => {
@@ -157,9 +87,9 @@ describe('WarpGraph.materializeSlice() (HG/SLICE/1)', () => {
     });
 
     it('slices a node with multiple property patches', async () => {
-      const sha1 = generateOid();
-      const sha2 = generateOid();
-      const sha3 = generateOid();
+      const sha1 = oidGen.next();
+      const sha2 = oidGen.next();
+      const sha3 = oidGen.next();
 
       const patch1 = createMockPatchWithIO({
         sha: sha1,
@@ -168,7 +98,7 @@ describe('WarpGraph.materializeSlice() (HG/SLICE/1)', () => {
         lamport: 1,
         ops: [{ type: 'NodeAdd', node: 'user:alice', dot: createDot('alice', 1) }],
         writes: ['user:alice'],
-      });
+      }, oidGen.next);
 
       const patch2 = createMockPatchWithIO({
         sha: sha2,
@@ -179,7 +109,7 @@ describe('WarpGraph.materializeSlice() (HG/SLICE/1)', () => {
         reads: ['user:alice'],
         writes: ['user:alice'],
         parentSha: sha1,
-      });
+      }, oidGen.next);
 
       const patch3 = createMockPatchWithIO({
         sha: sha3,
@@ -190,7 +120,7 @@ describe('WarpGraph.materializeSlice() (HG/SLICE/1)', () => {
         reads: ['user:alice'],
         writes: ['user:alice'],
         parentSha: sha2,
-      });
+      }, oidGen.next);
 
       persistence.listRefs.mockResolvedValue(['refs/warp/test/writers/alice']);
       persistence.readRef.mockImplementation((ref) => {
@@ -248,9 +178,9 @@ describe('WarpGraph.materializeSlice() (HG/SLICE/1)', () => {
       // Patch 3: Create edge A->B (reads A and B)
       // Slicing for the edge should include all 3 patches
 
-      const sha1 = generateOid();
-      const sha2 = generateOid();
-      const sha3 = generateOid();
+      const sha1 = oidGen.next();
+      const sha2 = oidGen.next();
+      const sha3 = oidGen.next();
       const edgeKey = encodeEdgeKey('node:A', 'node:B', 'connects');
 
       const patch1 = createMockPatchWithIO({
@@ -260,7 +190,7 @@ describe('WarpGraph.materializeSlice() (HG/SLICE/1)', () => {
         lamport: 1,
         ops: [{ type: 'NodeAdd', node: 'node:A', dot: createDot('alice', 1) }],
         writes: ['node:A'],
-      });
+      }, oidGen.next);
 
       const patch2 = createMockPatchWithIO({
         sha: sha2,
@@ -270,7 +200,7 @@ describe('WarpGraph.materializeSlice() (HG/SLICE/1)', () => {
         ops: [{ type: 'NodeAdd', node: 'node:B', dot: createDot('alice', 2) }],
         writes: ['node:B'],
         parentSha: sha1,
-      });
+      }, oidGen.next);
 
       const patch3 = createMockPatchWithIO({
         sha: sha3,
@@ -281,7 +211,7 @@ describe('WarpGraph.materializeSlice() (HG/SLICE/1)', () => {
         reads: ['node:A', 'node:B'],
         writes: [edgeKey],
         parentSha: sha2,
-      });
+      }, oidGen.next);
 
       persistence.listRefs.mockResolvedValue(['refs/warp/test/writers/alice']);
       persistence.readRef.mockImplementation((ref) => {
@@ -333,8 +263,8 @@ describe('WarpGraph.materializeSlice() (HG/SLICE/1)', () => {
       // Patch 2: Create node B (independent of A)
       // Slicing for A should only include patch 1
 
-      const sha1 = generateOid();
-      const sha2 = generateOid();
+      const sha1 = oidGen.next();
+      const sha2 = oidGen.next();
 
       const patch1 = createMockPatchWithIO({
         sha: sha1,
@@ -343,7 +273,7 @@ describe('WarpGraph.materializeSlice() (HG/SLICE/1)', () => {
         lamport: 1,
         ops: [{ type: 'NodeAdd', node: 'node:A', dot: createDot('alice', 1) }],
         writes: ['node:A'],
-      });
+      }, oidGen.next);
 
       const patch2 = createMockPatchWithIO({
         sha: sha2,
@@ -352,7 +282,7 @@ describe('WarpGraph.materializeSlice() (HG/SLICE/1)', () => {
         lamport: 2,
         ops: [{ type: 'NodeAdd', node: 'node:B', dot: createDot('bob', 1) }],
         writes: ['node:B'],
-      });
+      }, oidGen.next);
 
       persistence.listRefs.mockResolvedValue([
         'refs/warp/test/writers/alice',
@@ -412,8 +342,8 @@ describe('WarpGraph.materializeSlice() (HG/SLICE/1)', () => {
       // Writer bob: Set property on A
       // Slicing for A should include both patches
 
-      const sha1 = generateOid();
-      const sha2 = generateOid();
+      const sha1 = oidGen.next();
+      const sha2 = oidGen.next();
 
       const patch1 = createMockPatchWithIO({
         sha: sha1,
@@ -422,7 +352,7 @@ describe('WarpGraph.materializeSlice() (HG/SLICE/1)', () => {
         lamport: 1,
         ops: [{ type: 'NodeAdd', node: 'shared', dot: createDot('alice', 1) }],
         writes: ['shared'],
-      });
+      }, oidGen.next);
 
       const patch2 = createMockPatchWithIO({
         sha: sha2,
@@ -432,7 +362,7 @@ describe('WarpGraph.materializeSlice() (HG/SLICE/1)', () => {
         ops: [{ type: 'PropSet', node: 'shared', key: 'owner', value: 'bob' }],
         reads: ['shared'],
         writes: ['shared'],
-      });
+      }, oidGen.next);
 
       persistence.listRefs.mockResolvedValue([
         'refs/warp/test/writers/alice',
@@ -482,9 +412,9 @@ describe('WarpGraph.materializeSlice() (HG/SLICE/1)', () => {
 
   describe('consistency with full materialization', () => {
     it('slice produces correct property values matching full materialization', async () => {
-      const sha1 = generateOid();
-      const sha2 = generateOid();
-      const sha3 = generateOid();
+      const sha1 = oidGen.next();
+      const sha2 = oidGen.next();
+      const sha3 = oidGen.next();
 
       const patch1 = createMockPatchWithIO({
         sha: sha1,
@@ -496,7 +426,7 @@ describe('WarpGraph.materializeSlice() (HG/SLICE/1)', () => {
           { type: 'PropSet', node: 'target', key: 'value', value: 100 },
         ],
         writes: ['target'],
-      });
+      }, oidGen.next);
 
       const patch2 = createMockPatchWithIO({
         sha: sha2,
@@ -507,7 +437,7 @@ describe('WarpGraph.materializeSlice() (HG/SLICE/1)', () => {
         reads: ['target'],
         writes: ['target'],
         parentSha: sha1,
-      });
+      }, oidGen.next);
 
       const patch3 = createMockPatchWithIO({
         sha: sha3,
@@ -518,7 +448,7 @@ describe('WarpGraph.materializeSlice() (HG/SLICE/1)', () => {
         reads: ['target'],
         writes: ['target'],
         parentSha: sha2,
-      });
+      }, oidGen.next);
 
       persistence.listRefs.mockResolvedValue(['refs/warp/test/writers/alice']);
       persistence.readRef.mockImplementation((ref) => {
@@ -567,7 +497,7 @@ describe('WarpGraph.materializeSlice() (HG/SLICE/1)', () => {
 
   describe('receipts option', () => {
     it('returns receipts when requested', async () => {
-      const sha1 = generateOid();
+      const sha1 = oidGen.next();
       const patch1 = createMockPatchWithIO({
         sha: sha1,
         graphName: 'test',
@@ -575,7 +505,7 @@ describe('WarpGraph.materializeSlice() (HG/SLICE/1)', () => {
         lamport: 1,
         ops: [{ type: 'NodeAdd', node: 'user:alice', dot: createDot('alice', 1) }],
         writes: ['user:alice'],
-      });
+      }, oidGen.next);
 
       persistence.listRefs.mockResolvedValue(['refs/warp/test/writers/alice']);
       persistence.readRef.mockImplementation((ref) => {
@@ -602,7 +532,7 @@ describe('WarpGraph.materializeSlice() (HG/SLICE/1)', () => {
     });
 
     it('does not include receipts when not requested', async () => {
-      const sha1 = generateOid();
+      const sha1 = oidGen.next();
       const patch1 = createMockPatchWithIO({
         sha: sha1,
         graphName: 'test',
@@ -610,7 +540,7 @@ describe('WarpGraph.materializeSlice() (HG/SLICE/1)', () => {
         lamport: 1,
         ops: [{ type: 'NodeAdd', node: 'user:alice', dot: createDot('alice', 1) }],
         writes: ['user:alice'],
-      });
+      }, oidGen.next);
 
       persistence.listRefs.mockResolvedValue(['refs/warp/test/writers/alice']);
       persistence.readRef.mockImplementation((ref) => {
@@ -643,9 +573,9 @@ describe('WarpGraph.materializeSlice() (HG/SLICE/1)', () => {
       // Patch 3: Create node Z, reads Y (transitively depends on X)
       // Slicing for Z should include all 3 patches
 
-      const sha1 = generateOid();
-      const sha2 = generateOid();
-      const sha3 = generateOid();
+      const sha1 = oidGen.next();
+      const sha2 = oidGen.next();
+      const sha3 = oidGen.next();
 
       const patch1 = createMockPatchWithIO({
         sha: sha1,
@@ -654,7 +584,7 @@ describe('WarpGraph.materializeSlice() (HG/SLICE/1)', () => {
         lamport: 1,
         ops: [{ type: 'NodeAdd', node: 'node:X', dot: createDot('alice', 1) }],
         writes: ['node:X'],
-      });
+      }, oidGen.next);
 
       const patch2 = createMockPatchWithIO({
         sha: sha2,
@@ -665,7 +595,7 @@ describe('WarpGraph.materializeSlice() (HG/SLICE/1)', () => {
         reads: ['node:X'],
         writes: ['node:Y'],
         parentSha: sha1,
-      });
+      }, oidGen.next);
 
       const patch3 = createMockPatchWithIO({
         sha: sha3,
@@ -676,7 +606,7 @@ describe('WarpGraph.materializeSlice() (HG/SLICE/1)', () => {
         reads: ['node:Y'],
         writes: ['node:Z'],
         parentSha: sha2,
-      });
+      }, oidGen.next);
 
       persistence.listRefs.mockResolvedValue(['refs/warp/test/writers/alice']);
       persistence.readRef.mockImplementation((ref) => {
@@ -726,7 +656,7 @@ describe('WarpGraph.materializeSlice() (HG/SLICE/1)', () => {
   describe('edge cases', () => {
     it('handles legacy patches without reads/writes', async () => {
       // Legacy patches without reads/writes fields should not be included in the cone
-      const sha1 = generateOid();
+      const sha1 = oidGen.next();
       const patch1 = createMockPatchWithIO({
         sha: sha1,
         graphName: 'test',
@@ -734,7 +664,7 @@ describe('WarpGraph.materializeSlice() (HG/SLICE/1)', () => {
         lamport: 1,
         ops: [{ type: 'NodeAdd', node: 'user:alice', dot: createDot('alice', 1) }],
         // No reads/writes - legacy patch
-      });
+      }, oidGen.next);
 
       persistence.listRefs.mockResolvedValue(['refs/warp/test/writers/alice']);
       persistence.readRef.mockImplementation((ref) => {
@@ -769,10 +699,10 @@ describe('WarpGraph.materializeSlice() (HG/SLICE/1)', () => {
       // D reads from both B and C, which both read from A
       // Slicing for D should include all 4 patches (no duplicates)
 
-      const shaA = generateOid();
-      const shaB = generateOid();
-      const shaC = generateOid();
-      const shaD = generateOid();
+      const shaA = oidGen.next();
+      const shaB = oidGen.next();
+      const shaC = oidGen.next();
+      const shaD = oidGen.next();
 
       const patchA = createMockPatchWithIO({
         sha: shaA,
@@ -781,7 +711,7 @@ describe('WarpGraph.materializeSlice() (HG/SLICE/1)', () => {
         lamport: 1,
         ops: [{ type: 'NodeAdd', node: 'node:A', dot: createDot('alice', 1) }],
         writes: ['node:A'],
-      });
+      }, oidGen.next);
 
       const patchB = createMockPatchWithIO({
         sha: shaB,
@@ -792,7 +722,7 @@ describe('WarpGraph.materializeSlice() (HG/SLICE/1)', () => {
         reads: ['node:A'],
         writes: ['node:B'],
         parentSha: shaA,
-      });
+      }, oidGen.next);
 
       const patchC = createMockPatchWithIO({
         sha: shaC,
@@ -802,7 +732,7 @@ describe('WarpGraph.materializeSlice() (HG/SLICE/1)', () => {
         ops: [{ type: 'NodeAdd', node: 'node:C', dot: createDot('bob', 1) }],
         reads: ['node:A'],
         writes: ['node:C'],
-      });
+      }, oidGen.next);
 
       const patchD = createMockPatchWithIO({
         sha: shaD,
@@ -813,7 +743,7 @@ describe('WarpGraph.materializeSlice() (HG/SLICE/1)', () => {
         reads: ['node:B', 'node:C'],
         writes: ['node:D'],
         parentSha: shaB,
-      });
+      }, oidGen.next);
 
       persistence.listRefs.mockResolvedValue([
         'refs/warp/test/writers/alice',
