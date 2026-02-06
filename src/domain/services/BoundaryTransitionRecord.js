@@ -111,7 +111,7 @@ function computeHmac(fields, key) {
  * const payload = new ProvenancePayload([...patches]);
  * const key = 'secret-key';
  *
- * const btr = createBTR(initialState, payload, key);
+ * const btr = createBTR(initialState, payload, { key });
  * // btr.h_in, btr.h_out, btr.kappa are all set
  * ```
  *
@@ -261,7 +261,7 @@ export function verifyBTR(btr, key, options = {}) {
  */
 export function replayBTR(btr) {
   // Deserialize initial state from U_0
-  // Note: U_0 is the visible projection, we need to reconstruct state
+  // Note: U_0 is the full serialized state (via serializeFullStateV5)
   const initialState = deserializeInitialState(btr.U_0);
 
   // Reconstruct payload
