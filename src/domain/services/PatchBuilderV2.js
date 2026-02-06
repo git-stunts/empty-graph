@@ -625,28 +625,30 @@ export class PatchBuilderV2 {
    * - Nodes read via `setProperty` (implicit existence reference)
    * - Edge keys read via `setEdgeProperty` (implicit existence reference)
    *
-   * Note: Returns a defensive copy to prevent external mutation.
+   * Note: Returns a defensive copy to prevent external mutation of internal state.
+   * The returned Set is a copy, so mutations to it do not affect the builder.
    *
-   * @returns {ReadonlySet<string>} Frozen set of node IDs and encoded edge keys that were read
+   * @returns {ReadonlySet<string>} Copy of node IDs and encoded edge keys that were read
    */
   get reads() {
-    return Object.freeze(new Set(this._reads));
+    return new Set(this._reads);
   }
 
   /**
    * Gets the set of node/edge IDs written by this patch.
    *
-   * Returns a frozen copy of the writes tracked for provenance. This includes:
+   * Returns a copy of the writes tracked for provenance. This includes:
    * - Nodes written via `addNode`
    * - Edge keys written via `addEdge`
    * - Nodes written via `setProperty`
    * - Edge keys written via `setEdgeProperty`
    *
-   * Note: Returns a defensive copy to prevent external mutation.
+   * Note: Returns a defensive copy to prevent external mutation of internal state.
+   * The returned Set is a copy, so mutations to it do not affect the builder.
    *
-   * @returns {ReadonlySet<string>} Frozen set of node IDs and encoded edge keys that were written
+   * @returns {ReadonlySet<string>} Copy of node IDs and encoded edge keys that were written
    */
   get writes() {
-    return Object.freeze(new Set(this._writes));
+    return new Set(this._writes);
   }
 }

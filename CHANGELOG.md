@@ -40,7 +40,7 @@ Implements Papers III–IV: provenance payloads, slicing, wormholes, BTRs, and p
 
 - **`ProvenanceIndex` DRY refactor**: Extracted common patterns in `ProvenanceIndex` to reduce duplication; added defensive copy on `getPatchesFor()` return value to prevent external mutation.
 - **DRY up patch construction in `PatchBuilderV2`**: Have `commit()` use `createPatchV2()` for patch construction, consolidating the conditional reads/writes inclusion logic in one place.
-- **DRY up `REQUIRED_FIELDS` in `BoundaryTransitionRecord`**: Use the module-level constant in `deserializeBTR()` instead of a local duplicate.
+- **Consolidate `REQUIRED_FIELDS` in `BoundaryTransitionRecord`**: Use the module-level constant in `deserializeBTR()` instead of a local duplicate.
 
 ### Documentation
 

@@ -29,14 +29,14 @@ describe('WarpGraph.patchesFor() (HG/IO/2)', () => {
   });
 
   describe('patchesFor()', () => {
-    it('throws E_NO_STATE if not materialized', async () => {
+    it('throws if not materialized and autoMaterialize is off', async () => {
       const graph = await WarpGraph.open({
         persistence,
         graphName: 'test',
         writerId: 'alice',
       });
 
-      expect(() => graph.patchesFor('node:a')).toThrow('No provenance index');
+      await expect(graph.patchesFor('node:a')).rejects.toThrow('No cached state');
     });
 
     it('returns empty array for unknown entity after materialize', async () => {
@@ -50,7 +50,7 @@ describe('WarpGraph.patchesFor() (HG/IO/2)', () => {
 
       await graph.materialize();
 
-      expect(graph.patchesFor('unknown')).toEqual([]);
+      expect(await graph.patchesFor('unknown')).toEqual([]);
     });
 
     it('returns patch SHAs that wrote a node', async () => {
@@ -83,7 +83,7 @@ describe('WarpGraph.patchesFor() (HG/IO/2)', () => {
 
       await graph.materialize();
 
-      const shas = graph.patchesFor('user:alice');
+      const shas = await graph.patchesFor('user:alice');
       expect(shas).toContain(sha1);
       expect(shas.length).toBe(1);
     });
@@ -161,7 +161,7 @@ describe('WarpGraph.patchesFor() (HG/IO/2)', () => {
 
       await graph.materialize();
 
-      const shas = graph.patchesFor('user:alice');
+      const shas = await graph.patchesFor('user:alice');
       expect(shas).toContain(sha1);
       expect(shas).toContain(sha2);
       expect(shas).toContain(sha3);
@@ -228,8 +228,8 @@ describe('WarpGraph.patchesFor() (HG/IO/2)', () => {
       await graph.materialize();
 
       // Both endpoint nodes should have the edge patch in their provenance
-      const aliceShas = graph.patchesFor('user:alice');
-      const bobShas = graph.patchesFor('user:bob');
+      const aliceShas = await graph.patchesFor('user:alice');
+      const bobShas = await graph.patchesFor('user:bob');
 
       expect(aliceShas).toContain(sha2); // edge reads alice
       expect(bobShas).toContain(sha2); // edge reads bob
@@ -268,7 +268,7 @@ describe('WarpGraph.patchesFor() (HG/IO/2)', () => {
 
       await graph.materialize();
 
-      const edgeShas = graph.patchesFor(edgeKey);
+      const edgeShas = await graph.patchesFor(edgeKey);
       expect(edgeShas).toContain(sha1);
     });
 
@@ -345,7 +345,7 @@ describe('WarpGraph.patchesFor() (HG/IO/2)', () => {
 
       await graph.materialize();
 
-      const shas = graph.patchesFor('node:X');
+      const shas = await graph.patchesFor('node:X');
       expect(shas.length).toBe(3);
       expect(shas).toContain(sha1);
       expect(shas).toContain(sha2);
@@ -459,7 +459,7 @@ describe('WarpGraph.patchesFor() (HG/IO/2)', () => {
 
       await graph.materialize();
 
-      const shas = graph.patchesFor('shared');
+      const shas = await graph.patchesFor('shared');
       expect(shas).toContain(sha1);
       expect(shas).toContain(sha2);
     });
@@ -525,7 +525,7 @@ describe('WarpGraph.patchesFor() (HG/IO/2)', () => {
       await graph.materialize();
 
       // Should have the provenance index from checkpoint
-      const shas = graph.patchesFor('user:alice');
+      const shas = await graph.patchesFor('user:alice');
       expect(shas).toContain(sha1);
       expect(shas).toContain(sha2);
     });
@@ -543,7 +543,7 @@ describe('WarpGraph.patchesFor() (HG/IO/2)', () => {
 
       await graph.materialize();
 
-      expect(graph.patchesFor('nonexistent')).toEqual([]);
+      expect(await graph.patchesFor('nonexistent')).toEqual([]);
     });
 
     it('handles legacy patches without reads/writes', async () => {
@@ -577,7 +577,7 @@ describe('WarpGraph.patchesFor() (HG/IO/2)', () => {
       await graph.materialize();
 
       // Should still work, just won't have any provenance for this patch
-      expect(graph.patchesFor('user:alice')).toEqual([]);
+      expect(await graph.patchesFor('user:alice')).toEqual([]);
     });
   });
 });

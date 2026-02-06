@@ -1147,11 +1147,11 @@ export default class WarpGraph {
   /**
    * Returns patch SHAs that affected a given entity (node or edge).
    *
-   * Requires a provenance index built during materialization.
+   * If autoMaterialize is enabled, automatically materializes if state is dirty.
    *
-   * @throws {QueryError} If no provenance index exists (call materialize first)
+   * @throws {QueryError} If no provenance index exists and autoMaterialize is off
    */
-  patchesFor(entityId: string): string[];
+  patchesFor(entityId: string): Promise<string[]>;
 
   /**
    * Materializes only the backward causal cone for a specific node.

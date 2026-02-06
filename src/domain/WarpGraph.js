@@ -2861,29 +2861,25 @@ export default class WarpGraph {
    * "Affected" means the patch either read from or wrote to the entity
    * (based on the patch's I/O declarations from HG/IO/1).
    *
-   * **Requires a cached state.** Call materialize() first if not already cached.
-   * The provenance index is built during materialization.
+   * If `autoMaterialize` is enabled, this will automatically materialize
+   * the state if dirty. Otherwise, call `materialize()` first.
    *
    * @param {string} entityId - The node ID or edge key to query
-   * @returns {string[]} Array of patch SHAs that affected the entity, sorted alphabetically
-   * @throws {QueryError} If no cached state exists (code: `E_NO_STATE`)
+   * @returns {Promise<string[]>} Array of patch SHAs that affected the entity, sorted alphabetically
+   * @throws {QueryError} If no cached state exists and autoMaterialize is off (code: `E_NO_STATE`)
    *
    * @example
-   * await graph.materialize();
-   * const shas = graph.patchesFor('user:alice');
+   * const shas = await graph.patchesFor('user:alice');
    * console.log(`Node user:alice was affected by ${shas.length} patches:`, shas);
    *
    * @example
    * // Query which patches affected an edge
    * const edgeKey = encodeEdgeKey('user:alice', 'user:bob', 'follows');
-   * const edgeShas = graph.patchesFor(edgeKey);
+   * const edgeShas = await graph.patchesFor(edgeKey);
    */
-  patchesFor(entityId) {
-    if (this._stateDirty) {
-      throw new QueryError('State is dirty. Call materialize() first.', {
-        code: 'E_STATE_DIRTY',
-      });
-    }
+  async patchesFor(entityId) {
+    await this._ensureFreshState();
+
     if (!this._provenanceIndex) {
       throw new QueryError('No provenance index. Call materialize() first.', {
         code: 'E_NO_STATE',
