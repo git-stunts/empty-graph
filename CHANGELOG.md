@@ -27,6 +27,8 @@ Implements Papers III–IV: provenance payloads, slicing, wormholes, BTRs, and p
 - **`ProvenanceIndex` missing entries guard**: `deserialize()` and `fromJSON()` now throw `"Missing or invalid ProvenanceIndex entries"` if the entries field is undefined or not an array, instead of failing with cryptic iteration errors.
 - **`ProvenanceIndex` deterministic iteration**: `[Symbol.iterator]` now uses `#sortedEntries()` to yield entities in deterministic sorted order, matching `toJSON()` and `serialize()` behavior.
 - **`deserializeWormhole` structural validation**: Now validates JSON structure before constructing the wormhole, providing clear error messages for missing/invalid fields instead of cryptic failures deep in `ProvenancePayload.fromJSON`.
+- **`patchesFor` auto-materialize alignment**: Now uses `_ensureFreshState()` like other query methods, so it auto-materializes when `autoMaterialize` is enabled. **Breaking**: now returns `Promise<string[]>`.
+- **Remove misleading `Object.freeze` from `PatchBuilderV2`**: The `reads` and `writes` getters no longer call `Object.freeze()` on the returned Set since it doesn't prevent Set mutations anyway. The defensive copy is the real protection.
 - **Error surfacing in `_loadPatchBySha`**: Errors during patch loading are now properly thrown instead of being swallowed, improving debuggability when patches fail to load.
 - **Fresh state guard in `materializeSlice`**: Now ensures fresh state before accessing the provenance index, preventing stale index reads after writes.
 - **Dirty state guard in `patchesFor`**: Added state guard to `patchesFor()` to throw `E_STALE_STATE` when cached state is dirty and `autoMaterialize` is off.
