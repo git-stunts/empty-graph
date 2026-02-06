@@ -17,6 +17,17 @@ Implements [Paper IV](https://doi.org/10.5281/zenodo.18038297) (Echo and the WAR
 - **Temporal query operators** (`EC/TEMPORAL/1`): New `graph.temporal.always(nodeId, predicate, { since })` and `graph.temporal.eventually(nodeId, predicate, { since })` implement CTL*-style temporal logic over patch history. Both operators replay patches incrementally, extracting node snapshots at each tick boundary and evaluating the predicate. `always` returns true only if the predicate held at every tick where the node existed. `eventually` short-circuits on the first true tick. The `since` option filters by Lamport timestamp. Predicates receive `{ id, exists, props }` with unwrapped property values.
 - **Translation cost estimation** (`EC/COST/1`): New `graph.translationCost(configA, configB)` computes the directed MDL (Minimum Description Length) cost of translating observer A's view into observer B's view. Returns `{ cost, breakdown: { nodeLoss, edgeLoss, propLoss } }` normalized to [0, 1]. Weights: node loss 50%, edge loss 30%, property loss 20%. Identical views produce cost 0; completely disjoint views produce cost 1. The cost is asymmetric: `cost(A→B) ≠ cost(B→A)` in general.
 
+### Documentation
+
+- **GUIDE.md comprehensive rewrite**: Restructured from concept-first reference manual to progressive-disclosure user guide. Quick Start with full working example now at the top. New sections: Writing Data (Writer API, PatchSession, edge properties, onDeleteWithData), Reading Data (all query methods), Graph Traversals (BFS, DFS, shortest path, connected component), Forks, Wormholes, Provenance, Slice Materialization, GC, Bitmap Indexes, Sync Protocol, CLI, Git Hooks. Internal CRDT details moved from user-facing examples to 8 appendixes (Conflict Resolution Internals, Git Ref Layout, Patch Format, Error Code Reference, Tick Receipts, Sync Protocol, Garbage Collection, Bitmap Indexes). Scrubbed raw `WarpStateV5` shapes from user-facing sections; all examples now use the public API (`hasNode`, `getNodeProps`, etc.).
+- **JSDoc hygiene pass**: Added or fixed JSDoc across 8 source files:
+  - `MigrationService.js`: Added full JSDoc to exported `migrateV4toV5` function; fixed ESLint `no-unnecessary-boolean-literal-compare` errors.
+  - `BoundaryTransitionRecord.js`: Added `@param`/`@returns` to `validateBTRStructure`, `verifyHmac`, `verifyReplayHash` (previously bare `@private`).
+  - `WormholeService.js`: Added full JSDoc to `collectPatchRange` helper.
+  - `LogicalTraversal.js`: Added class-level JSDoc block.
+  - `HookInstaller.js`: Added JSDoc to `extractVersion` and 5 module-level helpers; added `@private` to 9 class methods; fixed incomplete `getHookStatus` return type (added `foreign?`, made `current` optional).
+  - `GlobalClockAdapter.js`, `PerformanceClockAdapter.js`: Added `@extends ClockPort` to class JSDoc.
+
 ### Tests
 
 - Added `test/unit/domain/services/ObserverView.test.js` (23 tests) — node visibility, property filtering, edge visibility, query/traverse through observer
