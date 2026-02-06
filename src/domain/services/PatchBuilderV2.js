@@ -531,22 +531,16 @@ export class PatchBuilderV2 {
     // For now, we use the calculated lamport for the patch metadata.
     // The dots themselves are independent of patch lamport (they use VV counters).
     const schema = this._ops.some(op => op.type === 'PropSet' && op.node.charCodeAt(0) === 1) ? 3 : 2;
-    const reads = [...this._reads].sort();
-    const writes = [...this._writes].sort();
-    const patch = {
+    // Use createPatchV2 for consistent patch construction (DRY with build())
+    const patch = createPatchV2({
       schema,
       writer: this._writerId,
       lamport,
       context: vvSerialize(this._vv),
       ops: this._ops,
-    };
-    // Only include reads/writes if non-empty (backward compatibility)
-    if (reads.length > 0) {
-      patch.reads = reads;
-    }
-    if (writes.length > 0) {
-      patch.writes = writes;
-    }
+      reads: [...this._reads].sort(),
+      writes: [...this._writes].sort(),
+    });
 
     // 4. Encode patch as CBOR
     const patchCbor = encode(patch);
