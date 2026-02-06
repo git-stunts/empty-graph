@@ -35,6 +35,7 @@ import WarpGraphDefault, {
 
 
   // Error types
+  ForkError,
   IndexError,
   ShardLoadError,
   ShardCorruptionError,
@@ -175,6 +176,11 @@ describe('index.js exports', () => {
   });
 
   describe('error types', () => {
+    it('exports ForkError', () => {
+      expect(ForkError).toBeDefined();
+      expect(typeof ForkError).toBe('function');
+    });
+
     it('exports IndexError', () => {
       expect(IndexError).toBeDefined();
       expect(typeof IndexError).toBe('function');

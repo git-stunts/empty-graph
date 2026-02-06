@@ -5,6 +5,7 @@
  */
 
 export { default as EmptyMessageError } from './EmptyMessageError.js';
+export { default as ForkError } from './ForkError.js';
 export { default as IndexError } from './IndexError.js';
 export { default as OperationAbortedError } from './OperationAbortedError.js';
 export { default as QueryError } from './QueryError.js';

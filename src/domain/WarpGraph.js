@@ -36,6 +36,7 @@ import LogicalTraversal from './services/LogicalTraversal.js';
 import LRUCache from './utils/LRUCache.js';
 import SyncError from './errors/SyncError.js';
 import QueryError from './errors/QueryError.js';
+import ForkError from './errors/ForkError.js';
 import { checkAborted } from './utils/cancellation.js';
 import OperationAbortedError from './errors/OperationAbortedError.js';
 import { compareEventIds } from './utils/EventId.js';
@@ -2577,5 +2578,174 @@ export default class WarpGraph {
       }
     }
     return edges;
+  }
+
+  // ============================================================================
+  // Fork API (HOLOGRAM)
+  // ============================================================================
+
+  /**
+   * Creates a fork of this graph at a specific point in a writer's history.
+   *
+   * A fork creates a new WarpGraph instance that shares history up to the
+   * specified patch SHA. Due to Git's content-addressed storage, the shared
+   * history is automatically deduplicated. The fork gets a new writer ID and
+   * operates independently from the original graph.
+   *
+   * **Key Properties:**
+   * - Fork materializes the same state as the original at the fork point
+   * - Writes to the fork don't appear in the original
+   * - Writes to the original after fork don't appear in the fork
+   * - History up to the fork point is shared (content-addressed dedup)
+   *
+   * @param {Object} options - Fork configuration
+   * @param {string} options.from - Writer ID whose chain to fork from
+   * @param {string} options.at - Patch SHA to fork at (must be in the writer's chain)
+   * @param {string} [options.forkName] - Name for the forked graph. Defaults to `<graphName>-fork-<timestamp>`
+   * @param {string} [options.forkWriterId] - Writer ID for the fork. Defaults to a new canonical ID.
+   * @returns {Promise<WarpGraph>} A new WarpGraph instance for the fork
+   * @throws {ForkError} If `from` writer does not exist (code: `E_FORK_WRITER_NOT_FOUND`)
+   * @throws {ForkError} If `at` SHA does not exist (code: `E_FORK_PATCH_NOT_FOUND`)
+   * @throws {ForkError} If `at` SHA is not in the writer's chain (code: `E_FORK_PATCH_NOT_IN_CHAIN`)
+   * @throws {ForkError} If fork graph name is invalid (code: `E_FORK_NAME_INVALID`)
+   * @throws {ForkError} If a graph with the fork name already has refs (code: `E_FORK_ALREADY_EXISTS`)
+   *
+   * @example
+   * // Fork from alice's chain at a specific commit
+   * const fork = await graph.fork({
+   *   from: 'alice',
+   *   at: 'abc123def456',
+   * });
+   *
+   * // Fork materializes same state as original at that point
+   * const originalState = await graph.materializeAt('abc123def456');
+   * const forkState = await fork.materialize();
+   * // originalState and forkState are equivalent
+   *
+   * @example
+   * // Fork with custom name and writer ID
+   * const fork = await graph.fork({
+   *   from: 'alice',
+   *   at: 'abc123def456',
+   *   forkName: 'events-experiment',
+   *   forkWriterId: 'experiment-writer',
+   * });
+   */
+  async fork({ from, at, forkName, forkWriterId }) {
+    const t0 = this._clock.now();
+
+    try {
+      // Validate required parameters
+      if (!from || typeof from !== 'string') {
+        throw new ForkError('from is required and must be a string', {
+          code: 'E_FORK_WRITER_NOT_FOUND',
+          context: { from },
+        });
+      }
+
+      if (!at || typeof at !== 'string') {
+        throw new ForkError('at is required and must be a string', {
+          code: 'E_FORK_PATCH_NOT_FOUND',
+          context: { at },
+        });
+      }
+
+      // 1. Validate that the `from` writer exists
+      const writers = await this.discoverWriters();
+      if (!writers.includes(from)) {
+        throw new ForkError(`Writer '${from}' does not exist in graph '${this._graphName}'`, {
+          code: 'E_FORK_WRITER_NOT_FOUND',
+          context: { writerId: from, graphName: this._graphName, existingWriters: writers },
+        });
+      }
+
+      // 2. Validate that `at` SHA exists in the repository
+      const nodeExists = await this._persistence.nodeExists(at);
+      if (!nodeExists) {
+        throw new ForkError(`Patch SHA '${at}' does not exist`, {
+          code: 'E_FORK_PATCH_NOT_FOUND',
+          context: { patchSha: at, writerId: from },
+        });
+      }
+
+      // 3. Validate that `at` SHA is in the writer's chain
+      const writerRef = buildWriterRef(this._graphName, from);
+      const tipSha = await this._persistence.readRef(writerRef);
+
+      if (!tipSha) {
+        throw new ForkError(`Writer '${from}' has no commits`, {
+          code: 'E_FORK_WRITER_NOT_FOUND',
+          context: { writerId: from },
+        });
+      }
+
+      // Walk the chain to verify `at` is reachable from the tip
+      const isInChain = await this._isAncestor(at, tipSha);
+      if (!isInChain) {
+        throw new ForkError(`Patch SHA '${at}' is not in writer '${from}' chain`, {
+          code: 'E_FORK_PATCH_NOT_IN_CHAIN',
+          context: { patchSha: at, writerId: from, tipSha },
+        });
+      }
+
+      // 4. Generate or validate fork name
+      const resolvedForkName = forkName || `${this._graphName}-fork-${Date.now()}`;
+      try {
+        validateGraphName(resolvedForkName);
+      } catch (err) {
+        throw new ForkError(`Invalid fork name: ${err.message}`, {
+          code: 'E_FORK_NAME_INVALID',
+          context: { forkName: resolvedForkName, originalError: err.message },
+        });
+      }
+
+      // 5. Check that the fork graph doesn't already exist (has any refs)
+      const forkWritersPrefix = buildWritersPrefix(resolvedForkName);
+      const existingForkRefs = await this._persistence.listRefs(forkWritersPrefix);
+      if (existingForkRefs.length > 0) {
+        throw new ForkError(`Graph '${resolvedForkName}' already exists`, {
+          code: 'E_FORK_ALREADY_EXISTS',
+          context: { forkName: resolvedForkName, existingRefs: existingForkRefs },
+        });
+      }
+
+      // 6. Generate or validate fork writer ID
+      const resolvedForkWriterId = forkWriterId || generateWriterId();
+      try {
+        validateWriterId(resolvedForkWriterId);
+      } catch (err) {
+        throw new ForkError(`Invalid fork writer ID: ${err.message}`, {
+          code: 'E_FORK_NAME_INVALID',
+          context: { forkWriterId: resolvedForkWriterId, originalError: err.message },
+        });
+      }
+
+      // 7. Create the fork's writer ref pointing to the `at` commit
+      const forkWriterRef = buildWriterRef(resolvedForkName, resolvedForkWriterId);
+      await this._persistence.updateRef(forkWriterRef, at);
+
+      // 8. Open and return a new WarpGraph instance for the fork
+      const forkGraph = await WarpGraph.open({
+        persistence: this._persistence,
+        graphName: resolvedForkName,
+        writerId: resolvedForkWriterId,
+        gcPolicy: this._gcPolicy,
+        adjacencyCacheSize: this._adjacencyCache?.maxSize ?? DEFAULT_ADJACENCY_CACHE_SIZE,
+        checkpointPolicy: this._checkpointPolicy,
+        autoMaterialize: this._autoMaterialize,
+        onDeleteWithData: this._onDeleteWithData,
+        logger: this._logger,
+        clock: this._clock,
+      });
+
+      this._logTiming('fork', t0, {
+        metrics: `from=${from} at=${at.slice(0, 7)} name=${resolvedForkName}`,
+      });
+
+      return forkGraph;
+    } catch (err) {
+      this._logTiming('fork', t0, { error: err });
+      throw err;
+    }
   }
 }

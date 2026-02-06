@@ -1117,6 +1117,38 @@ export default class WarpGraph {
       error?: Error;
     }) => void;
   }): Promise<{ applied: number; attempts: number }>;
+
+  /**
+   * Creates a fork of this graph at a specific point in a writer's history.
+   *
+   * A fork creates a new WarpGraph instance that shares history up to the
+   * specified patch SHA. Due to Git's content-addressed storage, the shared
+   * history is automatically deduplicated.
+   */
+  fork(options: {
+    /** Writer ID whose chain to fork from */
+    from: string;
+    /** Patch SHA to fork at (must be in the writer's chain) */
+    at: string;
+    /** Name for the forked graph. Defaults to `<graphName>-fork-<timestamp>` */
+    forkName?: string;
+    /** Writer ID for the fork. Defaults to a new canonical ID. */
+    forkWriterId?: string;
+  }): Promise<WarpGraph>;
+}
+
+/**
+ * Error thrown when a fork operation fails.
+ */
+export class ForkError extends Error {
+  readonly name: 'ForkError';
+  readonly code: string;
+  readonly context: Record<string, unknown>;
+
+  constructor(message: string, options?: {
+    code?: string;
+    context?: Record<string, unknown>;
+  });
 }
 
 // ============================================================================
@@ -1194,3 +1226,102 @@ export const TICK_RECEIPT_OP_TYPES: readonly TickReceiptOpType[];
  * Valid result values for an operation outcome.
  */
 export const TICK_RECEIPT_RESULT_TYPES: readonly TickReceiptResult[];
+
+/**
+ * A patch entry in a provenance payload.
+ */
+export interface PatchEntry {
+  /** The decoded patch object */
+  patch: {
+    schema: 2 | 3;
+    writer: string;
+    lamport: number;
+    context: Record<string, number> | Map<string, number>;
+    ops: unknown[];
+  };
+  /** The Git SHA of the patch commit */
+  sha: string;
+}
+
+/**
+ * WARP V5 materialized state.
+ */
+export interface WarpStateV5 {
+  nodeAlive: unknown;
+  edgeAlive: unknown;
+  prop: Map<string, unknown>;
+  observedFrontier: Map<string, number>;
+  edgeBirthEvent: Map<string, unknown>;
+}
+
+/**
+ * ProvenancePayload - Transferable provenance as a monoid.
+ *
+ * Implements the provenance payload from Paper III (Computational Holography):
+ * P = (mu_0, ..., mu_{n-1}) - an ordered sequence of tick patches.
+ *
+ * The payload monoid (Payload, ., epsilon):
+ * - Composition is concatenation
+ * - Identity is empty sequence
+ *
+ * @see Paper III, Section 4 -- Computational Holography
+ */
+export class ProvenancePayload {
+  /**
+   * Creates a new ProvenancePayload from an ordered sequence of patches.
+   *
+   * @param patches - Ordered sequence of patch entries
+   * @throws {TypeError} If patches is not an array
+   */
+  constructor(patches?: PatchEntry[]);
+
+  /**
+   * Returns the identity element of the payload monoid (empty payload).
+   */
+  static identity(): ProvenancePayload;
+
+  /**
+   * Returns the number of patches in this payload.
+   */
+  readonly length: number;
+
+  /**
+   * Concatenates this payload with another, forming a new payload.
+   *
+   * @param other - The payload to append
+   * @throws {TypeError} If other is not a ProvenancePayload
+   */
+  concat(other: ProvenancePayload): ProvenancePayload;
+
+  /**
+   * Replays the payload to produce a materialized state.
+   *
+   * @param initialState - Optional initial state to replay from
+   */
+  replay(initialState?: WarpStateV5): WarpStateV5;
+
+  /**
+   * Returns the patch entry at the given index.
+   */
+  at(index: number): PatchEntry | undefined;
+
+  /**
+   * Returns a new payload containing a slice of this payload's patches.
+   */
+  slice(start?: number, end?: number): ProvenancePayload;
+
+  /**
+   * Returns an iterator over the patch entries.
+   */
+  [Symbol.iterator](): Iterator<PatchEntry>;
+
+  /**
+   * Returns a JSON-serializable representation of this payload.
+   */
+  toJSON(): PatchEntry[];
+
+  /**
+   * Creates a ProvenancePayload from a JSON-serialized array.
+   */
+  static fromJSON(json: PatchEntry[]): ProvenancePayload;
+}

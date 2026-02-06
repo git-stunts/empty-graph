@@ -18,6 +18,7 @@ import ConsoleLogger, { LogLevel } from './src/infrastructure/adapters/ConsoleLo
 import PerformanceClockAdapter from './src/infrastructure/adapters/PerformanceClockAdapter.js';
 import GlobalClockAdapter from './src/infrastructure/adapters/GlobalClockAdapter.js';
 import {
+  ForkError,
   IndexError,
   QueryError,
   SchemaUnsupportedError,
@@ -52,6 +53,9 @@ import {
   RESULT_TYPES as TICK_RECEIPT_RESULT_TYPES,
 } from './src/domain/types/TickReceipt.js';
 
+// Provenance payload (HOLOGRAM)
+import ProvenancePayload from './src/domain/services/ProvenancePayload.js';
+
 const TraversalService = CommitDagTraversalService;
 
 export {
@@ -79,6 +83,7 @@ export {
   GlobalClockAdapter,
 
   // Error types for integrity failure handling
+  ForkError,
   IndexError,
   QueryError,
   SchemaUnsupportedError,
@@ -116,6 +121,9 @@ export {
   tickReceiptCanonicalJson,
   TICK_RECEIPT_OP_TYPES,
   TICK_RECEIPT_RESULT_TYPES,
+
+  // Provenance payload (HOLOGRAM)
+  ProvenancePayload,
 };
 
 // WarpGraph is the primary API for V7

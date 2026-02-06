@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [8.0.0] — HOLOGRAM (in progress)
+
+### Added
+
+#### HOLOGRAM — Provenance & Holography (v8.0.0)
+- **Patch I/O declarations** (`HG/IO/1`): Patches now carry optional `reads` and `writes` string arrays for provenance tracking. Auto-populated during `commitPatch()` by inspecting ops: `NodeAdd(X)` writes X; `NodeRemove(X)` reads X; `EdgeAdd(A→B)` reads A, reads B, writes edge key; `EdgeRemove(A→B)` reads edge key; `PropSet(X, key)` reads and writes X. Backward compatible — legacy patches without fields load correctly.
+- **ProvenancePayload class** (`HG/PROV/1`): New `ProvenancePayload` class implements the boundary encoding `(U_0, P)` from Paper III as a first-class type with monoid operations. Constructor accepts ordered patch sequence. `concat(other)` for monoid composition. `static identity()` for empty payload. `replay(initialState?)` for deterministic materialization. Immutable after construction. Monoid laws verified: `identity.concat(p) === p`, `p.concat(identity) === p`, `(a.concat(b)).concat(c) === a.concat(b.concat(c))`. Additional utilities: `at()`, `slice()`, `toJSON()`, `fromJSON()`, and `Symbol.iterator`.
+- **graph.fork() API** (`HG/FORK/1`): New `graph.fork({ from, at, forkName?, forkWriterId? })` creates a forked graph at a specific point in a writer's chain. Fork shares history up to `at` commit (Git content-addressed dedup). Fork gets a new writer ID and operates independently. Mutual isolation: writes to fork don't appear in original, writes to original after fork don't appear in fork. New `ForkError` class with codes: `E_FORK_WRITER_NOT_FOUND`, `E_FORK_PATCH_NOT_FOUND`, `E_FORK_PATCH_NOT_IN_CHAIN`, `E_FORK_NAME_INVALID`, `E_FORK_ALREADY_EXISTS`.
+
+### Tests
+- Added provenance tracking tests to `PatchBuilderV2.test.js` (+20 tests)
+- Added `test/unit/domain/services/ProvenancePayload.test.js` (49 tests) — monoid laws, replay verification, fuzz tests
+- Added `test/unit/domain/WarpGraph.fork.test.js` (20 tests) — fork creation, isolation, edge cases
+
 ## [7.7.1] — Documentation & Hardening
 
 ### Documentation
