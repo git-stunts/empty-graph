@@ -100,6 +100,16 @@ const DEFAULT_RETRY_OPTIONS = {
 };
 
 /**
+ * Extracts the exit code from a Git command error.
+ * Checks multiple possible locations where the exit code may be stored.
+ * @param {Error} err - The error object
+ * @returns {number|undefined} The exit code if found
+ */
+function getExitCode(err) {
+  return err?.details?.code ?? err?.exitCode ?? err?.code;
+}
+
+/**
  * Checks whether a Git ref exists without resolving it.
  * @param {function(Object): Promise<string>} execute - The git command executor function
  * @param {string} ref - The ref to check (e.g., 'refs/warp/events/writers/alice')
@@ -111,8 +121,7 @@ async function refExists(execute, ref) {
     await execute({ args: ['show-ref', '--verify', '--quiet', ref] });
     return true;
   } catch (err) {
-    const exitCode = err?.details?.code ?? err?.exitCode ?? err?.code;
-    if (exitCode === 1) {
+    if (getExitCode(err) === 1) {
       return false;
     }
     throw err;
@@ -514,8 +523,7 @@ export default class GitGraphAdapter extends GraphPersistencePort {
       });
       return oid.trim();
     } catch (err) {
-      const exitCode = err?.details?.code ?? err?.exitCode ?? err?.code;
-      if (exitCode === 1) {
+      if (getExitCode(err) === 1) {
         return null;
       }
       throw err;
@@ -588,8 +596,7 @@ export default class GitGraphAdapter extends GraphPersistencePort {
       await this._executeWithRetry({ args: ['cat-file', '-e', sha] });
       return true;
     } catch (err) {
-      const exitCode = err?.details?.code ?? err?.exitCode ?? err?.code;
-      if (exitCode === 1) {
+      if (getExitCode(err) === 1) {
         return false;
       }
       throw err;
@@ -614,6 +621,10 @@ export default class GitGraphAdapter extends GraphPersistencePort {
   /**
    * Pings the repository to verify accessibility.
    * Uses `git rev-parse --is-inside-work-tree` as a lightweight check.
+   *
+   * Note: latencyMs includes retry overhead if retries occur, so it may not
+   * reflect single-trip repository latency in degraded conditions.
+   *
    * @returns {Promise<{ok: boolean, latencyMs: number}>} Health check result with latency
    */
   async ping() {
@@ -733,12 +744,13 @@ export default class GitGraphAdapter extends GraphPersistencePort {
 
   /**
    * Extracts the exit code from a Git command error.
+   * Delegates to the standalone getExitCode helper.
    * @param {Error} err - The error object
    * @returns {number|undefined} The exit code if found
    * @private
    */
   _getExitCode(err) {
-    return err?.details?.code ?? err?.exitCode ?? err?.code;
+    return getExitCode(err);
   }
 
   /**
@@ -749,10 +761,13 @@ export default class GitGraphAdapter extends GraphPersistencePort {
    * @private
    */
   _isConfigKeyNotFound(err) {
+    // Primary check: exit code 1 means key not found for git config --get
     if (this._getExitCode(err) === 1) {
       return true;
     }
-    // Fallback: check error text for exit code mention
+    // Fallback for wrapped errors where exit code is embedded in message.
+    // This is intentionally conservative - only matches the exact pattern
+    // from git config failures to avoid false positives from unrelated errors.
     const msg = (err.message || '').toLowerCase();
     const stderr = (err.details?.stderr || '').toLowerCase();
     return msg.includes('exit code 1') || stderr.includes('exit code 1');

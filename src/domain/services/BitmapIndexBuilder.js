@@ -2,13 +2,10 @@ import { createHash } from 'crypto';
 import { getRoaringBitmap32, getNativeRoaringAvailable } from '../utils/roaring.js';
 import { canonicalStringify } from '../utils/canonicalStringify.js';
 import { encode as cborEncode } from '../../infrastructure/codecs/CborCodec.js';
+import { SHARD_VERSION } from '../utils/shardVersion.js';
 
-/**
- * Shard format version for forward compatibility.
- * Increment when changing the shard structure.
- * @const {number}
- */
-export const SHARD_VERSION = 2;
+// Re-export for backwards compatibility
+export { SHARD_VERSION };
 
 /**
  * Computes a SHA-256 checksum of the given data.

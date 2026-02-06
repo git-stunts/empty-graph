@@ -1580,18 +1580,17 @@ export default class WarpGraph {
     }
 
     // Pattern matching: same logic as QueryBuilder.match()
-    const matchesPattern = (nodeId) => {
-      if (pattern === '*') {
-        return true;
-      }
-      if (pattern.includes('*')) {
-        // Escape regex special chars except *, then replace * with .*
-        const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
-        const regex = new RegExp(`^${escaped.replace(/\*/g, '.*')}$`);
-        return regex.test(nodeId);
-      }
-      return nodeId === pattern;
-    };
+    // Pre-compile pattern matcher once for performance
+    let matchesPattern;
+    if (pattern === '*') {
+      matchesPattern = () => true;
+    } else if (pattern.includes('*')) {
+      const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(`^${escaped.replace(/\*/g, '.*')}$`);
+      matchesPattern = (nodeId) => regex.test(nodeId);
+    } else {
+      matchesPattern = (nodeId) => nodeId === pattern;
+    }
 
     // Filtered onChange that only passes matching changes
     const filteredOnChange = (diff) => {

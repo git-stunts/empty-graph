@@ -532,6 +532,10 @@ export class GitGraphAdapter extends GraphPersistencePort implements IndexStorag
   ping(): Promise<PingResult>;
   /** Counts nodes reachable from a ref without loading them into memory */
   countNodes(ref: string): Promise<number>;
+  /** Reads a git config value */
+  configGet(key: string): Promise<string | null>;
+  /** Sets a git config value */
+  configSet(key: string, value: string): Promise<void>;
 }
 
 

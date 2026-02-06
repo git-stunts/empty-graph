@@ -7,12 +7,10 @@ import { checkAborted } from '../utils/cancellation.js';
 import { getRoaringBitmap32 } from '../utils/roaring.js';
 import { canonicalStringify } from '../utils/canonicalStringify.js';
 import { encode as cborEncode } from '../../infrastructure/codecs/CborCodec.js';
+import { SHARD_VERSION } from '../utils/shardVersion.js';
 
-/**
- * Current shard format version.
- * @const {number}
- */
-export const SHARD_VERSION = 2;
+// Re-export for backwards compatibility
+export { SHARD_VERSION };
 
 /**
  * Default memory threshold before flushing (50MB).

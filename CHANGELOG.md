@@ -36,10 +36,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Refactoring
 
 - **Centralized `canonicalStringify`**: New `src/domain/utils/canonicalStringify.js` shared by `BitmapIndexBuilder`, `BitmapIndexReader`, and `StreamingBitmapIndexBuilder` to prevent checksum algorithm drift.
+- **Shared `SHARD_VERSION`**: Extracted to `src/domain/utils/shardVersion.js` to prevent version drift between `BitmapIndexBuilder` and `StreamingBitmapIndexBuilder`.
+- **GitGraphAdapter `getExitCode`**: Extracted standalone helper function for consistent exit code extraction across `refExists`, `readRef`, `nodeExists`, and `_isConfigKeyNotFound`.
+- **WarpGraph `watch()` pattern matching**: Pre-compile regex pattern once instead of on every `matchesPattern()` call for improved performance.
+- **`canonicalStringify` JSON semantics**: Updated to match `JSON.stringify` behavior — top-level `undefined` returns `"null"`, array elements that are `undefined`/`function`/`symbol` become `"null"`, object properties with such values are omitted.
 
 ### Types
 
 - **index.d.ts**: Added `LoadOptions` interface for `IndexRebuildService.load()` with `strict`, `currentFrontier`, `autoRebuild`, and `rebuildRef` options.
+- **index.d.ts**: Added `configGet(key: string): Promise<string | null>` and `configSet(key: string, value: string): Promise<void>` to `GitGraphAdapter` class.
+
+### Tests
+
+- Bug fixes verified by existing test suite (2,094 tests pass).
+- Additional coverage for edge visibility filtering, CborCodec validation, and watch polling guards.
 
 ## [7.7.0] — PULSE
 
