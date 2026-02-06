@@ -20,6 +20,21 @@ function createMockState() {
   };
 }
 
+/**
+ * Creates a mock persistence adapter for testing commit().
+ * @returns {Object} Mock persistence with standard methods stubbed
+ */
+function createMockPersistence() {
+  return {
+    readRef: vi.fn().mockResolvedValue(null),
+    showNode: vi.fn(),
+    writeBlob: vi.fn().mockResolvedValue('a'.repeat(40)), // Valid 40-char hex OID
+    writeTree: vi.fn().mockResolvedValue('b'.repeat(40)),
+    commitNodeWithTree: vi.fn().mockResolvedValue('c'.repeat(40)),
+    updateRef: vi.fn().mockResolvedValue(undefined),
+  };
+}
+
 describe('PatchBuilderV2', () => {
   describe('building patch with node add', () => {
     it('creates NodeAdd operation with dot', () => {
@@ -530,20 +545,6 @@ describe('PatchBuilderV2', () => {
   });
 
   describe('commit()', () => {
-    /**
-     * Creates a mock persistence adapter for testing commit().
-     */
-    function createMockPersistence() {
-      return {
-        readRef: vi.fn().mockResolvedValue(null),
-        showNode: vi.fn(),
-        writeBlob: vi.fn().mockResolvedValue('a'.repeat(40)), // Valid 40-char hex OID
-        writeTree: vi.fn().mockResolvedValue('b'.repeat(40)),
-        commitNodeWithTree: vi.fn().mockResolvedValue('c'.repeat(40)),
-        updateRef: vi.fn().mockResolvedValue(undefined),
-      };
-    }
-
     it('commits a patch and returns the commit SHA', async () => {
       const persistence = createMockPersistence();
       const builder = new PatchBuilderV2({
@@ -1068,17 +1069,6 @@ describe('PatchBuilderV2', () => {
     });
 
     describe('commit() includes reads/writes', () => {
-      function createMockPersistence() {
-        return {
-          readRef: vi.fn().mockResolvedValue(null),
-          showNode: vi.fn(),
-          writeBlob: vi.fn().mockResolvedValue('a'.repeat(40)),
-          writeTree: vi.fn().mockResolvedValue('b'.repeat(40)),
-          commitNodeWithTree: vi.fn().mockResolvedValue('c'.repeat(40)),
-          updateRef: vi.fn().mockResolvedValue(undefined),
-        };
-      }
-
       it('committed patch includes reads/writes arrays', async () => {
         const persistence = createMockPersistence();
         const builder = new PatchBuilderV2({
