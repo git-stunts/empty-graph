@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   createBTR,
   verifyBTR,
@@ -321,20 +321,43 @@ describe('BoundaryTransitionRecord', () => {
         expect(result.valid).toBe(true);
       });
 
-      it('fails when replay would produce different h_out', () => {
+      it('fails when replay produces different h_out (via replayBTR)', () => {
+        // Test the replay logic in isolation: if we tamper with h_out,
+        // replayBTR will produce a different hash than the tampered value.
+        // This validates the replay verification logic works correctly.
         const initialState = createEmptyStateV5();
         const { patchA } = createSamplePatches();
         const payload = new ProvenancePayload([patchA]);
 
         const btr = createBTR(initialState, payload, { key: testKey });
 
-        // Manually corrupt h_out while keeping kappa valid
-        // (This simulates an implementation bug, not a tamper attack)
-        // We need to create a BTR where HMAC is correct but h_out is wrong
-        // This isn't possible with the current design, which is good!
-        // Instead, let's verify the positive case works:
-        const result = verifyBTR(btr, testKey, { verifyReplay: true });
-        expect(result.valid).toBe(true);
+        // Tamper with h_out - this simulates data corruption or bug
+        const tamperedBtr = { ...btr, h_out: 'tampered_hash_value' };
+
+        // replayBTR will compute the correct h_out from U_0 and P
+        const { h_out: computedHash } = replayBTR(tamperedBtr);
+
+        // The computed hash should NOT match the tampered value
+        expect(computedHash).not.toBe(tamperedBtr.h_out);
+        // But it SHOULD match the original correct h_out
+        expect(computedHash).toBe(btr.h_out);
+      });
+
+      it('detects h_out mismatch when verifyReplay is enabled', () => {
+        // Full integration test: tampered h_out is caught.
+        // Note: HMAC check runs first, so tampered h_out fails HMAC.
+        // This validates the defense-in-depth: both checks protect h_out.
+        const initialState = createEmptyStateV5();
+        const { patchA } = createSamplePatches();
+        const payload = new ProvenancePayload([patchA]);
+
+        const btr = createBTR(initialState, payload, { key: testKey });
+        const tamperedBtr = { ...btr, h_out: 'wrong_hash' };
+
+        // HMAC check catches the tamper (h_out is covered by HMAC)
+        const result = verifyBTR(tamperedBtr, testKey, { verifyReplay: true });
+        expect(result.valid).toBe(false);
+        expect(result.reason).toBe('Authentication tag mismatch');
       });
     });
   });
@@ -517,15 +540,13 @@ describe('BoundaryTransitionRecord', () => {
       expect(result.valid).toBe(true);
     });
 
-    it('handles empty string key', () => {
+    it('rejects empty string key', () => {
       const initialState = createEmptyStateV5();
       const payload = ProvenancePayload.identity();
       const emptyKey = '';
 
-      const btr = createBTR(initialState, payload, { key: emptyKey });
-      const result = verifyBTR(btr, emptyKey);
-
-      expect(result.valid).toBe(true);
+      expect(() => createBTR(initialState, payload, { key: emptyKey }))
+        .toThrow('Invalid HMAC key: key must not be empty');
     });
 
     it('h_in equals h_out for identity payload', () => {

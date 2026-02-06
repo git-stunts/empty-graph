@@ -130,6 +130,12 @@ export function createBTR(initialState, payload, options) {
 
   const { key, timestamp = new Date().toISOString() } = options;
 
+  // Validate HMAC key is not empty/falsy
+  if (!key || (typeof key === 'string' && key.length === 0) ||
+      (Buffer.isBuffer(key) && key.length === 0)) {
+    throw new Error('Invalid HMAC key: key must not be empty');
+  }
+
   const h_in = computeStateHashV5(initialState);
   const U_0 = serializeFullStateV5(initialState);
   const finalState = payload.replay(initialState);

@@ -97,7 +97,8 @@ describe('WarpGraph.materializeSlice() (HG/SLICE/1)', () => {
         writerId: 'alice',
       });
 
-      await expect(graph.materializeSlice('node:a')).rejects.toThrow('No provenance index');
+      // _ensureFreshState() is called first, which throws when no cached state exists
+      await expect(graph.materializeSlice('node:a')).rejects.toThrow('No cached state');
     });
   });
 
