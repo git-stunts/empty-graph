@@ -23,7 +23,7 @@ WARP graphs are a mathematical foundation for multi-writer, conflict-free graph 
 
 ### Key Mathematical Objects
 
-```
+```text
 WARP State:        U = (G; α, β)
                    G = skeleton (typed open graph)
                    α = vertex attachments (recursive WARPs)
@@ -65,7 +65,7 @@ Time Model:        Chronos = linear worldline time
 `git-warp-viewer` will be a visualization tool for the `@git-stunts/git-warp` package. The main WARP implementation lives in the parent repo; this is specifically for visualization.
 
 ### Parent Repo Structure (for reference)
-```
+```text
 ../git-warp/
 ├── src/domain/WarpGraph.js          # Main API
 ├── src/domain/services/

@@ -13,9 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `git warp --view check` - Health dashboard with progress bars and status indicators
 - Visualization module scaffold (`src/visualization/`) with ASCII renderers and utilities
 - Snapshot tests for ASCII renderer output stability
-
-### Infrastructure
-- Added dependencies: chalk, boxen, cli-table3, figures, string-width, wrap-ansi
+- Dependencies: chalk, boxen, cli-table3, figures, string-width, wrap-ansi
 
 ## [7.7.1] — Documentation & Hardening
 

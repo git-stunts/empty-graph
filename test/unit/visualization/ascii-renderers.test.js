@@ -12,10 +12,8 @@ import { stripAnsi } from '../../../src/visualization/utils/ansi.js';
 
 // Mock Date.now for stable time-based output
 const FIXED_NOW = new Date('2025-01-15T12:00:00Z').getTime();
-let originalDateNow;
 
 beforeAll(() => {
-  originalDateNow = Date.now;
   vi.spyOn(Date, 'now').mockImplementation(() => FIXED_NOW);
 });
 

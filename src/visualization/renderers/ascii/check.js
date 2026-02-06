@@ -25,10 +25,14 @@ function formatAge(seconds) {
   if (seconds === null || seconds === undefined) {
     return 'unknown';
   }
-  if (seconds < 60) {
-    return `${seconds}s`;
+  if (typeof seconds !== 'number' || !Number.isFinite(seconds) || seconds < 0) {
+    return 'unknown';
   }
-  const minutes = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds);
+  if (secs < 60) {
+    return `${secs}s`;
+  }
+  const minutes = Math.floor(secs / 60);
   if (minutes < 60) {
     return `${minutes}m`;
   }
@@ -111,7 +115,7 @@ function formatWriters(heads) {
 
   // For now, just list writer IDs with their SHA prefixes
   return heads
-    .map((h) => `${colors.primary(h.writerId)} (${colors.muted(h.sha.slice(0, 7))})`)
+    .map((h) => `${colors.primary(h.writerId ?? 'unknown')} (${colors.muted((h.sha ?? '').slice(0, 7) || '?')})`)
     .join(' | ');
 }
 

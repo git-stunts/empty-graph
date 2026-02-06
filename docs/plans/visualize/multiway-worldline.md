@@ -83,7 +83,7 @@ The deterministic worldline (Chronos) is one path through this space, selected b
 
 ## ASCII Terminal Version
 
-```
+```text
 ╔══════════════════════════════════════════════════════════════════════════════╗
 ║  MULTIWAY SPACE MW(U, R)                                                     ║
 ║  ══════════════════════                                                      ║

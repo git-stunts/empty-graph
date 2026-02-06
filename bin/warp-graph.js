@@ -168,6 +168,14 @@ function consumeBaseArg({ argv, index, options, optionDefs, positionals }) {
       !nextArg.startsWith('-') &&
       !KNOWN_COMMANDS.includes(nextArg);
     if (isViewMode) {
+      // Validate the view mode value
+      const validModes = ['ascii', 'browser'];
+      const validPrefixes = ['svg:', 'html:'];
+      const isValid = validModes.includes(nextArg) ||
+        validPrefixes.some((prefix) => nextArg.startsWith(prefix));
+      if (!isValid) {
+        throw usageError(`Invalid view mode: ${nextArg}. Valid modes: ascii, browser, svg:FILE, html:FILE`);
+      }
       options.view = nextArg;
       return { consumed: 1 };
     }
@@ -284,9 +292,7 @@ async function getGraphInfo(persistence, graphName, {
 
   if (includeRefs || includeCheckpointDate) {
     const checkpointRef = buildCheckpointRef(graphName);
-    const coverageRef = buildCoverageRef(graphName);
     const checkpointSha = await persistence.readRef(checkpointRef);
-    const coverageSha = await persistence.readRef(coverageRef);
 
     const checkpoint = { ref: checkpointRef, sha: checkpointSha || null };
 
@@ -296,7 +302,12 @@ async function getGraphInfo(persistence, graphName, {
     }
 
     info.checkpoint = checkpoint;
-    info.coverage = { ref: coverageRef, sha: coverageSha || null };
+
+    if (includeRefs) {
+      const coverageRef = buildCoverageRef(graphName);
+      const coverageSha = await persistence.readRef(coverageRef);
+      info.coverage = { ref: coverageRef, sha: coverageSha || null };
+    }
   }
 
   if (includeWriterPatches && writerIds.length > 0) {
