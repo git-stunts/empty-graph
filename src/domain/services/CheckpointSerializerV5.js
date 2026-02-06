@@ -16,6 +16,7 @@ import { encode, decode } from '../../infrastructure/codecs/CborCodec.js';
 import { orsetSerialize, orsetDeserialize } from '../crdt/ORSet.js';
 import { vvSerialize, vvDeserialize } from '../crdt/VersionVector.js';
 import { decodeDot } from '../crdt/Dot.js';
+import { createEmptyStateV5 } from './JoinReducer.js';
 
 // ============================================================================
 // Full State Serialization (for Checkpoints)
@@ -181,20 +182,6 @@ export function deserializeAppliedVV(buffer) {
 // ============================================================================
 // Helper Functions
 // ============================================================================
-
-/**
- * Creates an empty V5 state with initialized CRDT structures.
- * @returns {import('./JoinReducer.js').WarpStateV5}
- */
-function createEmptyStateV5() {
-  return {
-    nodeAlive: orsetDeserialize({}),
-    edgeAlive: orsetDeserialize({}),
-    prop: new Map(),
-    observedFrontier: vvDeserialize({}),
-    edgeBirthEvent: new Map(),
-  };
-}
 
 /**
  * Deserializes the props array from checkpoint format.
