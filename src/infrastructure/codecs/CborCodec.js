@@ -75,6 +75,57 @@ const encoder = new Encoder({
 });
 
 /**
+ * Checks if a value is a plain object (constructed via Object or Object.create(null)).
+ *
+ * @param {unknown} value - The value to check
+ * @returns {boolean} True if value is a plain object
+ * @private
+ */
+function isPlainObject(value) {
+  return typeof value === 'object' && (value.constructor === Object || value.constructor === undefined);
+}
+
+/**
+ * Sorts the keys of a plain object and recursively processes values.
+ *
+ * @param {Object} obj - The plain object to process
+ * @returns {Object} A new object with sorted keys
+ * @private
+ */
+function sortPlainObject(obj) {
+  const sorted = {};
+  const keys = Object.keys(obj).sort();
+  for (const key of keys) {
+    sorted[key] = sortKeys(obj[key]);
+  }
+  return sorted;
+}
+
+/**
+ * Converts a Map to a sorted plain object with recursive value processing.
+ * Validates that all Map keys are strings (required for CBOR encoding).
+ *
+ * @param {Map} map - The Map instance to convert
+ * @returns {Object} A plain object with sorted keys
+ * @throws {TypeError} If any Map key is not a string
+ * @private
+ */
+function sortMapToObject(map) {
+  const keys = Array.from(map.keys());
+  for (const key of keys) {
+    if (typeof key !== 'string') {
+      throw new TypeError(`Map keys must be strings for CBOR encoding, got ${typeof key}`);
+    }
+  }
+  const sorted = {};
+  keys.sort();
+  for (const key of keys) {
+    sorted[key] = sortKeys(map.get(key));
+  }
+  return sorted;
+}
+
+/**
  * Recursively sorts object keys to ensure deterministic/canonical encoding.
  *
  * This function transforms any JavaScript value into an equivalent structure
@@ -134,43 +185,27 @@ const encoder = new Encoder({
  * @private
  */
 function sortKeys(value) {
+  // Nullish values pass through
   if (value === null || value === undefined) {
     return value;
   }
 
-  // Handle arrays - recursively sort elements
+  // Arrays: recursively sort elements
   if (Array.isArray(value)) {
     return value.map(sortKeys);
   }
 
-  // Handle plain objects - sort keys and recursively process values
-  // Note: value.constructor === undefined handles Object.create(null) objects
-  if (typeof value === 'object' && (value.constructor === Object || value.constructor === undefined)) {
-    const sorted = {};
-    const keys = Object.keys(value).sort();
-    for (const key of keys) {
-      sorted[key] = sortKeys(value[key]);
-    }
-    return sorted;
+  // Plain objects: sort keys and recursively process values
+  if (isPlainObject(value)) {
+    return sortPlainObject(value);
   }
 
-  // Handle Map instances - convert to sorted object
+  // Map instances: convert to sorted object
   if (value instanceof Map) {
-    const sorted = {};
-    const keys = Array.from(value.keys());
-    for (const key of keys) {
-      if (typeof key !== 'string') {
-        throw new TypeError(`Map keys must be strings for CBOR encoding, got ${typeof key}`);
-      }
-    }
-    keys.sort();
-    for (const key of keys) {
-      sorted[key] = sortKeys(value.get(key));
-    }
-    return sorted;
+    return sortMapToObject(value);
   }
 
-  // Primitive values (number, string, boolean, bigint) pass through
+  // Primitive values (number, string, boolean, bigint) and other objects pass through
   return value;
 }
 

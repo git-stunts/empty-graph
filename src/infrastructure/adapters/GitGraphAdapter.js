@@ -661,8 +661,7 @@ export default class GitGraphAdapter extends GraphPersistencePort {
       });
       return true;  // Exit code 0 means it IS an ancestor
     } catch (err) {
-      const exitCode = err?.details?.code ?? err?.exitCode ?? err?.code;
-      if (exitCode === 1) {
+      if (this._getExitCode(err) === 1) {
         return false; // Exit code 1 means it is NOT an ancestor
       }
       throw err; // Re-throw unexpected errors
@@ -684,12 +683,7 @@ export default class GitGraphAdapter extends GraphPersistencePort {
       // Preserve empty-string values; only drop trailing newline
       return value.replace(/\n$/, '');
     } catch (err) {
-      // Exit code 1 means config key not found
-      const exitCode = err?.details?.code ?? err?.exitCode ?? err?.code;
-      const msg = (err.message || '').toLowerCase();
-      const stderr = (err.details?.stderr || '').toLowerCase();
-      const searchText = `${msg} ${stderr}`;
-      if (exitCode === 1 || searchText.includes('exit code 1')) {
+      if (this._isConfigKeyNotFound(err)) {
         return null;
       }
       throw err;
@@ -735,5 +729,32 @@ export default class GitGraphAdapter extends GraphPersistencePort {
     if (!validKeyPattern.test(key)) {
       throw new Error(`Invalid config key format: ${key}`);
     }
+  }
+
+  /**
+   * Extracts the exit code from a Git command error.
+   * @param {Error} err - The error object
+   * @returns {number|undefined} The exit code if found
+   * @private
+   */
+  _getExitCode(err) {
+    return err?.details?.code ?? err?.exitCode ?? err?.code;
+  }
+
+  /**
+   * Checks if an error indicates a config key was not found.
+   * Exit code 1 from `git config --get` means the key doesn't exist.
+   * @param {Error} err - The error object
+   * @returns {boolean} True if the error indicates key not found
+   * @private
+   */
+  _isConfigKeyNotFound(err) {
+    if (this._getExitCode(err) === 1) {
+      return true;
+    }
+    // Fallback: check error text for exit code mention
+    const msg = (err.message || '').toLowerCase();
+    const stderr = (err.details?.stderr || '').toLowerCase();
+    return msg.includes('exit code 1') || stderr.includes('exit code 1');
   }
 }
