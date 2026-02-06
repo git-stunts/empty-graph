@@ -311,7 +311,7 @@ class ProvenanceIndex {
       throw new Error('Missing or invalid ProvenanceIndex entries');
     }
 
-    return new ProvenanceIndex(ProvenanceIndex.#buildIndex(json.entries));
+    return new ProvenanceIndex(ProvenanceIndex.#buildIndex(json.entries || []));
   }
 
   /**

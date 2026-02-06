@@ -66,6 +66,7 @@ export function serializeFullStateV5(state) {
   }
 
   const obj = {
+    version: 'full-v5',
     nodeAlive: nodeAliveObj,
     edgeAlive: edgeAliveObj,
     prop: propArray,
@@ -85,36 +86,26 @@ export function serializeFullStateV5(state) {
 export function deserializeFullStateV5(buffer) {
   const obj = decode(buffer);
 
-  // Deserialize ORSets
-  const nodeAlive = orsetDeserialize(obj.nodeAlive);
-  const edgeAlive = orsetDeserialize(obj.edgeAlive);
-
-  // Deserialize props
-  const prop = new Map();
-  if (obj.prop && Array.isArray(obj.prop)) {
-    for (const [key, registerObj] of obj.prop) {
-      prop.set(key, deserializeLWWRegister(registerObj));
-    }
+  // Handle null/undefined: return empty state
+  if (obj === null || obj === undefined) {
+    return createEmptyStateV5();
   }
 
-  // Deserialize observedFrontier
-  const observedFrontier = vvDeserialize(obj.observedFrontier || {});
-
-  // Deserialize edgeBirthEvent (supports both old edgeBirthLamport and new edgeBirthEvent format)
-  const edgeBirthEvent = new Map();
-  const birthData = obj.edgeBirthEvent || obj.edgeBirthLamport;
-  if (birthData && Array.isArray(birthData)) {
-    for (const [key, val] of birthData) {
-      if (typeof val === 'number') {
-        // Legacy format: bare lamport number → synthesize minimal EventId
-        edgeBirthEvent.set(key, { lamport: val, writerId: '', patchSha: '0000', opIndex: 0 });
-      } else {
-        edgeBirthEvent.set(key, val);
-      }
-    }
+  // Handle version mismatch: throw with diagnostic info
+  // Accept both 'full-v5' and missing version (for backward compatibility with pre-versioned data)
+  if (obj.version !== undefined && obj.version !== 'full-v5') {
+    throw new Error(
+      `Unsupported full state version: expected 'full-v5', got '${obj.version}'`
+    );
   }
 
-  return { nodeAlive, edgeAlive, prop, observedFrontier, edgeBirthEvent };
+  return {
+    nodeAlive: orsetDeserialize(obj.nodeAlive),
+    edgeAlive: orsetDeserialize(obj.edgeAlive),
+    prop: deserializeProps(obj.prop),
+    observedFrontier: vvDeserialize(obj.observedFrontier || {}),
+    edgeBirthEvent: deserializeEdgeBirthEvent(obj),
+  };
 }
 
 // ============================================================================
@@ -185,6 +176,56 @@ export function deserializeAppliedVV(buffer) {
 // ============================================================================
 // Helper Functions
 // ============================================================================
+
+/**
+ * Creates an empty V5 state with initialized CRDT structures.
+ * @returns {import('./JoinReducer.js').WarpStateV5}
+ */
+function createEmptyStateV5() {
+  return {
+    nodeAlive: orsetDeserialize({}),
+    edgeAlive: orsetDeserialize({}),
+    prop: new Map(),
+    observedFrontier: vvDeserialize({}),
+    edgeBirthEvent: new Map(),
+  };
+}
+
+/**
+ * Deserializes the props array from checkpoint format.
+ * @param {Array} propArray - Array of [key, registerObj] pairs
+ * @returns {Map<string, import('../crdt/LWW.js').LWWRegister>}
+ */
+function deserializeProps(propArray) {
+  const prop = new Map();
+  if (propArray && Array.isArray(propArray)) {
+    for (const [key, registerObj] of propArray) {
+      prop.set(key, deserializeLWWRegister(registerObj));
+    }
+  }
+  return prop;
+}
+
+/**
+ * Deserializes edge birth event data, supporting both legacy and current formats.
+ * @param {Object} obj - The decoded checkpoint object
+ * @returns {Map<string, Object>}
+ */
+function deserializeEdgeBirthEvent(obj) {
+  const edgeBirthEvent = new Map();
+  const birthData = obj.edgeBirthEvent || obj.edgeBirthLamport;
+  if (birthData && Array.isArray(birthData)) {
+    for (const [key, val] of birthData) {
+      if (typeof val === 'number') {
+        // Legacy format: bare lamport number → synthesize minimal EventId
+        edgeBirthEvent.set(key, { lamport: val, writerId: '', patchSha: '0000', opIndex: 0 });
+      } else {
+        edgeBirthEvent.set(key, val);
+      }
+    }
+  }
+  return edgeBirthEvent;
+}
 
 /**
  * Serializes an LWW register for CBOR encoding.

@@ -42,6 +42,8 @@ Implements Papers III–IV: provenance payloads, slicing, wormholes, BTRs, and p
 - **Defensive copies from `PatchBuilderV2` getters**: The `reads` and `writes` getters now return frozen copies instead of the live internal Sets, preventing external mutation.
 - **Forward `provenanceIndex` in `CheckpointService.create()`**: The `create()` wrapper now forwards the optional `provenanceIndex` parameter to `createV5()`, preventing silent data loss when using the convenience API.
 - **Strip `writerId` from wormhole patches**: `createWormhole()` now strips the extraneous `writerId` field from patches before constructing `ProvenancePayload`, matching the documented `PatchEntry` type contract and reducing serialization size.
+- **`ProvenanceIndex.fromJSON` defensive fallback**: Now passes `json.entries || []` to `#buildIndex()` so missing or undefined entries fall back to an empty array, consistent with `deserialize()` behavior.
+- **`deserializeFullStateV5` version validation**: Now distinguishes null/undefined input (returns empty state) from version mismatch (throws `Error` with actual version). Serialized state now includes `version: 'full-v5'` for forward compatibility detection. Pre-versioned checkpoints remain loadable for backward compatibility.
 
 ### Refactored
 
