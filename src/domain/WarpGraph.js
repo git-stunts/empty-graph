@@ -2879,6 +2879,11 @@ export default class WarpGraph {
    * const edgeShas = graph.patchesFor(edgeKey);
    */
   patchesFor(entityId) {
+    if (this._stateDirty) {
+      throw new QueryError('State is dirty. Call materialize() first.', {
+        code: 'E_STATE_DIRTY',
+      });
+    }
     if (!this._provenanceIndex) {
       throw new QueryError('No provenance index. Call materialize() first.', {
         code: 'E_NO_STATE',
