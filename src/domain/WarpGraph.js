@@ -3046,24 +3046,21 @@ export default class WarpGraph {
    * Loads a single patch by its SHA.
    *
    * @param {string} sha - The patch commit SHA
-   * @returns {Promise<Object|null>} The decoded patch object, or null if not a patch
+   * @returns {Promise<Object>} The decoded patch object
+   * @throws {Error} If the commit is not a patch or loading fails
    * @private
    */
   async _loadPatchBySha(sha) {
-    try {
-      const nodeInfo = await this._persistence.getNodeInfo(sha);
-      const kind = detectMessageKind(nodeInfo.message);
+    const nodeInfo = await this._persistence.getNodeInfo(sha);
+    const kind = detectMessageKind(nodeInfo.message);
 
-      if (kind !== 'patch') {
-        return null;
-      }
-
-      const patchMeta = decodePatchMessage(nodeInfo.message);
-      const patchBuffer = await this._persistence.readBlob(patchMeta.patchOid);
-      return decode(patchBuffer);
-    } catch {
-      return null;
+    if (kind !== 'patch') {
+      throw new Error(`Commit ${sha} is not a patch`);
     }
+
+    const patchMeta = decodePatchMessage(nodeInfo.message);
+    const patchBuffer = await this._persistence.readBlob(patchMeta.patchOid);
+    return decode(patchBuffer);
   }
 
   /**
@@ -3071,6 +3068,7 @@ export default class WarpGraph {
    *
    * @param {string[]} shas - Array of patch commit SHAs
    * @returns {Promise<Array<{patch: Object, sha: string}>>} Array of patch entries
+   * @throws {Error} If any SHA is not a patch or loading fails
    * @private
    */
   async _loadPatchesBySha(shas) {
@@ -3078,9 +3076,7 @@ export default class WarpGraph {
 
     for (const sha of shas) {
       const patch = await this._loadPatchBySha(sha);
-      if (patch) {
-        entries.push({ patch, sha });
-      }
+      entries.push({ patch, sha });
     }
 
     return entries;
