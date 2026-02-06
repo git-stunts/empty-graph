@@ -315,13 +315,14 @@ class ProvenanceIndex {
   }
 
   /**
-   * Returns an iterator over [entityId, patchShas[]] pairs.
+   * Returns an iterator over [entityId, patchShas[]] pairs in deterministic order.
+   * Uses #sortedEntries() to ensure consistent ordering across iterations.
    *
    * @returns {Iterator<[string, string[]]>} Iterator over index entries
    */
   *[Symbol.iterator]() {
-    for (const [entityId, shas] of this.#index) {
-      yield [entityId, [...shas].sort()];
+    for (const entry of this.#sortedEntries()) {
+      yield entry;
     }
   }
 }

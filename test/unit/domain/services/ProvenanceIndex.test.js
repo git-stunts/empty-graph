@@ -346,6 +346,25 @@ describe('ProvenanceIndex', () => {
       const aEntry = entries.find(e => e[0] === 'a');
       expect(aEntry[1]).toEqual(['aaa', 'zzz']);
     });
+
+    it('yields entities in deterministic sorted order', () => {
+      const index = new ProvenanceIndex();
+      // Add in non-alphabetical order
+      index.addPatch('sha1', ['z', 'a', 'm'], []);
+
+      const entityIds = [...index].map(([entityId]) => entityId);
+      expect(entityIds).toEqual(['a', 'm', 'z']);
+    });
+
+    it('produces same iteration order as toJSON entries', () => {
+      const index = new ProvenanceIndex();
+      index.addPatch('sha1', ['c', 'a', 'b'], []);
+
+      const iteratedIds = [...index].map(([id]) => id);
+      const jsonIds = index.toJSON().entries.map(([id]) => id);
+
+      expect(iteratedIds).toEqual(jsonIds);
+    });
   });
 
   describe('complex scenarios', () => {
