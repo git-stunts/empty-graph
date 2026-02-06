@@ -115,6 +115,7 @@ export function createMockPersistence() {
     configGet: vi.fn().mockResolvedValue(null),
     configSet: vi.fn().mockResolvedValue(undefined),
     nodeExists: vi.fn().mockResolvedValue(true),
+    isAncestor: vi.fn().mockResolvedValue(true),
   };
 }
 
@@ -253,6 +254,71 @@ export function createMockPatchWithIO(
   if (writes && writes.length > 0) {
     patch.writes = writes;
   }
+  const patchBuffer = encode(patch);
+  const message = encodePatchMessage({
+    graph: graphName,
+    writer: writerId,
+    lamport,
+    patchOid,
+    schema: 2,
+  });
+
+  return {
+    sha,
+    patchOid,
+    patchBuffer,
+    message,
+    patch,
+    nodeInfo: {
+      sha,
+      message,
+      author: 'Test <test@example.com>',
+      date: new Date().toISOString(),
+      parents: parentSha ? [parentSha] : [],
+    },
+  };
+}
+
+/**
+ * Creates a mock V2 patch with explicit OIDs (no generator required).
+ * Simpler version of createMockPatchWithIO for tests that manage OIDs explicitly.
+ *
+ * @param {Object} options - Patch options
+ * @param {string} options.sha - Commit SHA
+ * @param {string} options.patchOid - Patch blob OID
+ * @param {string} options.graphName - Graph name
+ * @param {string} options.writerId - Writer ID
+ * @param {number} options.lamport - Lamport timestamp
+ * @param {Array} [options.ops=[]] - Patch operations
+ * @param {string|null} [options.parentSha=null] - Parent commit SHA
+ * @returns {Object} Mock patch with sha, patchOid, patchBuffer, message, patch, nodeInfo
+ *
+ * @example
+ * const patch = createMockPatch({
+ *   sha: '1111111111111111111111111111111111111111',
+ *   patchOid: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+ *   graphName: 'test-graph',
+ *   writerId: 'alice',
+ *   lamport: 1,
+ * });
+ */
+export function createMockPatch({
+  sha,
+  patchOid,
+  graphName,
+  writerId,
+  lamport,
+  ops = [],
+  parentSha = null,
+}) {
+  const context = { [writerId]: lamport };
+  const patch = {
+    schema: 2,
+    writer: writerId,
+    lamport,
+    context,
+    ops,
+  };
   const patchBuffer = encode(patch);
   const message = encodePatchMessage({
     graph: graphName,

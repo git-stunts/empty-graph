@@ -1,33 +1,10 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import WarpGraph from '../../../src/domain/WarpGraph.js';
 import ForkError from '../../../src/domain/errors/ForkError.js';
-import { encode } from '../../../src/infrastructure/codecs/CborCodec.js';
-import { encodePatchMessage } from '../../../src/domain/services/WarpMessageCodec.js';
-
-/**
- * Creates a mock persistence adapter for testing.
- * @returns {Object} Mock persistence adapter
- */
-function createMockPersistence() {
-  return {
-    readRef: vi.fn(),
-    showNode: vi.fn(),
-    writeBlob: vi.fn(),
-    writeTree: vi.fn(),
-    readBlob: vi.fn(),
-    readTreeOids: vi.fn(),
-    commitNode: vi.fn(),
-    commitNodeWithTree: vi.fn(),
-    updateRef: vi.fn(),
-    listRefs: vi.fn().mockResolvedValue([]),
-    getNodeInfo: vi.fn(),
-    ping: vi.fn().mockResolvedValue({ ok: true, latencyMs: 1 }),
-    configGet: vi.fn().mockResolvedValue(null),
-    configSet: vi.fn().mockResolvedValue(undefined),
-    nodeExists: vi.fn().mockResolvedValue(true),
-    isAncestor: vi.fn().mockResolvedValue(true),
-  };
-}
+import {
+  createMockPersistence,
+  createMockPatch,
+} from '../../helpers/warpGraphTestUtils.js';
 
 // Valid 40-char hex SHAs for testing
 const SHA1 = '1111111111111111111111111111111111111111';
@@ -36,42 +13,6 @@ const SHA3 = '3333333333333333333333333333333333333333';
 const POID1 = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 const POID2 = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
 const POID3 = 'cccccccccccccccccccccccccccccccccccccccc';
-
-/**
- * Creates a mock patch for testing.
- */
-function createMockPatch({ sha, writerId, lamport, patchOid, parentSha = null }) {
-  const patch = {
-    schema: 2,
-    writer: writerId,
-    lamport,
-    context: { [writerId]: lamport },
-    ops: [],
-  };
-  const patchBuffer = encode(patch);
-  const message = encodePatchMessage({
-    graph: 'test-graph',
-    writer: writerId,
-    lamport,
-    patchOid,
-    schema: 2,
-  });
-
-  return {
-    sha,
-    patchOid,
-    patchBuffer,
-    message,
-    parentSha,
-    nodeInfo: {
-      sha,
-      message,
-      author: 'Test <test@example.com>',
-      date: new Date().toISOString(),
-      parents: parentSha ? [parentSha] : [],
-    },
-  };
-}
 
 describe('WarpGraph.fork', () => {
   let persistence;
@@ -153,8 +94,8 @@ describe('WarpGraph.fork', () => {
     });
 
     it('throws E_FORK_PATCH_NOT_IN_CHAIN when patch is not in writer chain', async () => {
-      const patch1 = createMockPatch({ sha: SHA1, writerId: 'alice', lamport: 1, patchOid: POID1 });
-      const patch2 = createMockPatch({ sha: SHA2, writerId: 'alice', lamport: 2, patchOid: POID2, parentSha: SHA1 });
+      const patch1 = createMockPatch({ graphName: 'test-graph', sha: SHA1, writerId: 'alice', lamport: 1, patchOid: POID1 });
+      const patch2 = createMockPatch({ graphName: 'test-graph', sha: SHA2, writerId: 'alice', lamport: 2, patchOid: POID2, parentSha: SHA1 });
 
       persistence.listRefs.mockResolvedValue(['refs/warp/test-graph/writers/alice']);
       persistence.nodeExists.mockResolvedValue(true);
@@ -187,7 +128,7 @@ describe('WarpGraph.fork', () => {
 
   describe('fork name validation', () => {
     it('throws E_FORK_NAME_INVALID for invalid fork name', async () => {
-      const patch = createMockPatch({ sha: SHA1, writerId: 'alice', lamport: 1, patchOid: POID1 });
+      const patch = createMockPatch({ graphName: 'test-graph', sha: SHA1, writerId: 'alice', lamport: 1, patchOid: POID1 });
 
       persistence.listRefs.mockImplementation(async (prefix) => {
         if (prefix.includes('test-graph')) {
@@ -205,7 +146,7 @@ describe('WarpGraph.fork', () => {
     });
 
     it('throws E_FORK_ALREADY_EXISTS when fork graph already has refs', async () => {
-      const patch = createMockPatch({ sha: SHA1, writerId: 'alice', lamport: 1, patchOid: POID1 });
+      const patch = createMockPatch({ graphName: 'test-graph', sha: SHA1, writerId: 'alice', lamport: 1, patchOid: POID1 });
 
       persistence.listRefs.mockImplementation(async (prefix) => {
         if (prefix.includes('test-graph/')) {
@@ -231,7 +172,7 @@ describe('WarpGraph.fork', () => {
 
   describe('successful fork', () => {
     it('creates a fork with auto-generated name and writer ID', async () => {
-      const patch = createMockPatch({ sha: SHA1, writerId: 'alice', lamport: 1, patchOid: POID1 });
+      const patch = createMockPatch({ graphName: 'test-graph', sha: SHA1, writerId: 'alice', lamport: 1, patchOid: POID1 });
 
       persistence.listRefs.mockImplementation(async (prefix) => {
         if (prefix === 'refs/warp/test-graph/writers/') {
@@ -262,7 +203,7 @@ describe('WarpGraph.fork', () => {
     });
 
     it('creates a fork with custom name and writer ID', async () => {
-      const patch = createMockPatch({ sha: SHA1, writerId: 'alice', lamport: 1, patchOid: POID1 });
+      const patch = createMockPatch({ graphName: 'test-graph', sha: SHA1, writerId: 'alice', lamport: 1, patchOid: POID1 });
 
       persistence.listRefs.mockImplementation(async (prefix) => {
         if (prefix === 'refs/warp/test-graph/writers/') {
@@ -297,7 +238,7 @@ describe('WarpGraph.fork', () => {
     });
 
     it('fork shares the same persistence adapter', async () => {
-      const patch = createMockPatch({ sha: SHA1, writerId: 'alice', lamport: 1, patchOid: POID1 });
+      const patch = createMockPatch({ graphName: 'test-graph', sha: SHA1, writerId: 'alice', lamport: 1, patchOid: POID1 });
 
       persistence.listRefs.mockImplementation(async (prefix) => {
         if (prefix === 'refs/warp/test-graph/writers/') {
@@ -323,7 +264,7 @@ describe('WarpGraph.fork', () => {
 
   describe('fork isolation', () => {
     it('fork gets independent graph name from original', async () => {
-      const patch = createMockPatch({ sha: SHA1, writerId: 'alice', lamport: 1, patchOid: POID1 });
+      const patch = createMockPatch({ graphName: 'test-graph', sha: SHA1, writerId: 'alice', lamport: 1, patchOid: POID1 });
 
       persistence.listRefs.mockImplementation(async (prefix) => {
         if (prefix === 'refs/warp/test-graph/writers/') {
@@ -353,7 +294,7 @@ describe('WarpGraph.fork', () => {
     });
 
     it('validates fork writer ID if explicitly provided', async () => {
-      const patch = createMockPatch({ sha: SHA1, writerId: 'alice', lamport: 1, patchOid: POID1 });
+      const patch = createMockPatch({ graphName: 'test-graph', sha: SHA1, writerId: 'alice', lamport: 1, patchOid: POID1 });
 
       persistence.listRefs.mockImplementation(async (prefix) => {
         if (prefix === 'refs/warp/test-graph/writers/') {
@@ -384,8 +325,8 @@ describe('WarpGraph.fork', () => {
 
   describe('fork at different points in chain', () => {
     it('can fork at the tip of a writer chain', async () => {
-      const patch1 = createMockPatch({ sha: SHA1, writerId: 'alice', lamport: 1, patchOid: POID1 });
-      const patch2 = createMockPatch({ sha: SHA2, writerId: 'alice', lamport: 2, patchOid: POID2, parentSha: SHA1 });
+      const patch1 = createMockPatch({ graphName: 'test-graph', sha: SHA1, writerId: 'alice', lamport: 1, patchOid: POID1 });
+      const patch2 = createMockPatch({ graphName: 'test-graph', sha: SHA2, writerId: 'alice', lamport: 2, patchOid: POID2, parentSha: SHA1 });
 
       persistence.listRefs.mockImplementation(async (prefix) => {
         if (prefix === 'refs/warp/test-graph/writers/') {
@@ -416,9 +357,9 @@ describe('WarpGraph.fork', () => {
     });
 
     it('can fork at an earlier point in the chain', async () => {
-      const patch1 = createMockPatch({ sha: SHA1, writerId: 'alice', lamport: 1, patchOid: POID1 });
-      const patch2 = createMockPatch({ sha: SHA2, writerId: 'alice', lamport: 2, patchOid: POID2, parentSha: SHA1 });
-      const patch3 = createMockPatch({ sha: SHA3, writerId: 'alice', lamport: 3, patchOid: POID3, parentSha: SHA2 });
+      const patch1 = createMockPatch({ graphName: 'test-graph', sha: SHA1, writerId: 'alice', lamport: 1, patchOid: POID1 });
+      const patch2 = createMockPatch({ graphName: 'test-graph', sha: SHA2, writerId: 'alice', lamport: 2, patchOid: POID2, parentSha: SHA1 });
+      const patch3 = createMockPatch({ graphName: 'test-graph', sha: SHA3, writerId: 'alice', lamport: 3, patchOid: POID3, parentSha: SHA2 });
 
       persistence.listRefs.mockImplementation(async (prefix) => {
         if (prefix === 'refs/warp/test-graph/writers/') {
