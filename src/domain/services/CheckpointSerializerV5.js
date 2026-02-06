@@ -105,8 +105,8 @@ export function deserializeFullStateV5(buffer) {
   }
 
   return {
-    nodeAlive: orsetDeserialize(obj.nodeAlive),
-    edgeAlive: orsetDeserialize(obj.edgeAlive),
+    nodeAlive: orsetDeserialize(obj.nodeAlive || {}),
+    edgeAlive: orsetDeserialize(obj.edgeAlive || {}),
     prop: deserializeProps(obj.prop),
     observedFrontier: vvDeserialize(obj.observedFrontier || {}),
     edgeBirthEvent: deserializeEdgeBirthEvent(obj),

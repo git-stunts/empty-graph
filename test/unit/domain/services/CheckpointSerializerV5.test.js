@@ -6,6 +6,7 @@ import {
   serializeAppliedVV,
   deserializeAppliedVV,
 } from '../../../../src/domain/services/CheckpointSerializerV5.js';
+import { encode } from '../../../../src/infrastructure/codecs/CborCodec.js';
 import {
   createEmptyStateV5,
   encodeEdgeKey,
@@ -70,6 +71,17 @@ describe('CheckpointSerializerV5', () => {
 
     it('returns empty state when buffer is undefined', () => {
       const restored = deserializeFullStateV5(undefined);
+
+      expect(restored.nodeAlive.entries.size).toBe(0);
+      expect(restored.edgeAlive.entries.size).toBe(0);
+      expect(restored.prop.size).toBe(0);
+      expect(restored.observedFrontier.size).toBe(0);
+    });
+
+    it('handles buffer with missing nodeAlive and edgeAlive fields', () => {
+      // Craft a CBOR buffer where nodeAlive and edgeAlive are absent
+      const buffer = encode({ version: 'full-v5', prop: [], observedFrontier: {} });
+      const restored = deserializeFullStateV5(buffer);
 
       expect(restored.nodeAlive.entries.size).toBe(0);
       expect(restored.edgeAlive.entries.size).toBe(0);
