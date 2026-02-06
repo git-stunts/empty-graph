@@ -1,5 +1,5 @@
 /**
- * Custom error classes for bitmap index operations.
+ * Custom error classes for domain operations.
  *
  * @module domain/errors
  */
