@@ -447,12 +447,12 @@ describe('GitGraphAdapter', () => {
         .rejects.toThrow(/Config key too long/);
     });
 
-    it('returns null for empty config value', async () => {
+    it('preserves empty config value', async () => {
       mockPlumbing.execute.mockResolvedValue('');
 
       const result = await adapter.configGet('some.key');
 
-      expect(result).toBeNull();
+      expect(result).toBe('');
     });
 
     it('accepts valid config key formats', async () => {

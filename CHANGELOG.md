@@ -5,6 +5,68 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.7.1] — Documentation & Hardening
+
+### Documentation
+
+- **Comprehensive JSDoc pass**: Added or enhanced JSDoc documentation across the entire codebase.
+  - **WarpGraph.js**: Added JSDoc to 3 helper functions, added `@throws` to ~15 async methods, added `@deprecated` to `createWriter()`, improved return types, enhanced `query()` with examples.
+  - **JoinReducer.js**: Documented 19 functions including `applyOpV2`, outcome helpers, `join`, `joinStates`, `reduceV5`, `cloneStateV5`.
+  - **PatchBuilderV2.js**: Enhanced all public methods with `@throws`, examples, and fluent return type documentation.
+  - **QueryBuilder.js**: Added 17 helper function docs, 8 class method docs, new type definitions.
+  - **LogicalTraversal.js**: Documented helper functions and standardized traversal method documentation.
+  - **CRDT primitives**: Added module-level documentation explaining semilattice properties, add-wins semantics, GC safety invariants, EventId comparison logic.
+  - **Services**: Documented `StreamingBitmapIndexBuilder`, `CommitDagTraversalService`, `IndexRebuildService`, `SyncProtocol` with comprehensive `@throws` and parameter docs.
+  - **Infrastructure**: `GitGraphAdapter` module-level docs, retry strategy; `CborCodec` canonical encoding docs.
+  - **Utilities & Errors**: `roaring.js`, `TickReceipt.js`, `QueryError`, `SyncError` with error code tables and examples.
+
+### Fixed
+
+- **StreamingBitmapIndexBuilder checksum compatibility**: Use `canonicalStringify` for deterministic checksums; bump `SHARD_VERSION` to 2 for reader compatibility; cache `RoaringBitmap32` constructor for performance.
+- **GitGraphAdapter robustness**: Fail fast when `plumbing` is missing; include `stderr` in transient error detection; preserve empty-string config values; harden exit-code detection in `isAncestor` and `configGet`.
+- **JoinReducer validation**: Enforce exactly 4 segments in `decodeEdgePropKey` (no silent truncation on malformed keys).
+- **StateDiff edge visibility**: Filter edges by endpoint visibility — edges with tombstoned endpoints are now treated as invisible. Use precomputed node sets for O(1) lookups.
+- **WarpGraph watch polling**: Add `pollInFlight` guard to prevent overlapping async poll cycles causing state mismatches.
+- **WarpGraph subscriber notifications**: Skip notifying non-replay subscribers when diff is empty.
+- **CborCodec**: Validate Map keys are strings; fix RFC 7049 doc to clarify we use JS lexicographic sort, not canonical CBOR.
+- **SyncProtocol**: Use typed error code `E_SYNC_DIVERGENCE` for divergence detection instead of fragile string matching.
+- **IndexRebuildService**: Enforce `rebuildRef` requirement when `autoRebuild` is true.
+- **roaring.js**: Use Symbol sentinel to distinguish "not checked" from "indeterminate" availability.
+
+### Refactoring
+
+- **Centralized `canonicalStringify`**: New `src/domain/utils/canonicalStringify.js` shared by `BitmapIndexBuilder`, `BitmapIndexReader`, and `StreamingBitmapIndexBuilder` to prevent checksum algorithm drift.
+- **Shared `SHARD_VERSION`**: Extracted to `src/domain/utils/shardVersion.js` to prevent version drift between `BitmapIndexBuilder` and `StreamingBitmapIndexBuilder`.
+- **GitGraphAdapter `getExitCode`**: Extracted standalone helper function for consistent exit code extraction across `refExists`, `readRef`, `nodeExists`, and `_isConfigKeyNotFound`.
+- **WarpGraph `watch()` pattern matching**: Pre-compile regex pattern once instead of on every `matchesPattern()` call for improved performance.
+- **`canonicalStringify` JSON semantics**: Updated to match `JSON.stringify` behavior — top-level `undefined` returns `"null"`, array elements that are `undefined`/`function`/`symbol` become `"null"`, object properties with such values are omitted.
+
+### Types
+
+- **index.d.ts**: Added `LoadOptions` interface for `IndexRebuildService.load()` with `strict`, `currentFrontier`, `autoRebuild`, and `rebuildRef` options.
+- **index.d.ts**: Added `configGet(key: string): Promise<string | null>` and `configSet(key: string, value: string): Promise<void>` to `GitGraphAdapter` class.
+
+### Tests
+
+- Bug fixes verified by existing test suite (2,094 tests pass).
+- Additional coverage for edge visibility filtering, CborCodec validation, and watch polling guards.
+
+## [7.7.0] — PULSE
+
+### Added
+
+#### PULSE — Subscriptions & Reactivity (v7.7.0)
+- **State diff engine** (`PL/DIFF/1`): New `diffStates(before, after)` function computes deterministic diff between two `WarpStateV5` materialized states. Returns `{ nodes: { added, removed }, edges: { added, removed }, props: { set, removed } }`. Handles null `before` (initial state). O(N) single-pass comparison. Deterministic output ordering (sorted keys/IDs). Used by subscription system to notify handlers of graph changes. Includes `isEmptyDiff()` and `createEmptyDiff()` utilities.
+- **Subscription API** (`PL/SUB/1`): New `graph.subscribe({ onChange, onError? })` returns `{ unsubscribe() }`. After `materialize()`, if state changed since last materialize, computes diff and calls `onChange(diff)` for all subscribers. Errors in handlers are isolated — caught and forwarded to `onError` if provided. Multiple subscribers supported. Unsubscribe stops future notifications.
+- **Optional initial replay** (`PL/SUB/2`): New `replay` option for `graph.subscribe({ onChange, replay: true })`. When set, immediately fires `onChange` with a diff from empty state to current state. If cached state is not yet available (no prior `materialize()`), replay is deferred until the first `materialize()` call. Enables subscribers to bootstrap with current graph state without missing data.
+- **Pattern-based watch** (`PL/WATCH/1`): New `graph.watch(pattern, { onChange, onError? })` returns `{ unsubscribe() }`. Like `subscribe()` but filters changes to only those matching the glob pattern. Filters apply to node IDs in `nodes.added`/`nodes.removed`, edge endpoints (`from`/`to`), and property `nodeId`. Uses same glob syntax as `query().match()` (e.g., `'user:*'`, `'order:123'`, `'*'`). Handler not called if all changes are filtered out. Reuses subscription infrastructure.
+- **Polling integration** (`PL/WATCH/2`): New `poll` option for `graph.watch(pattern, { onChange, poll: 5000 })`. When set, periodically calls `hasFrontierChanged()` and auto-materializes if the frontier has changed (e.g., remote writes detected). Minimum poll interval is 1000ms. The interval is automatically cleaned up on `unsubscribe()`. Errors during polling are forwarded to `onError` if provided.
+
+### Tests
+- Added `test/unit/domain/services/StateDiff.test.js` (27 tests) — node/edge/prop diffs, null before, identical states, determinism
+- Added `test/unit/domain/WarpGraph.subscribe.test.js` (28 tests) — subscribe/unsubscribe, onChange after materialize, error isolation, multiple subscribers, replay option
+- Added `test/unit/domain/WarpGraph.watch.test.js` (41 tests) — pattern filtering for nodes/edges/props, glob patterns, unsubscribe, error handling, polling integration with frontier change detection
+
 ## [7.6.0] — LIGHTHOUSE
 
 ### Added

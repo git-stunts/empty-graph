@@ -1,32 +1,11 @@
 import { createHash } from 'crypto';
 import { getRoaringBitmap32, getNativeRoaringAvailable } from '../utils/roaring.js';
+import { canonicalStringify } from '../utils/canonicalStringify.js';
 import { encode as cborEncode } from '../../infrastructure/codecs/CborCodec.js';
+import { SHARD_VERSION } from '../utils/shardVersion.js';
 
-/**
- * Shard format version for forward compatibility.
- * Increment when changing the shard structure.
- * @const {number}
- */
-export const SHARD_VERSION = 2;
-
-/**
- * Produces a canonical JSON string with deterministic key ordering.
- * Recursively sorts object keys alphabetically to ensure consistent
- * output across different JavaScript engines.
- *
- * @param {*} obj - The value to stringify
- * @returns {string} Canonical JSON string
- */
-const canonicalStringify = (obj) => {
-  if (obj === null || typeof obj !== 'object') {
-    return JSON.stringify(obj);
-  }
-  if (Array.isArray(obj)) {
-    return `[${obj.map(canonicalStringify).join(',')}]`;
-  }
-  const keys = Object.keys(obj).sort();
-  return `{${keys.map(k => `${JSON.stringify(k)}:${canonicalStringify(obj[k])}`).join(',')}}`;
-};
+// Re-export for backwards compatibility
+export { SHARD_VERSION };
 
 /**
  * Computes a SHA-256 checksum of the given data.

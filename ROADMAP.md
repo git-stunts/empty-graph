@@ -1,8 +1,8 @@
 # Roadmap
 
 > Execution plan for `@git-stunts/git-warp` from v7.1.0 onward.
-> Current release: v7.0.0. Main branch: v7.6.0 complete (AUTOPILOT through LIGHTHOUSE merged, unreleased).
-> Active milestone: PULSE (v7.7.0).
+> Current release: v7.0.0. Main branch: v7.7.0 complete (AUTOPILOT through PULSE merged, unreleased).
+> Next milestone: HOLOGRAM (v8.0.0).
 
 ## How to Read This Document
 
@@ -193,7 +193,7 @@ Observer-scoped views, translation costs, and temporal queries from Paper IV.
 | 4 | **HANDSHAKE** | v7.4.0 | Multi-Writer Ergonomics | Complete (merged, unreleased) |
 | 5 | **COMPASS** | v7.5.0 | Advanced Query Language | Complete (merged, unreleased) |
 | 6 | **LIGHTHOUSE** | v7.6.0 | Observability | Complete (merged, unreleased) |
-| 7 | **PULSE** | v7.7.0 | Subscriptions & Reactivity | Planned |
+| 7 | **PULSE** | v7.7.0 | Subscriptions & Reactivity | Complete (merged, unreleased) |
 | 8 | **HOLOGRAM** | v8.0.0 | Provenance & Holography | Planned |
 | 9 | **ECHO** | v9.0.0 | Observer Geometry | Speculative |
 
@@ -276,12 +276,12 @@ LIGHTHOUSE       (v7.6.0)  █████████████████�
   ■ LH/STATUS/1         →  LH/CLI/1
   ■ LH/TIMING/1       
 
-PULSE            (v7.7.0)  ░░░░░░░░░░░░░░░░░░░░    0%  (0/5)
-  ◆ PL/DIFF/1           →  PL/SUB/1
-  ○ PL/SUB/1            →  PL/WATCH/1, PL/SUB/2
-  ○ PL/SUB/2          
-  ○ PL/WATCH/1          →  PL/WATCH/2
-  ○ PL/WATCH/2        
+PULSE            (v7.7.0)  ████████████████████  100%  (5/5)
+  ■ PL/DIFF/1           →  PL/SUB/1
+  ■ PL/SUB/1            →  PL/WATCH/1, PL/SUB/2
+  ■ PL/SUB/2          
+  ■ PL/WATCH/1          →  PL/WATCH/2
+  ■ PL/WATCH/2        
 
 HOLOGRAM         (v8.0.0)  ░░░░░░░░░░░░░░░░░░░░    0%  (0/7)
   ○ HG/BTR/1          
@@ -1420,7 +1420,7 @@ Enable developers to react to graph changes without polling.
 
 #### PL/DIFF/1 — Implement deterministic state diff
 
-- **Status:** `OPEN`
+- **Status:** `CLOSED`
 - **User Story:** As the system, I need to compute what changed between two materialized states.
 - **Requirements:**
   - `diffStates(before, after)` returns:
@@ -1459,7 +1459,7 @@ Enable developers to react to graph changes without polling.
 
 #### PL/SUB/1 — Implement subscribe/unsubscribe
 
-- **Status:** `BLOCKED`
+- **Status:** `CLOSED`
 - **User Story:** As a developer, I want to register handlers that fire when the graph changes.
 - **Requirements:**
   - `graph.subscribe({ onChange(diff), onError?(err) })` returns `{ unsubscribe() }`.
@@ -1485,7 +1485,7 @@ Enable developers to react to graph changes without polling.
 
 #### PL/SUB/2 — Optional initial replay
 
-- **Status:** `BLOCKED`
+- **Status:** `CLOSED`
 - **User Story:** As a developer subscribing to an existing graph, I want an initial snapshot so I don't miss current state.
 - **Requirements:**
   - `subscribe({ onChange, replay: true })` immediately fires `onChange` with diff from empty state to current.
@@ -1513,7 +1513,7 @@ Enable developers to react to graph changes without polling.
 
 #### PL/WATCH/1 — Implement pattern-based filtering
 
-- **Status:** `BLOCKED`
+- **Status:** `CLOSED`
 - **User Story:** As a developer, I want to watch only specific nodes for changes.
 - **Requirements:**
   - `graph.watch('user:*', { onChange(diff) })` — only fires for changes matching the glob pattern.
@@ -1536,7 +1536,7 @@ Enable developers to react to graph changes without polling.
 
 #### PL/WATCH/2 — Integrate with frontier change detection
 
-- **Status:** `BLOCKED`
+- **Status:** `CLOSED`
 - **User Story:** As a developer, I want `watch()` to optionally poll for remote changes using frontier detection.
 - **Requirements:**
   - Add `{ poll: number }` option to `watch()` — interval in ms.
