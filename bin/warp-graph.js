@@ -20,6 +20,9 @@ import {
 import { HookInstaller, classifyExistingHook } from '../src/domain/services/HookInstaller.js';
 import { renderInfoView } from '../src/visualization/renderers/ascii/info.js';
 import { renderCheckView } from '../src/visualization/renderers/ascii/check.js';
+import { renderHistoryView } from '../src/visualization/renderers/ascii/history.js';
+import { renderPathView } from '../src/visualization/renderers/ascii/path.js';
+import { renderMaterializeView } from '../src/visualization/renderers/ascii/materialize.js';
 
 const EXIT_CODES = {
   OK: 0,
@@ -756,7 +759,11 @@ function emit(payload, { json, command, view }) {
   }
 
   if (command === 'path') {
-    process.stdout.write(renderPath(payload));
+    if (view) {
+      process.stdout.write(renderPathView(payload));
+    } else {
+      process.stdout.write(renderPath(payload));
+    }
     return;
   }
 
@@ -770,12 +777,20 @@ function emit(payload, { json, command, view }) {
   }
 
   if (command === 'history') {
-    process.stdout.write(renderHistory(payload));
+    if (view) {
+      process.stdout.write(renderHistoryView(payload));
+    } else {
+      process.stdout.write(renderHistory(payload));
+    }
     return;
   }
 
   if (command === 'materialize') {
-    process.stdout.write(renderMaterialize(payload));
+    if (view) {
+      process.stdout.write(renderMaterializeView(payload));
+    } else {
+      process.stdout.write(renderMaterialize(payload));
+    }
     return;
   }
 
@@ -1416,7 +1431,7 @@ async function main() {
     throw usageError(`Unknown command: ${command}`);
   }
 
-  const VIEW_SUPPORTED_COMMANDS = ['info', 'check'];
+  const VIEW_SUPPORTED_COMMANDS = ['info', 'check', 'history', 'path', 'materialize'];
   if (options.view && !VIEW_SUPPORTED_COMMANDS.includes(command)) {
     throw usageError(`--view is not supported for '${command}'. Supported commands: ${VIEW_SUPPORTED_COMMANDS.join(', ')}`);
   }

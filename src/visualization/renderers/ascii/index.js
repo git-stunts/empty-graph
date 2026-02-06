@@ -8,3 +8,6 @@ export { createTable } from './table.js';
 export { progressBar } from './progress.js';
 export { renderInfoView } from './info.js';
 export { renderCheckView } from './check.js';
+export { renderMaterializeView } from './materialize.js';
+export { renderHistoryView } from './history.js';
+export { renderPathView } from './path.js';
