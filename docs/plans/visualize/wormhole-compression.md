@@ -11,7 +11,7 @@ The Wormhole Compression Viewer visualizes the compression and expansion of mult
 ### Feasibility Score: ❌ NOT YET IMPLEMENTED (20%)
 
 **What's Implemented:**
-- **Checkpoints** (`CheckpointService.js`): State snapshots at points in time
+- **Checkpoints** (`CheckpointService.js`): State snapshots at specific points
   - Contains: state.cbor, frontier.cbor, appliedVV.cbor, visible.cbor
   - Enables incremental materialization (load checkpoint, apply patches since)
 - **State hashing**: `computeStateHashV5()` for integrity verification
@@ -26,7 +26,7 @@ The Wormhole Compression Viewer visualizes the compression and expansion of mult
 - **ProvenancePayload**: Foundation class exists but wormhole integration missing
 
 **ROADMAP Status:**
-```
+```text
 HOLOGRAM (v8.0.0) — 0% complete
   ○ HG/PROV/1  [OPEN]     — ProvenancePayload foundation (5 hrs)
   ○ HG/WORM/1  [BLOCKED]  — Wormhole compression (6 hrs) ← blocked on HG/PROV/1
@@ -34,7 +34,7 @@ HOLOGRAM (v8.0.0) — 0% complete
 ```
 
 **Dependency Chain:**
-```
+```text
 Wormhole Visualization
         ↓ requires
     HG/WORM/1 (wormhole compression)
@@ -83,7 +83,7 @@ The viewer shows:
 
 ## ASCII Terminal Version
 
-```
+```text
 ╔══════════════════════════════════════════════════════════════════════════════╗
 ║  WORMHOLE COMPRESSION VIEWER                                                 ║
 ╠══════════════════════════════════════════════════════════════════════════════╣
@@ -171,7 +171,7 @@ The expansion animation proceeds in three frames:
 
 ### Nested Wormholes
 A wormhole's sub-payload can contain wormholes:
-```
+```text
 W_outer = (U₀, [W₁, μ₄, W₂], U₁₀)
          where W₁ = (U₀, [μ₀, μ₁, μ₂], U₃)
                W₂ = (U₅, [μ₅, μ₆, μ₇, μ₈], U₉)

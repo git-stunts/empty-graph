@@ -18,6 +18,7 @@ The Holographic Reconstruction Viewer demonstrates the core theorem from Paper I
 - Incremental materialization from checkpoint + patches
 
 **Key API Mappings:**
+
 | Paper III Concept | Implementation |
 |---|---|
 | Boundary B = (U₀, P) | Checkpoint + patch stream |

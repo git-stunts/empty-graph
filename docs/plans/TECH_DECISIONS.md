@@ -64,15 +64,11 @@ This document records the technology choices for git-warp visualization implemen
 - Can generate both interactive SVG and static exports
 - Server-side rendering possible via jsdom
 
-**Dependencies**:
-```json
-{
-  "d3": "^7.x",
-  "d3-force": "^3.x",
-  "d3-hierarchy": "^3.x",
-  "d3-shape": "^3.x"
-}
-```
+**Dependencies** (see `package.json` for current versions):
+- `d3` — Core visualization library
+- `d3-force` — Force-directed graph layouts
+- `d3-hierarchy` — Tree and hierarchical layouts
+- `d3-shape` — Shapes for edges, paths, areas
 
 **Use Cases**:
 - Force-directed graph layouts (query results, graph explorer)
@@ -91,17 +87,13 @@ This document records the technology choices for git-warp visualization implemen
 
 **Decision**: Use minimal dependencies for terminal rendering.
 
-**Stack**:
-```json
-{
-  "chalk": "^5.x",           // ANSI colors and styles
-  "boxen": "^7.x",           // Box drawing with Unicode
-  "cli-table3": "^0.6.x",    // Table formatting
-  "figures": "^6.x",         // Unicode symbols (✓, ✗, →)
-  "string-width": "^7.x",    // Handle Unicode widths
-  "wrap-ansi": "^9.x"        // Text wrapping with ANSI
-}
-```
+**Stack** (see `package.json` for current versions):
+- `chalk` — ANSI colors and styles
+- `boxen` — Box drawing with Unicode
+- `cli-table3` — Table formatting
+- `figures` — Unicode symbols (checkmarks, arrows, etc.)
+- `string-width` — Handle Unicode character widths
+- `wrap-ansi` — Text wrapping with ANSI escape codes
 
 **Why NOT Ink or Blessed**:
 - Ink: Overkill for our needs, adds React paradigm complexity
@@ -280,27 +272,23 @@ git-warp/
 
 ## 7. Dependencies Summary
 
-**Production**:
-```json
-{
-  "d3": "^7.8.5",
-  "jsdom": "^24.0.0",
-  "open": "^10.0.0",
-  "chalk": "^5.3.0",
-  "boxen": "^7.1.1",
-  "cli-table3": "^0.6.3",
-  "figures": "^6.0.1",
-  "string-width": "^7.1.0",
-  "wrap-ansi": "^9.0.0"
-}
-```
+See `package.json` for authoritative versions. Key dependencies by category:
+
+**Production — Browser rendering**:
+- `d3` — Core visualization library
+- `jsdom` — Server-side DOM for SVG rendering
+- `open` — Open browser from CLI
+
+**Production — Terminal rendering**:
+- `chalk` — ANSI colors and styles
+- `boxen` — Box drawing with Unicode
+- `cli-table3` — Table formatting
+- `figures` — Unicode symbols
+- `string-width` — Handle Unicode character widths
+- `wrap-ansi` — Text wrapping with ANSI escape codes
 
 **Dev**:
-```json
-{
-  "pixelmatch": "^5.3.0"  // For visual regression testing
-}
-```
+- `pixelmatch` — Visual regression testing
 
 ---
 
