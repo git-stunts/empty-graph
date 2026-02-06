@@ -194,7 +194,7 @@ Observer-scoped views, translation costs, and temporal queries from Paper IV.
 | 5 | **COMPASS** | v7.5.0 | Advanced Query Language | Complete (merged, unreleased) |
 | 6 | **LIGHTHOUSE** | v7.6.0 | Observability | Complete (merged, unreleased) |
 | 7 | **PULSE** | v7.7.0 | Subscriptions & Reactivity | Complete (merged, unreleased) |
-| 8 | **HOLOGRAM** | v8.0.0 | Provenance & Holography | Planned |
+| 8 | **HOLOGRAM** | v8.0.0 | Provenance & Holography | Complete (merged, unreleased) |
 | 9 | **ECHO** | v9.0.0 | Observer Geometry | Speculative |
 
 ---
@@ -283,18 +283,18 @@ PULSE            (v7.7.0)  █████████████████�
   ■ PL/WATCH/1          →  PL/WATCH/2
   ■ PL/WATCH/2        
 
-HOLOGRAM         (v8.0.0)  ░░░░░░░░░░░░░░░░░░░░    0%  (0/7)
-  ○ HG/BTR/1          
-  ◆ HG/FORK/1         
-  ◆ HG/IO/1             →  HG/IO/2, HG/SLICE/1, EC/TEMPORAL/1
-  ○ HG/IO/2             →  HG/SLICE/1
-  ◆ HG/PROV/1           →  HG/SLICE/1, HG/WORM/1, HG/BTR/1
-  ○ HG/SLICE/1        
-  ○ HG/WORM/1         
+HOLOGRAM         (v8.0.0)  ████████████████████  100%  (7/7)
+  ■ HG/BTR/1          
+  ■ HG/FORK/1         
+  ■ HG/IO/1             →  HG/IO/2, HG/SLICE/1, EC/TEMPORAL/1
+  ■ HG/IO/2             →  HG/SLICE/1
+  ■ HG/PROV/1           →  HG/SLICE/1, HG/WORM/1, HG/BTR/1
+  ■ HG/SLICE/1        
+  ■ HG/WORM/1         
 
 ECHO             (v9.0.0)  ░░░░░░░░░░░░░░░░░░░░    0%  (0/3)
   ○ EC/COST/1         
-  ○ EC/TEMPORAL/1     
+  ◆ EC/TEMPORAL/1     
   ◆ EC/VIEW/1           →  EC/COST/1
 
 Cross-Milestone Dependencies:
@@ -1572,7 +1572,7 @@ Implements the theory from Papers III–IV. The mathematical foundations for pro
 
 #### HG/IO/1 — Extend PatchV2 with reads/writes fields
 
-- **Status:** `OPEN`
+- **Status:** `CLOSED`
 - **User Story:** As the system, I need each patch to declare which nodes it reads and writes for provenance tracking.
 - **Requirements:**
   - Add optional `reads: string[]` and `writes: string[]` fields to PatchV2.
@@ -1600,7 +1600,7 @@ Implements the theory from Papers III–IV. The mathematical foundations for pro
 
 #### HG/IO/2 — Build nodeId-to-patchSha index
 
-- **Status:** `BLOCKED`
+- **Status:** `CLOSED`
 - **User Story:** As the system, I need to quickly answer "which patches affected node X?" without replaying all patches.
 - **Requirements:**
   - Build index `Map<nodeId, Set<patchSha>>` from I/O declarations.
@@ -1630,7 +1630,7 @@ Implements the theory from Papers III–IV. The mathematical foundations for pro
 
 #### HG/PROV/1 — Implement ProvenancePayload class
 
-- **Status:** `OPEN`
+- **Status:** `CLOSED`
 - **User Story:** As a developer, I want to package a sequence of patches as a transferable provenance payload.
 - **Requirements:**
   - `ProvenancePayload` class with:
@@ -1664,7 +1664,7 @@ Implements the theory from Papers III–IV. The mathematical foundations for pro
 
 #### HG/SLICE/1 — Compute backward causal cone and partial materialize
 
-- **Status:** `BLOCKED`
+- **Status:** `CLOSED`
 - **User Story:** As a developer, I want to materialize only the data relevant to a specific node instead of the full graph.
 - **Requirements:**
   - `graph.materializeSlice(nodeId)` returns `{ state, receipts? }` containing only the causal cone for that node.
@@ -1696,7 +1696,7 @@ Implements the theory from Papers III–IV. The mathematical foundations for pro
 
 #### HG/WORM/1 — Implement wormhole compression
 
-- **Status:** `BLOCKED`
+- **Status:** `CLOSED`
 - **User Story:** As a developer, I want to compress a range of patches into a single wormhole that preserves provenance.
 - **Requirements:**
   - `graph.createWormhole(fromPatchSha, toPatchSha)` → `WormholeEdge`.
@@ -1726,7 +1726,7 @@ Implements the theory from Papers III–IV. The mathematical foundations for pro
 
 #### HG/BTR/1 — Implement BTR packaging format
 
-- **Status:** `BLOCKED`
+- **Status:** `CLOSED`
 - **User Story:** As a developer, I want to package a graph segment as a verifiable artifact for exchange.
 - **Requirements:**
   - BTR binds `(h_in, h_out, U_0, P, t, kappa)`:
@@ -1763,7 +1763,7 @@ Implements the theory from Papers III–IV. The mathematical foundations for pro
 
 #### HG/FORK/1 — Implement graph.fork()
 
-- **Status:** `OPEN`
+- **Status:** `CLOSED`
 - **User Story:** As a developer, I want to fork a graph at a specific point to experiment without affecting the original.
 - **Requirements:**
   - `graph.fork({ from: writerId, at: patchSha })` → new `WarpGraph` instance.
@@ -1864,7 +1864,7 @@ Paper IV defines observers as resource-bounded functors and introduces rulial di
 
 #### EC/TEMPORAL/1 — Implement always/eventually operators
 
-- **Status:** `BLOCKED`
+- **Status:** `OPEN`
 - **User Story:** As a developer, I want to query temporal properties of graph history.
 - **Requirements:**
   - `graph.temporal.always(nodeId, predicate, { since: tick })` — true if predicate held at every tick since `since`.

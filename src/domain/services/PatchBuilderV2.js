@@ -113,6 +113,30 @@ export class PatchBuilderV2 {
 
     /** @type {'reject'|'cascade'|'warn'} */
     this._onDeleteWithData = onDeleteWithData;
+
+    /**
+     * Nodes/edges read by this patch (for provenance tracking).
+     *
+     * Design note: "reads" track observed-dot dependencies — entities whose
+     * state was consulted to build this patch. Remove operations read the
+     * entity to observe its dots (OR-Set semantics). "Writes" track new data
+     * creation (adds). This distinction enables finer-grained provenance
+     * queries like "which patches wrote to X?" vs "which patches depended on X?"
+     *
+     * @type {Set<string>}
+     */
+    this._reads = new Set();
+
+    /**
+     * Nodes/edges written by this patch (for provenance tracking).
+     *
+     * Writes represent new data creation: NodeAdd writes the node, EdgeAdd
+     * writes the edge key, PropSet writes the node. Remove operations are
+     * intentionally tracked only as reads (see _reads comment above).
+     *
+     * @type {Set<string>}
+     */
+    this._writes = new Set();
   }
 
   /**
@@ -139,6 +163,8 @@ export class PatchBuilderV2 {
   addNode(nodeId) {
     const dot = vvIncrement(this._vv, this._writerId);
     this._ops.push(createNodeAddV2(nodeId, dot));
+    // Provenance: NodeAdd writes the node
+    this._writes.add(nodeId);
     return this;
   }
 
@@ -180,6 +206,8 @@ export class PatchBuilderV2 {
         const [from, to, label] = edgeKey.split('\0');
         const edgeDots = [...orsetGetDots(state.edgeAlive, edgeKey)];
         this._ops.push(createEdgeRemoveV2(from, to, label, edgeDots));
+        // Provenance: cascade-generated EdgeRemove reads the edge key (to observe its dots)
+        this._reads.add(edgeKey);
       }
     }
 
@@ -215,6 +243,8 @@ export class PatchBuilderV2 {
 
     const observedDots = state ? [...orsetGetDots(state.nodeAlive, nodeId)] : [];
     this._ops.push(createNodeRemoveV2(nodeId, observedDots));
+    // Provenance: NodeRemove reads the node (to observe its dots)
+    this._reads.add(nodeId);
     return this;
   }
 
@@ -247,7 +277,12 @@ export class PatchBuilderV2 {
   addEdge(from, to, label) {
     const dot = vvIncrement(this._vv, this._writerId);
     this._ops.push(createEdgeAddV2(from, to, label, dot));
-    this._edgesAdded.add(encodeEdgeKey(from, to, label));
+    const edgeKey = encodeEdgeKey(from, to, label);
+    this._edgesAdded.add(edgeKey);
+    // Provenance: EdgeAdd reads both endpoint nodes, writes the edge key
+    this._reads.add(from);
+    this._reads.add(to);
+    this._writes.add(edgeKey);
     return this;
   }
 
@@ -282,6 +317,8 @@ export class PatchBuilderV2 {
     const edgeKey = encodeEdgeKey(from, to, label);
     const observedDots = state ? [...orsetGetDots(state.edgeAlive, edgeKey)] : [];
     this._ops.push(createEdgeRemoveV2(from, to, label, observedDots));
+    // Provenance: EdgeRemove reads the edge key (to observe its dots)
+    this._reads.add(edgeKey);
     return this;
   }
 
@@ -317,6 +354,9 @@ export class PatchBuilderV2 {
   setProperty(nodeId, key, value) {
     // Props don't use dots - they use EventId from patch context
     this._ops.push(createPropSetV2(nodeId, key, value));
+    // Provenance: PropSet reads the node (implicit existence check) and writes the node
+    this._reads.add(nodeId);
+    this._writes.add(nodeId);
     return this;
   }
 
@@ -374,6 +414,9 @@ export class PatchBuilderV2 {
     //   = encodeEdgePropKey(from, to, label, key)
     const edgeNode = `${EDGE_PROP_PREFIX}${from}\0${to}\0${label}`;
     this._ops.push(createPropSetV2(edgeNode, key, value));
+    // Provenance: setEdgeProperty reads the edge (implicit existence check) and writes the edge
+    this._reads.add(ek);
+    this._writes.add(ek);
     return this;
   }
 
@@ -403,6 +446,8 @@ export class PatchBuilderV2 {
       lamport: this._lamport,
       context: this._vv,
       ops: this._ops,
+      reads: [...this._reads].sort(),
+      writes: [...this._writes].sort(),
     });
   }
 
@@ -486,13 +531,16 @@ export class PatchBuilderV2 {
     // For now, we use the calculated lamport for the patch metadata.
     // The dots themselves are independent of patch lamport (they use VV counters).
     const schema = this._ops.some(op => op.type === 'PropSet' && op.node.charCodeAt(0) === 1) ? 3 : 2;
-    const patch = {
+    // Use createPatchV2 for consistent patch construction (DRY with build())
+    const patch = createPatchV2({
       schema,
       writer: this._writerId,
       lamport,
       context: vvSerialize(this._vv),
       ops: this._ops,
-    };
+      reads: [...this._reads].sort(),
+      writes: [...this._writes].sort(),
+    });
 
     // 4. Encode patch as CBOR
     const patchCbor = encode(patch);
@@ -565,5 +613,42 @@ export class PatchBuilderV2 {
    */
   get versionVector() {
     return this._vv;
+  }
+
+  /**
+   * Gets the set of node/edge IDs read by this patch.
+   *
+   * Returns a frozen copy of the reads tracked for provenance. This includes:
+   * - Nodes read via `removeNode` (to observe dots)
+   * - Endpoint nodes read via `addEdge` (implicit existence reference)
+   * - Edge keys read via `removeEdge` (to observe dots)
+   * - Nodes read via `setProperty` (implicit existence reference)
+   * - Edge keys read via `setEdgeProperty` (implicit existence reference)
+   *
+   * Note: Returns a defensive copy to prevent external mutation of internal state.
+   * The returned Set is a copy, so mutations to it do not affect the builder.
+   *
+   * @returns {ReadonlySet<string>} Copy of node IDs and encoded edge keys that were read
+   */
+  get reads() {
+    return new Set(this._reads);
+  }
+
+  /**
+   * Gets the set of node/edge IDs written by this patch.
+   *
+   * Returns a copy of the writes tracked for provenance. This includes:
+   * - Nodes written via `addNode`
+   * - Edge keys written via `addEdge`
+   * - Nodes written via `setProperty`
+   * - Edge keys written via `setEdgeProperty`
+   *
+   * Note: Returns a defensive copy to prevent external mutation of internal state.
+   * The returned Set is a copy, so mutations to it do not affect the builder.
+   *
+   * @returns {ReadonlySet<string>} Copy of node IDs and encoded edge keys that were written
+   */
+  get writes() {
+    return new Set(this._writes);
   }
 }

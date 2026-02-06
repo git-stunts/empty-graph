@@ -18,6 +18,7 @@ import ConsoleLogger, { LogLevel } from './src/infrastructure/adapters/ConsoleLo
 import PerformanceClockAdapter from './src/infrastructure/adapters/PerformanceClockAdapter.js';
 import GlobalClockAdapter from './src/infrastructure/adapters/GlobalClockAdapter.js';
 import {
+  ForkError,
   IndexError,
   QueryError,
   SchemaUnsupportedError,
@@ -28,6 +29,7 @@ import {
   TraversalError,
   OperationAbortedError,
   SyncError,
+  WormholeError,
 } from './src/domain/errors/index.js';
 import { checkAborted, createTimeoutSignal } from './src/domain/utils/cancellation.js';
 
@@ -51,6 +53,27 @@ import {
   OP_TYPES as TICK_RECEIPT_OP_TYPES,
   RESULT_TYPES as TICK_RECEIPT_RESULT_TYPES,
 } from './src/domain/types/TickReceipt.js';
+
+// Provenance payload (HOLOGRAM)
+import ProvenancePayload from './src/domain/services/ProvenancePayload.js';
+
+// Boundary Transition Records (HOLOGRAM)
+import {
+  createBTR,
+  verifyBTR,
+  replayBTR,
+  serializeBTR,
+  deserializeBTR,
+} from './src/domain/services/BoundaryTransitionRecord.js';
+
+// Wormhole compression (HOLOGRAM)
+import {
+  createWormhole,
+  composeWormholes,
+  replayWormhole,
+  serializeWormhole,
+  deserializeWormhole,
+} from './src/domain/services/WormholeService.js';
 
 const TraversalService = CommitDagTraversalService;
 
@@ -79,6 +102,7 @@ export {
   GlobalClockAdapter,
 
   // Error types for integrity failure handling
+  ForkError,
   IndexError,
   QueryError,
   SchemaUnsupportedError,
@@ -89,6 +113,7 @@ export {
   TraversalError,
   OperationAbortedError,
   SyncError,
+  WormholeError,
 
   // Cancellation utilities
   checkAborted,
@@ -116,6 +141,23 @@ export {
   tickReceiptCanonicalJson,
   TICK_RECEIPT_OP_TYPES,
   TICK_RECEIPT_RESULT_TYPES,
+
+  // Provenance payload (HOLOGRAM)
+  ProvenancePayload,
+
+  // Boundary Transition Records (HOLOGRAM)
+  createBTR,
+  verifyBTR,
+  replayBTR,
+  serializeBTR,
+  deserializeBTR,
+
+  // Wormhole compression (HOLOGRAM)
+  createWormhole,
+  composeWormholes,
+  replayWormhole,
+  serializeWormhole,
+  deserializeWormhole,
 };
 
 // WarpGraph is the primary API for V7
