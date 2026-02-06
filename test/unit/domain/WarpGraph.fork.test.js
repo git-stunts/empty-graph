@@ -88,33 +88,29 @@ describe('WarpGraph.fork', () => {
 
   describe('parameter validation', () => {
     it('throws E_FORK_WRITER_NOT_FOUND when from is missing', async () => {
-      await expect(graph.fork({ at: SHA1 })).rejects.toThrow(ForkError);
-      await expect(graph.fork({ at: SHA1 })).rejects.toMatchObject({
-        code: 'E_FORK_WRITER_NOT_FOUND',
-      });
+      const err = await graph.fork({ at: SHA1 }).catch(e => e);
+      expect(err).toBeInstanceOf(ForkError);
+      expect(err.code).toBe('E_FORK_WRITER_NOT_FOUND');
     });
 
     it('throws E_FORK_WRITER_NOT_FOUND when from is not a string', async () => {
-      await expect(graph.fork({ from: 123, at: SHA1 })).rejects.toThrow(ForkError);
-      await expect(graph.fork({ from: 123, at: SHA1 })).rejects.toMatchObject({
-        code: 'E_FORK_WRITER_NOT_FOUND',
-      });
+      const err = await graph.fork({ from: 123, at: SHA1 }).catch(e => e);
+      expect(err).toBeInstanceOf(ForkError);
+      expect(err.code).toBe('E_FORK_WRITER_NOT_FOUND');
     });
 
     it('throws E_FORK_PATCH_NOT_FOUND when at is missing', async () => {
       persistence.listRefs.mockResolvedValue(['refs/warp/test-graph/writers/alice']);
-      await expect(graph.fork({ from: 'alice' })).rejects.toThrow(ForkError);
-      await expect(graph.fork({ from: 'alice' })).rejects.toMatchObject({
-        code: 'E_FORK_PATCH_NOT_FOUND',
-      });
+      const err = await graph.fork({ from: 'alice' }).catch(e => e);
+      expect(err).toBeInstanceOf(ForkError);
+      expect(err.code).toBe('E_FORK_PATCH_NOT_FOUND');
     });
 
     it('throws E_FORK_PATCH_NOT_FOUND when at is not a string', async () => {
       persistence.listRefs.mockResolvedValue(['refs/warp/test-graph/writers/alice']);
-      await expect(graph.fork({ from: 'alice', at: 123 })).rejects.toThrow(ForkError);
-      await expect(graph.fork({ from: 'alice', at: 123 })).rejects.toMatchObject({
-        code: 'E_FORK_PATCH_NOT_FOUND',
-      });
+      const err = await graph.fork({ from: 'alice', at: 123 }).catch(e => e);
+      expect(err).toBeInstanceOf(ForkError);
+      expect(err.code).toBe('E_FORK_PATCH_NOT_FOUND');
     });
   });
 
@@ -122,18 +118,12 @@ describe('WarpGraph.fork', () => {
     it('throws E_FORK_WRITER_NOT_FOUND when writer does not exist', async () => {
       persistence.listRefs.mockResolvedValue([]);
 
-      await expect(
-        graph.fork({ from: 'nonexistent', at: SHA1 })
-      ).rejects.toThrow(ForkError);
-
-      await expect(
-        graph.fork({ from: 'nonexistent', at: SHA1 })
-      ).rejects.toMatchObject({
-        code: 'E_FORK_WRITER_NOT_FOUND',
-        context: expect.objectContaining({
-          writerId: 'nonexistent',
-          graphName: 'test-graph',
-        }),
+      const err = await graph.fork({ from: 'nonexistent', at: SHA1 }).catch(e => e);
+      expect(err).toBeInstanceOf(ForkError);
+      expect(err.code).toBe('E_FORK_WRITER_NOT_FOUND');
+      expect(err.context).toMatchObject({
+        writerId: 'nonexistent',
+        graphName: 'test-graph',
       });
     });
 
@@ -154,17 +144,11 @@ describe('WarpGraph.fork', () => {
       persistence.listRefs.mockResolvedValue(['refs/warp/test-graph/writers/alice']);
       persistence.nodeExists.mockResolvedValue(false);
 
-      await expect(
-        graph.fork({ from: 'alice', at: '4444444444444444444444444444444444444444' })
-      ).rejects.toThrow(ForkError);
-
-      await expect(
-        graph.fork({ from: 'alice', at: '4444444444444444444444444444444444444444' })
-      ).rejects.toMatchObject({
-        code: 'E_FORK_PATCH_NOT_FOUND',
-        context: expect.objectContaining({
-          patchSha: '4444444444444444444444444444444444444444',
-        }),
+      const err = await graph.fork({ from: 'alice', at: '4444444444444444444444444444444444444444' }).catch(e => e);
+      expect(err).toBeInstanceOf(ForkError);
+      expect(err.code).toBe('E_FORK_PATCH_NOT_FOUND');
+      expect(err.context).toMatchObject({
+        patchSha: '4444444444444444444444444444444444444444',
       });
     });
 
@@ -191,18 +175,12 @@ describe('WarpGraph.fork', () => {
         return { parents: [] };
       });
 
-      await expect(
-        graph.fork({ from: 'alice', at: '5555555555555555555555555555555555555555' })
-      ).rejects.toThrow(ForkError);
-
-      await expect(
-        graph.fork({ from: 'alice', at: '5555555555555555555555555555555555555555' })
-      ).rejects.toMatchObject({
-        code: 'E_FORK_PATCH_NOT_IN_CHAIN',
-        context: expect.objectContaining({
-          patchSha: '5555555555555555555555555555555555555555',
-          writerId: 'alice',
-        }),
+      const err = await graph.fork({ from: 'alice', at: '5555555555555555555555555555555555555555' }).catch(e => e);
+      expect(err).toBeInstanceOf(ForkError);
+      expect(err.code).toBe('E_FORK_PATCH_NOT_IN_CHAIN');
+      expect(err.context).toMatchObject({
+        patchSha: '5555555555555555555555555555555555555555',
+        writerId: 'alice',
       });
     });
   });
@@ -221,15 +199,9 @@ describe('WarpGraph.fork', () => {
       persistence.readRef.mockResolvedValue(SHA1);
       persistence.getNodeInfo.mockResolvedValue(patch.nodeInfo);
 
-      await expect(
-        graph.fork({ from: 'alice', at: SHA1, forkName: '../invalid' })
-      ).rejects.toThrow(ForkError);
-
-      await expect(
-        graph.fork({ from: 'alice', at: SHA1, forkName: '../invalid' })
-      ).rejects.toMatchObject({
-        code: 'E_FORK_NAME_INVALID',
-      });
+      const err = await graph.fork({ from: 'alice', at: SHA1, forkName: '../invalid' }).catch(e => e);
+      expect(err).toBeInstanceOf(ForkError);
+      expect(err.code).toBe('E_FORK_NAME_INVALID');
     });
 
     it('throws E_FORK_ALREADY_EXISTS when fork graph already has refs', async () => {
@@ -248,17 +220,11 @@ describe('WarpGraph.fork', () => {
       persistence.readRef.mockResolvedValue(SHA1);
       persistence.getNodeInfo.mockResolvedValue(patch.nodeInfo);
 
-      await expect(
-        graph.fork({ from: 'alice', at: SHA1, forkName: 'existing-fork' })
-      ).rejects.toThrow(ForkError);
-
-      await expect(
-        graph.fork({ from: 'alice', at: SHA1, forkName: 'existing-fork' })
-      ).rejects.toMatchObject({
-        code: 'E_FORK_ALREADY_EXISTS',
-        context: expect.objectContaining({
-          forkName: 'existing-fork',
-        }),
+      const err = await graph.fork({ from: 'alice', at: SHA1, forkName: 'existing-fork' }).catch(e => e);
+      expect(err).toBeInstanceOf(ForkError);
+      expect(err.code).toBe('E_FORK_ALREADY_EXISTS');
+      expect(err.context).toMatchObject({
+        forkName: 'existing-fork',
       });
     });
   });
