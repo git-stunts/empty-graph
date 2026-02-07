@@ -75,17 +75,12 @@ describe('elkLayout', () => {
   });
 });
 
-describe('elkLayout integration (real ELK engine)', () => {
-  // This test uses the real ELK engine — skip if mocked above.
-  // We re-import from a fresh module to bypass the mock.
-  it('runs real ELK layout on a small graph', async () => {
-    // Reset modules to get the real elkjs
+describe('elkLayout PositionedGraph shape contract', () => {
+  it('validates PositionedGraph shape from mock layout', async () => {
+    // ESM module cache means vi.doUnmock cannot bypass the mock above.
+    // A true integration test with real elkjs needs a separate file.
     vi.doUnmock('elkjs/lib/elk.bundled.js');
     const mod = await import('../../../src/visualization/layouts/elkLayout.js');
-
-    // The module is cached from the mock, so we test the mock path here.
-    // A true integration test would need a separate file.
-    // Instead we validate the PositionedGraph shape contract.
     const result = await mod.runLayout({
       id: 'root',
       layoutOptions: { 'elk.algorithm': 'layered' },

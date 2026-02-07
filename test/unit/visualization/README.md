@@ -2,12 +2,14 @@
 
 ## Overview
 
-This directory contains tests for the ASCII visualization renderers that power `git warp info`, `git warp check`, `git warp materialize`, `git warp history`, and `git warp path`.
+This directory contains tests for the visualization renderers that power `git warp info`, `git warp check`, `git warp materialize`, `git warp history`, `git warp path`, and `git warp query`.
 
-There are two categories of tests:
+There are four categories of tests:
 
-- **Snapshot tests** (`ascii-renderers.test.js`) — capture the full rendered output of each renderer and fail when the output changes, ensuring visual regressions are caught in review.
+- **Snapshot tests** (`ascii-renderers.test.js`, `ascii-graph-renderer.test.js`, `svg-renderer.test.js`) — capture the full rendered output of each renderer and fail when the output changes, ensuring visual regressions are caught in review.
 - **Unit tests** (`visualization-utils.test.js`) — standard assertion-based tests for the pure utility functions (truncate, padding, time formatting, progress bars, etc.).
+- **Layout tests** (`elk-adapter.test.js`, `elk-layout.test.js`) — test the ELK graph adapter and layout runner, using mocked elkjs to avoid the 2.5MB load in CI.
+- **Converter tests** (`layout-converters.test.js`) — test the data converters that transform query/path results into the intermediate graph-data format.
 
 ## Running Tests
 

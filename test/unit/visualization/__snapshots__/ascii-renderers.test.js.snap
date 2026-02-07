@@ -171,7 +171,7 @@ exports[`ASCII Renderers > renderHistoryView > renders empty multi-writer timeli
 "
 `;
 
-exports[`ASCII Renderers > renderHistoryView > renders history from raw ops via summarizeOps 1`] = `
+exports[`ASCII Renderers > renderHistoryView > renders history entry with raw ops (no precomputed opSummary) 1`] = `
 "╔═════════════════ PATCH HISTORY ══════════════════╗
 ║                                                  ║
 ║     WRITER: alice                                ║

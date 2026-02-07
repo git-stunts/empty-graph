@@ -5,18 +5,17 @@
  * a layout is actually requested, keeping normal CLI startup fast.
  */
 
-let elkInstance = null;
+let elkPromise = null;
 
 /**
  * Returns (or creates) a singleton ELK instance.
  * @returns {Promise<Object>} ELK instance
  */
-async function getElk() {
-  if (!elkInstance) {
-    const ELK = (await import('elkjs/lib/elk.bundled.js')).default;
-    elkInstance = new ELK();
+function getElk() {
+  if (!elkPromise) {
+    elkPromise = import('elkjs/lib/elk.bundled.js').then((mod) => new mod.default());
   }
-  return elkInstance;
+  return elkPromise;
 }
 
 /**

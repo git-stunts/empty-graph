@@ -775,7 +775,7 @@ describe('ASCII Renderers', () => {
       expect(stripAnsi(renderHistoryView(undefined))).toMatchSnapshot();
     });
 
-    it('renders history from raw ops via summarizeOps', () => {
+    it('summarizeOps aggregates operation counts correctly', () => {
       const ops = [
         { type: 'NodeAdd' },
         { type: 'NodeAdd' },
@@ -794,8 +794,9 @@ describe('ASCII Renderers', () => {
         EdgeTombstone: 0,
         BlobValue: 0,
       });
+    });
 
-      // Also snapshot the rendered output when entry uses raw ops
+    it('renders history entry with raw ops (no precomputed opSummary)', () => {
       const mockData = {
         graph: 'test-graph',
         writer: 'alice',
@@ -805,7 +806,15 @@ describe('ASCII Renderers', () => {
             sha: 'abc1234567890abcdef',
             lamport: 1,
             opCount: 7,
-            ops,
+            ops: [
+              { type: 'NodeAdd' },
+              { type: 'NodeAdd' },
+              { type: 'EdgeAdd' },
+              { type: 'PropSet' },
+              { type: 'PropSet' },
+              { type: 'PropSet' },
+              { type: 'NodeTombstone' },
+            ],
           },
         ],
       };

@@ -35,11 +35,11 @@ const ARROW = {
 // ── Grid helpers ─────────────────────────────────────────────────────────────
 
 function toCol(px) {
-  return Math.round(px / CELL_W);
+  return Math.round(px / CELL_W) + MARGIN;
 }
 
 function toRow(px) {
-  return Math.round(px / CELL_H);
+  return Math.round(px / CELL_H) + MARGIN;
 }
 
 function createGrid(rows, cols) {

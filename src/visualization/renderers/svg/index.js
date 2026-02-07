@@ -98,9 +98,13 @@ function renderEdge(edge) {
   ];
 
   if (edge.label) {
-    const mid = allPoints[Math.floor(allPoints.length / 2)];
+    const midIdx = Math.floor((allPoints.length - 1) / 2);
+    const a = allPoints[midIdx];
+    const b = allPoints[Math.min(midIdx + 1, allPoints.length - 1)];
+    const midX = (a.x + b.x) / 2;
+    const midY = (a.y + b.y) / 2;
     lines.push(
-      `  <text class="edge-label" x="${mid.x}" y="${mid.y - 6}">${escapeXml(edge.label)}</text>`,
+      `  <text class="edge-label" x="${midX}" y="${midY - 6}">${escapeXml(edge.label)}</text>`,
     );
   }
 

@@ -19,7 +19,7 @@ exports[`SVG renderer > snapshot test for full SVG output 1`] = `
 <g transform="translate(40,40)">
 <g class="edge">
   <polyline points="40,40 40,100"/>
-  <text class="edge-label" x="40" y="94">knows</text>
+  <text class="edge-label" x="40" y="64">knows</text>
 </g>
 <g class="node">
   <rect x="0" y="0" width="80" height="40"/>

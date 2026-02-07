@@ -48,7 +48,7 @@ export function pathResultToGraphData(payload) {
     edges.push({
       from: pathArr[i],
       to: pathArr[i + 1],
-      label: edgeLabels[i] ?? undefined,
+      label: edgeLabels[i],
     });
   }
 
