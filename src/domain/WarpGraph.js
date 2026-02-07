@@ -2372,6 +2372,9 @@ export default class WarpGraph {
    * const result = await view.query().match('user:*').run();
    */
   async observer(name, config) {
+    if (!config || typeof config.match !== 'string') {
+      throw new Error('observer config.match must be a string');
+    }
     await this._ensureFreshState();
     return new ObserverView({ name, config, graph: this });
   }
