@@ -3208,7 +3208,7 @@ export default class WarpGraph {
             const writerPatches = await this._loadWriterPatches(writerId);
             allPatches.push(...writerPatches);
           }
-          return allPatches;
+          return this._sortPatchesCausally(allPatches);
         },
       });
     }

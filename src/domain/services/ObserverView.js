@@ -238,9 +238,16 @@ export default class ObserverView {
    */
   async getEdges() {
     const allEdges = await this._graph.getEdges();
-    return allEdges.filter(
-      (e) => matchGlob(this._matchPattern, e.from) && matchGlob(this._matchPattern, e.to)
-    );
+    return allEdges
+      .filter(
+        (e) => matchGlob(this._matchPattern, e.from) && matchGlob(this._matchPattern, e.to)
+      )
+      .map((e) => {
+        const propsMap = new Map(Object.entries(e.props));
+        const filtered = filterProps(propsMap, this._expose, this._redact);
+        const filteredObj = Object.fromEntries(filtered);
+        return { ...e, props: filteredObj };
+      });
   }
 
   // ===========================================================================

@@ -886,7 +886,7 @@ git warp --view check    # Health status visualization
 
 WarpGraph ships a `post-merge` hook that runs after `git merge` or `git pull`. If warp refs changed, it prints:
 
-```
+```text
 [warp] Writer refs changed during merge. Call materialize() to see updates.
 ```
 
@@ -1003,7 +1003,7 @@ The frontier has changed since the last materialization (e.g., after a `git pull
 
 Every operation gets a unique **EventId** for deterministic ordering:
 
-```
+```text
 EventId = (lamport, writerId, patchSha, opIndex)
 ```
 
@@ -1029,7 +1029,7 @@ Each patch carries its version vector as causal context. This allows the reducer
 
 ### Appendix B: Git Ref Layout
 
-```
+```text
 refs/warp/<graphName>/
 ├── writers/
 │   ├── alice          # Alice's patch chain tip
@@ -1158,7 +1158,7 @@ Per-op outcomes:
 
 For `superseded` PropSet operations, the `reason` field shows the winner:
 
-```
+```text
 PropSet user:alice.name: superseded
   reason: LWW: writer bob at lamport 43 wins
 ```
@@ -1320,7 +1320,7 @@ const reader = await service.load(treeOid, {
 
 Indexes use Roaring bitmaps, sharded by SHA prefix for lazy loading:
 
-```
+```text
 index-tree/
   meta_00.json ... meta_ff.json           # SHA → numeric ID mappings
   shards_fwd_00.json ... shards_fwd_ff.json  # Forward edges (parent → children)

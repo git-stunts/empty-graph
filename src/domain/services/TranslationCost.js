@@ -197,6 +197,10 @@ function computePropLoss(state, { nodesA, nodesBSet, configA, configB }) {
  * @returns {{ cost: number, breakdown: { nodeLoss: number, edgeLoss: number, propLoss: number } }}
  */
 export function computeTranslationCost(configA, configB, state) {
+  if (!configA || typeof configA.match !== 'string' ||
+      !configB || typeof configB.match !== 'string') {
+    throw new Error('configA.match and configB.match must be strings');
+  }
   const allNodes = [...orsetElements(state.nodeAlive)];
   const nodesA = allNodes.filter((id) => matchGlob(configA.match, id));
 

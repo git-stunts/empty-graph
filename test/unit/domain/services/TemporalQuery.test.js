@@ -155,7 +155,7 @@ describe('TemporalQuery', () => {
       expect(result).toBe(false);
     });
 
-    it('returns false when node did not exist at since tick', async () => {
+    it('returns true when node appears after since and predicate holds at all visible ticks', async () => {
       // Node is created at lamport 3, but we query since 0
       // Patches before the node exist contribute to state, but node
       // does not exist until lamport 3.
