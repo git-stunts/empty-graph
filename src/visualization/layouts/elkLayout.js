@@ -25,13 +25,14 @@ function getElk() {
  * @returns {Promise<Object>} PositionedGraph
  */
 export async function runLayout(elkGraph) {
+  let result;
   try {
     const elk = await getElk();
-    const result = await elk.layout(elkGraph);
-    return toPositionedGraph(result);
+    result = await elk.layout(elkGraph);
   } catch {
     return fallbackLayout(elkGraph);
   }
+  return toPositionedGraph(result);
 }
 
 /**
