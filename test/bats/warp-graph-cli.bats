@@ -162,7 +162,7 @@ PY
 }
 
 @test "--view with unsupported command produces error" {
-  run git warp --repo "${TEST_REPO}" --graph demo --view query --match "user:*"
+  run git warp --repo "${TEST_REPO}" --graph demo --view install-hooks
   [ "$status" -eq 1 ]
   echo "$output" | grep -qi "view.*not supported\|unsupported.*view"
 }
