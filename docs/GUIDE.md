@@ -936,17 +936,17 @@ git warp check --json # Machine-readable JSON
 
 ### Visual Output (--view)
 
-The `--view` flag enables visual ASCII dashboards for supported commands. Add `--view` before or after the command name to get a formatted terminal UI instead of plain text.
+The `--view` flag enables visual ASCII dashboards for supported commands. Add `--view` before the command name (it is a global option) to get a formatted terminal UI instead of plain text.
 
 **Supported commands:**
 
 | Command | Description |
 |---------|-------------|
-| `info --view` | Graph overview with writer timelines |
-| `check --view` | Health dashboard with progress bars |
-| `history --view` | Patch timeline with operation summaries |
-| `path --view` | Visual path diagram between nodes |
-| `materialize --view` | Progress dashboard with statistics |
+| `--view info` | Graph overview with writer timelines |
+| `--view check` | Health dashboard with progress bars |
+| `--view history` | Patch timeline with operation summaries |
+| `--view path` | Visual path diagram between nodes |
+| `--view materialize` | Progress dashboard with statistics |
 
 **View modes:**
 - `--view` or `--view=ascii` — ASCII art (default)
@@ -955,6 +955,7 @@ The `--view` flag enables visual ASCII dashboards for supported commands. Add `-
 - `--view=html:FILE` — saves as HTML (planned)
 
 **Notes:**
+- `--view` must appear before the subcommand (e.g., `git warp --view info`, not `git warp info --view`)
 - `--view` and `--json` are mutually exclusive
 - All visualizations are color-coded and terminal-width aware
 
@@ -971,7 +972,7 @@ git warp --view info --graph my-graph
 
 Example output:
 
-```
+```text
 ╔════════════════════ WARP GRAPHS IN REPOSITORY ═════════════════════╗
 ║                                                                    ║
 ║   ┌──────────────────────────────────────────────────────────┐     ║
@@ -998,7 +999,7 @@ git warp --view check --graph my-graph
 
 Example output:
 
-```
+```text
 ╔═══════════════════════ HEALTH ═══════════════════════╗
 ║                                                      ║
 ║     GRAPH HEALTH: my-graph                           ║
@@ -1026,18 +1027,17 @@ Health indicators:
 
 #### history --view
 
-Renders a visual timeline of patches. Use `--all-writers` to see a merged timeline across all writers sorted by Lamport timestamp.
+Renders a visual timeline of patches for a single writer.
 
 ```bash
 git warp --view history                    # Current writer's patches
 git warp --view history --writer alice     # Specific writer
-git warp --view history --all-writers      # All writers merged
 git warp --view history --node user:bob    # Filter by node
 ```
 
-Example output (single writer):
+Example output:
 
-```
+```text
 ╔══════════════ PATCH HISTORY ══════════════╗
 ║                                           ║
 ║     WRITER: alice                         ║
@@ -1052,24 +1052,7 @@ Example output (single writer):
 ╚═══════════════════════════════════════════╝
 ```
 
-Example output (multi-writer with `--all-writers`):
-
-```
-╔═════════════════ PATCH HISTORY ═════════════════╗
-║                                                 ║
-║     GRAPH: my-graph                             ║
-║     Writers: 2                                  ║
-║                                                 ║
-║     ┌                                           ║
-║     ├● L1 alice :abc1234 +2node                 ║
-║     ├● L2 bob   :def4567 +1node +1edge ~1prop   ║
-║     ├● L3 alice :abc2234 +1edge                 ║
-║     └● L4 bob   :def5567 ~1prop                 ║
-║                                                 ║
-║     Total: 4 patches across 2 writers           ║
-║                                                 ║
-╚═════════════════════════════════════════════════╝
-```
+> **Planned:** A future `--all-writers` flag will merge timelines across all writers sorted by Lamport timestamp.
 
 Operation indicators:
 - `+Nnode` — nodes added (green)
@@ -1092,7 +1075,7 @@ git warp --view path --from a --to b --dir both   # Bidirectional
 
 Example output:
 
-```
+```text
 ╔═════════════════════ PATH: user:alice ▶ user:bob ═════════════════════╗
 ║                                                                       ║
 ║     Graph:  social-graph                                              ║
@@ -1105,7 +1088,7 @@ Example output:
 
 When edge labels are available:
 
-```
+```text
 ╔══════════════════════ PATH: user:alice ▶ user:bob ══════════════════════╗
 ║                                                                         ║
 ║     Graph:  org-graph                                                   ║
@@ -1118,7 +1101,7 @@ When edge labels are available:
 
 If no path exists:
 
-```
+```text
 ╔═══════════════════════ PATH ═══════════════════════╗
 ║                                                    ║
 ║     No path found                                  ║
@@ -1145,7 +1128,7 @@ git warp --view materialize --graph demo   # Specific graph
 
 Example output:
 
-```
+```text
 ╔═════════════════ MATERIALIZE ══════════════════╗
 ║                                                ║
 ║     📊 my-graph                                ║

@@ -67,13 +67,20 @@ function formatOpSummary(summary, maxWidth = 40) {
     .filter((opType) => summary[opType] > 0)
     .map((opType) => {
       const display = OP_DISPLAY[opType];
-      return display.color(`${display.symbol}${summary[opType]}${display.label}`);
+      return { text: `${display.symbol}${summary[opType]}${display.label}`, color: display.color };
     });
 
   if (parts.length === 0) {
     return colors.muted('(empty)');
   }
-  return truncate(parts.join(' '), maxWidth);
+
+  // Truncate plain text first to avoid breaking ANSI escape sequences
+  const plain = parts.map((p) => p.text).join(' ');
+  const truncated = truncate(plain, maxWidth);
+  if (truncated === plain) {
+    return parts.map((p) => p.color(p.text)).join(' ');
+  }
+  return colors.muted(truncated);
 }
 
 /**
@@ -207,7 +214,7 @@ function mergeWriterEntries(writers) {
       allEntries.push({ ...entry, writerId });
     }
   }
-  allEntries.sort((a, b) => a.lamport - b.lamport);
+  allEntries.sort((a, b) => a.lamport - b.lamport || a.writerId.localeCompare(b.writerId));
   return allEntries;
 }
 
@@ -323,4 +330,6 @@ export function renderHistoryView(payload, options = {}) {
   return `${box}\n`;
 }
 
-export default { renderHistoryView };
+export { summarizeOps };
+
+export default { renderHistoryView, summarizeOps };

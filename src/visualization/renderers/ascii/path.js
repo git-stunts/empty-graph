@@ -17,7 +17,6 @@ const BOX_PADDING = 4;
 const ARROW = {
   line: '\u2500',      // ─
   right: '\u25B6',     // ▶
-  connector: '\u2500', // ─
 };
 
 /**

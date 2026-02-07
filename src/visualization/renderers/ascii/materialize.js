@@ -5,11 +5,11 @@
  * progress indicators, statistics bar charts, and checkpoint info.
  */
 
-import chalk from 'chalk';
 import { createBox } from './box.js';
 import { progressBar } from './progress.js';
 import { colors } from './colors.js';
 import { padRight } from '../../utils/unicode.js';
+import { truncate } from '../../utils/truncate.js';
 
 // Bar chart settings
 const BAR_WIDTH = 20;
@@ -24,13 +24,13 @@ const STAT_LABEL_WIDTH = 12;
  */
 function statBar(value, maxValue, width = BAR_WIDTH) {
   if (maxValue === 0 || value === 0) {
-    return chalk.gray('\u2591'.repeat(width));
+    return colors.muted('\u2591'.repeat(width));
   }
   const percent = Math.min(100, (value / maxValue) * 100);
   const filledCount = Math.round((percent / 100) * width);
   const emptyCount = width - filledCount;
   const bar = '\u2588'.repeat(filledCount) + '\u2591'.repeat(emptyCount);
-  return chalk.cyan(bar);
+  return colors.primary(bar);
 }
 
 /**
@@ -116,9 +116,11 @@ function renderWriterSection(writers) {
   const lines = [`  ${colors.dim('Writers:')}`];
   const writerEntries = Object.entries(writers);
   const maxPatches = Math.max(...writerEntries.map(([, p]) => p), 1);
+  const maxWriterWidth = Math.min(Math.max(...writerEntries.map(([id]) => id.length), 6), 16);
   for (const [writerId, patchCount] of writerEntries) {
     const bar = progressBar(Math.round((patchCount / maxPatches) * 100), 15, { showPercent: false });
-    lines.push(`    ${padRight(writerId, 12)} ${bar} ${patchCount} patches`);
+    const displayId = truncate(writerId, maxWriterWidth);
+    lines.push(`    ${padRight(displayId, maxWriterWidth)} ${bar} ${patchCount} patches`);
   }
   lines.push('');
   return lines;
