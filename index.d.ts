@@ -958,6 +958,86 @@ export function decodeEdgePropKey(encoded: string): { from: string; to: string; 
 export function isEdgePropKey(key: string): boolean;
 
 /**
+ * Configuration for an observer view.
+ */
+export interface ObserverConfig {
+  /** Glob pattern for visible nodes (e.g. 'user:*') */
+  match: string;
+  /** Property keys to include (whitelist). If omitted, all non-redacted properties are visible. */
+  expose?: string[];
+  /** Property keys to exclude (blacklist). Takes precedence over expose. */
+  redact?: string[];
+}
+
+/**
+ * Read-only observer view of a materialized WarpGraph state.
+ *
+ * Provides the same query/traverse API as WarpGraph, but filtered
+ * by observer configuration (match pattern, expose, redact).
+ * Edges are only visible when both endpoints pass the match filter.
+ *
+ * @see Paper IV, Section 3 -- Observers as resource-bounded functors
+ */
+export class ObserverView {
+  /** Observer name */
+  readonly name: string;
+
+  /** Logical graph traversal helpers scoped to this observer */
+  traverse: LogicalTraversal;
+
+  /** Checks if a node exists and is visible to this observer */
+  hasNode(nodeId: string): Promise<boolean>;
+
+  /** Gets all visible nodes that match the observer pattern */
+  getNodes(): Promise<string[]>;
+
+  /** Gets filtered properties for a visible node (null if hidden or missing) */
+  getNodeProps(nodeId: string): Promise<Map<string, unknown> | null>;
+
+  /** Gets all visible edges (both endpoints must match the observer pattern) */
+  getEdges(): Promise<Array<{ from: string; to: string; label: string; props: Record<string, unknown> }>>;
+
+  /** Creates a fluent query builder operating on the filtered view */
+  query(): QueryBuilder;
+}
+
+/**
+ * Breakdown of MDL translation cost components.
+ */
+export interface TranslationCostBreakdown {
+  /** Fraction of A's nodes not visible to B */
+  nodeLoss: number;
+  /** Fraction of A's edges not visible to B */
+  edgeLoss: number;
+  /** Fraction of A's properties not visible to B */
+  propLoss: number;
+}
+
+/**
+ * Result of a directed MDL translation cost computation.
+ */
+export interface TranslationCostResult {
+  /** Weighted cost normalized to [0, 1] */
+  cost: number;
+  /** Per-component breakdown */
+  breakdown: TranslationCostBreakdown;
+}
+
+/**
+ * Computes the directed MDL translation cost from observer A to observer B.
+ *
+ * @param configA - Observer configuration for A
+ * @param configB - Observer configuration for B
+ * @param state - WarpStateV5 materialized state
+ * @see Paper IV, Section 4 -- Directed rulial cost
+ */
+export function computeTranslationCost(
+  configA: ObserverConfig,
+  configB: ObserverConfig,
+  state: WarpStateV5
+): TranslationCostResult;
+
+/**
  * Multi-writer graph database using WARP CRDT protocol.
  *
  * V7 primary API - uses patch-based storage with OR-Set semantics.
@@ -1080,6 +1160,25 @@ export default class WarpGraph {
   query(): QueryBuilder;
 
   /**
+   * Creates a read-only observer view of the current materialized state.
+   *
+   * The observer sees only nodes matching the `match` glob pattern, with
+   * property visibility controlled by `expose` and `redact` lists.
+   * Edges are only visible when both endpoints pass the match filter.
+   */
+  observer(name: string, config: ObserverConfig): Promise<ObserverView>;
+
+  /**
+   * Computes the directed MDL translation cost from observer A to observer B.
+   *
+   * The cost measures how much information is lost when translating from
+   * A's view to B's view. It is asymmetric: cost(A->B) != cost(B->A).
+   *
+   * @see Paper IV, Section 4 -- Directed rulial cost
+   */
+  translationCost(configA: ObserverConfig, configB: ObserverConfig): Promise<TranslationCostResult>;
+
+  /**
    * Materializes the current graph state from all patches.
    */
   materialize(): Promise<unknown>;
@@ -1117,6 +1216,173 @@ export default class WarpGraph {
       error?: Error;
     }) => void;
   }): Promise<{ applied: number; attempts: number }>;
+
+  /**
+   * Creates a fork of this graph at a specific point in a writer's history.
+   *
+   * A fork creates a new WarpGraph instance that shares history up to the
+   * specified patch SHA. Due to Git's content-addressed storage, the shared
+   * history is automatically deduplicated.
+   */
+  fork(options: {
+    /** Writer ID whose chain to fork from */
+    from: string;
+    /** Patch SHA to fork at (must be in the writer's chain) */
+    at: string;
+    /** Name for the forked graph. Defaults to `<graphName>-fork-<timestamp>` */
+    forkName?: string;
+    /** Writer ID for the fork. Defaults to a new canonical ID. */
+    forkWriterId?: string;
+  }): Promise<WarpGraph>;
+
+  /**
+   * Creates a wormhole compressing a range of patches.
+   *
+   * The range is specified by two patch SHAs from the same writer. The `fromSha`
+   * must be an ancestor of `toSha` in the writer's patch chain.
+   */
+  createWormhole(fromSha: string, toSha: string): Promise<WormholeEdge>;
+
+  /**
+   * Returns patch SHAs that affected a given entity (node or edge).
+   *
+   * If autoMaterialize is enabled, automatically materializes if state is dirty.
+   *
+   * @throws {QueryError} If no provenance index exists and autoMaterialize is off
+   */
+  patchesFor(entityId: string): Promise<string[]>;
+
+  /**
+   * Materializes only the backward causal cone for a specific node.
+   *
+   * Uses the provenance index to identify which patches contributed to the
+   * target node's state, then replays only those patches.
+   *
+   * @throws {QueryError} If no provenance index exists (call materialize first)
+   */
+  materializeSlice(nodeId: string, options?: {
+    /** If true, collect tick receipts */
+    receipts?: boolean;
+  }): Promise<{
+    state: WarpStateV5;
+    patchCount: number;
+    receipts?: TickReceipt[];
+  }>;
+
+  /**
+   * The provenance index mapping entities to contributing patches.
+   * Available after materialize() has been called.
+   */
+  readonly provenanceIndex: ProvenanceIndex | null;
+}
+
+/**
+ * Index mapping entities (nodes/edges) to the patches that affected them.
+ *
+ * Used for provenance queries and slice materialization. Implements HG/IO/2
+ * from the AION Foundations Series, enabling quick answers to "which patches
+ * affected node X?" without replaying all patches.
+ */
+export class ProvenanceIndex {
+  constructor(initialIndex?: Map<string, Set<string>>);
+
+  /**
+   * Creates an empty ProvenanceIndex.
+   */
+  static empty(): ProvenanceIndex;
+
+  /**
+   * Adds a patch to the index, recording which entities it read/wrote.
+   * Both reads and writes are indexed because both indicate the patch
+   * "affected" the entity.
+   *
+   * @returns This index for chaining
+   */
+  addPatch(patchSha: string, reads?: string[], writes?: string[]): this;
+
+  /**
+   * Returns patch SHAs that affected a given entity.
+   * The returned array is sorted alphabetically for determinism.
+   */
+  patchesFor(entityId: string): string[];
+
+  /**
+   * Returns whether the index has any entries for a given entity.
+   */
+  has(entityId: string): boolean;
+
+  /**
+   * Number of entities tracked in the index.
+   */
+  readonly size: number;
+
+  /**
+   * Returns all entity IDs in the index, sorted alphabetically.
+   */
+  entities(): string[];
+
+  /**
+   * Clears all entries from the index.
+   *
+   * @returns This index for chaining
+   */
+  clear(): this;
+
+  /**
+   * Merges another index into this one. All entries from the other index
+   * are added to this index.
+   *
+   * @returns This index for chaining
+   */
+  merge(other: ProvenanceIndex): this;
+
+  /**
+   * Creates a deep clone of this index.
+   */
+  clone(): ProvenanceIndex;
+
+  /**
+   * Serializes the index to CBOR format for checkpoint storage.
+   */
+  serialize(): Buffer;
+
+  /**
+   * Deserializes an index from CBOR format.
+   *
+   * @throws Error if the buffer contains an unsupported version
+   */
+  static deserialize(buffer: Buffer): ProvenanceIndex;
+
+  /**
+   * Returns a JSON-serializable representation of this index.
+   */
+  toJSON(): { version: number; entries: Array<[string, string[]]> };
+
+  /**
+   * Creates a ProvenanceIndex from a JSON representation.
+   *
+   * @throws Error if the JSON contains an unsupported version
+   */
+  static fromJSON(json: { version: number; entries: Array<[string, string[]]> }): ProvenanceIndex;
+
+  /**
+   * Iterator over [entityId, patchShas[]] pairs in deterministic order.
+   */
+  [Symbol.iterator](): IterableIterator<[string, string[]]>;
+}
+
+/**
+ * Error thrown when a fork operation fails.
+ */
+export class ForkError extends Error {
+  readonly name: 'ForkError';
+  readonly code: string;
+  readonly context: Record<string, unknown>;
+
+  constructor(message: string, options?: {
+    code?: string;
+    context?: Record<string, unknown>;
+  });
 }
 
 // ============================================================================
@@ -1194,3 +1460,337 @@ export const TICK_RECEIPT_OP_TYPES: readonly TickReceiptOpType[];
  * Valid result values for an operation outcome.
  */
 export const TICK_RECEIPT_RESULT_TYPES: readonly TickReceiptResult[];
+
+/**
+ * A patch entry in a provenance payload.
+ */
+export interface PatchEntry {
+  /** The decoded patch object */
+  patch: {
+    schema: 2 | 3;
+    writer: string;
+    lamport: number;
+    context: Record<string, number> | Map<string, number>;
+    ops: unknown[];
+    /** Node/edge IDs read by this patch (V2 provenance) */
+    reads?: string[];
+    /** Node/edge IDs written by this patch (V2 provenance) */
+    writes?: string[];
+  };
+  /** The Git SHA of the patch commit */
+  sha: string;
+}
+
+/**
+ * WARP V5 materialized state.
+ */
+export interface WarpStateV5 {
+  nodeAlive: unknown;
+  edgeAlive: unknown;
+  prop: Map<string, unknown>;
+  observedFrontier: Map<string, number>;
+  edgeBirthEvent: Map<string, unknown>;
+}
+
+/**
+ * ProvenancePayload - Transferable provenance as a monoid.
+ *
+ * Implements the provenance payload from Paper III (Computational Holography):
+ * P = (mu_0, ..., mu_{n-1}) - an ordered sequence of tick patches.
+ *
+ * The payload monoid (Payload, ., epsilon):
+ * - Composition is concatenation
+ * - Identity is empty sequence
+ *
+ * @see Paper III, Section 4 -- Computational Holography
+ */
+export class ProvenancePayload {
+  /**
+   * Creates a new ProvenancePayload from an ordered sequence of patches.
+   *
+   * @param patches - Ordered sequence of patch entries
+   * @throws {TypeError} If patches is not an array
+   */
+  constructor(patches?: PatchEntry[]);
+
+  /**
+   * Returns the identity element of the payload monoid (empty payload).
+   */
+  static identity(): ProvenancePayload;
+
+  /**
+   * Returns the number of patches in this payload.
+   */
+  readonly length: number;
+
+  /**
+   * Concatenates this payload with another, forming a new payload.
+   *
+   * @param other - The payload to append
+   * @throws {TypeError} If other is not a ProvenancePayload
+   */
+  concat(other: ProvenancePayload): ProvenancePayload;
+
+  /**
+   * Replays the payload to produce a materialized state.
+   *
+   * @param initialState - Optional initial state to replay from
+   */
+  replay(initialState?: WarpStateV5): WarpStateV5;
+
+  /**
+   * Returns the patch entry at the given index.
+   */
+  at(index: number): PatchEntry | undefined;
+
+  /**
+   * Returns a new payload containing a slice of this payload's patches.
+   */
+  slice(start?: number, end?: number): ProvenancePayload;
+
+  /**
+   * Returns an iterator over the patch entries.
+   */
+  [Symbol.iterator](): Iterator<PatchEntry>;
+
+  /**
+   * Returns a JSON-serializable representation of this payload.
+   */
+  toJSON(): PatchEntry[];
+
+  /**
+   * Creates a ProvenancePayload from a JSON-serialized array.
+   */
+  static fromJSON(json: PatchEntry[]): ProvenancePayload;
+}
+
+// ============================================================================
+// Boundary Transition Records (HOLOGRAM)
+// ============================================================================
+
+/**
+ * Boundary Transition Record - Tamper-evident provenance packaging.
+ *
+ * Binds (h_in, h_out, U_0, P, t, kappa) for auditable exchange of graph
+ * segments between parties who don't share full history.
+ *
+ * @see Paper III, Section 4 -- Boundary Transition Records
+ */
+export interface BTR {
+  /** BTR format version */
+  readonly version: number;
+  /** Hash of input state (hex SHA-256) */
+  readonly h_in: string;
+  /** Hash of output state (hex SHA-256) */
+  readonly h_out: string;
+  /** Serialized initial state (CBOR) */
+  readonly U_0: Buffer;
+  /** Serialized provenance payload */
+  readonly P: PatchEntry[];
+  /** ISO 8601 timestamp */
+  readonly t: string;
+  /** Authentication tag (hex HMAC-SHA256) */
+  readonly kappa: string;
+}
+
+/**
+ * Result of BTR verification.
+ */
+export interface BTRVerificationResult {
+  /** Whether the BTR is valid */
+  valid: boolean;
+  /** Reason for failure (if invalid) */
+  reason?: string;
+}
+
+/**
+ * Options for creating a BTR.
+ */
+export interface CreateBTROptions {
+  /** HMAC key for authentication */
+  key: string | Buffer;
+  /** Custom ISO timestamp (defaults to now) */
+  timestamp?: string;
+}
+
+/**
+ * Options for verifying a BTR.
+ */
+export interface VerifyBTROptions {
+  /** Also verify replay produces h_out (default: false) */
+  verifyReplay?: boolean;
+}
+
+/**
+ * Creates a Boundary Transition Record from an initial state and payload.
+ *
+ * @param initialState - The input state U_0
+ * @param payload - The provenance payload P
+ * @param options - Creation options including key and optional timestamp
+ * @throws {TypeError} If payload is not a ProvenancePayload
+ */
+export function createBTR(
+  initialState: WarpStateV5,
+  payload: ProvenancePayload,
+  options: CreateBTROptions
+): BTR;
+
+/**
+ * Verifies a Boundary Transition Record.
+ *
+ * @param btr - The BTR to verify
+ * @param key - HMAC key
+ * @param options - Verification options
+ */
+export function verifyBTR(
+  btr: BTR,
+  key: string | Buffer,
+  options?: VerifyBTROptions
+): BTRVerificationResult;
+
+/**
+ * Replays a BTR to produce the final state.
+ *
+ * @param btr - The BTR to replay
+ * @returns The final state and its hash
+ */
+export function replayBTR(btr: BTR): { state: WarpStateV5; h_out: string };
+
+/**
+ * Serializes a BTR to CBOR bytes for transport.
+ *
+ * @param btr - The BTR to serialize
+ */
+export function serializeBTR(btr: BTR): Buffer;
+
+/**
+ * Deserializes a BTR from CBOR bytes.
+ *
+ * @param bytes - CBOR-encoded BTR
+ * @throws {Error} If the bytes are not valid CBOR or missing required fields
+ */
+export function deserializeBTR(bytes: Buffer): BTR;
+
+// ============================================================================
+// Wormhole Compression (HOLOGRAM)
+// ============================================================================
+
+/**
+ * Error thrown when a wormhole operation fails.
+ */
+export class WormholeError extends Error {
+  readonly name: 'WormholeError';
+  readonly code: string;
+  readonly context: Record<string, unknown>;
+
+  constructor(message: string, options?: {
+    code?: string;
+    context?: Record<string, unknown>;
+  });
+}
+
+/**
+ * A compressed range of patches (wormhole).
+ *
+ * A WormholeEdge contains:
+ * - The SHA of the first (oldest) patch in the range (fromSha)
+ * - The SHA of the last (newest) patch in the range (toSha)
+ * - The writer ID who created all patches in the range
+ * - A ProvenancePayload containing all patches for replay
+ */
+export interface WormholeEdge {
+  /** SHA of the first (oldest) patch commit */
+  readonly fromSha: string;
+  /** SHA of the last (newest) patch commit */
+  readonly toSha: string;
+  /** Writer ID of all patches in the range */
+  readonly writerId: string;
+  /** Sub-payload for replay */
+  readonly payload: ProvenancePayload;
+  /** Number of patches compressed */
+  readonly patchCount: number;
+}
+
+/**
+ * Options for creating a wormhole.
+ */
+export interface CreateWormholeOptions {
+  /** Git persistence adapter */
+  persistence: GraphPersistencePort;
+  /** Name of the graph */
+  graphName: string;
+  /** SHA of the first (oldest) patch commit */
+  fromSha: string;
+  /** SHA of the last (newest) patch commit */
+  toSha: string;
+}
+
+/**
+ * Options for composing wormholes.
+ */
+export interface ComposeWormholesOptions {
+  /** Git persistence adapter (for validation) */
+  persistence?: GraphPersistencePort;
+}
+
+/**
+ * Creates a wormhole compressing a range of patches.
+ *
+ * The range is specified by two patch SHAs from the same writer. The `fromSha`
+ * must be an ancestor of `toSha` in the writer's patch chain. Both endpoints
+ * are inclusive in the wormhole.
+ *
+ * @throws {WormholeError} If fromSha or toSha doesn't exist (E_WORMHOLE_SHA_NOT_FOUND)
+ * @throws {WormholeError} If fromSha is not an ancestor of toSha (E_WORMHOLE_INVALID_RANGE)
+ * @throws {WormholeError} If commits span multiple writers (E_WORMHOLE_MULTI_WRITER)
+ * @throws {WormholeError} If a commit is not a patch commit (E_WORMHOLE_NOT_PATCH)
+ */
+export function createWormhole(options: CreateWormholeOptions): Promise<WormholeEdge>;
+
+/**
+ * Composes two consecutive wormholes into a single wormhole.
+ *
+ * The wormholes must be from the same writer. When persistence is provided,
+ * validates that the wormholes are actually consecutive in the commit chain.
+ *
+ * @throws {WormholeError} If wormholes are from different writers (E_WORMHOLE_MULTI_WRITER)
+ * @throws {WormholeError} If wormholes are not consecutive (E_WORMHOLE_INVALID_RANGE)
+ */
+export function composeWormholes(
+  first: WormholeEdge,
+  second: WormholeEdge,
+  options?: ComposeWormholesOptions
+): Promise<WormholeEdge>;
+
+/**
+ * Replays a wormhole's sub-payload to materialize the compressed state.
+ *
+ * @param wormhole - The wormhole to replay
+ * @param initialState - Optional initial state to start from
+ */
+export function replayWormhole(
+  wormhole: WormholeEdge,
+  initialState?: WarpStateV5
+): WarpStateV5;
+
+/**
+ * Serializes a wormhole to a JSON-serializable object.
+ */
+export function serializeWormhole(wormhole: WormholeEdge): {
+  fromSha: string;
+  toSha: string;
+  writerId: string;
+  patchCount: number;
+  payload: PatchEntry[];
+};
+
+/**
+ * Deserializes a wormhole from a JSON object.
+ */
+export function deserializeWormhole(json: {
+  fromSha: string;
+  toSha: string;
+  writerId: string;
+  patchCount: number;
+  payload: PatchEntry[];
+}): WormholeEdge;

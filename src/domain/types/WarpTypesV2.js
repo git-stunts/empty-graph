@@ -102,6 +102,8 @@
  * @property {number} lamport - Lamport timestamp for ordering
  * @property {VersionVector} context - Writer's observed frontier (NOT global stability)
  * @property {OpV2[]} ops - Ordered array of operations
+ * @property {string[]} [reads] - Node/edge IDs read by this patch (for provenance tracking)
+ * @property {string[]} [writes] - Node/edge IDs written by this patch (for provenance tracking)
  */
 
 // ============================================================================
@@ -175,14 +177,24 @@ export function createPropSetV2(node, key, value) {
  * @param {number} options.lamport - Lamport timestamp
  * @param {VersionVector} options.context - Writer's observed frontier
  * @param {OpV2[]} options.ops - Array of operations
+ * @param {string[]} [options.reads] - Node/edge IDs read by this patch (for provenance tracking)
+ * @param {string[]} [options.writes] - Node/edge IDs written by this patch (for provenance tracking)
  * @returns {PatchV2} PatchV2 object
  */
-export function createPatchV2({ schema = 2, writer, lamport, context, ops }) {
-  return {
+export function createPatchV2({ schema = 2, writer, lamport, context, ops, reads, writes }) {
+  const patch = {
     schema,
     writer,
     lamport,
     context,
     ops,
   };
+  // Only include reads/writes if provided (backward compatibility)
+  if (reads && reads.length > 0) {
+    patch.reads = reads;
+  }
+  if (writes && writes.length > 0) {
+    patch.writes = writes;
+  }
+  return patch;
 }

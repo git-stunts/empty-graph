@@ -135,3 +135,14 @@ export function computeStateHashV5(state) {
 export function deserializeStateV5(buffer) {
   return decode(buffer);
 }
+
+// ============================================================================
+// Full State Serialization (for BTR replay)
+// ============================================================================
+
+// Re-export from CheckpointSerializerV5 for compatibility.
+// Both BTR and Checkpoint use the same canonical full-state format.
+export {
+  serializeFullStateV5,
+  deserializeFullStateV5,
+} from './CheckpointSerializerV5.js';

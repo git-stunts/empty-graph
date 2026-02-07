@@ -25,6 +25,7 @@ import { createORSet, orsetAdd, orsetCompact } from '../crdt/ORSet.js';
 import { createDot } from '../crdt/Dot.js';
 import { createVersionVector } from '../crdt/VersionVector.js';
 import { encodeEdgeKey, encodePropKey, cloneStateV5, reduceV5 } from './JoinReducer.js';
+import { ProvenanceIndex } from './ProvenanceIndex.js';
 
 // ============================================================================
 // Checkpoint Creation (WARP spec Section 10)
@@ -39,7 +40,8 @@ import { encodeEdgeKey, encodePropKey, cloneStateV5, reduceV5 } from './JoinRedu
  * ├── state.cbor           # AUTHORITATIVE: Full V5 state (ORSets + props)
  * ├── visible.cbor         # CACHE ONLY: Visible projection for fast queries
  * ├── frontier.cbor        # Writer frontiers
- * └── appliedVV.cbor       # Version vector of dots in state
+ * ├── appliedVV.cbor       # Version vector of dots in state
+ * └── provenanceIndex.cbor # Optional: node-to-patchSha index (HG/IO/2)
  * ```
  *
  * @param {Object} options - Checkpoint creation options
@@ -49,10 +51,11 @@ import { encodeEdgeKey, encodePropKey, cloneStateV5, reduceV5 } from './JoinRedu
  * @param {import('./Frontier.js').Frontier} options.frontier - Writer frontier map
  * @param {string[]} [options.parents=[]] - Parent commit SHAs (typically prior checkpoint or patch commits)
  * @param {boolean} [options.compact=true] - Whether to compact tombstoned dots before saving
+ * @param {import('./ProvenanceIndex.js').ProvenanceIndex} [options.provenanceIndex] - Optional provenance index to persist
  * @returns {Promise<string>} The checkpoint commit SHA
  */
-export async function create({ persistence, graphName, state, frontier, parents = [], compact = true }) {
-  return await createV5({ persistence, graphName, state, frontier, parents, compact });
+export async function create({ persistence, graphName, state, frontier, parents = [], compact = true, provenanceIndex }) {
+  return await createV5({ persistence, graphName, state, frontier, parents, compact, provenanceIndex });
 }
 
 /**
@@ -64,7 +67,8 @@ export async function create({ persistence, graphName, state, frontier, parents 
  * ├── state.cbor           # AUTHORITATIVE: Full V5 state (ORSets + props)
  * ├── visible.cbor         # CACHE ONLY: Visible projection for fast queries
  * ├── frontier.cbor        # Writer frontiers
- * └── appliedVV.cbor       # Version vector of dots in state
+ * ├── appliedVV.cbor       # Version vector of dots in state
+ * └── provenanceIndex.cbor # Optional: node-to-patchSha index (HG/IO/2)
  * ```
  *
  * @param {Object} options - Checkpoint creation options
@@ -74,6 +78,7 @@ export async function create({ persistence, graphName, state, frontier, parents 
  * @param {import('./Frontier.js').Frontier} options.frontier - Writer frontier map
  * @param {string[]} [options.parents=[]] - Parent commit SHAs
  * @param {boolean} [options.compact=true] - Whether to compact tombstoned dots before saving
+ * @param {import('./ProvenanceIndex.js').ProvenanceIndex} [options.provenanceIndex] - Optional provenance index to persist
  * @returns {Promise<string>} The checkpoint commit SHA
  */
 export async function createV5({
@@ -83,6 +88,7 @@ export async function createV5({
   frontier,
   parents = [],
   compact = true,
+  provenanceIndex,
 }) {
   // 1. Compute appliedVV from actual state dots
   const appliedVV = computeAppliedVV(state);
@@ -112,6 +118,13 @@ export async function createV5({
   const frontierBlobOid = await persistence.writeBlob(frontierBuffer);
   const appliedVVBlobOid = await persistence.writeBlob(appliedVVBuffer);
 
+  // 6b. Optionally serialize and write provenance index
+  let provenanceIndexBlobOid = null;
+  if (provenanceIndex) {
+    const provenanceIndexBuffer = provenanceIndex.serialize();
+    provenanceIndexBlobOid = await persistence.writeBlob(provenanceIndexBuffer);
+  }
+
   // 7. Create tree with sorted entries
   const treeEntries = [
     `100644 blob ${appliedVVBlobOid}\tappliedVV.cbor`,
@@ -119,6 +132,11 @@ export async function createV5({
     `100644 blob ${stateBlobOid}\tstate.cbor`,
     `100644 blob ${visibleBlobOid}\tvisible.cbor`,
   ];
+
+  // Add provenance index if present
+  if (provenanceIndexBlobOid) {
+    treeEntries.push(`100644 blob ${provenanceIndexBlobOid}\tprovenanceIndex.cbor`);
+  }
 
   // Sort entries by filename for deterministic tree (git requires sorted entries by path)
   treeEntries.sort((a, b) => {
@@ -166,7 +184,7 @@ export async function createV5({
  *
  * @param {import('../../infrastructure/adapters/GitGraphAdapter.js').default} persistence - Git persistence adapter
  * @param {string} checkpointSha - The checkpoint commit SHA to load
- * @returns {Promise<{state: import('./JoinReducer.js').WarpStateV5, frontier: import('./Frontier.js').Frontier, stateHash: string, schema: number, appliedVV?: Map<string, number>}>} The loaded checkpoint data
+ * @returns {Promise<{state: import('./JoinReducer.js').WarpStateV5, frontier: import('./Frontier.js').Frontier, stateHash: string, schema: number, appliedVV?: Map<string, number>, provenanceIndex?: import('./ProvenanceIndex.js').ProvenanceIndex}>} The loaded checkpoint data
  * @throws {Error} If checkpoint is schema:1 (migration required)
  */
 export async function loadCheckpoint(persistence, checkpointSha) {
@@ -211,12 +229,21 @@ export async function loadCheckpoint(persistence, checkpointSha) {
     appliedVV = deserializeAppliedVV(appliedVVBuffer);
   }
 
+  // Load provenanceIndex if present (HG/IO/2)
+  let provenanceIndex = null;
+  const provenanceIndexOid = treeOids['provenanceIndex.cbor'];
+  if (provenanceIndexOid) {
+    const provenanceIndexBuffer = await persistence.readBlob(provenanceIndexOid);
+    provenanceIndex = ProvenanceIndex.deserialize(provenanceIndexBuffer);
+  }
+
   return {
     state,
     frontier,
     stateHash: decoded.stateHash,
     schema: decoded.schema,
     appliedVV,
+    provenanceIndex,
   };
 }
 
@@ -240,6 +267,8 @@ export async function loadCheckpoint(persistence, checkpointSha) {
  * @param {import('./Frontier.js').Frontier} options.targetFrontier - The target frontier to materialize to
  * @param {Function} options.patchLoader - Async function to load patches: (writerId, fromSha, toSha) => Array<{patch, sha}>
  * @returns {Promise<import('./JoinReducer.js').WarpStateV5>} The materialized V5 state at targetFrontier
+ * @throws {Error} If checkpoint is schema:1 (migration required)
+ * @throws {Error} If checkpoint is missing required blobs (state.cbor, frontier.cbor)
  */
 export async function materializeIncremental({
   persistence,
