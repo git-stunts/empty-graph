@@ -138,6 +138,150 @@ exports[`ASCII Renderers > renderCheckView > renders with unknown health status 
 "
 `;
 
+exports[`ASCII Renderers > renderHistoryView > handles null/undefined data gracefully 1`] = `
+"No data available
+"
+`;
+
+exports[`ASCII Renderers > renderHistoryView > handles null/undefined data gracefully 2`] = `
+"No data available
+"
+`;
+
+exports[`ASCII Renderers > renderHistoryView > renders empty history 1`] = `
+"╔═══ PATCH HISTORY ═══╗
+║                     ║
+║     WRITER: alice   ║
+║                     ║
+║     (no patches)    ║
+║                     ║
+╚═════════════════════╝
+"
+`;
+
+exports[`ASCII Renderers > renderHistoryView > renders empty multi-writer timeline 1`] = `
+"╔═════ PATCH HISTORY ═════╗
+║                         ║
+║     GRAPH: test-graph   ║
+║     Writers: 0          ║
+║                         ║
+║     (no writers)        ║
+║                         ║
+╚═════════════════════════╝
+"
+`;
+
+exports[`ASCII Renderers > renderHistoryView > renders history with node filter 1`] = `
+"╔═══════ PATCH HISTORY ═══════╗
+║                             ║
+║     WRITER: alice           ║
+║     Filter: node=user:bob   ║
+║                             ║
+║     ┌                       ║
+║     └● L5 abc1234  +1node   ║
+║                             ║
+║     Total: 1 patch          ║
+║                             ║
+╚═════════════════════════════╝
+"
+`;
+
+exports[`ASCII Renderers > renderHistoryView > renders multi-writer timeline 1`] = `
+"╔═════════════════ PATCH HISTORY ═════════════════╗
+║                                                 ║
+║     GRAPH: test-graph                           ║
+║     Writers: 2                                  ║
+║                                                 ║
+║     ┌                                           ║
+║     ├● L1 alice :abc1234 +2node                 ║
+║     ├● L2 bob   :def4567 +1node +1edge ~1prop   ║
+║     ├● L3 alice :abc2234 +1edge                 ║
+║     └● L4 bob   :def5567 ~1prop                 ║
+║                                                 ║
+║     Total: 4 patches across 2 writers           ║
+║                                                 ║
+╚═════════════════════════════════════════════════╝
+"
+`;
+
+exports[`ASCII Renderers > renderHistoryView > renders paginated history (default 20 most recent) 1`] = `
+"╔═══════════ PATCH HISTORY ════════════╗
+║                                      ║
+║     WRITER: alice                    ║
+║                                      ║
+║     ┌│ ... 10 older patches hidden   ║
+║     │                                ║
+║     ├● L11 sha0111  +1node           ║
+║     ├● L12 sha0121  +1node           ║
+║     ├● L13 sha0131  +1node           ║
+║     ├● L14 sha0141  +1node           ║
+║     ├● L15 sha0151  +1node           ║
+║     ├● L16 sha0161  +1node           ║
+║     ├● L17 sha0171  +1node           ║
+║     ├● L18 sha0181  +1node           ║
+║     ├● L19 sha0191  +1node           ║
+║     ├● L20 sha0201  +1node           ║
+║     ├● L21 sha0211  +1node           ║
+║     ├● L22 sha0221  +1node           ║
+║     ├● L23 sha0231  +1node           ║
+║     ├● L24 sha0241  +1node           ║
+║     ├● L25 sha0251  +1node           ║
+║     ├● L26 sha0261  +1node           ║
+║     ├● L27 sha0271  +1node           ║
+║     ├● L28 sha0281  +1node           ║
+║     ├● L29 sha0291  +1node           ║
+║     └● L30 sha0301  +1node           ║
+║                                      ║
+║     Total: 30 patches                ║
+║                                      ║
+╚══════════════════════════════════════╝
+"
+`;
+
+exports[`ASCII Renderers > renderHistoryView > renders patch with many operations 1`] = `
+"╔═══════════════════════ PATCH HISTORY ════════════════════════╗
+║                                                              ║
+║     WRITER: alice                                            ║
+║                                                              ║
+║     ┌                                                        ║
+║     └● L1 abc1234  +50node +40edge ~30prop -20node -10edge   ║
+║                                                              ║
+║     Total: 1 patch                                           ║
+║                                                              ║
+╚══════════════════════════════════════════════════════════════╝
+"
+`;
+
+exports[`ASCII Renderers > renderHistoryView > renders single patch 1`] = `
+"╔══════════════ PATCH HISTORY ══════════════╗
+║                                           ║
+║     WRITER: alice                         ║
+║                                           ║
+║     ┌                                     ║
+║     └● L1 abc1234  +2node +2edge ~1prop   ║
+║                                           ║
+║     Total: 1 patch                        ║
+║                                           ║
+╚═══════════════════════════════════════════╝
+"
+`;
+
+exports[`ASCII Renderers > renderHistoryView > renders single writer timeline 1`] = `
+"╔══════════════ PATCH HISTORY ══════════════╗
+║                                           ║
+║     WRITER: alice                         ║
+║                                           ║
+║     ┌                                     ║
+║     ├● L1 abc1234  +2node +1edge          ║
+║     ├● L2 def4567  +1node +2edge ~2prop   ║
+║     └● L3 ghi7890  -1node -1edge          ║
+║                                           ║
+║     Total: 3 patches                      ║
+║                                           ║
+╚═══════════════════════════════════════════╝
+"
+`;
+
 exports[`ASCII Renderers > renderInfoView > handles null/undefined data gracefully 1`] = `
 "No data available
 "
@@ -244,5 +388,302 @@ exports[`ASCII Renderers > renderInfoView > renders single graph with writers 1`
 ║   └──────────────────────────────────────────────────────────┘     ║
 ║                                                                    ║
 ╚════════════════════════════════════════════════════════════════════╝
+"
+`;
+
+exports[`ASCII Renderers > renderMaterializeView > handles null/undefined data gracefully 1`] = `
+"No data available
+"
+`;
+
+exports[`ASCII Renderers > renderMaterializeView > handles null/undefined data gracefully 2`] = `
+"No data available
+"
+`;
+
+exports[`ASCII Renderers > renderMaterializeView > handles null/undefined data gracefully 3`] = `
+"No data available
+"
+`;
+
+exports[`ASCII Renderers > renderMaterializeView > renders empty graph (0 patches) 1`] = `
+"╔═══════════════ MATERIALIZE ═══════════════╗
+║                                           ║
+║     📊 empty-graph                        ║
+║                                           ║
+║     Empty graph (0 patches)               ║
+║                                           ║
+║     Checkpoint: empty12 ✓                 ║
+║                                           ║
+║     ✓ 1 graph materialized successfully   ║
+║                                           ║
+╚═══════════════════════════════════════════╝
+"
+`;
+
+exports[`ASCII Renderers > renderMaterializeView > renders empty repo 1`] = `
+"╔════════════════ MATERIALIZE ═════════════════╗
+║                                              ║
+║   No WARP graphs found in this repository.   ║
+║                                              ║
+╚══════════════════════════════════════════════╝
+"
+`;
+
+exports[`ASCII Renderers > renderMaterializeView > renders graph with error 1`] = `
+"╔══════════════ MATERIALIZE ═══════════════╗
+║                                          ║
+║     📊 failing-graph                     ║
+║                                          ║
+║     ✗ Error: Repository not accessible   ║
+║                                          ║
+║     ✗ 1 graph failed                     ║
+║                                          ║
+╚══════════════════════════════════════════╝
+"
+`;
+
+exports[`ASCII Renderers > renderMaterializeView > renders graph without checkpoint 1`] = `
+"╔═══════════════ MATERIALIZE ════════════════╗
+║                                            ║
+║     📊 no-checkpoint-graph                 ║
+║                                            ║
+║     Writers:                               ║
+║       alice  ███████████████ 2 patches     ║
+║                                            ║
+║     Statistics:                            ║
+║     Nodes:       ████████████████████ 10   ║
+║     Edges:       ████████████████████ 5    ║
+║     Properties:  ████████████████████ 20   ║
+║                                            ║
+║     Checkpoint: none                       ║
+║                                            ║
+║     ✓ 1 graph materialized successfully    ║
+║                                            ║
+╚════════════════════════════════════════════╝
+"
+`;
+
+exports[`ASCII Renderers > renderMaterializeView > renders large graph with many nodes 1`] = `
+"╔═══════════════════ MATERIALIZE ═══════════════════╗
+║                                                   ║
+║     📊 large-graph                                ║
+║                                                   ║
+║     Writers:                                      ║
+║       writer1 ███████████████ 200 patches         ║
+║       writer2 ███████████░░░░ 150 patches         ║
+║       writer3 ████████░░░░░░░ 100 patches         ║
+║       writer4 ████░░░░░░░░░░░ 50 patches          ║
+║                                                   ║
+║     Statistics:                                   ║
+║     Nodes:       ████████████████████ 1,000,000   ║
+║     Edges:       ████████████████████ 5,000,000   ║
+║     Properties:  ████████████████████ 3,000,000   ║
+║                                                   ║
+║     Checkpoint: large12 ✓ created                 ║
+║                                                   ║
+║     ✓ 1 graph materialized successfully           ║
+║                                                   ║
+╚═══════════════════════════════════════════════════╝
+"
+`;
+
+exports[`ASCII Renderers > renderMaterializeView > renders mixed success and failure 1`] = `
+"╔══════════════════════ MATERIALIZE ═══════════════════════╗
+║                                                          ║
+║     📊 success-graph                                     ║
+║                                                          ║
+║     Writers:                                             ║
+║       alice  ███████████████ 10 patches                  ║
+║                                                          ║
+║     Statistics:                                          ║
+║     Nodes:       ████████████████████ 100                ║
+║     Edges:       ████████████████████ 150                ║
+║     Properties:  ████████████████████ 300                ║
+║                                                          ║
+║     Checkpoint: success ✓ created                        ║
+║                                                          ║
+║     ──────────────────────────────────────────────────   ║
+║                                                          ║
+║     📊 failure-graph                                     ║
+║                                                          ║
+║     ✗ Error: Permission denied                           ║
+║                                                          ║
+║     ⚠ 1 succeeded, 1 failed                              ║
+║                                                          ║
+╚══════════════════════════════════════════════════════════╝
+"
+`;
+
+exports[`ASCII Renderers > renderMaterializeView > renders multiple graphs materialization 1`] = `
+"╔══════════════════════ MATERIALIZE ═══════════════════════╗
+║                                                          ║
+║     📊 graph-alpha                                       ║
+║                                                          ║
+║     Writers:                                             ║
+║       alice   ███████████████ 10 patches                 ║
+║       bob     ████████████░░░ 8 patches                  ║
+║       charlie ███████████░░░░ 7 patches                  ║
+║                                                          ║
+║     Statistics:                                          ║
+║     Nodes:       ████████████████████ 500                ║
+║     Edges:       ████████████████████ 1,200              ║
+║     Properties:  ████████████████████ 1,500              ║
+║                                                          ║
+║     Checkpoint: aaa1111 ✓ created                        ║
+║                                                          ║
+║     ──────────────────────────────────────────────────   ║
+║                                                          ║
+║     📊 graph-beta                                        ║
+║                                                          ║
+║     Writers:                                             ║
+║       solo   ███████████████ 3 patches                   ║
+║                                                          ║
+║     Statistics:                                          ║
+║     Nodes:       ██░░░░░░░░░░░░░░░░░░ 50                 ║
+║     Edges:       █░░░░░░░░░░░░░░░░░░░ 30                 ║
+║     Properties:  █░░░░░░░░░░░░░░░░░░░ 100                ║
+║                                                          ║
+║     Checkpoint: bbb5555 ✓ created                        ║
+║                                                          ║
+║     ✓ 2 graphs materialized successfully                 ║
+║                                                          ║
+╚══════════════════════════════════════════════════════════╝
+"
+`;
+
+exports[`ASCII Renderers > renderMaterializeView > renders single graph materialization 1`] = `
+"╔════════════════ MATERIALIZE ════════════════╗
+║                                             ║
+║     📊 test-graph                           ║
+║                                             ║
+║     Writers:                                ║
+║       alice  ███████████████ 5 patches      ║
+║       bob    █████████░░░░░░ 3 patches      ║
+║                                             ║
+║     Statistics:                             ║
+║     Nodes:       ████████████████████ 150   ║
+║     Edges:       ████████████████████ 200   ║
+║     Properties:  ████████████████████ 450   ║
+║                                             ║
+║     Checkpoint: abc1234 ✓ created           ║
+║                                             ║
+║     ✓ 1 graph materialized successfully     ║
+║                                             ║
+╚═════════════════════════════════════════════╝
+"
+`;
+
+exports[`ASCII Renderers > renderPathView > handles null/undefined data gracefully 1`] = `
+"No data available
+"
+`;
+
+exports[`ASCII Renderers > renderPathView > handles null/undefined data gracefully 2`] = `
+"No data available
+"
+`;
+
+exports[`ASCII Renderers > renderPathView > renders direct path (1 hop) 1`] = `
+"╔═══ PATH: node:a ▶ node:b ════╗
+║                              ║
+║     Graph:  test-graph       ║
+║     Length: 1 hop            ║
+║                              ║
+║     [node:a] ───▶ [node:b]   ║
+║                              ║
+╚══════════════════════════════╝
+"
+`;
+
+exports[`ASCII Renderers > renderPathView > renders found path with 3 hops 1`] = `
+"╔═════════════════════ PATH: user:alice ▶ user:bob ═════════════════════╗
+║                                                                       ║
+║     Graph:  social-graph                                              ║
+║     Length: 3 hops                                                    ║
+║                                                                       ║
+║     [user:alice] ───▶ [user:carol] ───▶ [user:dave] ───▶ [user:bob]   ║
+║                                                                       ║
+╚═══════════════════════════════════════════════════════════════════════╝
+"
+`;
+
+exports[`ASCII Renderers > renderPathView > renders long path (20 nodes) with wrapping 1`] = `
+"╔═══════════════════════ PATH: node:0 ▶ node:19 ═══════════════════════╗
+║                                                                      ║
+║     Graph:  chain-graph                                              ║
+║     Length: 19 hops                                                  ║
+║                                                                      ║
+║     [node:0] ───▶ [node:1] ───▶ [node:2] ───▶ [node:3] ───▶          ║
+║       [node:4] ───▶ [node:5] ───▶ [node:6] ───▶ [node:7] ───▶        ║
+║       [node:8] ───▶ [node:9] ───▶ [node:10] ───▶ [node:11] ───▶      ║
+║       [node:12] ───▶ [node:13] ───▶ [node:14] ───▶ [node:15] ───▶    ║
+║       [node:16] ───▶ [node:17] ───▶ [node:18] ───▶ [node:19]         ║
+║                                                                      ║
+╚══════════════════════════════════════════════════════════════════════╝
+"
+`;
+
+exports[`ASCII Renderers > renderPathView > renders no path found 1`] = `
+"╔═══════════════════════ PATH ═══════════════════════╗
+║                                                    ║
+║     No path found                                  ║
+║                                                    ║
+║     From: island:a                                 ║
+║     To:   island:b                                 ║
+║                                                    ║
+║     The nodes may be disconnected or unreachable   ║
+║     with the given traversal direction.            ║
+║                                                    ║
+╚════════════════════════════════════════════════════╝
+"
+`;
+
+exports[`ASCII Renderers > renderPathView > renders path with edge labels 1`] = `
+"╔══════════════════════ PATH: user:alice ▶ user:bob ══════════════════════╗
+║                                                                         ║
+║     Graph:  org-graph                                                   ║
+║     Length: 2 hops                                                      ║
+║                                                                         ║
+║     [user:alice] ──manages──▶ [user:carol] ──reports_to──▶ [user:bob]   ║
+║                                                                         ║
+╚═════════════════════════════════════════════════════════════════════════╝
+"
+`;
+
+exports[`ASCII Renderers > renderPathView > renders path with long node IDs 1`] = `
+"╔ PATH: this-is-a-very-long-node-id-that-should-be-truncated ▶ another-extreme ╗
+║                                                                              ║
+║     Graph:  test-graph                                                       ║
+║     Length: 2 hops                                                           ║
+║                                                                              ║
+║     [this-is-a-very-long…] ───▶ [middle-node] ───▶ [another-extremely-l…]    ║
+║                                                                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+"
+`;
+
+exports[`ASCII Renderers > renderPathView > renders path with unknown graph 1`] = `
+"╔═════ PATH: a ▶ b ═════╗
+║                       ║
+║     Graph:  unknown   ║
+║     Length: 1 hop     ║
+║                       ║
+║     [a] ───▶ [b]      ║
+║                       ║
+╚═══════════════════════╝
+"
+`;
+
+exports[`ASCII Renderers > renderPathView > renders same node (0 hops) 1`] = `
+"╔═════════════════ PATH ═════════════════╗
+║                                        ║
+║     Already at destination             ║
+║                                        ║
+║     [user:alice]                       ║
+║                                        ║
+║     Start and end are the same node.   ║
+║                                        ║
+╚════════════════════════════════════════╝
 "
 `;

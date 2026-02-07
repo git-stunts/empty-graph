@@ -929,6 +929,234 @@ const status = await graph.status();
 
 ### Logging
 
+```bash
+git warp check        # Human-readable with color-coded staleness
+git warp check --json # Machine-readable JSON
+```
+
+### Visual Output (--view)
+
+The `--view` flag enables visual ASCII dashboards for supported commands. Add `--view` before the command name (it is a global option) to get a formatted terminal UI instead of plain text.
+
+**Supported commands:**
+
+| Command | Description |
+|---------|-------------|
+| `--view info` | Graph overview with writer timelines |
+| `--view check` | Health dashboard with progress bars |
+| `--view history` | Patch timeline with operation summaries |
+| `--view path` | Visual path diagram between nodes |
+| `--view materialize` | Progress dashboard with statistics |
+
+**View modes:**
+- `--view` or `--view=ascii` — ASCII art (default)
+- `--view=browser` — opens in browser (planned)
+- `--view=svg:FILE` — saves as SVG (planned)
+- `--view=html:FILE` — saves as HTML (planned)
+
+**Notes:**
+- `--view` must appear before the subcommand (e.g., `git warp --view info`, not `git warp info --view`)
+- `--view` and `--json` are mutually exclusive
+- All visualizations are color-coded and terminal-width aware
+
+---
+
+#### info --view
+
+Shows a visual overview of all WARP graphs in the repository with writer timelines.
+
+```bash
+git warp --view info
+git warp --view info --graph my-graph
+```
+
+Example output:
+
+```text
+╔════════════════════ WARP GRAPHS IN REPOSITORY ═════════════════════╗
+║                                                                    ║
+║   ┌──────────────────────────────────────────────────────────┐     ║
+║   │ 📊 my-graph                                              │     ║
+║   │ Writers: 2 (alice, bob)                                  │     ║
+║   │   alice  ●────────●────────●────────●────────● (5 patches) │   ║
+║   │   bob    ●────────●────────● (3 patches)                 │     ║
+║   │ Checkpoint: abc1234 (5m ago) ✓                           │     ║
+║   └──────────────────────────────────────────────────────────┘     ║
+║                                                                    ║
+╚════════════════════════════════════════════════════════════════════╝
+```
+
+---
+
+#### check --view
+
+Displays a health dashboard with cache status, tombstone ratio, and system diagnostics.
+
+```bash
+git warp --view check
+git warp --view check --graph my-graph
+```
+
+Example output:
+
+```text
+╔═══════════════════════ HEALTH ═══════════════════════╗
+║                                                      ║
+║     GRAPH HEALTH: my-graph                           ║
+║                                                      ║
+║     Cache:       ████████████████████ 100% fresh     ║
+║     Tombstones:  █░░░░░░░░░░░░░░░░░░░ 5% (healthy)   ║
+║     Patches:     3 since checkpoint                  ║
+║                                                      ║
+║     Writers:     alice (abc1234) | bob (def5678)     ║
+║     Checkpoint:  checkpo (2m ago) ✓                  ║
+║     Coverage:    ✓ all writers merged                ║
+║     Hooks:       ✓ installed (v7.5.0)                ║
+║                                                      ║
+║     Overall: ✓ HEALTHY                               ║
+║                                                      ║
+╚══════════════════════════════════════════════════════╝
+```
+
+Health indicators:
+- **Cache**: fresh (100%), stale (80%), or none (0%)
+- **Tombstones**: healthy (<15%), warning (15-30%), critical (>30%)
+- **Overall**: HEALTHY, DEGRADED, or UNHEALTHY
+
+---
+
+#### history --view
+
+Renders a visual timeline of patches for a single writer.
+
+```bash
+git warp --view history                    # Current writer's patches
+git warp --view history --writer alice     # Specific writer
+git warp --view history --node user:bob    # Filter by node
+```
+
+Example output:
+
+```text
+╔══════════════ PATCH HISTORY ══════════════╗
+║                                           ║
+║     WRITER: alice                         ║
+║                                           ║
+║     ┌                                     ║
+║     ├● L1 abc1234  +2node +1edge          ║
+║     ├● L2 def4567  +1node +2edge ~2prop   ║
+║     └● L3 ghi7890  -1node -1edge          ║
+║                                           ║
+║     Total: 3 patches                      ║
+║                                           ║
+╚═══════════════════════════════════════════╝
+```
+
+> **Planned:** A future `--all-writers` flag will merge timelines across all writers sorted by Lamport timestamp.
+
+Operation indicators:
+- `+Nnode` — nodes added (green)
+- `-Nnode` — nodes tombstoned (red)
+- `+Nedge` — edges added (green)
+- `-Nedge` — edges tombstoned (red)
+- `~Nprop` — properties set (yellow)
+
+---
+
+#### path --view
+
+Visualizes the shortest path between two nodes with arrows connecting them.
+
+```bash
+git warp --view path --from user:alice --to user:bob
+git warp --view path user:alice user:bob          # Positional args
+git warp --view path --from a --to b --dir both   # Bidirectional
+```
+
+Example output:
+
+```text
+╔═════════════════════ PATH: user:alice ▶ user:bob ═════════════════════╗
+║                                                                       ║
+║     Graph:  social-graph                                              ║
+║     Length: 3 hops                                                    ║
+║                                                                       ║
+║     [user:alice] ───▶ [user:carol] ───▶ [user:dave] ───▶ [user:bob]   ║
+║                                                                       ║
+╚═══════════════════════════════════════════════════════════════════════╝
+```
+
+When edge labels are available:
+
+```text
+╔══════════════════════ PATH: user:alice ▶ user:bob ══════════════════════╗
+║                                                                         ║
+║     Graph:  org-graph                                                   ║
+║     Length: 2 hops                                                      ║
+║                                                                         ║
+║     [user:alice] ──manages──▶ [user:carol] ──reports_to──▶ [user:bob]   ║
+║                                                                         ║
+╚═════════════════════════════════════════════════════════════════════════╝
+```
+
+If no path exists:
+
+```text
+╔═══════════════════════ PATH ═══════════════════════╗
+║                                                    ║
+║     No path found                                  ║
+║                                                    ║
+║     From: island:a                                 ║
+║     To:   island:b                                 ║
+║                                                    ║
+║     The nodes may be disconnected or unreachable   ║
+║     with the given traversal direction.            ║
+║                                                    ║
+╚════════════════════════════════════════════════════╝
+```
+
+---
+
+#### materialize --view
+
+Shows materialization progress with writer contributions and graph statistics.
+
+```bash
+git warp --view materialize                # All graphs
+git warp --view materialize --graph demo   # Specific graph
+```
+
+Example output:
+
+```text
+╔═════════════════ MATERIALIZE ══════════════════╗
+║                                                ║
+║     📊 my-graph                                ║
+║                                                ║
+║     Writers:                                   ║
+║       alice        ███████████████ 5 patches   ║
+║       bob          █████████░░░░░░ 3 patches   ║
+║                                                ║
+║     Statistics:                                ║
+║     Nodes:       ████████████████████ 150      ║
+║     Edges:       ████████████████████ 200      ║
+║     Properties:  ████████████████████ 450      ║
+║                                                ║
+║     Checkpoint: abc1234 ✓ created              ║
+║                                                ║
+║     ✓ 1 graph materialized successfully        ║
+║                                                ║
+╚════════════════════════════════════════════════╝
+```
+
+The dashboard shows:
+- Per-writer patch contribution bars
+- Node/edge/property counts with scaled bars
+- Checkpoint creation status
+- Summary line with success/failure counts
+
+### Operation Timing
+
 Inject a logger for structured timing output:
 
 ```javascript
