@@ -180,7 +180,7 @@ describe('WARP V5 Reducer Performance Benchmarks', () => {
       [5000, SOFT_TARGETS[5000]],
       [10000, SOFT_TARGETS[10000]],
       [25000, SOFT_TARGETS[25000]],
-    ])('reduces %i V5 patches (soft: %ims)', (patchCount, softTarget) => {
+    ])('reduces %i V5 patches (soft: %ims)', async (patchCount, softTarget) => {
       // Generate patches
       const patches = generateV5Patches(patchCount);
 
@@ -190,7 +190,7 @@ describe('WARP V5 Reducer Performance Benchmarks', () => {
 
       // Run benchmark (real clock for informational logging only)
       let state;
-      const stats = runBenchmark(() => {
+      const stats = await runBenchmark(() => {
         state = reduceV5(patches);
       });
 
@@ -219,7 +219,7 @@ describe('WARP V5 Reducer Performance Benchmarks', () => {
   });
 
   describe('Incremental Reduce', () => {
-    it('incremental is faster than full reduce', () => {
+    it('incremental is faster than full reduce', async () => {
       const allPatches = generateV5Patches(5000);
       const checkpointPatches = allPatches.slice(0, 4000);
       const newPatches = allPatches.slice(4000);
@@ -233,18 +233,18 @@ describe('WARP V5 Reducer Performance Benchmarks', () => {
 
       // Full reduce
       let stateFull;
-      const fullStats = runBenchmark(() => {
+      const fullStats = await runBenchmark(() => {
         stateFull = timedReduce(allPatches);
       }, WARMUP_RUNS, MEASURED_RUNS, { clock });
 
       // Incremental: build checkpoint, then apply new patches
       let checkpointState;
-      runBenchmark(() => {
+      await runBenchmark(() => {
         checkpointState = timedReduce(checkpointPatches);
       }, WARMUP_RUNS, MEASURED_RUNS, { clock });
 
       let incrementalState;
-      const incrementalStats = runBenchmark(() => {
+      const incrementalStats = await runBenchmark(() => {
         incrementalState = timedReduce(newPatches, checkpointState);
       }, WARMUP_RUNS, MEASURED_RUNS, { clock });
 
@@ -260,7 +260,7 @@ describe('WARP V5 Reducer Performance Benchmarks', () => {
       expect(incNodes).toEqual(fullNodes);
     });
 
-    it('applying small batch to large state is fast', () => {
+    it('applying small batch to large state is fast', async () => {
       const basePatches = generateV5Patches(10000);
       const newPatches = generateV5Patches(100, { writerCount: 2, opsPerPatch: 2 });
 
@@ -269,7 +269,7 @@ describe('WARP V5 Reducer Performance Benchmarks', () => {
 
       // Test clock: 1 unit per patch, deterministic
       const clock = new TestClock();
-      const stats = runBenchmark(() => {
+      const stats = await runBenchmark(() => {
         clock.advance(newPatches.length);
         reduceV5(newPatches, baseState);
       }, WARMUP_RUNS, MEASURED_RUNS, { clock });

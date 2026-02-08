@@ -147,7 +147,7 @@ describe('ORSet Compaction Benchmarks', () => {
       [1000, SOFT_TARGETS[1000]],
       [5000, SOFT_TARGETS[5000]],
       [10000, SOFT_TARGETS[10000]],
-    ])('compacts %i entries with 30%% tombstones (soft: %ims)', (entryCount, softTarget) => {
+    ])('compacts %i entries with 30%% tombstones (soft: %ims)', async (entryCount, softTarget) => {
       // Create populated ORSet
       const { set: templateSet, vv, tombstoneCount, liveCount } = createPopulatedORSet(entryCount);
 
@@ -158,10 +158,10 @@ describe('ORSet Compaction Benchmarks', () => {
 
       // Run benchmark - clone set each time since compaction mutates
       let compactedSet;
-      const stats = runBenchmark(() => {
+      const stats = await runBenchmark(() => {
         compactedSet = cloneORSet(templateSet);
         orsetCompact(compactedSet, vv);
-      });
+      }, WARMUP_RUNS, MEASURED_RUNS);
 
       // Measure memory after compaction
       const memAfter = estimateORSetMemory(compactedSet);
@@ -313,11 +313,11 @@ describe('ORSet Compaction Benchmarks', () => {
   });
 
   describe('Edge Cases', () => {
-    it('handles empty ORSet', () => {
+    it('handles empty ORSet', async () => {
       const set = createORSet();
       const vv = createVersionVector();
 
-      const stats = runBenchmark(() => {
+      const stats = await runBenchmark(() => {
         orsetCompact(set, vv);
       });
 
@@ -327,7 +327,7 @@ describe('ORSet Compaction Benchmarks', () => {
       expect(set.tombstones.size).toBe(0);
     });
 
-    it('handles ORSet with no tombstones', () => {
+    it('handles ORSet with no tombstones', async () => {
       const set = createORSet();
       const vv = createVersionVector();
 
@@ -340,7 +340,7 @@ describe('ORSet Compaction Benchmarks', () => {
 
       const elementsBefore = orsetElements(set).length;
 
-      const stats = runBenchmark(() => {
+      const stats = await runBenchmark(() => {
         orsetCompact(cloneORSet(set), vv);
       });
 
@@ -350,10 +350,10 @@ describe('ORSet Compaction Benchmarks', () => {
       expect(orsetElements(set).length).toBe(elementsBefore);
     });
 
-    it('handles ORSet with all entries tombstoned', () => {
+    it('handles ORSet with all entries tombstoned', async () => {
       const { set, vv } = createPopulatedORSet(1000, 1.0); // 100% tombstones
 
-      const stats = runBenchmark(() => {
+      const stats = await runBenchmark(() => {
         const clone = cloneORSet(set);
         orsetCompact(clone, vv);
       });

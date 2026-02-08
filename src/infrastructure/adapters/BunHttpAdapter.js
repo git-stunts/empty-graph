@@ -24,9 +24,10 @@ async function toPortRequest(request) {
     }
   }
 
+  const parsedUrl = new URL(request.url);
   return {
     method: request.method,
-    url: new URL(request.url).pathname + new URL(request.url).search,
+    url: parsedUrl.pathname + parsedUrl.search,
     headers,
     body,
   };
@@ -148,7 +149,7 @@ export default class BunHttpAdapter extends HttpServerPort {
         return {
           address: server.hostname,
           port: server.port,
-          family: 'IPv4',
+          family: server.hostname.includes(':') ? 'IPv6' : 'IPv4',
         };
       },
     };

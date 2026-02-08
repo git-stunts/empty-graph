@@ -563,7 +563,7 @@ export function createMockClock(step = 42) {
       time += step;
       return t;
     }),
-    timestamp: vi.fn(() => new Date().toISOString()),
+    timestamp: vi.fn(() => '2026-01-01T00:00:00.000Z'),
   };
 }
 

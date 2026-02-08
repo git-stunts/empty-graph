@@ -101,13 +101,13 @@ export function randomHex(length = 8) {
  * @param {{now(): number}} [options.clock] - Injectable clock (defaults to performance)
  * @returns {{median: number, min: number, max: number, times: number[]}}
  */
-export function runBenchmark(fn, warmupRuns = 2, measuredRuns = 5, { clock } = {}) {
+export async function runBenchmark(fn, warmupRuns = 2, measuredRuns = 5, { clock } = {}) {
   const clk = clock || performance;
 
   // Warmup runs
   for (let i = 0; i < warmupRuns; i++) {
     forceGC();
-    fn();
+    await fn();
   }
 
   // Measured runs
@@ -115,7 +115,7 @@ export function runBenchmark(fn, warmupRuns = 2, measuredRuns = 5, { clock } = {
   for (let i = 0; i < measuredRuns; i++) {
     forceGC();
     const start = clk.now();
-    fn();
+    await fn();
     times.push(clk.now() - start);
   }
 

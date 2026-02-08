@@ -24,6 +24,32 @@ import { ProvenancePayload } from './ProvenancePayload.js';
 import { serializeFullStateV5, deserializeFullStateV5, computeStateHashV5 } from './StateSerializerV5.js';
 
 /**
+ * Converts a Uint8Array to a hex string.
+ * @param {Uint8Array} bytes
+ * @returns {string}
+ */
+function uint8ArrayToHex(bytes) {
+  let hex = '';
+  for (let i = 0; i < bytes.length; i++) {
+    hex += bytes[i].toString(16).padStart(2, '0');
+  }
+  return hex;
+}
+
+/**
+ * Converts a hex string to a Uint8Array.
+ * @param {string} hex
+ * @returns {Uint8Array}
+ */
+function hexToUint8Array(hex) {
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < hex.length; i += 2) {
+    bytes[i / 2] = parseInt(hex.substring(i, i + 2), 16);
+  }
+  return bytes;
+}
+
+/**
  * HMAC algorithm used for authentication tags.
  * SHA-256 provides 256-bit security with wide hardware support.
  * @const {string}
@@ -68,7 +94,8 @@ async function computeHmac(fields, key, { crypto, codec }) {
   });
 
   const rawHmac = await crypto.hmac(HMAC_ALGORITHM, key, message);
-  return Buffer.from(rawHmac).toString('hex');
+  const bytes = rawHmac instanceof Uint8Array ? rawHmac : new Uint8Array(rawHmac);
+  return uint8ArrayToHex(bytes);
 }
 
 /**
@@ -133,7 +160,7 @@ export async function createBTR(initialState, payload, options) {
 
   // Validate HMAC key is not empty/falsy
   if (!key || (typeof key === 'string' && key.length === 0) ||
-      (Buffer.isBuffer(key) && key.length === 0)) {
+      (ArrayBuffer.isView(key) && key.byteLength === 0)) {
     throw new Error('Invalid HMAC key: key must not be empty');
   }
 
@@ -193,9 +220,9 @@ async function verifyHmac(btr, key, { crypto, codec }) {
   };
   const expectedKappa = await computeHmac(fields, key, { crypto, codec });
 
-  // Convert hex strings to buffers for timing-safe comparison
-  const actualBuf = Buffer.from(btr.kappa, 'hex');
-  const expectedBuf = Buffer.from(expectedKappa, 'hex');
+  // Convert hex strings to byte arrays for timing-safe comparison
+  const actualBuf = hexToUint8Array(btr.kappa);
+  const expectedBuf = hexToUint8Array(expectedKappa);
 
   // Check lengths first to avoid timingSafeEqual throwing on length mismatch
   if (actualBuf.length !== expectedBuf.length) {

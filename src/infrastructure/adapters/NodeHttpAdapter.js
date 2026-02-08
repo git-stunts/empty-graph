@@ -1,19 +1,29 @@
 import HttpServerPort from '../../ports/HttpServerPort.js';
 import { createServer } from 'node:http';
 
+/** Absolute streaming body limit (10 MB). */
+const MAX_BODY_BYTES = 10 * 1024 * 1024;
+
 /**
  * Collects the request body and dispatches to the handler, returning
  * a 500 response if the handler throws.
  */
-async function dispatch(req, res, requestHandler) {
+async function dispatch(req, res, { handler, logger }) {
   try {
     const chunks = [];
+    let totalBytes = 0;
     for await (const chunk of req) {
+      totalBytes += chunk.length;
+      if (totalBytes > MAX_BODY_BYTES) {
+        res.writeHead(413, { 'Content-Type': 'text/plain' });
+        res.end('Payload Too Large');
+        return;
+      }
       chunks.push(chunk);
     }
     const body = Buffer.concat(chunks);
 
-    const response = await requestHandler({
+    const response = await handler({
       method: req.method,
       url: req.url,
       headers: req.headers,
@@ -22,13 +32,16 @@ async function dispatch(req, res, requestHandler) {
 
     res.writeHead(response.status || 200, response.headers || {});
     res.end(response.body);
-  } catch {
+  } catch (err) {
+    logger.error('[NodeHttpAdapter] dispatch error:', err);
     if (!res.headersSent) {
       res.writeHead(500, { 'Content-Type': 'text/plain' });
     }
     res.end('Internal Server Error');
   }
 }
+
+const noopLogger = { error() {} };
 
 /**
  * Node.js HTTP adapter implementing HttpServerPort.
@@ -38,9 +51,18 @@ async function dispatch(req, res, requestHandler) {
  * @extends HttpServerPort
  */
 export default class NodeHttpAdapter extends HttpServerPort {
+  /**
+   * @param {{ logger?: { error: Function } }} [options]
+   */
+  constructor({ logger } = {}) {
+    super();
+    this._logger = logger || noopLogger;
+  }
+
   /** @inheritdoc */
   createServer(requestHandler) {
-    const server = createServer((req, res) => dispatch(req, res, requestHandler));
+    const logger = this._logger;
+    const server = createServer((req, res) => dispatch(req, res, { handler: requestHandler, logger }));
 
     return {
       listen(port, host, callback) {

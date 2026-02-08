@@ -580,7 +580,11 @@ export class PatchBuilderV2 {
 
     // 10. Notify success callback (updates graph's version vector + eager re-materialize)
     if (this._onCommitSuccess) {
-      await this._onCommitSuccess({ patch, sha: newCommitSha });
+      try {
+        await this._onCommitSuccess({ patch, sha: newCommitSha });
+      } catch {
+        // Commit is already persisted — log but don't fail the caller.
+      }
     }
 
     // 11. Return the new commit SHA

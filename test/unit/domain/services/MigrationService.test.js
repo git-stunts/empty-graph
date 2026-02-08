@@ -139,6 +139,9 @@ import {
   createEdgeAddV2,
   createPropSetV2,
 } from '../../../../src/domain/types/WarpTypesV2.js';
+import NodeCryptoAdapter from '../../../../src/infrastructure/adapters/NodeCryptoAdapter.js';
+
+const crypto = new NodeCryptoAdapter();
 
 /**
  * Creates a PatchV1 (schema:1) for migration testing.
@@ -776,9 +779,9 @@ describe('MigrationService', () => {
         const stateBAC = reduceV5([v5PatchB, v5PatchA, v5PatchC], v5State);
 
         // All orders produce the same hash (permutation invariance)
-        const hashABC = await computeStateHashV5(stateABC);
-        const hashCBA = await computeStateHashV5(stateCBA);
-        const hashBAC = await computeStateHashV5(stateBAC);
+        const hashABC = await computeStateHashV5(stateABC, { crypto });
+        const hashCBA = await computeStateHashV5(stateCBA, { crypto });
+        const hashBAC = await computeStateHashV5(stateBAC, { crypto });
 
         expect(hashABC).toBe(hashCBA);
         expect(hashABC).toBe(hashBAC);

@@ -176,8 +176,9 @@ describe('WarpGraph Integration', () => {
         .setProperty('x', 'v', 42)
         .commit();
 
+      const crypto = new NodeCryptoAdapter();
       const state1 = await graph1.materialize();
-      const hash1 = await computeStateHashV5(state1);
+      const hash1 = await computeStateHashV5(state1, { crypto });
 
       // Create identical patches in repo 2 (same repo, fresh graph)
       const graph2 = await WarpGraph.open({
@@ -192,7 +193,7 @@ describe('WarpGraph Integration', () => {
         .commit();
 
       const state2 = await graph2.materialize();
-      const hash2 = await computeStateHashV5(state2);
+      const hash2 = await computeStateHashV5(state2, { crypto });
 
       expect(hash1).toBe(hash2);
     });

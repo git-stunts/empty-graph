@@ -15,12 +15,20 @@ import {
 export default class NodeCryptoAdapter extends CryptoPort {
   /** @inheritdoc */
   hash(algorithm, data) {
-    return Promise.resolve(createHash(algorithm).update(data).digest('hex'));
+    try {
+      return Promise.resolve(createHash(algorithm).update(data).digest('hex'));
+    } catch (err) {
+      return Promise.reject(err);
+    }
   }
 
   /** @inheritdoc */
   hmac(algorithm, key, data) {
-    return Promise.resolve(createHmac(algorithm, key).update(data).digest());
+    try {
+      return Promise.resolve(createHmac(algorithm, key).update(data).digest());
+    } catch (err) {
+      return Promise.reject(err);
+    }
   }
 
   /** @inheritdoc */

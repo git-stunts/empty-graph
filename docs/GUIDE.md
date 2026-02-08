@@ -33,7 +33,7 @@ The domain layer has no direct Node.js built-in imports. Runtime-specific adapte
 | Browser | `WebCryptoAdapter` | N/A |
 
 ```javascript
-import { WebCryptoAdapter } from '@git-stunts/git-warp';
+import { WarpGraph, WebCryptoAdapter } from '@git-stunts/git-warp';
 
 const graph = await WarpGraph.open({
   persistence,

@@ -345,6 +345,7 @@ describe('BunHttpAdapter', () => {
       const response = await mockServer._fetch(mockReq);
 
       expect(response.status).toBe(200);
+      expect(response.headers.get('content-type')).toBe('text/plain;charset=UTF-8');
     });
   });
 

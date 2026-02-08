@@ -122,6 +122,7 @@ function closeImpl(state, callback) {
   }
   state.server.shutdown().then(
     () => {
+      state.server = null;
       if (callback) {
         callback();
       }

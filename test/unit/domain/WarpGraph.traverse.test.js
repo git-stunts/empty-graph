@@ -1,19 +1,13 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import WarpGraph from '../../../src/domain/WarpGraph.js';
-import { addNodeToState, addEdgeToState, setupGraphState } from '../../helpers/warpGraphTestUtils.js';
+import { addNodeToState, addEdgeToState, setupGraphState, createMockPersistence } from '../../helpers/warpGraphTestUtils.js';
 
 describe('WarpGraph logical traversal', () => {
   let mockPersistence;
   let graph;
 
   beforeEach(async () => {
-    mockPersistence = {
-      readRef: vi.fn().mockResolvedValue(null),
-      listRefs: vi.fn().mockResolvedValue([]),
-      updateRef: vi.fn().mockResolvedValue(),
-      configGet: vi.fn().mockResolvedValue(null),
-      configSet: vi.fn().mockResolvedValue(),
-    };
+    mockPersistence = createMockPersistence();
 
     graph = await WarpGraph.open({
       persistence: mockPersistence,
