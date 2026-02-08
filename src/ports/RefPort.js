@@ -38,4 +38,14 @@ export default class RefPort {
   async deleteRef(_ref) {
     throw new Error('RefPort.deleteRef() not implemented');
   }
+
+  /**
+   * Lists refs matching a prefix.
+   * @param {string} prefix - The ref prefix to match (e.g., 'refs/warp/events/writers/')
+   * @returns {Promise<string[]>} Array of matching ref names
+   * @throws {Error} If not implemented by a concrete adapter
+   */
+  async listRefs(_prefix) {
+    throw new Error('RefPort.listRefs() not implemented');
+  }
 }

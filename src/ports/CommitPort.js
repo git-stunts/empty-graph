@@ -79,6 +79,31 @@ export default class CommitPort {
   }
 
   /**
+   * Creates a commit pointing to a specified tree (not the empty tree).
+   * Used by CheckpointService and PatchBuilderV2 for tree-backed commits.
+   * @param {Object} options
+   * @param {string} options.treeOid - The tree OID to commit
+   * @param {string[]} [options.parents=[]] - Parent commit SHAs
+   * @param {string} options.message - The commit message
+   * @param {boolean} [options.sign=false] - Whether to GPG-sign the commit
+   * @returns {Promise<string>} The SHA of the created commit
+   * @throws {Error} If not implemented by a concrete adapter
+   */
+  async commitNodeWithTree(_options) {
+    throw new Error('CommitPort.commitNodeWithTree() not implemented');
+  }
+
+  /**
+   * Checks whether a commit exists in the repository.
+   * @param {string} sha - The commit SHA to check
+   * @returns {Promise<boolean>} True if the commit exists
+   * @throws {Error} If not implemented by a concrete adapter
+   */
+  async nodeExists(_sha) {
+    throw new Error('CommitPort.nodeExists() not implemented');
+  }
+
+  /**
    * Pings the repository to verify accessibility.
    * @returns {Promise<{ok: boolean, latencyMs: number}>} Health check result with latency
    * @throws {Error} If not implemented by a concrete adapter

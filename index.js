@@ -51,6 +51,11 @@ import QueryBuilder from './src/domain/services/QueryBuilder.js';
 import ObserverView from './src/domain/services/ObserverView.js';
 import { computeTranslationCost } from './src/domain/services/TranslationCost.js';
 import {
+  encodeEdgePropKey,
+  decodeEdgePropKey,
+  isEdgePropKey,
+} from './src/domain/services/KeyCodec.js';
+import {
   createTickReceipt,
   canonicalJson as tickReceiptCanonicalJson,
   OP_TYPES as TICK_RECEIPT_OP_TYPES,
@@ -138,6 +143,11 @@ export {
   createInlineValue,
   createBlobValue,
   createEventId,
+
+  // Key codec utilities (BULKHEAD)
+  encodeEdgePropKey,
+  decodeEdgePropKey,
+  isEdgePropKey,
 
   // WARP migration
   migrateV4toV5,

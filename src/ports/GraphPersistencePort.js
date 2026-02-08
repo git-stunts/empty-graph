@@ -199,6 +199,40 @@ export default class GraphPersistencePort {
   }
 
   /**
+   * Lists refs matching a prefix.
+   * @param {string} prefix - The ref prefix to match (e.g., 'refs/warp/events/writers/')
+   * @returns {Promise<string[]>} Array of matching ref names
+   * @throws {Error} If not implemented by a concrete adapter
+   */
+  async listRefs(_prefix) {
+    throw new Error('Not implemented');
+  }
+
+  /**
+   * Creates a commit pointing to a specified tree (not the empty tree).
+   * @param {Object} options
+   * @param {string} options.treeOid - The tree OID to commit
+   * @param {string[]} [options.parents=[]] - Parent commit SHAs
+   * @param {string} options.message - The commit message
+   * @param {boolean} [options.sign=false] - Whether to GPG-sign the commit
+   * @returns {Promise<string>} The SHA of the created commit
+   * @throws {Error} If not implemented by a concrete adapter
+   */
+  async commitNodeWithTree(_options) {
+    throw new Error('Not implemented');
+  }
+
+  /**
+   * Checks whether a commit exists in the repository.
+   * @param {string} sha - The commit SHA to check
+   * @returns {Promise<boolean>} True if the commit exists
+   * @throws {Error} If not implemented by a concrete adapter
+   */
+  async nodeExists(_sha) {
+    throw new Error('Not implemented');
+  }
+
+  /**
    * Reads a git config value.
    * @param {string} key - The config key to read (e.g., 'warp.writerId.events')
    * @returns {Promise<string|null>} The config value, or null if not set

@@ -2,6 +2,35 @@ import HttpServerPort from '../../ports/HttpServerPort.js';
 import { createServer } from 'node:http';
 
 /**
+ * Collects the request body and dispatches to the handler, returning
+ * a 500 response if the handler throws.
+ */
+async function dispatch(req, res, requestHandler) {
+  try {
+    const chunks = [];
+    for await (const chunk of req) {
+      chunks.push(chunk);
+    }
+    const body = Buffer.concat(chunks);
+
+    const response = await requestHandler({
+      method: req.method,
+      url: req.url,
+      headers: req.headers,
+      body: body.length > 0 ? body : undefined,
+    });
+
+    res.writeHead(response.status || 200, response.headers || {});
+    res.end(response.body);
+  } catch {
+    if (!res.headersSent) {
+      res.writeHead(500, { 'Content-Type': 'text/plain' });
+    }
+    res.end('Internal Server Error');
+  }
+}
+
+/**
  * Node.js HTTP adapter implementing HttpServerPort.
  *
  * This is the only file that imports node:http for server creation.
@@ -11,23 +40,7 @@ import { createServer } from 'node:http';
 export default class NodeHttpAdapter extends HttpServerPort {
   /** @inheritdoc */
   createServer(requestHandler) {
-    const server = createServer(async (req, res) => {
-      const chunks = [];
-      for await (const chunk of req) {
-        chunks.push(chunk);
-      }
-      const body = Buffer.concat(chunks);
-
-      const response = await requestHandler({
-        method: req.method,
-        url: req.url,
-        headers: req.headers,
-        body: body.length > 0 ? body : undefined,
-      });
-
-      res.writeHead(response.status || 200, response.headers || {});
-      res.end(response.body);
-    });
+    const server = createServer((req, res) => dispatch(req, res, requestHandler));
 
     return {
       listen(port, host, callback) {
