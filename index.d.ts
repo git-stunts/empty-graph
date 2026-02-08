@@ -600,8 +600,10 @@ export abstract class HttpServerPort {
     headers: Record<string, string>;
     body?: Buffer | Uint8Array;
   }) => Promise<{ status?: number; headers?: Record<string, string>; body?: string | Uint8Array }>): {
-    listen(options: { port: number; host?: string }): Promise<{ url: string }>;
-    close(): Promise<void>;
+    listen(port: number, callback?: (err?: Error | null) => void): void;
+    listen(port: number, host: string, callback?: (err?: Error | null) => void): void;
+    close(callback?: (err?: Error | null) => void): void;
+    address(): { address: string; port: number; family: string } | null;
   };
 }
 
@@ -618,8 +620,10 @@ export class BunHttpAdapter extends HttpServerPort {
     headers: Record<string, string>;
     body?: Buffer | Uint8Array;
   }) => Promise<{ status?: number; headers?: Record<string, string>; body?: string | Uint8Array }>): {
-    listen(options: { port: number; host?: string }): Promise<{ url: string }>;
-    close(): Promise<void>;
+    listen(port: number, callback?: (err?: Error | null) => void): void;
+    listen(port: number, host: string, callback?: (err?: Error | null) => void): void;
+    close(callback?: (err?: Error | null) => void): void;
+    address(): { address: string; port: number; family: string } | null;
   };
 }
 
@@ -636,8 +640,10 @@ export class DenoHttpAdapter extends HttpServerPort {
     headers: Record<string, string>;
     body?: Buffer | Uint8Array;
   }) => Promise<{ status?: number; headers?: Record<string, string>; body?: string | Uint8Array }>): {
-    listen(options: { port: number; host?: string }): Promise<{ url: string }>;
-    close(): Promise<void>;
+    listen(port: number, callback?: (err?: Error | null) => void): void;
+    listen(port: number, host: string, callback?: (err?: Error | null) => void): void;
+    close(callback?: (err?: Error | null) => void): void;
+    address(): { address: string; port: number; family: string } | null;
   };
 }
 

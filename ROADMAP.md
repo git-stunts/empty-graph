@@ -1,8 +1,8 @@
 # Roadmap
 
 > Execution plan for `@git-stunts/git-warp` from v7.1.0 onward.
-> Current release: v10.1.0. All milestones through BULKHEAD complete.
-> Main branch: v10.0.0 (BULKHEAD). Release branch: v10.1.0 (async CryptoPort + multi-runtime adapters).
+> Current release: v10.1.1. All milestones through BULKHEAD complete.
+> Main branch: v10.0.0 (BULKHEAD). Release branch: v10.1.1 (async CryptoPort + multi-runtime adapters).
 
 ## How to Read This Document
 

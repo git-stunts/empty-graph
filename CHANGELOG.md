@@ -5,11 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [10.1.1] — BULKHEAD (cont.)
+
+### Fixed
+
+- **`NodeCryptoAdapter.hash()` / `hmac()` now use `async`**: Previously used `Promise.resolve()` wrapping, which let synchronous throws (e.g. unsupported algorithm) escape as uncaught exceptions instead of rejected promises. Now properly `async` so all errors become rejections.
+- **`index.d.ts` HttpServerPort type declarations**: `listen()`, `close()`, and `address()` signatures now match the actual callback-based implementation. Previously declared a Promise-based options-object API that no adapter implemented.
+
 ## [10.1.0] — BULKHEAD (cont.)
 
 ### Breaking Changes
 
-- **`CryptoPort.hash()` and `CryptoPort.hmac()` are now async**: Both methods now return `Promise<string>` and `Promise<Buffer|Uint8Array>` respectively, enabling Web Crypto API support across browsers, Deno, and Bun. All domain callers updated to `await`. If you have a custom `CryptoPort` implementation, update `hash()` and `hmac()` to return Promises (or use `Promise.resolve()` to wrap synchronous results, as `NodeCryptoAdapter` does).
+- **`CryptoPort.hash()` and `CryptoPort.hmac()` are now async**: Both methods now return `Promise<string>` and `Promise<Buffer|Uint8Array>` respectively, enabling Web Crypto API support across browsers, Deno, and Bun. All domain callers updated to `await`. If you have a custom `CryptoPort` implementation, update `hash()` and `hmac()` to return Promises (or mark them `async`).
 - **Functions that were synchronous are now async**: `computeStateHashV5()`, `BitmapIndexBuilder.serialize()`, `WarpStateIndexBuilder.serialize()`, `buildWarpStateIndex()`, `createBTR()`, `verifyBTR()`, `replayBTR()`. All return Promises and must be `await`ed.
 
 ### Added
