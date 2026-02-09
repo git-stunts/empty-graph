@@ -6,7 +6,6 @@
  *
  * Scaling tests: 1K, 5K, 10K, 25K patches
  * Soft targets (warn only): 1K=1s, 5K=3s, 10K=5s, 25K=15s
- * Hard limits (fail CI): 10K=10s only
  */
 
 import { describe, it, expect } from 'vitest';
