@@ -19,7 +19,8 @@ RUN git init -q \
 # Pre-cache npm dependencies via Deno's npm: specifier support.
 RUN deno cache --node-modules-dir test/runtime/deno/lifecycle.test.ts 2>/dev/null || true
 # Run tests as non-root to mirror CI and catch permission issues.
-RUN chown -R deno:deno /app
+# Also chown Deno's global cache so the deno user can fetch npm packages at runtime.
+RUN chown -R deno:deno /app /deno-dir
 USER deno
 ENV GIT_STUNTS_DOCKER=1
 CMD ["deno", "test", "--allow-all", "--node-modules-dir", "test/runtime/deno/"]
