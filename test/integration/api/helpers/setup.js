@@ -31,6 +31,10 @@ export async function createTestRepo(label = 'api-test') {
 
     /**
      * Opens a WarpGraph with WebCryptoAdapter pre-configured.
+     * @param {string} graphName - Name of the graph to open
+     * @param {string} writerId - Writer identity
+     * @param {Object} [opts={}] - Additional options forwarded to WarpGraph.open
+     * @returns {Promise<Object>} Opened WarpGraph instance
      */
     async function openGraph(graphName, writerId, opts = {}) {
       return WarpGraph.open({

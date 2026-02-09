@@ -272,6 +272,17 @@ async function resolveGraphName(persistence, explicitGraph) {
   throw usageError('Multiple graphs found; specify --graph');
 }
 
+/**
+ * Collects metadata about a single graph (writer count, refs, patches, checkpoint).
+ * @param {Object} persistence - GraphPersistencePort adapter
+ * @param {string} graphName - Name of the graph to inspect
+ * @param {Object} [options]
+ * @param {boolean} [options.includeWriterIds=false] - Include writer ID list
+ * @param {boolean} [options.includeRefs=false] - Include checkpoint/coverage refs
+ * @param {boolean} [options.includeWriterPatches=false] - Include per-writer patch counts
+ * @param {boolean} [options.includeCheckpointDate=false] - Include checkpoint date
+ * @returns {Promise<Object>} Graph info object
+ */
 async function getGraphInfo(persistence, graphName, {
   includeWriterIds = false,
   includeRefs = false,
@@ -336,6 +347,15 @@ async function getGraphInfo(persistence, graphName, {
   return info;
 }
 
+/**
+ * Opens a WarpGraph for the given CLI options.
+ * @param {Object} options - Parsed CLI options
+ * @param {string} [options.repo] - Repository path
+ * @param {string} [options.graph] - Explicit graph name
+ * @param {string} [options.writer] - Writer ID
+ * @returns {Promise<{graph: Object, graphName: string, persistence: Object}>}
+ * @throws {CliError} If the specified graph is not found
+ */
 async function openGraph(options) {
   const { persistence } = await createPersistence(options.repo);
   const graphName = await resolveGraphName(persistence, options.graph);
@@ -751,11 +771,26 @@ function renderError(payload) {
   return `Error: ${payload.error.message}\n`;
 }
 
+/**
+ * Wraps SVG content in a minimal HTML document and writes it to disk.
+ * @param {string} filePath - Destination file path
+ * @param {string} svgContent - SVG markup to embed
+ */
 function writeHtmlExport(filePath, svgContent) {
   const html = `<!DOCTYPE html>\n<html><head><meta charset="utf-8"><title>git-warp</title></head><body>\n${svgContent}\n</body></html>`;
   fs.writeFileSync(filePath, html);
 }
 
+/**
+ * Writes a command result to stdout/stderr in the appropriate format.
+ * Dispatches to JSON, SVG file, HTML file, ASCII view, or plain text
+ * based on the combination of flags.
+ * @param {Object} payload - Command result payload
+ * @param {Object} options
+ * @param {boolean} options.json - Emit JSON to stdout
+ * @param {string} options.command - Command name (info, query, path, etc.)
+ * @param {string|boolean} options.view - View mode (true for ascii, 'svg:PATH', 'html:PATH', 'browser')
+ */
 function emit(payload, { json, command, view }) {
   if (json) {
     process.stdout.write(`${stableStringify(payload)}\n`);
@@ -1214,6 +1249,14 @@ async function handleHistory({ options, args }) {
   return { payload, exitCode: EXIT_CODES.OK };
 }
 
+/**
+ * Materializes a single graph, creates a checkpoint, and returns summary stats.
+ * @param {Object} params
+ * @param {Object} params.persistence - GraphPersistencePort adapter
+ * @param {string} params.graphName - Name of the graph to materialize
+ * @param {string} params.writerId - Writer ID for the CLI session
+ * @returns {Promise<{graph: string, nodes: number, edges: number, properties: number, checkpoint: string, writers: Object, patchCount: number}>}
+ */
 async function materializeOneGraph({ persistence, graphName, writerId }) {
   const graph = await WarpGraph.open({ persistence, graphName, writerId, crypto: new NodeCryptoAdapter() });
   await graph.materialize();

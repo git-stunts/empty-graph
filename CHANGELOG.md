@@ -45,6 +45,10 @@ Adds a Dockerized multi-runtime test suite across Node 20, Node 22, Bun, and Den
 - **BATS seed scripts include crypto**: All `WarpGraph.open()` calls in seed scripts now pass `NodeCryptoAdapter` via the shared `seed-setup.js` module, matching the CLI and preventing `createCheckpoint()` crashes.
 - **Stricter HTML export BATS test**: `--view html:FILE` test now asserts `<!DOCTYPE` and `<html` instead of falling back to `<svg`, ensuring raw SVG cannot pass as valid HTML output.
 
+### Docs
+
+- **JSDoc on changed/new functions**: Added missing JSDoc to `getGraphInfo`, `openGraph`, `writeHtmlExport`, `emit`, `materializeOneGraph` in `bin/warp-graph.js` and inner `openGraph` in `test/integration/api/helpers/setup.js`.
+
 ### Tests
 
 - Suite total: 2883 tests across 142 vitest files + 56 BATS CLI tests (up from 2828/131 + 8).
