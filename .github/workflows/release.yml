@@ -1,30 +1,34 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - "v*.*.*"
-      - "v*.*.*-rc.*"
-      - "v*.*.*-beta.*"
-      - "v*.*.*-alpha.*"
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
 
 permissions:
   contents: read
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ github.event.workflow_run.head_branch }}
   cancel-in-progress: false
 
 jobs:
   verify:
-    name: Verify build, metadata, publishability
+    name: Verify metadata and publishability
     runs-on: ubuntu-latest
+    # Only proceed if CI passed on a version tag
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      startsWith(github.event.workflow_run.head_branch, 'v')
     outputs:
+      tag: ${{ steps.meta.outputs.tag }}
       tag_version: ${{ steps.meta.outputs.tag_version }}
       is_prerelease: ${{ steps.meta.outputs.is_prerelease }}
       npm_dist_tag: ${{ steps.meta.outputs.npm_dist_tag }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_branch }}
 
       - name: Setup Node 20
         uses: actions/setup-node@v4
@@ -35,21 +39,21 @@ jobs:
       - name: Install
         run: npm ci
 
-      - name: Lint
-        run: npm run lint --if-present
-
-      - name: Test (local unit)
-        run: npm run test:local --if-present
-
-      - name: Build (if present)
-        run: npm run build --if-present
-
-      - name: Compute release metadata
+      - name: Validate tag format and compute metadata
         id: meta
         shell: bash
         run: |
           set -euo pipefail
-          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          TAG="${{ github.event.workflow_run.head_branch }}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+          # Validate tag format (same regex as tag-guard.yml)
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|beta|alpha)\.[0-9]+)?$ ]]; then
+            echo "Invalid tag format: $TAG"
+            exit 1
+          fi
+
+          TAG_VERSION="${TAG#v}"
           echo "tag_version=$TAG_VERSION" >> "$GITHUB_OUTPUT"
 
           if [[ "$TAG_VERSION" =~ -(rc|beta|alpha)\. ]]; then
@@ -115,6 +119,8 @@ jobs:
       NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.verify.outputs.tag }}
 
       - name: Setup Node 20 for npm
         uses: actions/setup-node@v4
@@ -154,6 +160,8 @@ jobs:
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.verify.outputs.tag }}
 
       - name: Publish JSR (retry x3)
         uses: ./.github/actions/retry
@@ -189,7 +197,7 @@ jobs:
       - name: Create / update release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
+          tag_name: ${{ needs.verify.outputs.tag }}
           prerelease: ${{ needs.verify.outputs.is_prerelease == 'true' }}
           generate_release_notes: true
           append_body: true
