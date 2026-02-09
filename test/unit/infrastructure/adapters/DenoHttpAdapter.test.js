@@ -151,6 +151,18 @@ describe('DenoHttpAdapter', () => {
 
       expect(() => server.listen(3000)).not.toThrow();
     });
+
+    it('throws when Deno.serve fails without callback', () => {
+      const error = new Error('bind failed');
+      globalThis.Deno.serve = vi.fn(() => {
+        throw error;
+      });
+
+      const adapter = new DenoHttpAdapter();
+      const server = adapter.createServer(() => ({ status: 200 }));
+
+      expect(() => server.listen(3000)).toThrow(error);
+    });
   });
 
   describe('Request/Response bridging', () => {

@@ -216,6 +216,8 @@ export default class DenoHttpAdapter extends HttpServerPort {
         } catch (err) {
           if (cb) {
             cb(err);
+          } else {
+            throw err;
           }
         }
       },

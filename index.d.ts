@@ -614,7 +614,7 @@ export abstract class HttpServerPort {
  * Uses globalThis.Bun.serve() to create an HTTP server.
  */
 export class BunHttpAdapter extends HttpServerPort {
-  constructor(options?: { logger?: { error: (msg: string) => void } });
+  constructor(options?: { logger?: { error: (msg: string, ...args: unknown[]) => void } });
   createServer(requestHandler: (request: {
     method: string;
     url: string;
@@ -634,7 +634,7 @@ export class BunHttpAdapter extends HttpServerPort {
  * Uses globalThis.Deno.serve() (Deno 1.35+) to create an HTTP server.
  */
 export class DenoHttpAdapter extends HttpServerPort {
-  constructor(options?: { logger?: { error: (msg: string) => void } });
+  constructor(options?: { logger?: { error: (msg: string, ...args: unknown[]) => void } });
   createServer(requestHandler: (request: {
     method: string;
     url: string;

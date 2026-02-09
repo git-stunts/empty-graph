@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [10.1.1] — BULKHEAD (cont.)
+## [10.1.1] — 2026-02-08 — BULKHEAD (cont.)
 
 ### Documentation
 
@@ -31,6 +31,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`DenoHttpAdapter.closeImpl()` shutdown error handling**: `state.server` is now nullified in the rejection path, preventing stale references after a failed shutdown. Also prevents unhandled promise rejection when `close()` is called without a callback.
 - **`ReducerV5.benchmark.js` stale comment**: Removed reference to hard CI limits that were previously removed.
 - **`WarpStateIndexBuilder` JSDoc examples**: Added missing `await` to `builder.serialize()` and `buildWarpStateIndex()` examples, which became async in v10.1.0.
+- **`WarpGraph.fork()` now propagates `crypto` and `codec`**: Previously, forked graphs lost the parent's `crypto` and `codec` options, causing `computeStateHashV5` to return `null` and dropping custom codecs. Now forwards both to `WarpGraph.open()`.
+- **`DenoHttpAdapter.listen()` re-throws on bind failure without callback**: Previously, if `Deno.serve()` threw and no callback was provided, the error was silently swallowed. Now re-throws so callers are informed of bind failures.
+- **`formatDuration()` input validation**: Now returns `'unknown'` for non-numeric, `NaN`, and negative inputs (consistent with `timeAgo`). Also added hour-level formatting for durations >= 60 minutes.
+- **`box.js` removed redundant default export**: `export default { createBox }` wrapped the named export in an object; all consumers use the named import. Removed to avoid confusion.
+- **`index.d.ts` HTTP adapter logger type**: `BunHttpAdapter` and `DenoHttpAdapter` constructor `logger.error` now accepts variadic `...args: unknown[]`, matching the implementation which calls `logger.error(msg, err)`.
 - **`DenoHttpAdapter.listenImpl()` simplified**: Removed unnecessary intermediate closure — logic is now inlined at the call site.
 - **`BunHttpAdapter` `ERROR_BODY_LENGTH`**: Now derived from `TextEncoder().encode().byteLength` instead of `String.length`, correctly measuring bytes rather than UTF-16 code units.
 
@@ -42,9 +47,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `createGitRepo`: Temp directory is now cleaned up in a `catch` block if git init or config fails, preventing CI temp dir accumulation.
 - `setupGraphState`: Added coupling comment documenting reliance on `WarpGraph._cachedState` internal field.
 - `BunHttpAdapter` `startServer` JSDoc: Added note about `Bun.serve()` synchronous callback timing differing from Node's async `server.listen`.
-- Suite total: 2845 tests across 133 files.
+- `WarpGraph.forkCryptoCodec.test.js`: New test file validating that `fork()` propagates `crypto` and `codec` to forked graphs (3 tests).
+- `DenoHttpAdapter.test.js`: Added tests for listen throw-without-callback, close rejection without callback, and state.server nullification on shutdown error (3 new tests).
+- `visualization-utils.test.js`: Added tests for `formatDuration` edge cases: `NaN`, negative, non-numeric, and hour-level formatting (5 new tests).
+- Suite total: 2828 tests across 131 files.
 
-## [10.1.0] — BULKHEAD (cont.)
+## [10.1.0] — 2026-02-06 — BULKHEAD (cont.)
 
 ### Breaking Changes
 

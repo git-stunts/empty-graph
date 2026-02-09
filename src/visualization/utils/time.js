@@ -27,11 +27,14 @@ export function timeAgo(date) {
  * @returns {string} Formatted duration string
  */
 export function formatDuration(ms) {
-  if (ms < 1000) {return `${ms}ms`;}
+  if (typeof ms !== 'number' || Number.isNaN(ms) || ms < 0) { return 'unknown'; }
+  if (ms < 1000) { return `${ms}ms`; }
   const seconds = Math.floor(ms / 1000);
-  if (seconds < 60) {return `${seconds}s`;}
+  if (seconds < 60) { return `${seconds}s`; }
   const minutes = Math.floor(seconds / 60);
-  return `${minutes}m ${seconds % 60}s`;
+  if (minutes < 60) { return `${minutes}m ${seconds % 60}s`; }
+  const hours = Math.floor(minutes / 60);
+  return `${hours}h ${minutes % 60}m`;
 }
 
 export default { timeAgo, formatDuration };

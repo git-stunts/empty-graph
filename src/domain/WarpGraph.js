@@ -2741,6 +2741,8 @@ export default class WarpGraph {
         onDeleteWithData: this._onDeleteWithData,
         logger: this._logger,
         clock: this._clock,
+        crypto: this._crypto,
+        codec: this._codec,
       });
 
       this._logTiming('fork', t0, {

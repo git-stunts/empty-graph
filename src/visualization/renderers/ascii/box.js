@@ -14,5 +14,3 @@ export function createBox(content, options = {}) {
     ...options,
   });
 }
-
-export default { createBox };

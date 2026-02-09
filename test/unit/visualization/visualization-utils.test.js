@@ -137,6 +137,26 @@ describe('formatDuration', () => {
   it('returns minutes with 0 remainder seconds', () => {
     expect(formatDuration(120_000)).toBe('2m 0s');
   });
+
+  it('returns "unknown" for NaN', () => {
+    expect(formatDuration(NaN)).toBe('unknown');
+  });
+
+  it('returns "unknown" for negative values', () => {
+    expect(formatDuration(-5)).toBe('unknown');
+  });
+
+  it('returns "unknown" for non-numeric input', () => {
+    expect(formatDuration('hello')).toBe('unknown');
+  });
+
+  it('returns hours + minutes for >= 60m (1 hour exact)', () => {
+    expect(formatDuration(3_600_000)).toBe('1h 0m');
+  });
+
+  it('returns hours + minutes for >= 60m (1.5 hours)', () => {
+    expect(formatDuration(5_400_000)).toBe('1h 30m');
+  });
 });
 
 describe('padRight', () => {
