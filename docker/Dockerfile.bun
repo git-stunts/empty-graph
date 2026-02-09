@@ -5,7 +5,7 @@
 FROM oven/bun:latest
 # make/g++: native module compilation (roaring bitmaps).
 # No bats/python3 — BATS CLI tests are Node-only.
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     make \
     g++ \
@@ -22,5 +22,8 @@ RUN git init -q \
   && git config user.name "Git Warp Container" \
   && git add -A \
   && git commit --allow-empty -m "seed git-warp" >/dev/null
+# Run tests as non-root to mirror CI and catch permission issues.
+RUN useradd -m warp && chown -R warp:warp /app
+USER warp
 ENV GIT_STUNTS_DOCKER=1
 CMD ["bunx", "vitest", "run", "test/integration/api/"]

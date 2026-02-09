@@ -751,6 +751,11 @@ function renderError(payload) {
   return `Error: ${payload.error.message}\n`;
 }
 
+function writeHtmlExport(filePath, svgContent) {
+  const html = `<!DOCTYPE html>\n<html><head><meta charset="utf-8"><title>git-warp</title></head><body>\n${svgContent}\n</body></html>`;
+  fs.writeFileSync(filePath, html);
+}
+
 function emit(payload, { json, command, view }) {
   if (json) {
     process.stdout.write(`${stableStringify(payload)}\n`);
@@ -780,8 +785,7 @@ function emit(payload, { json, command, view }) {
       if (!payload._renderedSvg) {
         process.stderr.write('No graph data — skipping HTML export.\n');
       } else {
-        const html = `<!DOCTYPE html>\n<html><head><meta charset="utf-8"><title>git-warp</title></head><body>\n${payload._renderedSvg}\n</body></html>`;
-        fs.writeFileSync(htmlPath, html);
+        writeHtmlExport(htmlPath, payload._renderedSvg);
         process.stderr.write(`HTML written to ${htmlPath}\n`);
       }
     } else if (view) {
@@ -806,8 +810,7 @@ function emit(payload, { json, command, view }) {
       if (!payload._renderedSvg) {
         process.stderr.write('No path found — skipping HTML export.\n');
       } else {
-        const html = `<!DOCTYPE html>\n<html><head><meta charset="utf-8"><title>git-warp</title></head><body>\n${payload._renderedSvg}\n</body></html>`;
-        fs.writeFileSync(htmlPath, html);
+        writeHtmlExport(htmlPath, payload._renderedSvg);
         process.stderr.write(`HTML written to ${htmlPath}\n`);
       }
     } else if (view) {

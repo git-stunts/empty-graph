@@ -5,7 +5,7 @@
 # Build context is the parent monorepo directory (context: ..).
 FROM denoland/deno:latest
 USER root
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
@@ -18,5 +18,8 @@ RUN git init -q \
   && git commit --allow-empty -m "seed git-warp" >/dev/null
 # Pre-cache npm dependencies via Deno's npm: specifier support.
 RUN deno cache --node-modules-dir test/runtime/deno/lifecycle.test.ts 2>/dev/null || true
+# Run tests as non-root to mirror CI and catch permission issues.
+RUN chown -R deno:deno /app
+USER deno
 ENV GIT_STUNTS_DOCKER=1
 CMD ["deno", "test", "--allow-all", "--node-modules-dir", "test/runtime/deno/"]

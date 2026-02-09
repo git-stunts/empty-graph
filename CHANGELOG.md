@@ -29,11 +29,14 @@ Adds a Dockerized multi-runtime test suite across Node 20, Node 22, Bun, and Den
 ### Changed
 
 - **CI matrix strategy**: `.github/workflows/ci.yml` replaced the single Node 22 test job with a matrix strategy (`test-node` on Node 20+22, `test-bun`, `test-deno`), all using `docker-compose.test.yml`.
+- **Extract `writeHtmlExport` helper**: Deduplicated the HTML wrapper template in `emit()` (query and path branches) into a shared `writeHtmlExport()` function.
+- **Docker images run as non-root**: All four test images (`node20`, `node22`, `bun`, `deno`) now run tests as a non-root user to mirror CI environments and catch permission issues early.
+- **Docker `--no-install-recommends`**: All Dockerfiles use `--no-install-recommends` to reduce image size and build time.
 
 ### Tests
 
-- Suite total: 2882 tests across 142 vitest files + 56 BATS CLI tests (up from 2828/131 + 8).
-- New API integration tests: 47 (lifecycle 6, multiwriter 4, querybuilder 7, traversal 7, checkpoint 3, tombstone-gc 4, fork 1, edge-cases 6, writer-discovery 5, sync 4).
+- Suite total: 2883 tests across 142 vitest files + 56 BATS CLI tests (up from 2828/131 + 8).
+- New API integration tests: 48 (lifecycle 6, multiwriter 4, querybuilder 7, traversal 7, checkpoint 3, tombstone-gc 4, fork 2, edge-cases 6, writer-discovery 5, sync 4).
 - New BATS CLI tests: 48 (info 5, query 8, path 5, history 3, check 5, materialize 4, view-modes 7, errors 6, multiwriter 5).
 - Deno integration tests: 18 (lifecycle 3, multiwriter 2, querybuilder 3, traversal 3, checkpoint 2, edge-cases 3, tombstone 2).
 

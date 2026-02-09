@@ -22,8 +22,8 @@ describe('API: Fork', () => {
 
     await graph.materialize();
 
-    // Fork at the first patch
-    const fork = await graph.fork({
+    // Fork at the first patch — fork() returns a usable WarpGraph
+    const forkedGraph = await graph.fork({
       from: 'alice',
       at: sha1,
       forkName: 'forked',
@@ -35,8 +35,7 @@ describe('API: Fork', () => {
       .addNode('original-only')
       .commit();
 
-    // Add to fork
-    const forkedGraph = await repo.openGraph('forked', 'fork-writer');
+    // Add to fork (using returned graph directly — no re-open needed)
     await (await forkedGraph.createPatch())
       .addNode('fork-only')
       .commit();
@@ -54,5 +53,36 @@ describe('API: Fork', () => {
     expect(forkNodes).toContain('shared');
     expect(forkNodes).toContain('fork-only');
     expect(forkNodes).not.toContain('original-only');
+  });
+
+  it('fork() returns a writable WarpGraph instance', async () => {
+    const graph = await repo.openGraph('src', 'writer-a');
+
+    const sha = await (await graph.createPatch())
+      .addNode('root')
+      .commit();
+
+    await graph.materialize();
+
+    const forked = await graph.fork({
+      from: 'writer-a',
+      at: sha,
+      forkName: 'dst',
+      forkWriterId: 'writer-b',
+    });
+
+    // Return value must be a WarpGraph that supports immediate writes
+    await (await forked.createPatch())
+      .addNode('new-node')
+      .setProperty('new-node', 'added-by', 'fork-return')
+      .commit();
+
+    await forked.materialize();
+    const nodes = await forked.getNodes();
+    expect(nodes).toContain('root');
+    expect(nodes).toContain('new-node');
+
+    const props = await forked.getNodeProps('new-node');
+    expect(props.get('added-by')).toBe('fork-return');
   });
 });
