@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [10.1.2] — 2026-02-08 — First public release
+
+First publication to npm and JSR. Adds dual-registry CI/CD release system, broken link checking, and JSR compatibility fixes.
+
+### Added
+
+- **Dual-publish release workflow**: Tag-triggered CI pipeline (`release.yml`) that verifies metadata, publishes to npm and JSR in parallel via OIDC trusted publishing (no tokens), and creates a GitHub Release with auto-generated notes. Includes prerelease lane support (`rc`→`next`, `beta`→`beta`, `alpha`→`alpha` dist-tags).
+- **Release preflight workflow**: `release-pr.yml` runs on every PR to main — lint, test, dry-run pack + JSR publish, and posts a predicted dist-tag comment.
+- **Tag guard workflow**: `tag-guard.yml` rejects malformed non-semver tags before they trigger anything.
+- **Reusable retry composite action**: `.github/actions/retry/action.yml` with linear backoff for registry publishes.
+- **Broken link checker (lychee)**: `.lychee.toml` config for offline local-link validation; `.github/workflows/links.yml` CI workflow on markdown changes; `lint:links` npm script; pre-push hook runs lychee (graceful skip if not installed).
+- **Release runbook**: `docs/release.md` with first-time OIDC setup steps and dist-tag mapping table.
+- **`test:watch` and `test:coverage`** npm scripts.
+- **JSR module docs**: `@module` JSDoc on all three jsr.json entrypoints (`.`, `./node`, `./visualization`).
+- **JSR type declarations**: `@ts-self-types` directives on all entrypoints; new `GraphNode.d.ts` and `src/visualization/index.d.ts` for full "no slow types" compliance.
+
+### Fixed
+
+- **`no-misused-promises` lint errors**: `WarpGraph.js` polling `setInterval` and `NodeHttpAdapter.js` `createServer` callback now properly handle async returns via `.catch()` chains.
+- **JSR `strip-ansi` module resolution**: Inlined the ANSI regex from `ansi-regex@6`/`strip-ansi@7` into `src/visualization/utils/ansi.js` — eliminates undeclared transitive dependency that JSR's module graph builder could not resolve.
+- **Script recursion in Docker**: `test` and `benchmark` npm scripts now call `test:local`/`benchmark:local` inside Docker instead of recursing into themselves.
+- **`postinstall` consumer failure**: Replaced with `prepare` (only runs in dev + before pack/publish) so consumers don't need `patch-package` or the `patches/` directory.
+
+### Changed
+
+- **package.json hardened for npm publish**: sharpened description, expanded keywords, added `sideEffects: false`, `publishConfig.access: "public"`, `packageManager: "npm@10"`, explicit `"import"` entries in exports, `"./package.json"` export, `prepack` quality gate (lint + test:local).
+- **`patch-package` moved to devDependencies**: Build-time tool, not needed by consumers.
+- **`@types/node` added to devDependencies**.
+- **Removed `typesVersions`**: Redundant with `"types"` in export map (TS 4.7+).
+- **CI triggers on version tags**: `ci.yml` now runs the full suite (Docker tests + BATS CLI) on `v*` tag pushes so the release workflow can gate on CI completion.
+
+### Tests
+
+- Suite total: 2828 tests across 131 files (unchanged).
+
 ## [10.1.1] — 2026-02-08 — BULKHEAD (cont.)
 
 ### Documentation
