@@ -104,7 +104,7 @@ jobs:
         run: npx -y jsr publish --dry-run
 
   publish_npm:
-    name: Publish npm
+    name: Publish npm (OIDC trusted publishing)
     runs-on: ubuntu-latest
     needs: verify
     permissions:
@@ -115,24 +115,21 @@ jobs:
     outputs:
       package_name: ${{ steps.pkg.outputs.name }}
       version: ${{ steps.pkg.outputs.version }}
-    env:
-      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.verify.outputs.tag }}
 
-      - name: Setup Node 20 for npm
+      - name: Setup Node 22
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
-          registry-url: "https://registry.npmjs.org"
+          node-version: "22"
           cache: npm
 
       - name: Install
         run: npm ci
 
-      - name: Upgrade npm CLI
+      - name: Upgrade npm CLI (>=11.5.1 required for trusted publishing)
         run: npm i -g npm@latest
 
       - name: Read package metadata
