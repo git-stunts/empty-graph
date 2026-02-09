@@ -54,5 +54,6 @@ teardown() {
   run git warp --repo "${TEST_REPO}" --graph demo --view "html:${htmlfile}" query --match "user:*"
   assert_success
   [ -f "${htmlfile}" ]
-  grep -q '<html' "${htmlfile}" || grep -q '<!DOCTYPE' "${htmlfile}" || grep -q '<svg' "${htmlfile}"
+  grep -q '<!DOCTYPE' "${htmlfile}"
+  grep -q '<html' "${htmlfile}"
 }

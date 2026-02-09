@@ -2,12 +2,13 @@
  * Seeds a standard demo graph: 3 users, 2 follows edges, properties.
  * Used by BATS tests. Expects REPO_PATH env var.
  */
-import { WarpGraph, persistence } from './seed-setup.js';
+import { WarpGraph, persistence, crypto } from './seed-setup.js';
 
 const graph = await WarpGraph.open({
   persistence,
   graphName: 'demo',
   writerId: 'alice',
+  crypto,
 });
 
 const patchOne = await graph.createPatch();

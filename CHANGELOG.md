@@ -42,6 +42,8 @@ Adds a Dockerized multi-runtime test suite across Node 20, Node 22, Bun, and Den
 - **Explicit `--view ascii` in BATS tests**: All `--view` invocations now pass the `ascii` mode explicitly rather than relying on the implicit default when the next token is a known command. Applied across `cli-check.bats`, `cli-query.bats`, and `cli-view-modes.bats`.
 - **BATS multiwriter materialize**: Added missing `--graph demo` flag to the materialize test.
 - **BATS info temp dir cleanup**: Empty-repo test now uses `trap ... RETURN` to clean up temp directory on assertion failure.
+- **BATS seed scripts include crypto**: All `WarpGraph.open()` calls in seed scripts now pass `NodeCryptoAdapter` via the shared `seed-setup.js` module, matching the CLI and preventing `createCheckpoint()` crashes.
+- **Stricter HTML export BATS test**: `--view html:FILE` test now asserts `<!DOCTYPE` and `<html` instead of falling back to `<svg`, ensuring raw SVG cannot pass as valid HTML output.
 
 ### Tests
 
