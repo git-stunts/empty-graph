@@ -160,6 +160,15 @@ jobs:
         with:
           ref: ${{ needs.verify.outputs.tag }}
 
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
       - name: Publish JSR (retry x3)
         uses: ./.github/actions/retry
         with:
