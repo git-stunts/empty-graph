@@ -1586,7 +1586,6 @@ Memory: initial load near-zero (lazy); single shard 0.5–2 MB; full index at 1M
 ## Further Reading
 
 - [Architecture](../ARCHITECTURE.md) — system design and internals
-- [CLAUDE.md](../CLAUDE.md) — developer reference with paper-to-code mappings
 - Paper I — *WARP Graphs: A Worldline Algebra for Recursive Provenance*
 - Paper II — *Canonical State Evolution and Deterministic Worldlines*
 - Paper III — *Computational Holography & Provenance Payloads*
