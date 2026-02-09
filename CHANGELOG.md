@@ -30,12 +30,19 @@ Adds cursor-based time travel for exploring graph history. Navigate to any Lampo
 
 ### Changed
 
-- **`RefLayout`**: New helpers `buildCursorRef()`, `buildSavedCursorRef()`, `buildSavedCursorPrefix()` for cursor ref path construction.
+- **`RefLayout`**: New helpers `buildCursorActiveRef()`, `buildCursorSavedRef()`, `buildCursorSavedPrefix()` for cursor ref path construction.
+
+### Fixed
+
+- **Cursor blob validation**: Added `parseCursorBlob()` utility that validates JSON structure and numeric tick before use. `readActiveCursor`, `readSavedCursor`, and `listSavedCursors` now throw descriptive errors on corrupted cursor data instead of crashing.
+- **GUIDE.md**: Added `--view seek` to the supported commands table.
+- **CHANGELOG**: Fixed `RefLayout` helper names to match exported API (`buildCursorActiveRef`, not `buildCursorRef`).
 
 ### Tests
 
-- Suite total: 2923 tests across 146 vitest files + 66 BATS CLI tests (up from 2883/142 + 56).
+- Suite total: 2934 tests across 147 vitest files + 66 BATS CLI tests (up from 2883/142 + 56).
 - New seek tests: 19 unit (12 domain + 7 renderer) + 10 BATS CLI = 29 total.
+- New parseCursorBlob unit tests: 11 tests covering valid parsing, corrupted JSON, missing/invalid tick.
 
 ## [10.2.1] — 2026-02-09 — Compact ASCII graphs & hero GIF
 

@@ -27,6 +27,7 @@ import { renderCheckView } from '../src/visualization/renderers/ascii/check.js';
 import { renderHistoryView, summarizeOps } from '../src/visualization/renderers/ascii/history.js';
 import { renderPathView } from '../src/visualization/renderers/ascii/path.js';
 import { renderMaterializeView } from '../src/visualization/renderers/ascii/materialize.js';
+import { parseCursorBlob } from '../src/domain/utils/parseCursorBlob.js';
 import { renderSeekView } from '../src/visualization/renderers/ascii/seek.js';
 import { renderGraphView } from '../src/visualization/renderers/ascii/graph.js';
 import { renderSvg } from '../src/visualization/renderers/svg/index.js';
@@ -1610,7 +1611,7 @@ async function readActiveCursor(persistence, graphName) {
     return null;
   }
   const buf = await persistence.readBlob(oid);
-  return JSON.parse(buf.toString('utf8'));
+  return parseCursorBlob(buf, 'active cursor');
 }
 
 async function writeActiveCursor(persistence, graphName, cursor) {
@@ -1635,7 +1636,7 @@ async function readSavedCursor(persistence, graphName, name) {
     return null;
   }
   const buf = await persistence.readBlob(oid);
-  return JSON.parse(buf.toString('utf8'));
+  return parseCursorBlob(buf, `saved cursor '${name}'`);
 }
 
 async function writeSavedCursor(persistence, graphName, name, cursor) {
@@ -1663,7 +1664,7 @@ async function listSavedCursors(persistence, graphName) {
       const oid = await persistence.readRef(ref);
       if (oid) {
         const buf = await persistence.readBlob(oid);
-        const cursor = JSON.parse(buf.toString('utf8'));
+        const cursor = parseCursorBlob(buf, `saved cursor '${name}'`);
         cursors.push({ name, ...cursor });
       }
     }

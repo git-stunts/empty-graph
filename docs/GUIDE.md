@@ -1013,6 +1013,7 @@ The `--view` flag enables visual ASCII dashboards for supported commands. Add `-
 | `--view history` | Patch timeline with operation summaries |
 | `--view path` | Visual path diagram between nodes |
 | `--view materialize` | Progress dashboard with statistics |
+| `--view seek` | Time-travel dashboard with timeline |
 
 **View modes:**
 - `--view` or `--view=ascii` — ASCII art (default)
