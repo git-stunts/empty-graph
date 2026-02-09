@@ -9,7 +9,7 @@ describe('API: Sync', () => {
   });
 
   afterEach(async () => {
-    await repo.cleanup();
+    await repo?.cleanup();
   });
 
   it('syncCoverage creates coverage anchor with all writer tips', async () => {

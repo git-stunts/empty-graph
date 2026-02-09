@@ -9,7 +9,7 @@ describe('API: Writer Discovery', () => {
   });
 
   afterEach(async () => {
-    await repo.cleanup();
+    await repo?.cleanup();
   });
 
   it('discovers writers after multi-writer writes', async () => {

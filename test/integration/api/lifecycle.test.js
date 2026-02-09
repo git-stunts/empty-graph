@@ -9,7 +9,7 @@ describe('API: Lifecycle', () => {
   });
 
   afterEach(async () => {
-    await repo.cleanup();
+    await repo?.cleanup();
   });
 
   it('open → createPatch → addNode → commit → materialize → getNodes', async () => {

@@ -34,7 +34,7 @@ describe('API: QueryBuilder', () => {
   });
 
   afterEach(async () => {
-    await repo.cleanup();
+    await repo?.cleanup();
   });
 
   it('match glob returns matching nodes', async () => {

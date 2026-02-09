@@ -9,7 +9,7 @@ describe('API: Fork', () => {
   });
 
   afterEach(async () => {
-    await repo.cleanup();
+    await repo?.cleanup();
   });
 
   it('forks a graph and both evolve independently', async () => {

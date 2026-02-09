@@ -9,7 +9,7 @@ describe('API: Edge Cases', () => {
   });
 
   afterEach(async () => {
-    await repo.cleanup();
+    await repo?.cleanup();
   });
 
   it('empty graph materializes with zero nodes', async () => {

@@ -10,7 +10,7 @@ describe('API: Multi-Writer', () => {
   });
 
   afterEach(async () => {
-    await repo.cleanup();
+    await repo?.cleanup();
   });
 
   it('two writers create independent patches that merge', async () => {

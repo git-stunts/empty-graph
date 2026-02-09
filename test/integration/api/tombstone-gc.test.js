@@ -9,7 +9,7 @@ describe('API: Tombstone & GC', () => {
   });
 
   afterEach(async () => {
-    await repo.cleanup();
+    await repo?.cleanup();
   });
 
   it('removeNode tombstones a node', async () => {

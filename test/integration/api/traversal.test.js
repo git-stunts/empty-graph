@@ -25,7 +25,7 @@ describe('API: Traversal', () => {
   });
 
   afterEach(async () => {
-    await repo.cleanup();
+    await repo?.cleanup();
   });
 
   it('BFS visits nodes in breadth-first order', async () => {

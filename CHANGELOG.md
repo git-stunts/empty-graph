@@ -32,6 +32,9 @@ Adds a Dockerized multi-runtime test suite across Node 20, Node 22, Bun, and Den
 - **Extract `writeHtmlExport` helper**: Deduplicated the HTML wrapper template in `emit()` (query and path branches) into a shared `writeHtmlExport()` function.
 - **Docker images run as non-root**: All four test images (`node20`, `node22`, `bun`, `deno`) now run tests as a non-root user to mirror CI environments and catch permission issues early.
 - **Docker `--no-install-recommends`**: All Dockerfiles use `--no-install-recommends` to reduce image size and build time.
+- **Pin Deno base image**: `Dockerfile.deno` now uses `denoland/deno:2.1` instead of `latest` for reproducible builds.
+- **Add `--build` to individual runtime scripts**: `test:node20`, `test:node22`, `test:bun`, `test:deno` now include `--build` so Dockerfile changes are always picked up.
+- **Extract shared BATS seed setup**: Duplicated boilerplate (project root resolution, dynamic imports, persistence creation) extracted to `test/bats/helpers/seed-setup.js`.
 
 ### Tests
 

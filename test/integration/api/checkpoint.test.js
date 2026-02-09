@@ -9,7 +9,7 @@ describe('API: Checkpoint', () => {
   });
 
   afterEach(async () => {
-    await repo.cleanup();
+    await repo?.cleanup();
   });
 
   it('creates a checkpoint and returns a valid SHA', async () => {
@@ -35,9 +35,12 @@ describe('API: Checkpoint', () => {
     // Add more data after checkpoint
     await (await graph.createPatch()).addNode('n3').commit();
 
-    // materializeAt checkpoint should only have n1, n2
+    // materializeAt restores checkpoint base and applies patches up to tips
     const state = await graph.materializeAt(sha);
     expect(state).toBeDefined();
+    const nodes = await graph.getNodes();
+    expect(nodes).toContain('n1');
+    expect(nodes).toContain('n2');
   });
 
   it('incremental checkpoint after additional patches', async () => {

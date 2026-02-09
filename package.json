@@ -80,10 +80,10 @@
     "prepack": "npm run lint && npm run test:local",
     "install:git-warp": "bash scripts/install-git-warp.sh",
     "uninstall:git-warp": "bash scripts/uninstall-git-warp.sh",
-    "test:node20": "docker compose -f docker-compose.test.yml --profile node20 run --rm test-node20",
-    "test:node22": "docker compose -f docker-compose.test.yml --profile node22 run --rm test-node22",
-    "test:bun": "docker compose -f docker-compose.test.yml --profile bun run --rm test-bun",
-    "test:deno": "docker compose -f docker-compose.test.yml --profile deno run --rm test-deno",
+    "test:node20": "docker compose -f docker-compose.test.yml --profile node20 run --build --rm test-node20",
+    "test:node22": "docker compose -f docker-compose.test.yml --profile node22 run --build --rm test-node22",
+    "test:bun": "docker compose -f docker-compose.test.yml --profile bun run --build --rm test-bun",
+    "test:deno": "docker compose -f docker-compose.test.yml --profile deno run --build --rm test-deno",
     "test:matrix": "docker compose -f docker-compose.test.yml --profile full up --build --abort-on-container-exit"
   },
   "dependencies": {

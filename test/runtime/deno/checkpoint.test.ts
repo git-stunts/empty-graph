@@ -1,4 +1,4 @@
-import { assert, assertMatch } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assert, assertMatch, assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { createTestRepo } from "./helpers.ts";
 
 Deno.test("checkpoint: creates checkpoint with valid SHA", async () => {
@@ -28,6 +28,8 @@ Deno.test("checkpoint: materializeAt restores state", async () => {
 
     const state = await graph.materializeAt(sha);
     assert(state !== null);
+    const nodes = await graph.getNodes();
+    assertEquals(nodes.includes("n1"), true);
   } finally {
     await repo.cleanup();
   }
