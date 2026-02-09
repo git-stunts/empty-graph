@@ -20,17 +20,32 @@ jobs:
       - run: npm install
       - run: npm run lint
 
-  test:
+  test-node:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [20, 22]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Node.js ${{ matrix.node }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: '${{ matrix.node }}'
+          cache: 'npm'
+      - run: npm install
+      - name: Run unit + integration tests
+        run: docker compose -f docker-compose.test.yml run --rm test-node${{ matrix.node }}
+
+  test-bun:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Use Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'npm'
-      - run: npm install
-      - name: Run tests in Docker
-        run: docker compose run --rm test
-      - name: Run git-warp CLI bats tests
-        run: docker compose run --rm test bats test/bats/warp-graph-cli.bats
+      - name: Run Bun integration tests
+        run: docker compose -f docker-compose.test.yml run --rm test-bun
+
+  test-deno:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Deno integration tests
+        run: docker compose -f docker-compose.test.yml run --rm test-deno

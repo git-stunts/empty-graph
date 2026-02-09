@@ -459,10 +459,16 @@ The codebase follows hexagonal architecture with ports and adapters:
 ## Testing
 
 ```bash
-npm test                # unit tests (vitest)
+npm test                # unit tests (vitest, Docker)
+npm run test:local      # unit tests without Docker
 npm run lint            # eslint
-npm run test:bench      # benchmarks
-npm run test:bats       # CLI integration tests (Docker + BATS)
+
+# Multi-runtime test matrix (Docker)
+npm run test:node22     # Node 22: unit + integration + BATS CLI
+npm run test:node20     # Node 20: unit + integration + BATS CLI
+npm run test:bun        # Bun: API integration tests
+npm run test:deno       # Deno: API integration tests
+npm run test:matrix     # All four runtimes in parallel
 ```
 
 ## AIΩN Foundations Series

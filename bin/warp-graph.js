@@ -10,6 +10,7 @@ import WarpGraph from '../src/domain/WarpGraph.js';
 import GitGraphAdapter from '../src/infrastructure/adapters/GitGraphAdapter.js';
 import HealthCheckService from '../src/domain/services/HealthCheckService.js';
 import ClockAdapter from '../src/infrastructure/adapters/ClockAdapter.js';
+import NodeCryptoAdapter from '../src/infrastructure/adapters/NodeCryptoAdapter.js';
 import {
   REF_PREFIX,
   buildCheckpointRef,
@@ -322,6 +323,7 @@ async function getGraphInfo(persistence, graphName, {
       persistence,
       graphName,
       writerId: 'cli',
+      crypto: new NodeCryptoAdapter(),
     });
     const writerPatches = {};
     for (const writerId of writerIds) {
@@ -341,6 +343,7 @@ async function openGraph(options) {
     persistence,
     graphName,
     writerId: options.writer,
+    crypto: new NodeCryptoAdapter(),
   });
   return { graph, graphName, persistence };
 }
@@ -1185,7 +1188,7 @@ async function handleHistory({ options, args }) {
 }
 
 async function materializeOneGraph({ persistence, graphName, writerId }) {
-  const graph = await WarpGraph.open({ persistence, graphName, writerId });
+  const graph = await WarpGraph.open({ persistence, graphName, writerId, crypto: new NodeCryptoAdapter() });
   await graph.materialize();
   const nodes = await graph.getNodes();
   const edges = await graph.getEdges();

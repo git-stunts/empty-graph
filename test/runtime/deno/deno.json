@@ -1,0 +1,6 @@
+{
+  "imports": {
+    "@git-stunts/plumbing": "npm:@git-stunts/plumbing@^2.8.0"
+  },
+  "nodeModulesDir": "auto"
+}

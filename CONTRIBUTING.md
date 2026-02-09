@@ -38,8 +38,16 @@ git commit --no-verify
 ## Running Tests
 
 ```bash
-npm test                 # Run all tests
+npm test                 # Run all unit tests (Docker)
+npm run test:local       # Run unit tests without Docker
 npm test -- <pattern>    # Run specific tests
+
+# Multi-runtime test matrix (Docker)
+npm run test:node22      # Node 22: unit + integration + BATS CLI
+npm run test:node20      # Node 20: unit + integration + BATS CLI
+npm run test:bun         # Bun: API integration tests
+npm run test:deno        # Deno: API integration tests
+npm run test:matrix      # All four runtimes in parallel
 ```
 
 ### No-Coordination Invariant
