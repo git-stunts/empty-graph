@@ -892,6 +892,8 @@ git warp history --writer alice                         # Patch history
 git warp check                                         # Health/GC status
 git warp materialize                                   # Materialize all graphs
 git warp materialize --graph my-graph                  # Single graph
+git warp seek --tick 3                                 # Time-travel to tick 3
+git warp seek --latest                                 # Return to present
 git warp install-hooks                                 # Install post-merge hook
 ```
 
@@ -902,9 +904,49 @@ Visual ASCII output is available with `--view`:
 ```bash
 git warp --view info     # ASCII visualization
 git warp --view check    # Health status visualization
+git warp --view seek     # Seek dashboard with timeline
 ```
 
 `--view` is mutually exclusive with `--json`.
+
+### Time Travel (`seek`)
+
+The `seek` command lets you navigate through graph history by Lamport tick. When a cursor is active, all read commands (`query`, `info`, `materialize`, `history`) automatically show state at the selected tick.
+
+```bash
+# Jump to an absolute tick
+git warp seek --tick 3
+
+# Step forward/backward relative to current position
+git warp seek --tick +1
+git warp seek --tick -1
+
+# Return to the present (clears the cursor)
+git warp seek --latest
+
+# Save and restore named bookmarks
+git warp seek --save before-refactor
+git warp seek --load before-refactor
+
+# List and delete saved bookmarks
+git warp seek --list
+git warp seek --drop before-refactor
+
+# Show current cursor status
+git warp seek
+```
+
+**How it works:** The cursor is stored as a lightweight Git ref at `refs/warp/<graph>/cursor/active`. Saved bookmarks live under `refs/warp/<graph>/cursor/saved/<name>`. When a cursor is active, `materialize()` replays only patches with `lamport <= tick`, and auto-checkpoint is skipped to avoid writing snapshots of past state.
+
+**Programmatic API:**
+
+```javascript
+// Discover all ticks without expensive deserialization
+const { ticks, maxTick, perWriter } = await graph.discoverTicks();
+
+// Materialize at a specific point in time
+const state = await graph.materialize({ ceiling: 3 });
+```
 
 ### Git Hooks
 

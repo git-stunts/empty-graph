@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [10.3.0] — 2026-02-09 — Time Travel (`git warp seek`)
+
+Adds cursor-based time travel for exploring graph history. Navigate to any Lamport tick, save/load named bookmarks, and see materialized state at any point in time. Existing commands (`info`, `materialize`, `history`, `query`) respect the active cursor.
+
+### Added
+
+- **`git warp seek` command**: Step through graph history by Lamport tick.
+  - `seek --tick N` — position cursor at absolute tick N.
+  - `seek --tick +N` / `seek --tick -N` — step forward/backward relative to current position.
+  - `seek --latest` — clear cursor and return to the present (latest state).
+  - `seek --save NAME` / `seek --load NAME` — save and restore named cursor bookmarks.
+  - `seek --list` — list all saved cursors.
+  - `seek --drop NAME` — delete a saved cursor.
+  - `seek` (bare) — show current cursor status.
+- **`WarpGraph.discoverTicks()`**: Walks all writer patch chains reading only commit messages (no blob deserialization) to extract sorted Lamport timestamps and per-writer tick breakdowns.
+- **`materialize({ ceiling })` option**: Replays only patches with `lamport <= ceiling`, enabling time-travel materialization. Skips auto-checkpoint when ceiling is active to avoid writing snapshots of past state.
+- **Cursor persistence via refs**: Active cursor stored at `refs/warp/<graph>/cursor/active`, saved cursors at `refs/warp/<graph>/cursor/saved/<name>`. All data stored as JSON blobs.
+- **ASCII seek renderer** (`src/visualization/renderers/ascii/seek.js`): Dashboard view with timeline visualization, writer inclusion status, and graph stats at the selected tick. Activated via `--view`.
+- **Cursor-aware existing commands**: `info` shows active cursor in summary; `materialize` skips checkpointing when a cursor is active; `history` filters patches to the selected tick; `query` materializes at the cursor ceiling.
+- **BATS CLI tests** (`test/bats/cli-seek.bats`, 10 tests): End-to-end integration tests for all seek operations.
+- **Domain unit tests** (`test/unit/domain/WarpGraph.seek.test.js`, 12 tests): `discoverTicks()`, `materialize({ ceiling })`, ceiling caching, multi-writer ceiling, `_seekCeiling` instance state.
+- **Renderer unit tests** (`test/unit/visualization/ascii-seek-renderer.test.js`, 7 tests): Timeline rendering, writer rows, dashboard layout.
+
+### Changed
+
+- **`RefLayout`**: New helpers `buildCursorRef()`, `buildSavedCursorRef()`, `buildSavedCursorPrefix()` for cursor ref path construction.
+
+### Tests
+
+- Suite total: 2923 tests across 146 vitest files + 66 BATS CLI tests (up from 2883/142 + 56).
+- New seek tests: 19 unit (12 domain + 7 renderer) + 10 BATS CLI = 29 total.
+
 ## [10.2.1] — 2026-02-09 — Compact ASCII graphs & hero GIF
 
 ### Changed
