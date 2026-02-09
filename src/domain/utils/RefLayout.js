@@ -219,6 +219,57 @@ export function buildWritersPrefix(graphName) {
   return `${REF_PREFIX}/${graphName}/writers/`;
 }
 
+/**
+ * Builds the active cursor ref path for the given graph.
+ *
+ * @param {string} graphName - The name of the graph
+ * @returns {string} The full ref path
+ * @throws {Error} If graphName is invalid
+ *
+ * @example
+ * buildCursorActiveRef('events');
+ * // => 'refs/warp/events/cursor/active'
+ */
+export function buildCursorActiveRef(graphName) {
+  validateGraphName(graphName);
+  return `${REF_PREFIX}/${graphName}/cursor/active`;
+}
+
+/**
+ * Builds a saved cursor ref path for the given graph and cursor name.
+ *
+ * @param {string} graphName - The name of the graph
+ * @param {string} name - The cursor name (validated like a writer ID)
+ * @returns {string} The full ref path
+ * @throws {Error} If graphName or name is invalid
+ *
+ * @example
+ * buildCursorSavedRef('events', 'before-tui');
+ * // => 'refs/warp/events/cursor/saved/before-tui'
+ */
+export function buildCursorSavedRef(graphName, name) {
+  validateGraphName(graphName);
+  validateWriterId(name);
+  return `${REF_PREFIX}/${graphName}/cursor/saved/${name}`;
+}
+
+/**
+ * Builds the saved cursor prefix path for the given graph.
+ * Useful for listing all saved cursors under a graph.
+ *
+ * @param {string} graphName - The name of the graph
+ * @returns {string} The saved cursor prefix path
+ * @throws {Error} If graphName is invalid
+ *
+ * @example
+ * buildCursorSavedPrefix('events');
+ * // => 'refs/warp/events/cursor/saved/'
+ */
+export function buildCursorSavedPrefix(graphName) {
+  validateGraphName(graphName);
+  return `${REF_PREFIX}/${graphName}/cursor/saved/`;
+}
+
 // -----------------------------------------------------------------------------
 // Parsers
 // -----------------------------------------------------------------------------

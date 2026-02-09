@@ -178,6 +178,12 @@ export default class WarpGraph {
 
     /** @type {import('./services/TemporalQuery.js').TemporalQuery|null} */
     this._temporalQuery = null;
+
+    /** @type {number|null} */
+    this._seekCeiling = null;
+
+    /** @type {number|null} */
+    this._cachedCeiling = null;
   }
 
   /**
@@ -574,7 +580,7 @@ export default class WarpGraph {
    * and patches-since-checkpoint counter. May trigger auto-checkpoint and GC
    * based on configured policies. Notifies subscribers if state changed.
    *
-   * @param {{receipts?: boolean}} [options] - Optional configuration
+   * @param {{receipts?: boolean, ceiling?: number|null}} [options] - Optional configuration
    * @returns {Promise<import('./services/JoinReducer.js').WarpStateV5|{state: import('./services/JoinReducer.js').WarpStateV5, receipts: import('./types/TickReceipt.js').TickReceipt[]}>} The materialized graph state, or { state, receipts } when receipts enabled
    * @throws {Error} If checkpoint loading fails or patch decoding fails
    * @throws {Error} If writer ref access or patch blob reading fails
@@ -583,6 +589,13 @@ export default class WarpGraph {
     const t0 = this._clock.now();
     // ZERO-COST: only resolve receipts flag when options provided
     const collectReceipts = options && options.receipts;
+    // Resolve ceiling: explicit option > instance-level seek ceiling > null (latest)
+    const ceiling = this._resolveCeiling(options);
+
+    // When ceiling is active, delegate to ceiling-aware path (with its own cache)
+    if (ceiling !== null) {
+      return await this._materializeWithCeiling(ceiling, collectReceipts, t0);
+    }
 
     try {
       // Check for checkpoint
@@ -658,6 +671,7 @@ export default class WarpGraph {
       }
 
       await this._setMaterializedState(state);
+      this._cachedCeiling = null;
       this._lastFrontier = await this.getFrontier();
       this._patchesSinceCheckpoint = patchCount;
 
@@ -696,6 +710,98 @@ export default class WarpGraph {
       this._logTiming('materialize', t0, { error: err });
       throw err;
     }
+  }
+
+  /**
+   * Resolves the effective ceiling from options and instance state.
+   * @param {{ceiling?: number|null}} [options]
+   * @returns {number|null} The ceiling to use, or null for latest
+   * @private
+   */
+  _resolveCeiling(options) {
+    if (options && options.ceiling !== undefined && options.ceiling !== null) {
+      return options.ceiling;
+    }
+    return this._seekCeiling;
+  }
+
+  /**
+   * Materializes the graph with a Lamport ceiling (time-travel).
+   *
+   * Bypasses checkpoints entirely — replays all patches from all writers,
+   * filtering to only those with lamport <= ceiling. Skips auto-checkpoint
+   * and GC since this is an exploratory read.
+   *
+   * @param {number} ceiling - Maximum Lamport tick to include
+   * @param {boolean} collectReceipts - Whether to collect tick receipts
+   * @param {number} t0 - Start timestamp for timing
+   * @returns {Promise<import('./services/JoinReducer.js').WarpStateV5|{state: import('./services/JoinReducer.js').WarpStateV5, receipts: Array}>}
+   * @private
+   */
+  async _materializeWithCeiling(ceiling, collectReceipts, t0) {
+    // Cache hit: same ceiling as last time, state is clean
+    if (this._cachedState && !this._stateDirty && ceiling === this._cachedCeiling) {
+      if (collectReceipts) {
+        return { state: this._cachedState, receipts: [] };
+      }
+      return this._cachedState;
+    }
+
+    const writerIds = await this.discoverWriters();
+
+    if (writerIds.length === 0 || ceiling <= 0) {
+      const state = createEmptyStateV5();
+      this._provenanceIndex = new ProvenanceIndex();
+      await this._setMaterializedState(state);
+      this._cachedCeiling = ceiling;
+      this._logTiming('materialize', t0, { metrics: '0 patches (ceiling)' });
+      if (collectReceipts) {
+        return { state, receipts: [] };
+      }
+      return state;
+    }
+
+    const allPatches = [];
+    for (const writerId of writerIds) {
+      const writerPatches = await this._loadWriterPatches(writerId);
+      for (const entry of writerPatches) {
+        if (entry.patch.lamport <= ceiling) {
+          allPatches.push(entry);
+        }
+      }
+    }
+
+    let state;
+    let receipts;
+
+    if (allPatches.length === 0) {
+      state = createEmptyStateV5();
+      if (collectReceipts) {
+        receipts = [];
+      }
+    } else if (collectReceipts) {
+      const result = reduceV5(allPatches, undefined, { receipts: true });
+      state = result.state;
+      receipts = result.receipts;
+    } else {
+      state = reduceV5(allPatches);
+    }
+
+    this._provenanceIndex = new ProvenanceIndex();
+    for (const { patch, sha } of allPatches) {
+      this._provenanceIndex.addPatch(sha, patch.reads, patch.writes);
+    }
+
+    await this._setMaterializedState(state);
+    this._cachedCeiling = ceiling;
+
+    // Skip auto-checkpoint and GC — this is an exploratory read
+    this._logTiming('materialize', t0, { metrics: `${allPatches.length} patches (ceiling=${ceiling})` });
+
+    if (collectReceipts) {
+      return { state, receipts };
+    }
+    return state;
   }
 
   /**
@@ -1008,6 +1114,65 @@ export default class WarpGraph {
     }
 
     return writerIds.sort();
+  }
+
+  /**
+   * Discovers all distinct Lamport ticks across all writers.
+   *
+   * Walks each writer's patch chain reading only commit messages (no blob
+   * deserialization) to extract Lamport timestamps.
+   *
+   * @returns {Promise<{ticks: number[], maxTick: number, perWriter: Map<string, {ticks: number[], tipSha: string|null}>}>}
+   */
+  async discoverTicks() {
+    const writerIds = await this.discoverWriters();
+    const globalTickSet = new Set();
+    const perWriter = new Map();
+
+    for (const writerId of writerIds) {
+      const writerRef = buildWriterRef(this._graphName, writerId);
+      const tipSha = await this._persistence.readRef(writerRef);
+      const writerTicks = [];
+
+      if (tipSha) {
+        let currentSha = tipSha;
+        let lastLamport = Infinity;
+
+        while (currentSha) {
+          const nodeInfo = await this._persistence.getNodeInfo(currentSha);
+          const kind = detectMessageKind(nodeInfo.message);
+          if (kind !== 'patch') {
+            break;
+          }
+
+          const patchMeta = decodePatchMessage(nodeInfo.message);
+          globalTickSet.add(patchMeta.lamport);
+          writerTicks.push(patchMeta.lamport);
+
+          // Check monotonic invariant (walking newest→oldest, lamport should decrease)
+          if (patchMeta.lamport > lastLamport && this._logger) {
+            this._logger.warn(`[warp] non-monotonic lamport for writer ${writerId}: ${patchMeta.lamport} > ${lastLamport}`);
+          }
+          lastLamport = patchMeta.lamport;
+
+          if (nodeInfo.parents && nodeInfo.parents.length > 0) {
+            currentSha = nodeInfo.parents[0];
+          } else {
+            break;
+          }
+        }
+      }
+
+      perWriter.set(writerId, {
+        ticks: writerTicks.reverse(),
+        tipSha: tipSha || null,
+      });
+    }
+
+    const ticks = [...globalTickSet].sort((a, b) => a - b);
+    const maxTick = ticks.length > 0 ? ticks[ticks.length - 1] : 0;
+
+    return { ticks, maxTick, perWriter };
   }
 
   // ============================================================================

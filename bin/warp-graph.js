@@ -17,6 +17,9 @@ import {
   buildCoverageRef,
   buildWritersPrefix,
   parseWriterIdFromRef,
+  buildCursorActiveRef,
+  buildCursorSavedRef,
+  buildCursorSavedPrefix,
 } from '../src/domain/utils/RefLayout.js';
 import { HookInstaller, classifyExistingHook } from '../src/domain/services/HookInstaller.js';
 import { renderInfoView } from '../src/visualization/renderers/ascii/info.js';
@@ -24,6 +27,7 @@ import { renderCheckView } from '../src/visualization/renderers/ascii/check.js';
 import { renderHistoryView, summarizeOps } from '../src/visualization/renderers/ascii/history.js';
 import { renderPathView } from '../src/visualization/renderers/ascii/path.js';
 import { renderMaterializeView } from '../src/visualization/renderers/ascii/materialize.js';
+import { renderSeekView } from '../src/visualization/renderers/ascii/seek.js';
 import { renderGraphView } from '../src/visualization/renderers/ascii/graph.js';
 import { renderSvg } from '../src/visualization/renderers/svg/index.js';
 import { layoutGraph, queryResultToGraphData, pathResultToGraphData } from '../src/visualization/layouts/index.js';
@@ -45,6 +49,7 @@ Commands:
   history          Show writer history
   check            Report graph health/GC status
   materialize      Materialize and checkpoint all graphs
+  seek             Time-travel: step through graph history by Lamport tick
   view             Interactive TUI graph browser (requires @git-stunts/git-warp-tui)
   install-hooks    Install post-merge git hook
 
@@ -75,6 +80,14 @@ Path options:
 
 History options:
   --node <id>           Filter patches touching node id
+
+Seek options:
+  --tick <N|+N|-N>      Jump to tick N, or step forward/backward
+  --latest              Clear cursor, return to present
+  --save <name>         Save current position as named cursor
+  --load <name>         Restore a saved cursor
+  --list                List all saved cursors
+  --drop <name>         Delete a saved cursor
 `;
 
 /**
@@ -170,7 +183,7 @@ function consumeBaseArg({ argv, index, options, optionDefs, positionals }) {
   if (arg === '--view') {
     // Valid view modes: ascii, browser, svg:FILE, html:FILE
     // Don't consume known commands as modes
-    const KNOWN_COMMANDS = ['info', 'query', 'path', 'history', 'check', 'materialize', 'install-hooks'];
+    const KNOWN_COMMANDS = ['info', 'query', 'path', 'history', 'check', 'materialize', 'seek', 'install-hooks'];
     const nextArg = argv[index + 1];
     const isViewMode = nextArg &&
       !nextArg.startsWith('-') &&
@@ -632,6 +645,9 @@ function renderInfo(payload) {
     if (graph.coverage?.sha) {
       lines.push(`  coverage: ${graph.coverage.sha}`);
     }
+    if (graph.cursor?.active) {
+      lines.push(`  cursor: tick ${graph.cursor.tick} (${graph.cursor.mode})`);
+    }
   }
   return `${lines.join('\n')}\n`;
 }
@@ -883,6 +899,15 @@ function emit(payload, { json, command, view }) {
     return;
   }
 
+  if (command === 'seek') {
+    if (view) {
+      process.stdout.write(renderSeekView(payload));
+    } else {
+      process.stdout.write(renderSeek(payload));
+    }
+    return;
+  }
+
   if (command === 'install-hooks') {
     process.stdout.write(renderInstallHooks(payload));
     return;
@@ -924,12 +949,19 @@ async function handleInfo({ options }) {
   const graphs = [];
   for (const name of graphNames) {
     const includeDetails = detailGraphs.has(name);
-    graphs.push(await getGraphInfo(persistence, name, {
+    const info = await getGraphInfo(persistence, name, {
       includeWriterIds: includeDetails || isViewMode,
       includeRefs: includeDetails || isViewMode,
       includeWriterPatches: isViewMode,
       includeCheckpointDate: isViewMode,
-    }));
+    });
+    const activeCursor = await readActiveCursor(persistence, name);
+    if (activeCursor) {
+      info.cursor = { active: true, tick: activeCursor.tick, mode: activeCursor.mode };
+    } else {
+      info.cursor = { active: false };
+    }
+    graphs.push(info);
   }
 
   return {
@@ -948,7 +980,9 @@ async function handleInfo({ options }) {
  */
 async function handleQuery({ options, args }) {
   const querySpec = parseQueryArgs(args);
-  const { graph, graphName } = await openGraph(options);
+  const { graph, graphName, persistence } = await openGraph(options);
+  const cursorInfo = await applyCursorCeiling(graph, persistence, graphName);
+  emitCursorWarning(cursorInfo, null);
   let builder = graph.query();
 
   if (querySpec.match !== null) {
@@ -1039,7 +1073,9 @@ function mapQueryError(error) {
  */
 async function handlePath({ options, args }) {
   const pathOptions = parsePathArgs(args);
-  const { graph, graphName } = await openGraph(options);
+  const { graph, graphName, persistence } = await openGraph(options);
+  const cursorInfo = await applyCursorCeiling(graph, persistence, graphName);
+  emitCursorWarning(cursorInfo, null);
 
   try {
     const result = await graph.traverse.shortestPath(
@@ -1085,6 +1121,8 @@ async function handlePath({ options, args }) {
  */
 async function handleCheck({ options }) {
   const { graph, graphName, persistence } = await openGraph(options);
+  const cursorInfo = await applyCursorCeiling(graph, persistence, graphName);
+  emitCursorWarning(cursorInfo, null);
   const health = await getHealth(persistence);
   const gcMetrics = await getGcMetrics(graph);
   const status = await graph.status();
@@ -1222,9 +1260,18 @@ function buildCheckPayload({
  */
 async function handleHistory({ options, args }) {
   const historyOptions = parseHistoryArgs(args);
-  const { graph, graphName } = await openGraph(options);
+  const { graph, graphName, persistence } = await openGraph(options);
+  const activeCursor = await readActiveCursor(persistence, graphName);
+  const cursorInfo = activeCursor
+    ? { active: true, tick: activeCursor.tick, maxTick: null }
+    : { active: false, tick: null, maxTick: null };
+  emitCursorWarning(cursorInfo, null);
+
   const writerId = options.writer;
-  const patches = await graph.getWriterPatches(writerId);
+  let patches = await graph.getWriterPatches(writerId);
+  if (cursorInfo.active) {
+    patches = patches.filter(({ patch }) => patch.lamport <= cursorInfo.tick);
+  }
   if (patches.length === 0) {
     throw notFoundError(`No patches found for writer: ${writerId}`);
   }
@@ -1251,18 +1298,24 @@ async function handleHistory({ options, args }) {
 
 /**
  * Materializes a single graph, creates a checkpoint, and returns summary stats.
+ * When a ceiling tick is provided (seek cursor active), the checkpoint step is
+ * skipped because the user is exploring historical state, not persisting it.
  * @param {Object} params
  * @param {Object} params.persistence - GraphPersistencePort adapter
  * @param {string} params.graphName - Name of the graph to materialize
  * @param {string} params.writerId - Writer ID for the CLI session
- * @returns {Promise<{graph: string, nodes: number, edges: number, properties: number, checkpoint: string, writers: Object, patchCount: number}>}
+ * @param {number} [params.ceiling] - Optional seek ceiling tick
+ * @returns {Promise<{graph: string, nodes: number, edges: number, properties: number, checkpoint: string|null, writers: Object, patchCount: number}>}
  */
-async function materializeOneGraph({ persistence, graphName, writerId }) {
+async function materializeOneGraph({ persistence, graphName, writerId, ceiling }) {
   const graph = await WarpGraph.open({ persistence, graphName, writerId, crypto: new NodeCryptoAdapter() });
+  if (ceiling !== undefined) {
+    graph._seekCeiling = ceiling;
+  }
   await graph.materialize();
   const nodes = await graph.getNodes();
   const edges = await graph.getEdges();
-  const checkpoint = await graph.createCheckpoint();
+  const checkpoint = ceiling !== undefined ? null : await graph.createCheckpoint();
   const status = await graph.status();
 
   // Build per-writer patch counts for the view renderer
@@ -1314,12 +1367,20 @@ async function handleMaterialize({ options }) {
   }
 
   const results = [];
+  let cursorWarningEmitted = false;
   for (const name of targets) {
     try {
+      const cursor = await readActiveCursor(persistence, name);
+      const ceiling = cursor ? cursor.tick : undefined;
+      if (cursor && !cursorWarningEmitted) {
+        emitCursorWarning({ active: true, tick: cursor.tick, maxTick: null }, null);
+        cursorWarningEmitted = true;
+      }
       const result = await materializeOneGraph({
         persistence,
         graphName: name,
         writerId: options.writer,
+        ceiling,
       });
       results.push(result);
     } catch (error) {
@@ -1538,6 +1599,460 @@ function getHookStatusForCheck(repoPath) {
   }
 }
 
+// ============================================================================
+// Cursor I/O Helpers
+// ============================================================================
+
+async function readActiveCursor(persistence, graphName) {
+  const ref = buildCursorActiveRef(graphName);
+  const oid = await persistence.readRef(ref);
+  if (!oid) {
+    return null;
+  }
+  const buf = await persistence.readBlob(oid);
+  return JSON.parse(buf.toString('utf8'));
+}
+
+async function writeActiveCursor(persistence, graphName, cursor) {
+  const ref = buildCursorActiveRef(graphName);
+  const json = JSON.stringify(cursor);
+  const oid = await persistence.writeBlob(Buffer.from(json, 'utf8'));
+  await persistence.updateRef(ref, oid);
+}
+
+async function clearActiveCursor(persistence, graphName) {
+  const ref = buildCursorActiveRef(graphName);
+  const exists = await persistence.readRef(ref);
+  if (exists) {
+    await persistence.deleteRef(ref);
+  }
+}
+
+async function readSavedCursor(persistence, graphName, name) {
+  const ref = buildCursorSavedRef(graphName, name);
+  const oid = await persistence.readRef(ref);
+  if (!oid) {
+    return null;
+  }
+  const buf = await persistence.readBlob(oid);
+  return JSON.parse(buf.toString('utf8'));
+}
+
+async function writeSavedCursor(persistence, graphName, name, cursor) {
+  const ref = buildCursorSavedRef(graphName, name);
+  const json = JSON.stringify(cursor);
+  const oid = await persistence.writeBlob(Buffer.from(json, 'utf8'));
+  await persistence.updateRef(ref, oid);
+}
+
+async function deleteSavedCursor(persistence, graphName, name) {
+  const ref = buildCursorSavedRef(graphName, name);
+  const exists = await persistence.readRef(ref);
+  if (exists) {
+    await persistence.deleteRef(ref);
+  }
+}
+
+async function listSavedCursors(persistence, graphName) {
+  const prefix = buildCursorSavedPrefix(graphName);
+  const refs = await persistence.listRefs(prefix);
+  const cursors = [];
+  for (const ref of refs) {
+    const name = ref.slice(prefix.length);
+    if (name) {
+      const oid = await persistence.readRef(ref);
+      if (oid) {
+        const buf = await persistence.readBlob(oid);
+        const cursor = JSON.parse(buf.toString('utf8'));
+        cursors.push({ name, ...cursor });
+      }
+    }
+  }
+  return cursors;
+}
+
+// ============================================================================
+// Seek Arg Parser
+// ============================================================================
+
+function parseSeekArgs(args) {
+  const spec = {
+    action: 'status', // status, tick, latest, save, load, list, drop
+    tickValue: null,
+    name: null,
+  };
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+
+    if (arg === '--tick') {
+      if (spec.action !== 'status') {
+        throw usageError('--tick cannot be combined with other seek flags');
+      }
+      spec.action = 'tick';
+      const val = args[i + 1];
+      if (val === undefined) {
+        throw usageError('Missing value for --tick');
+      }
+      spec.tickValue = val;
+      i += 1;
+    } else if (arg.startsWith('--tick=')) {
+      if (spec.action !== 'status') {
+        throw usageError('--tick cannot be combined with other seek flags');
+      }
+      spec.action = 'tick';
+      spec.tickValue = arg.slice('--tick='.length);
+    } else if (arg === '--latest') {
+      if (spec.action !== 'status') {
+        throw usageError('--latest cannot be combined with other seek flags');
+      }
+      spec.action = 'latest';
+    } else if (arg === '--save') {
+      if (spec.action !== 'status') {
+        throw usageError('--save cannot be combined with other seek flags');
+      }
+      spec.action = 'save';
+      const val = args[i + 1];
+      if (val === undefined || val.startsWith('-')) {
+        throw usageError('Missing name for --save');
+      }
+      spec.name = val;
+      i += 1;
+    } else if (arg === '--load') {
+      if (spec.action !== 'status') {
+        throw usageError('--load cannot be combined with other seek flags');
+      }
+      spec.action = 'load';
+      const val = args[i + 1];
+      if (val === undefined || val.startsWith('-')) {
+        throw usageError('Missing name for --load');
+      }
+      spec.name = val;
+      i += 1;
+    } else if (arg === '--list') {
+      if (spec.action !== 'status') {
+        throw usageError('--list cannot be combined with other seek flags');
+      }
+      spec.action = 'list';
+    } else if (arg === '--drop') {
+      if (spec.action !== 'status') {
+        throw usageError('--drop cannot be combined with other seek flags');
+      }
+      spec.action = 'drop';
+      const val = args[i + 1];
+      if (val === undefined || val.startsWith('-')) {
+        throw usageError('Missing name for --drop');
+      }
+      spec.name = val;
+      i += 1;
+    } else if (arg.startsWith('-')) {
+      throw usageError(`Unknown seek option: ${arg}`);
+    }
+  }
+
+  return spec;
+}
+
+/**
+ * Resolves a tick value (absolute, relative +N/-N) against available ticks.
+ * @param {string} tickValue - Raw tick value from args
+ * @param {number|null} currentTick - Current cursor tick (null if no cursor)
+ * @param {number[]} ticks - Sorted array of available ticks
+ * @param {number} maxTick - Maximum tick
+ * @returns {number} Resolved tick value
+ */
+function resolveTickValue(tickValue, currentTick, ticks, maxTick) {
+  // Relative: +N or -N
+  if (tickValue.startsWith('+') || tickValue.startsWith('-')) {
+    const delta = parseInt(tickValue, 10);
+    if (!Number.isInteger(delta)) {
+      throw usageError(`Invalid tick delta: ${tickValue}`);
+    }
+    const base = currentTick ?? 0;
+
+    // Find the current position in sorted ticks, then step by delta
+    // Include tick 0 as a virtual "empty state" position
+    const allPoints = [0, ...ticks];
+    const currentIdx = allPoints.indexOf(base);
+    const startIdx = currentIdx === -1 ? 0 : currentIdx;
+    const targetIdx = Math.max(0, Math.min(allPoints.length - 1, startIdx + delta));
+    return allPoints[targetIdx];
+  }
+
+  // Absolute
+  const n = parseInt(tickValue, 10);
+  if (!Number.isInteger(n) || n < 0) {
+    throw usageError(`Invalid tick value: ${tickValue}. Must be a non-negative integer, or +N/-N for relative.`);
+  }
+
+  // Clamp to maxTick
+  return Math.min(n, maxTick);
+}
+
+// ============================================================================
+// Seek Handler
+// ============================================================================
+
+async function handleSeek({ options, args }) {
+  const seekSpec = parseSeekArgs(args);
+  const { graph, graphName, persistence } = await openGraph(options);
+
+  const activeCursor = await readActiveCursor(persistence, graphName);
+  const { ticks, maxTick, perWriter } = await graph.discoverTicks();
+
+  if (seekSpec.action === 'list') {
+    const saved = await listSavedCursors(persistence, graphName);
+    return {
+      payload: {
+        graph: graphName,
+        action: 'list',
+        cursors: saved,
+        activeTick: activeCursor ? activeCursor.tick : null,
+        maxTick,
+      },
+      exitCode: EXIT_CODES.OK,
+    };
+  }
+
+  if (seekSpec.action === 'drop') {
+    const existing = await readSavedCursor(persistence, graphName, seekSpec.name);
+    if (!existing) {
+      throw notFoundError(`Saved cursor not found: ${seekSpec.name}`);
+    }
+    await deleteSavedCursor(persistence, graphName, seekSpec.name);
+    return {
+      payload: {
+        graph: graphName,
+        action: 'drop',
+        name: seekSpec.name,
+        tick: existing.tick,
+      },
+      exitCode: EXIT_CODES.OK,
+    };
+  }
+
+  if (seekSpec.action === 'latest') {
+    await clearActiveCursor(persistence, graphName);
+    await graph.materialize();
+    const nodes = await graph.getNodes();
+    const edges = await graph.getEdges();
+    return {
+      payload: {
+        graph: graphName,
+        action: 'latest',
+        tick: maxTick,
+        maxTick,
+        ticks,
+        nodes: nodes.length,
+        edges: edges.length,
+        perWriter: serializePerWriter(perWriter),
+        patchCount: countPatchesAtTick(maxTick, perWriter),
+        cursor: { active: false },
+      },
+      exitCode: EXIT_CODES.OK,
+    };
+  }
+
+  if (seekSpec.action === 'save') {
+    if (!activeCursor) {
+      throw usageError('No active cursor to save. Use --tick first.');
+    }
+    await writeSavedCursor(persistence, graphName, seekSpec.name, activeCursor);
+    return {
+      payload: {
+        graph: graphName,
+        action: 'save',
+        name: seekSpec.name,
+        tick: activeCursor.tick,
+      },
+      exitCode: EXIT_CODES.OK,
+    };
+  }
+
+  if (seekSpec.action === 'load') {
+    const saved = await readSavedCursor(persistence, graphName, seekSpec.name);
+    if (!saved) {
+      throw notFoundError(`Saved cursor not found: ${seekSpec.name}`);
+    }
+    await writeActiveCursor(persistence, graphName, saved);
+    graph._seekCeiling = saved.tick;
+    await graph.materialize();
+    const nodes = await graph.getNodes();
+    const edges = await graph.getEdges();
+    return {
+      payload: {
+        graph: graphName,
+        action: 'load',
+        name: seekSpec.name,
+        tick: saved.tick,
+        maxTick,
+        ticks,
+        nodes: nodes.length,
+        edges: edges.length,
+        perWriter: serializePerWriter(perWriter),
+        patchCount: countPatchesAtTick(saved.tick, perWriter),
+        cursor: { active: true, mode: saved.mode, tick: saved.tick, maxTick, name: seekSpec.name },
+      },
+      exitCode: EXIT_CODES.OK,
+    };
+  }
+
+  if (seekSpec.action === 'tick') {
+    const currentTick = activeCursor ? activeCursor.tick : null;
+    const resolvedTick = resolveTickValue(seekSpec.tickValue, currentTick, ticks, maxTick);
+    const cursor = { tick: resolvedTick, mode: 'lamport' };
+    await writeActiveCursor(persistence, graphName, cursor);
+    graph._seekCeiling = resolvedTick;
+    await graph.materialize();
+    const nodes = await graph.getNodes();
+    const edges = await graph.getEdges();
+    return {
+      payload: {
+        graph: graphName,
+        action: 'tick',
+        tick: resolvedTick,
+        maxTick,
+        ticks,
+        nodes: nodes.length,
+        edges: edges.length,
+        perWriter: serializePerWriter(perWriter),
+        patchCount: countPatchesAtTick(resolvedTick, perWriter),
+        cursor: { active: true, mode: 'lamport', tick: resolvedTick, maxTick, name: 'active' },
+      },
+      exitCode: EXIT_CODES.OK,
+    };
+  }
+
+  // status (bare seek)
+  if (activeCursor) {
+    graph._seekCeiling = activeCursor.tick;
+    await graph.materialize();
+    const nodes = await graph.getNodes();
+    const edges = await graph.getEdges();
+    return {
+      payload: {
+        graph: graphName,
+        action: 'status',
+        tick: activeCursor.tick,
+        maxTick,
+        ticks,
+        nodes: nodes.length,
+        edges: edges.length,
+        perWriter: serializePerWriter(perWriter),
+        patchCount: countPatchesAtTick(activeCursor.tick, perWriter),
+        cursor: { active: true, mode: activeCursor.mode, tick: activeCursor.tick, maxTick, name: 'active' },
+      },
+      exitCode: EXIT_CODES.OK,
+    };
+  }
+
+  return {
+    payload: {
+      graph: graphName,
+      action: 'status',
+      tick: maxTick,
+      maxTick,
+      ticks,
+      nodes: 0,
+      edges: 0,
+      perWriter: serializePerWriter(perWriter),
+      patchCount: 0,
+      cursor: { active: false },
+    },
+    exitCode: EXIT_CODES.OK,
+  };
+}
+
+function serializePerWriter(perWriter) {
+  const result = {};
+  for (const [writerId, info] of perWriter) {
+    result[writerId] = { ticks: info.ticks, tipSha: info.tipSha };
+  }
+  return result;
+}
+
+function countPatchesAtTick(tick, perWriter) {
+  let count = 0;
+  for (const [, info] of perWriter) {
+    for (const t of info.ticks) {
+      if (t <= tick) {
+        count++;
+      }
+    }
+  }
+  return count;
+}
+
+function renderSeek(payload) {
+  if (payload.action === 'list') {
+    if (payload.cursors.length === 0) {
+      return 'No saved cursors.\n';
+    }
+    const lines = [];
+    for (const c of payload.cursors) {
+      const active = c.tick === payload.activeTick ? ' (active)' : '';
+      lines.push(`  ${c.name}: tick ${c.tick}${active}`);
+    }
+    return `${lines.join('\n')}\n`;
+  }
+
+  if (payload.action === 'drop') {
+    return `Dropped cursor "${payload.name}" (was at tick ${payload.tick}).\n`;
+  }
+
+  if (payload.action === 'save') {
+    return `Saved cursor "${payload.name}" at tick ${payload.tick}.\n`;
+  }
+
+  if (payload.action === 'latest') {
+    return `${payload.graph}: returned to present (tick ${payload.maxTick}, ${payload.nodes} nodes, ${payload.edges} edges)\n`;
+  }
+
+  if (payload.action === 'load') {
+    return `${payload.graph}: loaded cursor "${payload.name}" at tick ${payload.tick} of ${payload.maxTick} (${payload.nodes} nodes, ${payload.edges} edges)\n`;
+  }
+
+  if (payload.action === 'tick') {
+    return `${payload.graph}: tick ${payload.tick} of ${payload.maxTick} (${payload.nodes} nodes, ${payload.edges} edges, ${payload.patchCount} patches)\n`;
+  }
+
+  // status
+  if (payload.cursor && payload.cursor.active) {
+    return `${payload.graph}: tick ${payload.tick} of ${payload.maxTick} (${payload.nodes} nodes, ${payload.edges} edges, ${payload.patchCount} patches)\n`;
+  }
+
+  return `${payload.graph}: no cursor active, ${payload.ticks.length} ticks available\n`;
+}
+
+/**
+ * Reads the active cursor and sets _seekCeiling on the graph instance.
+ * Call this for commands that should respect the seek cursor.
+ * @param {Object} graph - WarpGraph instance
+ * @param {Object} persistence - Persistence adapter
+ * @param {string} graphName - Graph name
+ * @returns {Promise<{active: boolean, tick: number|null, maxTick: number|null}>}
+ */
+async function applyCursorCeiling(graph, persistence, graphName) {
+  const cursor = await readActiveCursor(persistence, graphName);
+  if (cursor) {
+    graph._seekCeiling = cursor.tick;
+    return { active: true, tick: cursor.tick, maxTick: null };
+  }
+  return { active: false, tick: null, maxTick: null };
+}
+
+/**
+ * Prints a seek cursor warning banner to stderr.
+ * @param {Object} cursorInfo - From applyCursorCeiling
+ * @param {number|null} maxTick - Max tick (from discoverTicks or null)
+ */
+function emitCursorWarning(cursorInfo, maxTick) {
+  if (cursorInfo.active) {
+    const maxLabel = maxTick !== null && maxTick !== undefined ? ` of ${maxTick}` : '';
+    process.stderr.write(`\u26A0 seek active (tick ${cursorInfo.tick}${maxLabel}) \u2014 run "git warp seek --latest" to return to present\n`);
+  }
+}
+
 async function handleView({ options, args }) {
   if (!process.stdin.isTTY || !process.stdout.isTTY) {
     throw usageError('view command requires an interactive terminal (TTY)');
@@ -1573,6 +2088,7 @@ const COMMANDS = new Map([
   ['history', handleHistory],
   ['check', handleCheck],
   ['materialize', handleMaterialize],
+  ['seek', handleSeek],
   ['view', handleView],
   ['install-hooks', handleInstallHooks],
 ]);
@@ -1607,7 +2123,7 @@ async function main() {
     throw usageError(`Unknown command: ${command}`);
   }
 
-  const VIEW_SUPPORTED_COMMANDS = ['info', 'check', 'history', 'path', 'materialize', 'query'];
+  const VIEW_SUPPORTED_COMMANDS = ['info', 'check', 'history', 'path', 'materialize', 'query', 'seek'];
   if (options.view && !VIEW_SUPPORTED_COMMANDS.includes(command)) {
     throw usageError(`--view is not supported for '${command}'. Supported commands: ${VIEW_SUPPORTED_COMMANDS.join(', ')}`);
   }
