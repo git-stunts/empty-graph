@@ -140,6 +140,7 @@ function closeImpl(state, callback) {
       }
     },
     (err) => {
+      state.server = null;
       if (callback) {
         callback(err);
       }

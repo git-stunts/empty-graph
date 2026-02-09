@@ -323,6 +323,39 @@ describe('DenoHttpAdapter', () => {
 
       expect(() => server.close()).not.toThrow();
     });
+
+    it('does not produce unhandled rejection when shutdown rejects without callback', async () => {
+      mockServer.shutdown.mockReturnValue(Promise.reject(new Error('shutdown boom')));
+
+      const adapter = new DenoHttpAdapter();
+      const server = adapter.createServer(() => ({ status: 200 }));
+      server.listen(3000);
+
+      // close() without a callback — must not produce an unhandled rejection
+      server.close();
+
+      await new Promise((r) => setTimeout(r, 0));
+
+      // If we get here without an unhandled rejection, the test passes
+      expect(true).toBe(true);
+    });
+
+    it('nullifies state.server after shutdown rejection', async () => {
+      mockServer.shutdown.mockReturnValue(Promise.reject(new Error('shutdown failed')));
+
+      const adapter = new DenoHttpAdapter();
+      const server = adapter.createServer(() => ({ status: 200 }));
+      server.listen(3000);
+
+      const cb = vi.fn();
+      server.close(cb);
+
+      await new Promise((r) => setTimeout(r, 0));
+
+      expect(cb).toHaveBeenCalledTimes(1);
+      // After a failed shutdown, address() should return null (state.server cleared)
+      expect(server.address()).toBeNull();
+    });
   });
 
   describe('body size enforcement', () => {
