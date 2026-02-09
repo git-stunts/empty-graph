@@ -1,0 +1,30 @@
+name: Link Check
+
+on:
+  push:
+    branches: [main]
+    paths: ["**/*.md", ".lychee.toml"]
+  pull_request:
+    branches: [main]
+    paths: ["**/*.md", ".lychee.toml"]
+
+permissions:
+  contents: read
+
+jobs:
+  links:
+    name: Check broken links
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lychee link check
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: >-
+            --config .lychee.toml
+            '**/*.md'
+          fail: true
+          format: markdown
+          output: ./lychee-report.md
+          jobSummary: true

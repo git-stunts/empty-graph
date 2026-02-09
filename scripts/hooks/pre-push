@@ -13,6 +13,12 @@ if ! command -v docker >/dev/null 2>&1; then
   exit 1
 fi
 
+echo "Running pre-push link check..."
+if command -v lychee >/dev/null 2>&1; then
+  lychee --config .lychee.toml '**/*.md'
+else
+  echo "  skipped (lychee not installed — brew install lychee)"
+fi
 echo "Running pre-push lint..."
 npm run lint
 echo "Running pre-push unit tests..."
