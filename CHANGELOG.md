@@ -5,6 +5,57 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [10.2.0] — 2026-02-09 — Multi-runtime test matrix
+
+Adds a Dockerized multi-runtime test suite across Node 20, Node 22, Bun, and Deno. Fixes the `materialize` CLI command crashing when creating checkpoints. Expands end-to-end coverage from 8 BATS tests and 7 integration tests to 56 BATS tests and 54 integration tests.
+
+### Added
+
+- **Multi-runtime Docker test matrix**: Four Dockerfiles (`docker/Dockerfile.{node20,node22,bun,deno}`) and a `docker-compose.test.yml` with profile-based orchestration. Unit + integration + BATS on Node 20/22; API integration on Bun and Deno. Run `npm run test:matrix` for all runtimes in parallel, or target individual runtimes via `npm run test:node20`, `test:node22`, `test:bun`, `test:deno`.
+- **API integration test suite** (`test/integration/api/`, 10 files, 47 tests): Exercises the full programmatic API against real Git repos — lifecycle, multi-writer CRDT merge, query builder, traversals (BFS/DFS/shortest-path), checkpoints, tombstone GC, fork, edge cases (unicode IDs, self-edges, large properties), writer discovery, and sync.
+- **Deno test wrappers** (`test/runtime/deno/`, 7 files): Standalone `Deno.test()` wrappers using `assertEquals`/`assert` from `std/assert`, covering lifecycle, multi-writer, query, traversal, checkpoint, edge cases, and tombstones. Uses `WebCryptoAdapter` for runtime-agnostic crypto.
+- **Expanded BATS CLI tests** (`test/bats/`, 9 new files, 48 new tests): `cli-info`, `cli-query`, `cli-path`, `cli-history`, `cli-check`, `cli-materialize`, `cli-view-modes`, `cli-errors`, `cli-multiwriter`. Shared helpers extracted to `test/bats/helpers/setup.bash` with reusable seed scripts (`seed-graph.js`, `seed-multiwriter.js`, `seed-rich.js`).
+- **Runtime-agnostic test helper** (`test/integration/api/helpers/setup.js`): Creates temp Git repos with `WebCryptoAdapter` pre-configured; works on Node, Bun, and Deno.
+- **npm scripts**: `test:node20`, `test:node22`, `test:bun`, `test:deno`, `test:matrix`.
+
+### Fixed
+
+- **`materialize` CLI crash**: `WarpGraph.open()` calls in `openGraph()`, `materializeOneGraph()`, and the info handler's writer-patch lookup were missing the `crypto` option, causing `createCheckpoint()` to fail with "Invalid stateHash: expected string, got object". Now passes `NodeCryptoAdapter` in all three call sites.
+- **`--graph nonexistent` silently succeeds**: `openGraph()` now validates that the specified graph exists before opening it, returning a proper `E_NOT_FOUND` error.
+- **`--view html:FILE` not writing file**: The `html:FILE` view mode was accepted by the parser but never handled in `emit()`. Now wraps rendered SVG in an HTML document and writes it to the specified path (query and path commands).
+- **BATS test key mismatch**: Materialize tests referenced `data["results"]` but the CLI outputs `data["graphs"]`. Fixed in `cli-materialize.bats` and `cli-multiwriter.bats`.
+- **BATS path-not-found exit code**: `path not found` test expected exit 0, but the CLI intentionally returns exit 2 (`NOT_FOUND`). Fixed assertion in `cli-path.bats`.
+
+### Changed
+
+- **CI matrix strategy**: `.github/workflows/ci.yml` replaced the single Node 22 test job with a matrix strategy (`test-node` on Node 20+22, `test-bun`, `test-deno`), all using `docker-compose.test.yml`.
+- **Extract `writeHtmlExport` helper**: Deduplicated the HTML wrapper template in `emit()` (query and path branches) into a shared `writeHtmlExport()` function.
+- **Docker images run as non-root**: All four test images (`node20`, `node22`, `bun`, `deno`) now run tests as a non-root user to mirror CI environments and catch permission issues early.
+- **Docker `--no-install-recommends`**: All Dockerfiles use `--no-install-recommends` to reduce image size and build time.
+- **Pin Deno base image**: `Dockerfile.deno` now uses `denoland/deno:2.1` instead of `latest` for reproducible builds.
+- **Add `--build` to individual runtime scripts**: `test:node20`, `test:node22`, `test:bun`, `test:deno` now include `--build` so Dockerfile changes are always picked up.
+- **Extract shared BATS seed setup**: Duplicated boilerplate (project root resolution, dynamic imports, persistence creation) extracted to `test/bats/helpers/seed-setup.js`.
+- **Remove redundant CI Node.js setup**: `test-node` job no longer installs Node/npm on the host — tests run entirely in Docker, saving ~30-60s per matrix entry.
+- **Fix `opts` spread order in test helpers**: Spread `...opts` before explicit params so callers cannot accidentally override `persistence`, `graphName`, `writerId`, or `crypto`.
+- **Guard `cd` commands in BATS setup**: Added `|| return 1` to all `cd` calls in `setup.bash` to fail fast per ShellCheck SC2164.
+- **Pin Bun base image**: `Dockerfile.bun` now uses `oven/bun:1.2-slim` instead of `latest` for reproducible builds.
+- **Explicit `--view ascii` in BATS tests**: All `--view` invocations now pass the `ascii` mode explicitly rather than relying on the implicit default when the next token is a known command. Applied across `cli-check.bats`, `cli-query.bats`, and `cli-view-modes.bats`.
+- **BATS multiwriter materialize**: Added missing `--graph demo` flag to the materialize test.
+- **BATS info temp dir cleanup**: Empty-repo test now uses `trap ... RETURN` to clean up temp directory on assertion failure.
+- **BATS seed scripts include crypto**: All `WarpGraph.open()` calls in seed scripts now pass `NodeCryptoAdapter` via the shared `seed-setup.js` module, matching the CLI and preventing `createCheckpoint()` crashes.
+- **Stricter HTML export BATS test**: `--view html:FILE` test now asserts `<!DOCTYPE` and `<html` instead of falling back to `<svg`, ensuring raw SVG cannot pass as valid HTML output.
+
+### Docs
+
+- **JSDoc on changed/new functions**: Added missing JSDoc to `getGraphInfo`, `openGraph`, `writeHtmlExport`, `emit`, `materializeOneGraph` in `bin/warp-graph.js` and inner `openGraph` in `test/integration/api/helpers/setup.js`.
+
+### Tests
+
+- Suite total: 2883 tests across 142 vitest files + 56 BATS CLI tests (up from 2828/131 + 8).
+- New API integration tests: 48 (lifecycle 6, multiwriter 4, querybuilder 7, traversal 7, checkpoint 3, tombstone-gc 4, fork 2, edge-cases 6, writer-discovery 5, sync 4).
+- New BATS CLI tests: 48 (info 5, query 8, path 5, history 3, check 5, materialize 4, view-modes 7, errors 6, multiwriter 5).
+- Deno integration tests: 18 (lifecycle 3, multiwriter 2, querybuilder 3, traversal 3, checkpoint 2, edge-cases 3, tombstone 2).
+
 ## [10.1.2] — 2026-02-08 — First public release
 
 First publication to npm and JSR. Adds dual-registry CI/CD release system, broken link checking, and JSR compatibility fixes.

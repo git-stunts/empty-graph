@@ -1,0 +1,26 @@
+# Deno runtime test image.
+# Runs: API integration tests using Deno.test() wrappers.
+# CLI and unit tests are excluded — they depend on vitest / node: built-ins.
+# No native module compilation needed — roaring falls back to WASM.
+# Build context is the parent monorepo directory (context: ..).
+FROM denoland/deno:2.1.9
+USER root
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+COPY git-warp/ .
+# Init a git repo so plumbing operations work inside the container.
+RUN git init -q \
+  && git config user.email "container@git-warp.local" \
+  && git config user.name "Git Warp Container" \
+  && git add -A \
+  && git commit --allow-empty -m "seed git-warp" >/dev/null
+# Pre-cache npm dependencies via Deno's npm: specifier support.
+RUN deno cache --node-modules-dir test/runtime/deno/lifecycle.test.ts 2>/dev/null || true
+# Run tests as non-root to mirror CI and catch permission issues.
+# Also chown Deno's global cache so the deno user can fetch npm packages at runtime.
+RUN chown -R deno:deno /app /deno-dir
+USER deno
+ENV GIT_STUNTS_DOCKER=1
+CMD ["deno", "test", "--allow-all", "--node-modules-dir", "test/runtime/deno/"]
