@@ -19,13 +19,23 @@ if command -v lychee >/dev/null 2>&1; then
 else
   echo "  skipped (lychee not installed — brew install lychee)"
 fi
-echo "Running pre-push typecheck ratchet..."
-npm run typecheck:ratchet
-echo "Running pre-push lint..."
-npm run lint
+
+# Run lint + typecheck in parallel (both are read-only)
+echo "Running pre-push lint + typecheck ratchet (parallel)..."
+npm run lint &
+LINT_PID=$!
+npm run typecheck:ratchet &
+TC_PID=$!
+wait $LINT_PID || { echo "Lint failed"; exit 1; }
+wait $TC_PID || { echo "Typecheck ratchet failed"; exit 1; }
+
+# Build Docker image once, reuse for tests + benchmarks + BATS
+echo "Building Docker test image..."
+docker compose build test
+
 echo "Running pre-push unit tests..."
-npm test
+docker compose run --no-build --rm test npm run test:local
 echo "Running pre-push benchmarks..."
-npm run benchmark
+docker compose run --no-build --rm test npm run benchmark:local
 echo "Running pre-push git-warp CLI bats tests..."
-docker compose run --build --rm test bats test/bats/
+docker compose run --no-build --rm test bats test/bats/
