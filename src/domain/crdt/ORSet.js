@@ -118,11 +118,13 @@ export function createORSet() {
 export function orsetAdd(set, element, dot) {
   const encoded = encodeDot(dot);
 
-  if (!set.entries.has(element)) {
-    set.entries.set(element, new Set());
+  let dots = set.entries.get(element);
+  if (!dots) {
+    dots = new Set();
+    set.entries.set(element, dots);
   }
 
-  set.entries.get(element).add(encoded);
+  dots.add(encoded);
 }
 
 /**
@@ -226,10 +228,11 @@ export function orsetJoin(a, b) {
 
   // Union entries from b
   for (const [element, dots] of b.entries) {
-    if (!result.entries.has(element)) {
-      result.entries.set(element, new Set());
+    let resultDots = result.entries.get(element);
+    if (!resultDots) {
+      resultDots = new Set();
+      result.entries.set(element, resultDots);
     }
-    const resultDots = result.entries.get(element);
     for (const dot of dots) {
       resultDots.add(dot);
     }
@@ -312,6 +315,7 @@ export function orsetCompact(set, includedVV) {
  */
 export function orsetSerialize(set) {
   // Serialize entries: convert Map to array of [element, sortedDots]
+  /** @type {Array<[any, string[]]>} */
   const entriesArray = [];
   for (const [element, dots] of set.entries) {
     const sortedDots = [...dots].sort((a, b) => {

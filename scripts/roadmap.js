@@ -37,28 +37,42 @@ const MILESTONES = [
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
+/** @param {string} s */
 function escapeRegex(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-/** Extract task IDs (XX/YYY/N pattern) from a string, ignoring parenthetical notes. */
+/**
+ * Extract task IDs (XX/YYY/N pattern) from a string, ignoring parenthetical notes.
+ * @param {string} str
+ */
 function extractTaskIds(str) {
   if (!str || str.trim() === 'None') return [];
   return [...str.matchAll(/[A-Z]{2}\/[A-Z]+\/\d+/g)].map(m => m[0]);
 }
 
+/** @param {string} taskId */
 function getMilestone(taskId) {
   const prefix = taskId.split('/')[0];
   return MILESTONES.find(m => m.code === prefix);
 }
 
+/**
+ * @param {string} s
+ * @param {number} n
+ */
 function pad(s, n) {
   return s.length >= n ? s : s + ' '.repeat(n - s.length);
 }
 
 // ── Parsing ──────────────────────────────────────────────────────────────────
 
+/**
+ * @param {string} content
+ * @returns {Map<string, Task>}
+ */
 function parseTasks(content) {
+  /** @type {Map<string, Task>} */
   const tasks = new Map();
   const regex = /^####\s+([\w/]+)\s+—\s+(.+)$/gm;
   const headers = [];
@@ -96,8 +110,22 @@ function parseTasks(content) {
 }
 
 /**
+ * @typedef {{
+ *   id: string,
+ *   title: string,
+ *   status: string | null,
+ *   blockedBy: string[],
+ *   blocking: string[],
+ *   hours: number,
+ *   milestone: string,
+ *   milestoneCode: string,
+ * }} Task
+ */
+
+/**
  * Normalize the graph: ensure blocking/blockedBy are symmetric.
  * Some cross-milestone edges are only recorded on one side in the ROADMAP.
+ * @param {Map<string, Task>} tasks
  */
 function normalizeGraph(tasks) {
   for (const [id, task] of tasks) {
@@ -123,6 +151,9 @@ function normalizeGraph(tasks) {
 /**
  * Set (or insert) a task's Status field in the ROADMAP content string.
  * Searches by task ID pattern so it works even after prior edits shift positions.
+ * @param {string} content
+ * @param {string} taskId
+ * @param {string} newStatus
  */
 function setTaskStatus(content, taskId, newStatus) {
   const escapedId = escapeRegex(taskId);
@@ -182,6 +213,7 @@ function setTaskStatus(content, taskId, newStatus) {
 
 // ── DAG generation ───────────────────────────────────────────────────────────
 
+/** @param {string | null} status */
 function statusIcon(status) {
   switch (status) {
     case 'CLOSED':
@@ -195,11 +227,17 @@ function statusIcon(status) {
   }
 }
 
+/**
+ * @param {number} done
+ * @param {number} total
+ * @param {number} [width]
+ */
 function progressBar(done, total, width = 20) {
   const filled = total > 0 ? Math.round((done / total) * width) : 0;
   return '█'.repeat(filled) + '░'.repeat(width - filled);
 }
 
+/** @param {Map<string, Task>} tasks */
 function generateDagMarkdown(tasks) {
   const lines = [];
   lines.push('```');
@@ -255,6 +293,10 @@ function generateDagMarkdown(tasks) {
   return lines.join('\n');
 }
 
+/**
+ * @param {string} content
+ * @param {Map<string, Task>} tasks
+ */
 function updateDag(content, tasks) {
   const dag = generateDagMarkdown(tasks);
   const startIdx = content.indexOf(DAG_START);
@@ -278,6 +320,7 @@ function updateDag(content, tasks) {
 
 // ── Commands ─────────────────────────────────────────────────────────────────
 
+/** @param {string} taskId */
 function cmdClose(taskId) {
   let content = readFileSync(ROADMAP_PATH, 'utf8');
   const tasks = parseTasks(content);
@@ -455,6 +498,7 @@ function cmdShow() {
   const BOLD = '\x1b[1m';
   const CYAN = '\x1b[36m';
 
+  /** @param {string | null} status */
   function colorIcon(status) {
     switch (status) {
       case 'CLOSED':
@@ -468,6 +512,10 @@ function cmdShow() {
     }
   }
 
+  /**
+   * @param {string} id
+   * @param {string | null} status
+   */
   function colorId(id, status) {
     switch (status) {
       case 'CLOSED':

@@ -10,8 +10,8 @@
 export default class RefPort {
   /**
    * Updates a ref to point to an OID.
-   * @param {string} ref - The ref name (e.g., 'refs/warp/events/writers/alice')
-   * @param {string} oid - The OID to point to
+   * @param {string} _ref - The ref name (e.g., 'refs/warp/events/writers/alice')
+   * @param {string} _oid - The OID to point to
    * @returns {Promise<void>}
    * @throws {Error} If not implemented by a concrete adapter
    */
@@ -21,7 +21,7 @@ export default class RefPort {
 
   /**
    * Reads the OID a ref points to.
-   * @param {string} ref - The ref name
+   * @param {string} _ref - The ref name
    * @returns {Promise<string|null>} The OID, or null if the ref does not exist
    * @throws {Error} If not implemented by a concrete adapter
    */
@@ -31,7 +31,7 @@ export default class RefPort {
 
   /**
    * Deletes a ref.
-   * @param {string} ref - The ref name to delete
+   * @param {string} _ref - The ref name to delete
    * @returns {Promise<void>}
    * @throws {Error} If not implemented by a concrete adapter
    */
@@ -41,7 +41,7 @@ export default class RefPort {
 
   /**
    * Lists refs matching a prefix.
-   * @param {string} prefix - The ref prefix to match (e.g., 'refs/warp/events/writers/')
+   * @param {string} _prefix - The ref prefix to match (e.g., 'refs/warp/events/writers/')
    * @returns {Promise<string[]>} Array of matching ref names
    * @throws {Error} If not implemented by a concrete adapter
    */

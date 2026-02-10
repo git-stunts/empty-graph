@@ -67,11 +67,12 @@ function validateOp(op, index) {
     throw new Error(`ops[${index}] must be an object`);
   }
 
-  validateOpType(op.op, index);
-  validateOpTarget(op.target, index);
-  validateOpResult(op.result, index);
+  const entry = /** @type {Record<string, *>} */ (op);
+  validateOpType(entry.op, index);
+  validateOpTarget(entry.target, index);
+  validateOpResult(entry.result, index);
 
-  if (op.reason !== undefined && typeof op.reason !== 'string') {
+  if (entry.reason !== undefined && typeof entry.reason !== 'string') {
     throw new Error(`ops[${index}].reason must be a string or undefined`);
   }
 }
@@ -208,6 +209,7 @@ export function createTickReceipt({ patchSha, writer, lamport, ops }) {
   // Build frozen op copies (defensive: don't alias caller's objects)
   const frozenOps = Object.freeze(
     ops.map((o) => {
+      /** @type {{ op: string, target: string, result: 'applied' | 'superseded' | 'redundant', reason?: string }} */
       const entry = { op: o.op, target: o.target, result: o.result };
       if (o.reason !== undefined) {
         entry.reason = o.reason;
@@ -275,9 +277,11 @@ export function canonicalJson(receipt) {
  */
 function sortedReplacer(_key, value) {
   if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+    /** @type {{ [x: string]: * }} */
     const sorted = {};
-    for (const k of Object.keys(value).sort()) {
-      sorted[k] = value[k];
+    const obj = /** @type {{ [x: string]: * }} */ (value);
+    for (const k of Object.keys(obj).sort()) {
+      sorted[k] = obj[k];
     }
     return sorted;
   }

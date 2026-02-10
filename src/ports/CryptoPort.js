@@ -7,8 +7,8 @@
 export default class CryptoPort {
   /**
    * Computes a hash digest of the given data.
-   * @param {string} algorithm - Hash algorithm (e.g. 'sha1', 'sha256')
-   * @param {string|Buffer|Uint8Array} data - Data to hash
+   * @param {string} _algorithm - Hash algorithm (e.g. 'sha1', 'sha256')
+   * @param {string|Buffer|Uint8Array} _data - Data to hash
    * @returns {Promise<string>} Hex-encoded digest
    */
   async hash(_algorithm, _data) {
@@ -17,9 +17,9 @@ export default class CryptoPort {
 
   /**
    * Computes an HMAC of the given data.
-   * @param {string} algorithm - Hash algorithm (e.g. 'sha256')
-   * @param {string|Buffer|Uint8Array} key - HMAC key
-   * @param {string|Buffer|Uint8Array} data - Data to authenticate
+   * @param {string} _algorithm - Hash algorithm (e.g. 'sha256')
+   * @param {string|Buffer|Uint8Array} _key - HMAC key
+   * @param {string|Buffer|Uint8Array} _data - Data to authenticate
    * @returns {Promise<Buffer|Uint8Array>} Raw HMAC digest
    */
   async hmac(_algorithm, _key, _data) {
@@ -28,8 +28,8 @@ export default class CryptoPort {
 
   /**
    * Constant-time comparison of two buffers.
-   * @param {Buffer|Uint8Array} a - First buffer
-   * @param {Buffer|Uint8Array} b - Second buffer
+   * @param {Buffer|Uint8Array} _a - First buffer
+   * @param {Buffer|Uint8Array} _b - Second buffer
    * @returns {boolean} True if buffers are equal
    */
   timingSafeEqual(_a, _b) {

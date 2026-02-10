@@ -41,7 +41,7 @@ export default class DagPathFinding {
    * @param {import('./BitmapIndexReader.js').default} options.indexReader - Index reader for O(1) lookups
    * @param {import('../../ports/LoggerPort.js').default} [options.logger] - Logger instance
    */
-  constructor({ indexReader, logger = nullLogger } = {}) {
+  constructor(/** @type {{ indexReader: import('./BitmapIndexReader.js').default, logger?: import('../../ports/LoggerPort.js').default }} */ { indexReader, logger = nullLogger } = /** @type {*} */ ({})) {
     if (!indexReader) {
       throw new Error('DagPathFinding requires an indexReader');
     }
@@ -85,7 +85,7 @@ export default class DagPathFinding {
         checkAborted(signal, 'findPath');
       }
 
-      const current = queue.shift();
+      const current = /** @type {{sha: string, depth: number}} */ (queue.shift());
 
       if (current.depth > maxDepth) { continue; }
       if (visited.has(current.sha)) { continue; }
@@ -200,7 +200,7 @@ export default class DagPathFinding {
    * @param {Object} options - Path finding options
    * @param {string} options.from - Starting SHA
    * @param {string} options.to - Target SHA
-   * @param {Function} [options.weightProvider] - Async callback `(fromSha, toSha) => number`
+   * @param {(from: string, to: string) => number|Promise<number>} [options.weightProvider] - Async callback `(fromSha, toSha) => number`
    * @param {string} [options.direction='children'] - Edge direction: 'children' or 'parents'
    * @param {AbortSignal} [options.signal] - Optional AbortSignal for cancellation
    * @returns {Promise<{path: string[], totalCost: number}>} Path and cost
@@ -277,8 +277,8 @@ export default class DagPathFinding {
    * @param {Object} options - Path finding options
    * @param {string} options.from - Starting SHA
    * @param {string} options.to - Target SHA
-   * @param {Function} [options.weightProvider] - Async callback `(fromSha, toSha) => number`
-   * @param {Function} [options.heuristicProvider] - Callback `(sha, targetSha) => number`
+   * @param {(from: string, to: string) => number|Promise<number>} [options.weightProvider] - Async callback `(fromSha, toSha) => number`
+   * @param {(sha: string, target: string) => number} [options.heuristicProvider] - Callback `(sha, targetSha) => number`
    * @param {string} [options.direction='children'] - Edge direction: 'children' or 'parents'
    * @param {AbortSignal} [options.signal] - Optional AbortSignal for cancellation
    * @returns {Promise<{path: string[], totalCost: number, nodesExplored: number}>} Path result
@@ -367,9 +367,9 @@ export default class DagPathFinding {
    * @param {Object} options - Path finding options
    * @param {string} options.from - Starting SHA
    * @param {string} options.to - Target SHA
-   * @param {Function} [options.weightProvider] - Async callback `(fromSha, toSha) => number`
-   * @param {Function} [options.forwardHeuristic] - Callback for forward search
-   * @param {Function} [options.backwardHeuristic] - Callback for backward search
+   * @param {(from: string, to: string) => number|Promise<number>} [options.weightProvider] - Async callback `(fromSha, toSha) => number`
+   * @param {(sha: string, target: string) => number} [options.forwardHeuristic] - Callback for forward search
+   * @param {(sha: string, target: string) => number} [options.backwardHeuristic] - Callback for backward search
    * @param {AbortSignal} [options.signal] - Optional AbortSignal for cancellation
    * @returns {Promise<{path: string[], totalCost: number, nodesExplored: number}>} Path result
    * @throws {TraversalError} With code 'NO_PATH' if no path exists
@@ -463,6 +463,17 @@ export default class DagPathFinding {
    * Expands the forward frontier by one node in bidirectional A*.
    *
    * @param {Object} state - Forward expansion state
+   * @param {import('../utils/MinHeap.js').default} state.fwdHeap
+   * @param {Set<string>} state.fwdVisited
+   * @param {Map<string, number>} state.fwdGScore
+   * @param {Map<string, string>} state.fwdPrevious
+   * @param {Set<string>} state.bwdVisited
+   * @param {Map<string, number>} state.bwdGScore
+   * @param {(from: string, to: string) => number|Promise<number>} state.weightProvider
+   * @param {(sha: string, target: string) => number} state.forwardHeuristic
+   * @param {string} state.to
+   * @param {number} state.mu
+   * @param {string|null} state.meetingPoint
    * @returns {Promise<{explored: number, mu: number, meetingPoint: string|null}>}
    * @private
    */
@@ -484,7 +495,7 @@ export default class DagPathFinding {
     explored = 1;
 
     if (bwdVisited.has(current)) {
-      const totalCost = fwdGScore.get(current) + bwdGScore.get(current);
+      const totalCost = /** @type {number} */ (fwdGScore.get(current)) + /** @type {number} */ (bwdGScore.get(current));
       if (totalCost < bestMu) {
         bestMu = totalCost;
         bestMeeting = current;
@@ -498,8 +509,8 @@ export default class DagPathFinding {
       }
 
       const edgeWeight = await weightProvider(current, child);
-      const tentativeG = fwdGScore.get(current) + edgeWeight;
-      const currentG = fwdGScore.has(child) ? fwdGScore.get(child) : Infinity;
+      const tentativeG = /** @type {number} */ (fwdGScore.get(current)) + edgeWeight;
+      const currentG = fwdGScore.has(child) ? /** @type {number} */ (fwdGScore.get(child)) : Infinity;
 
       if (tentativeG < currentG) {
         fwdPrevious.set(child, current);
@@ -509,7 +520,7 @@ export default class DagPathFinding {
         fwdHeap.insert(child, f);
 
         if (bwdGScore.has(child)) {
-          const totalCost = tentativeG + bwdGScore.get(child);
+          const totalCost = tentativeG + /** @type {number} */ (bwdGScore.get(child));
           if (totalCost < bestMu) {
             bestMu = totalCost;
             bestMeeting = child;
@@ -525,6 +536,17 @@ export default class DagPathFinding {
    * Expands the backward frontier by one node in bidirectional A*.
    *
    * @param {Object} state - Backward expansion state
+   * @param {import('../utils/MinHeap.js').default} state.bwdHeap
+   * @param {Set<string>} state.bwdVisited
+   * @param {Map<string, number>} state.bwdGScore
+   * @param {Map<string, string>} state.bwdNext
+   * @param {Set<string>} state.fwdVisited
+   * @param {Map<string, number>} state.fwdGScore
+   * @param {(from: string, to: string) => number|Promise<number>} state.weightProvider
+   * @param {(sha: string, target: string) => number} state.backwardHeuristic
+   * @param {string} state.from
+   * @param {number} state.mu
+   * @param {string|null} state.meetingPoint
    * @returns {Promise<{explored: number, mu: number, meetingPoint: string|null}>}
    * @private
    */
@@ -546,7 +568,7 @@ export default class DagPathFinding {
     explored = 1;
 
     if (fwdVisited.has(current)) {
-      const totalCost = fwdGScore.get(current) + bwdGScore.get(current);
+      const totalCost = /** @type {number} */ (fwdGScore.get(current)) + /** @type {number} */ (bwdGScore.get(current));
       if (totalCost < bestMu) {
         bestMu = totalCost;
         bestMeeting = current;
@@ -560,8 +582,8 @@ export default class DagPathFinding {
       }
 
       const edgeWeight = await weightProvider(parent, current);
-      const tentativeG = bwdGScore.get(current) + edgeWeight;
-      const currentG = bwdGScore.has(parent) ? bwdGScore.get(parent) : Infinity;
+      const tentativeG = /** @type {number} */ (bwdGScore.get(current)) + edgeWeight;
+      const currentG = bwdGScore.has(parent) ? /** @type {number} */ (bwdGScore.get(parent)) : Infinity;
 
       if (tentativeG < currentG) {
         bwdNext.set(parent, current);
@@ -571,7 +593,7 @@ export default class DagPathFinding {
         bwdHeap.insert(parent, f);
 
         if (fwdGScore.has(parent)) {
-          const totalCost = fwdGScore.get(parent) + tentativeG;
+          const totalCost = /** @type {number} */ (fwdGScore.get(parent)) + tentativeG;
           if (totalCost < bestMu) {
             bestMu = totalCost;
             bestMeeting = parent;
@@ -691,7 +713,7 @@ export default class DagPathFinding {
     const forwardPath = [meeting];
     let current = meeting;
     while (fwdParent.has(current) && fwdParent.get(current) !== undefined) {
-      current = fwdParent.get(current);
+      current = /** @type {string} */ (fwdParent.get(current));
       forwardPath.unshift(current);
     }
     if (forwardPath[0] !== from) {
@@ -700,7 +722,7 @@ export default class DagPathFinding {
 
     current = meeting;
     while (bwdParent.has(current) && bwdParent.get(current) !== undefined) {
-      current = bwdParent.get(current);
+      current = /** @type {string} */ (bwdParent.get(current));
       forwardPath.push(current);
     }
     if (forwardPath[forwardPath.length - 1] !== to) {

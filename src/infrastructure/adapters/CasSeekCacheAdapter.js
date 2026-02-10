@@ -44,11 +44,7 @@ const MAX_CAS_RETRIES = 3;
 
 export default class CasSeekCacheAdapter extends SeekCachePort {
   /**
-   * @param {Object} options
-   * @param {import('../../ports/GraphPersistencePort.js').default} options.persistence - Git persistence port for index ref/blob ops
-   * @param {import('@git-stunts/plumbing').default} options.plumbing - GitPlumbing instance for CAS init
-   * @param {string} options.graphName - Graph namespace
-   * @param {number} [options.maxEntries=200] - Maximum index entries before LRU eviction
+   * @param {{ persistence: *, plumbing: *, graphName: string, maxEntries?: number }} options
    */
   constructor({ persistence, plumbing, graphName, maxEntries }) {
     super();
@@ -63,7 +59,7 @@ export default class CasSeekCacheAdapter extends SeekCachePort {
   /**
    * Lazily initializes the ContentAddressableStore.
    * @private
-   * @returns {Promise<import('@git-stunts/git-cas').default>}
+   * @returns {Promise<*>}
    */
   async _getCas() {
     if (!this._casPromise) {
@@ -77,10 +73,12 @@ export default class CasSeekCacheAdapter extends SeekCachePort {
 
   /**
    * @private
-   * @returns {Promise<import('@git-stunts/git-cas').default>}
+   * @returns {Promise<*>}
    */
   async _initCas() {
-    const { default: ContentAddressableStore } = await import('@git-stunts/git-cas');
+    const { default: ContentAddressableStore } = await import(
+      /* webpackIgnore: true */ '@git-stunts/git-cas'
+    );
     return ContentAddressableStore.createCbor({ plumbing: this._plumbing });
   }
 
@@ -134,6 +132,7 @@ export default class CasSeekCacheAdapter extends SeekCachePort {
    * @returns {Promise<CacheIndex>} The mutated index
    */
   async _mutateIndex(mutate) {
+    /** @type {*} */
     let lastErr;
     for (let attempt = 0; attempt < MAX_CAS_RETRIES; attempt++) {
       const index = await this._readIndex();
@@ -198,7 +197,11 @@ export default class CasSeekCacheAdapter extends SeekCachePort {
   // SeekCachePort implementation
   // ---------------------------------------------------------------------------
 
-  /** @override */
+  /**
+   * @override
+   * @param {string} key
+   * @returns {Promise<Buffer|null>}
+   */
   async get(key) {
     const cas = await this._getCas();
     const index = await this._readIndex();
@@ -228,7 +231,12 @@ export default class CasSeekCacheAdapter extends SeekCachePort {
     }
   }
 
-  /** @override */
+  /**
+   * @override
+   * @param {string} key
+   * @param {Buffer} buffer
+   * @returns {Promise<void>}
+   */
   async set(key, buffer) {
     const cas = await this._getCas();
     const { ceiling, frontierHash } = this._parseKey(key);
@@ -257,7 +265,11 @@ export default class CasSeekCacheAdapter extends SeekCachePort {
     });
   }
 
-  /** @override */
+  /**
+   * @override
+   * @param {string} key
+   * @returns {Promise<boolean>}
+   */
   async has(key) {
     const index = await this._readIndex();
     return key in index.entries;
@@ -269,7 +281,11 @@ export default class CasSeekCacheAdapter extends SeekCachePort {
     return Object.keys(index.entries);
   }
 
-  /** @override */
+  /**
+   * @override
+   * @param {string} key
+   * @returns {Promise<boolean>}
+   */
   async delete(key) {
     let existed = false;
     await this._mutateIndex((index) => {

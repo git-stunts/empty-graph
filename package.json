@@ -84,7 +84,11 @@
     "test:node22": "docker compose -f docker-compose.test.yml --profile node22 run --build --rm test-node22",
     "test:bun": "docker compose -f docker-compose.test.yml --profile bun run --build --rm test-bun",
     "test:deno": "docker compose -f docker-compose.test.yml --profile deno run --build --rm test-deno",
-    "test:matrix": "docker compose -f docker-compose.test.yml --profile full up --build --abort-on-container-exit"
+    "test:matrix": "docker compose -f docker-compose.test.yml --profile full up --build --abort-on-container-exit",
+    "typecheck": "tsc --noEmit",
+    "typecheck:src": "tsc --noEmit -p tsconfig.src.json",
+    "typecheck:test": "tsc --noEmit -p tsconfig.test.json",
+    "typecheck:ratchet": "node scripts/ts-ratchet.js"
   },
   "optionalDependencies": {
     "@git-stunts/git-cas": "^3.0.0"

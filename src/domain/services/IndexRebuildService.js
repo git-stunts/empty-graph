@@ -40,17 +40,17 @@ export default class IndexRebuildService {
    * Creates an IndexRebuildService instance.
    *
    * @param {Object} options - Configuration options
-   * @param {Object} options.graphService - Graph service providing node iteration.
-   *   Must implement `iterateNodes({ ref, limit }) => AsyncGenerator<GraphNode>`.
+   * @param {{ iterateNodes: (opts: { ref: string, limit: number }) => AsyncIterable<{ sha: string, parents: string[] }> }} options.graphService - Graph service providing node iteration.
    * @param {import('../../ports/IndexStoragePort.js').default} options.storage - Storage adapter
    *   for persisting index blobs and trees. Typically GitGraphAdapter.
    * @param {import('../../ports/LoggerPort.js').default} [options.logger] - Logger for
    *   structured logging. Defaults to null logger (no logging).
+   * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for serialization
    * @param {import('../../ports/CryptoPort.js').default} [options.crypto] - Crypto adapter for checksums
    * @throws {Error} If graphService is not provided
    * @throws {Error} If storage adapter is not provided
    */
-  constructor({ graphService, storage, logger = nullLogger, codec, crypto }) {
+  constructor({ graphService, storage, logger = nullLogger, codec, crypto } = /** @type {*} */ ({})) {
     if (!graphService) {
       throw new Error('IndexRebuildService requires a graphService');
     }
@@ -156,7 +156,7 @@ export default class IndexRebuildService {
         operation: 'rebuild',
         ref,
         mode,
-        error: err.message,
+        error: /** @type {any} */ (err).message,
         durationMs,
       });
       throw err;
@@ -247,12 +247,12 @@ export default class IndexRebuildService {
    * @private
    */
   async _rebuildStreaming(ref, { limit, maxMemoryBytes, onFlush, onProgress, signal, frontier }) {
-    const builder = new StreamingBitmapIndexBuilder({
+    const builder = new StreamingBitmapIndexBuilder(/** @type {*} */ ({
       storage: this.storage,
       maxMemoryBytes,
       onFlush,
       crypto: this._crypto,
-    });
+    }));
 
     let processedNodes = 0;
 
@@ -266,7 +266,7 @@ export default class IndexRebuildService {
       if (processedNodes % 10000 === 0) {
         checkAborted(signal, 'rebuild');
         if (onProgress) {
-          const stats = builder.getMemoryStats();
+          const stats = /** @type {any} */ (builder).getMemoryStats();
           onProgress({
             processedNodes,
             currentMemoryBytes: stats.estimatedBitmapBytes,
@@ -275,7 +275,7 @@ export default class IndexRebuildService {
       }
     }
 
-    return await builder.finalize({ signal, frontier });
+    return await /** @type {any} */ (builder).finalize({ signal, frontier });
   }
 
   /**
@@ -302,10 +302,10 @@ export default class IndexRebuildService {
     const treeStructure = await builder.serialize({ frontier });
     const flatEntries = [];
     for (const [path, buffer] of Object.entries(treeStructure)) {
-      const oid = await this.storage.writeBlob(buffer);
+      const oid = await /** @type {import('../../ports/BlobPort.js').default} */ (/** @type {unknown} */ (this.storage)).writeBlob(buffer);
       flatEntries.push(`100644 blob ${oid}\t${path}`);
     }
-    return await this.storage.writeTree(flatEntries);
+    return await /** @type {import('../../ports/TreePort.js').default} */ (/** @type {unknown} */ (this.storage)).writeTree(flatEntries);
   }
 
   /**
@@ -384,12 +384,12 @@ export default class IndexRebuildService {
     }
 
     const startTime = performance.now();
-    const shardOids = await this.storage.readTreeOids(treeOid);
+    const shardOids = await /** @type {import('../../ports/TreePort.js').default} */ (/** @type {unknown} */ (this.storage)).readTreeOids(treeOid);
     const shardCount = Object.keys(shardOids).length;
 
     // Staleness check
     if (currentFrontier) {
-      const indexFrontier = await loadIndexFrontier(shardOids, this.storage, { codec: this._codec });
+      const indexFrontier = await loadIndexFrontier(shardOids, /** @type {*} */ (this.storage), { codec: this._codec });
       if (indexFrontier) {
         const result = checkStaleness(indexFrontier, currentFrontier);
         if (result.stale) {

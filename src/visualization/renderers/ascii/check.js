@@ -12,6 +12,18 @@ import { colors } from './colors.js';
 import { padRight } from '../../utils/unicode.js';
 import { formatAge } from './formatters.js';
 
+/**
+ * @typedef {{ cachedState?: string, tombstoneRatio?: number, patchesSinceCheckpoint?: number }} CheckStatus
+ * @typedef {{ writerId?: string, sha?: string }} WriterHead
+ * @typedef {{ sha?: string, ageSeconds?: number | null }} CheckpointInfo
+ * @typedef {{ installed?: boolean, foreign?: boolean, current?: boolean, version?: string }} HookInfo
+ * @typedef {{ sha?: string, missingWriters?: string[] }} CoverageInfo
+ * @typedef {{ status?: string }} HealthInfo
+ * @typedef {{ tombstoneRatio?: number }} GCInfo
+ * @typedef {{ heads?: WriterHead[] }} WritersInfo
+ * @typedef {{ graph: string, health: HealthInfo, status: CheckStatus, writers: WritersInfo, checkpoint: CheckpointInfo, coverage: CoverageInfo, gc: GCInfo, hook: HookInfo | null }} CheckPayload
+ */
+
 // Health thresholds
 const TOMBSTONE_HEALTHY_MAX = 0.15;     // < 15% tombstones = healthy
 const TOMBSTONE_WARNING_MAX = 0.30;     // < 30% tombstones = warning
@@ -19,7 +31,7 @@ const CACHE_STALE_PENALTY = 20;         // Reduce "freshness" score for stale ca
 
 /**
  * Get cache freshness percentage and state.
- * @param {Object} status - The status object from check payload
+ * @param {CheckStatus | null} status - The status object from check payload
  * @returns {{ percent: number, label: string }}
  */
 function getCacheFreshness(status) {
@@ -78,7 +90,7 @@ function tombstoneBar(percent, width = 20) {
 
 /**
  * Format writer information for display.
- * @param {Object[]} heads - Writer heads array
+ * @param {WriterHead[] | undefined} heads - Writer heads array
  * @returns {string}
  */
 function formatWriters(heads) {
@@ -94,7 +106,7 @@ function formatWriters(heads) {
 
 /**
  * Format checkpoint status line.
- * @param {Object} checkpoint - Checkpoint info
+ * @param {CheckpointInfo | null} checkpoint - Checkpoint info
  * @returns {string}
  */
 function formatCheckpoint(checkpoint) {
@@ -103,13 +115,14 @@ function formatCheckpoint(checkpoint) {
   }
 
   const sha = colors.muted(checkpoint.sha.slice(0, 7));
-  const age = formatAge(checkpoint.ageSeconds);
+  const ageSeconds = checkpoint.ageSeconds ?? null;
+  const age = formatAge(ageSeconds);
 
   // Add checkmark for recent checkpoints (< 5 min), warning for older
   let status;
-  if (checkpoint.ageSeconds !== null && checkpoint.ageSeconds < 300) {
+  if (ageSeconds !== null && ageSeconds < 300) {
     status = colors.success('\u2713');
-  } else if (checkpoint.ageSeconds !== null && checkpoint.ageSeconds < 3600) {
+  } else if (ageSeconds !== null && ageSeconds < 3600) {
     status = colors.warning('\u2713');
   } else {
     status = colors.muted('\u2713');
@@ -120,7 +133,7 @@ function formatCheckpoint(checkpoint) {
 
 /**
  * Format hook status line.
- * @param {Object|null} hook - Hook status
+ * @param {HookInfo|null} hook - Hook status
  * @returns {string}
  */
 function formatHook(hook) {
@@ -145,7 +158,7 @@ function formatHook(hook) {
 
 /**
  * Format coverage status line.
- * @param {Object} coverage - Coverage info
+ * @param {CoverageInfo | null} coverage - Coverage info
  * @returns {string}
  */
 function formatCoverage(coverage) {
@@ -164,7 +177,7 @@ function formatCoverage(coverage) {
 
 /**
  * Get overall health status with color and symbol.
- * @param {Object} health - Health object
+ * @param {HealthInfo | null} health - Health object
  * @returns {{ text: string, symbol: string, color: Function }}
  */
 function getOverallHealth(health) {
@@ -190,8 +203,8 @@ function getOverallHealth(health) {
 
 /**
  * Build the state section lines (cache, tombstones, patches).
- * @param {Object} status - Status object
- * @param {Object} gc - GC metrics
+ * @param {CheckStatus | null} status - Status object
+ * @param {GCInfo | null} gc - GC metrics
  * @returns {string[]}
  */
 function buildStateLines(status, gc) {
@@ -215,10 +228,10 @@ function buildStateLines(status, gc) {
 /**
  * Build the metadata section lines (writers, checkpoint, coverage, hooks).
  * @param {Object} opts - Metadata options
- * @param {Object} opts.writers - Writers info
- * @param {Object} opts.checkpoint - Checkpoint info
- * @param {Object} opts.coverage - Coverage info
- * @param {Object} opts.hook - Hook status
+ * @param {WritersInfo} opts.writers - Writers info
+ * @param {CheckpointInfo} opts.checkpoint - Checkpoint info
+ * @param {CoverageInfo} opts.coverage - Coverage info
+ * @param {HookInfo | null} opts.hook - Hook status
  * @returns {string[]}
  */
 function buildMetadataLines({ writers, checkpoint, coverage, hook }) {
@@ -232,7 +245,7 @@ function buildMetadataLines({ writers, checkpoint, coverage, hook }) {
 
 /**
  * Determine border color based on health status.
- * @param {Object} overall - Overall health info
+ * @param {{ text: string, symbol: string, color: Function }} overall - Overall health info
  * @returns {string}
  */
 function getBorderColor(overall) {
@@ -243,7 +256,7 @@ function getBorderColor(overall) {
 
 /**
  * Render the check view dashboard.
- * @param {Object} payload - The check command payload
+ * @param {CheckPayload} payload - The check command payload
  * @returns {string} Formatted dashboard string
  */
 export function renderCheckView(payload) {

@@ -7,6 +7,9 @@ const MAX_BODY_BYTES = 10 * 1024 * 1024;
 /**
  * Collects the request body and dispatches to the handler, returning
  * a 500 response if the handler throws.
+ * @param {import('node:http').IncomingMessage} req
+ * @param {import('node:http').ServerResponse} res
+ * @param {{ handler: Function, logger: { error: Function } }} options
  */
 async function dispatch(req, res, { handler, logger }) {
   try {
@@ -60,33 +63,52 @@ export default class NodeHttpAdapter extends HttpServerPort {
     this._logger = logger || noopLogger;
   }
 
-  /** @inheritdoc */
+  /**
+   * @param {Function} requestHandler
+   * @returns {{ listen: Function, close: Function, address: Function }}
+   */
   createServer(requestHandler) {
     const logger = this._logger;
     const server = createServer((req, res) => {
-      dispatch(req, res, { handler: requestHandler, logger }).catch((err) => {
-        logger.error('[NodeHttpAdapter] unhandled dispatch error:', err);
-      });
+      dispatch(req, res, { handler: requestHandler, logger }).catch(
+        /** @param {*} err */ (err) => {
+          logger.error('[NodeHttpAdapter] unhandled dispatch error:', err);
+        });
     });
 
     return {
+      /**
+       * @param {number} port
+       * @param {string|Function} [host]
+       * @param {Function} [callback]
+       */
       listen(port, host, callback) {
         const cb = typeof host === 'function' ? host : callback;
         const bindHost = typeof host === 'string' ? host : undefined;
+        /** @param {*} err */
         const onError = (err) => {
           if (cb) {
             cb(err);
           }
         };
         server.once('error', onError);
-        const args = bindHost !== undefined ? [port, bindHost] : [port];
-        server.listen(...args, () => {
-          server.removeListener('error', onError);
-          if (cb) {
-            cb(null);
-          }
-        });
+        if (bindHost !== undefined) {
+          server.listen(port, bindHost, () => {
+            server.removeListener('error', onError);
+            if (cb) {
+              cb(null);
+            }
+          });
+        } else {
+          server.listen(port, () => {
+            server.removeListener('error', onError);
+            if (cb) {
+              cb(null);
+            }
+          });
+        }
       },
+      /** @param {((err?: Error) => void)} [callback] */
       close(callback) {
         server.close(callback);
       },

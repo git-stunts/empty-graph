@@ -94,8 +94,8 @@ function zeroCost() {
 /**
  * Counts how many items in `source` are absent from `targetSet`.
  *
- * @param {Array|Set} source - Source collection
- * @param {Set} targetSet - Target set to test against
+ * @param {Array<string>|Set<string>} source - Source collection
+ * @param {Set<string>} targetSet - Target set to test against
  * @returns {number}
  */
 function countMissing(source, targetSet) {
@@ -141,7 +141,7 @@ function computeEdgeLoss(state, nodesASet, nodesBSet) {
  * Counts lost properties for a single node between two observer configs.
  *
  * @param {Map<string, boolean>} nodeProps - Property keys for the node
- * @param {{ configA: Object, configB: Object, nodeInB: boolean }} opts
+ * @param {{ configA: {expose?: string[], redact?: string[]}, configB: {expose?: string[], redact?: string[]}, nodeInB: boolean }} opts
  * @returns {{ propsInA: number, lostProps: number }}
  */
 function countNodePropLoss(nodeProps, { configA, configB, nodeInB }) {
@@ -157,7 +157,7 @@ function countNodePropLoss(nodeProps, { configA, configB, nodeInB }) {
  * Computes property loss across all A-visible nodes.
  *
  * @param {*} state - WarpStateV5
- * @param {{ nodesA: string[], nodesBSet: Set<string>, configA: Object, configB: Object }} opts
+ * @param {{ nodesA: string[], nodesBSet: Set<string>, configA: {expose?: string[], redact?: string[]}, configB: {expose?: string[], redact?: string[]} }} opts
  * @returns {number} propLoss fraction
  */
 function computePropLoss(state, { nodesA, nodesBSet, configA, configB }) {

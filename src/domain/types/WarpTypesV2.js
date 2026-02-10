@@ -25,9 +25,7 @@
 
 /**
  * Dot - causal identifier for an add operation
- * @typedef {Object} Dot
- * @property {string} writer - Writer ID that created this dot
- * @property {number} seq - Sequence number for this writer
+ * @typedef {import('../crdt/Dot.js').Dot} Dot
  */
 
 /**
@@ -182,6 +180,7 @@ export function createPropSetV2(node, key, value) {
  * @returns {PatchV2} PatchV2 object
  */
 export function createPatchV2({ schema = 2, writer, lamport, context, ops, reads, writes }) {
+  /** @type {PatchV2} */
   const patch = {
     schema,
     writer,

@@ -1,3 +1,9 @@
+import CommitPort from './CommitPort.js';
+import BlobPort from './BlobPort.js';
+import TreePort from './TreePort.js';
+import RefPort from './RefPort.js';
+import ConfigPort from './ConfigPort.js';
+
 /**
  * Abstract port for graph persistence operations.
  *
@@ -20,27 +26,19 @@
  * All methods throw by default and must be overridden by implementations.
  *
  * @abstract
- * @implements {CommitPort}
- * @implements {BlobPort}
- * @implements {TreePort}
- * @implements {RefPort}
- * @implements {ConfigPort}
  */
-
-import CommitPort from './CommitPort.js';
-import BlobPort from './BlobPort.js';
-import TreePort from './TreePort.js';
-import RefPort from './RefPort.js';
-import ConfigPort from './ConfigPort.js';
-
 class GraphPersistencePort {}
 
+/** @type {Array<typeof CommitPort | typeof BlobPort | typeof TreePort | typeof RefPort | typeof ConfigPort>} */
 const focusedPorts = [CommitPort, BlobPort, TreePort, RefPort, ConfigPort];
 const seen = new Map();
 
 for (const Port of focusedPorts) {
-  const descriptors = Object.getOwnPropertyDescriptors(Port.prototype);
-  delete descriptors.constructor;
+  const allDescriptors = Object.getOwnPropertyDescriptors(Port.prototype);
+  /** @type {Record<string, PropertyDescriptor>} */
+  const descriptors = Object.fromEntries(
+    Object.entries(allDescriptors).filter(([k]) => k !== 'constructor'),
+  );
 
   for (const [name, descriptor] of Object.entries(descriptors)) {
     if (seen.has(name)) {

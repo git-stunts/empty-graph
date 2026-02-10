@@ -11,6 +11,14 @@ import { createBox } from './box.js';
 import { colors } from './colors.js';
 import { ARROW } from './symbols.js';
 
+/**
+ * @typedef {{ x: number, y: number }} Point
+ * @typedef {{ startPoint?: Point, endPoint?: Point, bendPoints?: Point[] }} Section
+ * @typedef {{ id: string, x: number, y: number, width: number, height: number, label?: string }} PositionedNode
+ * @typedef {{ id: string, source: string, target: string, label?: string, sections?: Section[] }} PositionedEdge
+ * @typedef {{ nodes: PositionedNode[], edges: PositionedEdge[], width: number, height: number }} PositionedGraph
+ */
+
 // ── Scaling constants ────────────────────────────────────────────────────────
 
 const CELL_W = 10;
@@ -30,23 +38,33 @@ const BOX = {
 
 // ── Grid helpers ─────────────────────────────────────────────────────────────
 
+/** @param {number} px */
 function toCol(px) {
   return Math.round(px / CELL_W) + MARGIN;
 }
 
+/** @param {number} px */
 function toRow(px) {
   return Math.round(px / CELL_H) + MARGIN;
 }
 
+/** @param {number} px */
 function scaleW(px) {
   return Math.round(px / CELL_W);
 }
 
+/** @param {number} px */
 function scaleH(px) {
   return Math.round(px / CELL_H);
 }
 
+/**
+ * @param {number} rows
+ * @param {number} cols
+ * @returns {string[][]}
+ */
 function createGrid(rows, cols) {
+  /** @type {string[][]} */
   const grid = [];
   for (let r = 0; r < rows; r++) {
     grid.push(new Array(cols).fill(' '));
@@ -54,12 +72,24 @@ function createGrid(rows, cols) {
   return grid;
 }
 
+/**
+ * @param {string[][]} grid
+ * @param {number} r
+ * @param {number} c
+ * @param {string} ch
+ */
 function writeChar(grid, r, c, ch) {
   if (r >= 0 && r < grid.length && c >= 0 && c < grid[0].length) {
     grid[r][c] = ch;
   }
 }
 
+/**
+ * @param {string[][]} grid
+ * @param {number} r
+ * @param {number} c
+ * @returns {string}
+ */
 function readChar(grid, r, c) {
   if (r >= 0 && r < grid.length && c >= 0 && c < grid[0].length) {
     return grid[r][c];
@@ -67,6 +97,12 @@ function readChar(grid, r, c) {
   return ' ';
 }
 
+/**
+ * @param {string[][]} grid
+ * @param {number} r
+ * @param {number} c
+ * @param {string} str
+ */
 function writeString(grid, r, c, str) {
   for (let i = 0; i < str.length; i++) {
     writeChar(grid, r, c + i, str[i]);
@@ -75,6 +111,10 @@ function writeString(grid, r, c, str) {
 
 // ── Node stamping ────────────────────────────────────────────────────────────
 
+/**
+ * @param {string[][]} grid
+ * @param {PositionedNode} node
+ */
 function stampNode(grid, node) {
   const r = toRow(node.y);
   const c = toCol(node.x);
@@ -112,6 +152,11 @@ function stampNode(grid, node) {
 
 // ── Edge tracing ─────────────────────────────────────────────────────────────
 
+/**
+ * @param {string[][]} grid
+ * @param {PositionedEdge} edge
+ * @param {Set<string>} nodeSet
+ */
 function traceEdge(grid, edge, nodeSet) {
   const { sections } = edge;
   if (!sections || sections.length === 0) {
@@ -136,6 +181,7 @@ function traceEdge(grid, edge, nodeSet) {
   }
 }
 
+/** @param {Section} section @returns {Point[]} */
 function buildPointList(section) {
   const points = [];
   if (section.startPoint) {
@@ -150,6 +196,11 @@ function buildPointList(section) {
   return points;
 }
 
+/**
+ * @param {string[][]} grid
+ * @param {Point[]} points
+ * @param {Set<string>} nodeSet
+ */
 function drawSegments(grid, points, nodeSet) {
   for (let i = 0; i < points.length - 1; i++) {
     const r1 = toRow(points[i].y);
@@ -160,6 +211,14 @@ function drawSegments(grid, points, nodeSet) {
   }
 }
 
+/**
+ * @param {string[][]} grid
+ * @param {number} r1
+ * @param {number} c1
+ * @param {number} r2
+ * @param {number} c2
+ * @param {Set<string>} nodeSet
+ */
 function drawLine(grid, r1, c1, r2, c2, nodeSet) {
   if (r1 === r2) {
     drawHorizontal(grid, r1, c1, c2, nodeSet);
@@ -172,6 +231,13 @@ function drawLine(grid, r1, c1, r2, c2, nodeSet) {
   }
 }
 
+/**
+ * @param {string[][]} grid
+ * @param {number} row
+ * @param {number} c1
+ * @param {number} c2
+ * @param {Set<string>} nodeSet
+ */
 function drawHorizontal(grid, row, c1, c2, nodeSet) {
   const start = Math.min(c1, c2);
   const end = Math.max(c1, c2);
@@ -187,6 +253,13 @@ function drawHorizontal(grid, row, c1, c2, nodeSet) {
   }
 }
 
+/**
+ * @param {string[][]} grid
+ * @param {number} col
+ * @param {number} r1
+ * @param {number} r2
+ * @param {Set<string>} nodeSet
+ */
 function drawVertical(grid, col, r1, r2, nodeSet) {
   const start = Math.min(r1, r2);
   const end = Math.max(r1, r2);
@@ -202,6 +275,11 @@ function drawVertical(grid, col, r1, r2, nodeSet) {
   }
 }
 
+/**
+ * @param {string[][]} grid
+ * @param {Section} section
+ * @param {Set<string>} nodeSet
+ */
 function drawArrowhead(grid, section, nodeSet) {
   const ep = section.endPoint;
   if (!ep) {
@@ -250,6 +328,12 @@ function drawArrowhead(grid, section, nodeSet) {
   }
 }
 
+/**
+ * @param {string[][]} grid
+ * @param {Section[]} sections
+ * @param {string} label
+ * @param {Set<string>} nodeSet
+ */
 function placeEdgeLabel(grid, sections, label, nodeSet) {
   // Find midpoint of the full path
   const allPoints = [];
@@ -292,6 +376,7 @@ function placeEdgeLabel(grid, sections, label, nodeSet) {
 
 // ── Node occupancy set ───────────────────────────────────────────────────────
 
+/** @param {PositionedNode[]} nodes @returns {Set<string>} */
 function buildNodeSet(nodes) {
   const set = new Set();
   for (const node of nodes) {
@@ -308,6 +393,12 @@ function buildNodeSet(nodes) {
   return set;
 }
 
+/**
+ * @param {Set<string>} nodeSet
+ * @param {number} r
+ * @param {number} c
+ * @returns {boolean}
+ */
 function isNodeCell(nodeSet, r, c) {
   return nodeSet.has(`${r},${c}`);
 }
@@ -317,7 +408,7 @@ function isNodeCell(nodeSet, r, c) {
 /**
  * Renders a PositionedGraph (from ELK) as an ASCII box-drawing string.
  *
- * @param {Object} positionedGraph - PositionedGraph from runLayout()
+ * @param {PositionedGraph} positionedGraph - PositionedGraph from runLayout()
  * @param {{ title?: string }} [options]
  * @returns {string} Rendered ASCII art wrapped in a box
  */

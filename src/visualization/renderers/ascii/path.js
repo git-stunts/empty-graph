@@ -75,7 +75,7 @@ function createPathSegment({ nodeId, index, pathLength, edges }) {
  * Builds path segments that fit within the terminal width.
  * Wraps long paths to multiple lines.
  * @param {string[]} path - Array of node IDs
- * @param {string[]} [edges] - Optional array of edge labels (one fewer than nodes)
+ * @param {string[] | undefined} edges - Optional array of edge labels (one fewer than nodes)
  * @param {number} maxWidth - Maximum line width
  * @returns {string[]} Array of line strings
  */

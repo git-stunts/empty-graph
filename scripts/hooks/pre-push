@@ -19,6 +19,8 @@ if command -v lychee >/dev/null 2>&1; then
 else
   echo "  skipped (lychee not installed — brew install lychee)"
 fi
+echo "Running pre-push typecheck ratchet..."
+npm run typecheck:ratchet
 echo "Running pre-push lint..."
 npm run lint
 echo "Running pre-push unit tests..."

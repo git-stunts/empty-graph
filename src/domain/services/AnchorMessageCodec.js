@@ -56,10 +56,7 @@ export function encodeAnchorMessage({ graph, schema = 2 }) {
  * Decodes an anchor commit message.
  *
  * @param {string} message - The raw commit message
- * @returns {Object} The decoded anchor message
- * @returns {string} return.kind - Always 'anchor'
- * @returns {string} return.graph - The graph name
- * @returns {number} return.schema - The schema version
+ * @returns {{ kind: 'anchor', graph: string, schema: number }} The decoded anchor message
  * @throws {Error} If the message is not a valid anchor message
  *
  * @example

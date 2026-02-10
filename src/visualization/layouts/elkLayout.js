@@ -5,11 +5,22 @@
  * a layout is actually requested, keeping normal CLI startup fast.
  */
 
+/**
+ * @typedef {{ id: string, x?: number, y?: number, width?: number, height?: number, labels?: Array<{ text: string }> }} ElkResultChild
+ * @typedef {{ id: string, sources?: string[], targets?: string[], labels?: Array<{ text: string }>, sections?: any[] }} ElkResultEdge
+ * @typedef {{ children?: ElkResultChild[], edges?: ElkResultEdge[], width?: number, height?: number }} ElkResult
+ * @typedef {{ id: string, x: number, y: number, width: number, height: number, label: string }} PosNode
+ * @typedef {{ id: string, source: string, target: string, label?: string, sections: any[] }} PosEdge
+ * @typedef {{ nodes: PosNode[], edges: PosEdge[], width: number, height: number }} PositionedGraph
+ * @typedef {{ id: string, children?: Array<{ id: string, width?: number, height?: number, labels?: Array<{ text: string }> }>, edges?: Array<{ id: string, sources?: string[], targets?: string[], labels?: Array<{ text: string }> }>, layoutOptions?: Record<string, string> }} ElkGraphInput
+ */
+
+/** @type {Promise<any> | null} */
 let elkPromise = null;
 
 /**
  * Returns (or creates) a singleton ELK instance.
- * @returns {Promise<Object>} ELK instance
+ * @returns {Promise<any>} ELK instance
  */
 function getElk() {
   if (!elkPromise) {
@@ -21,10 +32,11 @@ function getElk() {
 /**
  * Runs ELK layout on a graph and returns a PositionedGraph.
  *
- * @param {Object} elkGraph - ELK-format graph from toElkGraph()
- * @returns {Promise<Object>} PositionedGraph
+ * @param {ElkGraphInput} elkGraph - ELK-format graph from toElkGraph()
+ * @returns {Promise<PositionedGraph>} PositionedGraph
  */
 export async function runLayout(elkGraph) {
+  /** @type {ElkResult | undefined} */
   let result;
   try {
     const elk = await getElk();
@@ -37,9 +49,11 @@ export async function runLayout(elkGraph) {
 
 /**
  * Converts ELK output to a PositionedGraph.
+ * @param {ElkResult | undefined} result
+ * @returns {PositionedGraph}
  */
 function toPositionedGraph(result) {
-  const nodes = (result.children ?? []).map((c) => ({
+  const nodes = (result?.children ?? []).map((c) => ({
     id: c.id,
     x: c.x ?? 0,
     y: c.y ?? 0,
@@ -48,7 +62,7 @@ function toPositionedGraph(result) {
     label: c.labels?.[0]?.text ?? c.id,
   }));
 
-  const edges = (result.edges ?? []).map((e) => ({
+  const edges = (result?.edges ?? []).map((e) => ({
     id: e.id,
     source: e.sources?.[0] ?? '',
     target: e.targets?.[0] ?? '',
@@ -59,13 +73,15 @@ function toPositionedGraph(result) {
   return {
     nodes,
     edges,
-    width: result.width ?? 0,
-    height: result.height ?? 0,
+    width: result?.width ?? 0,
+    height: result?.height ?? 0,
   };
 }
 
 /**
  * Fallback: line nodes up horizontally when ELK fails.
+ * @param {ElkGraphInput} elkGraph
+ * @returns {PositionedGraph}
  */
 function fallbackLayout(elkGraph) {
   let x = 20;

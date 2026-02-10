@@ -32,7 +32,7 @@ const NOT_CHECKED = Symbol('NOT_CHECKED');
 
 /**
  * Cached reference to the loaded roaring module.
- * @type {Object|null}
+ * @type {any}
  * @private
  */
 let roaringModule = null;
@@ -51,7 +51,7 @@ let nativeAvailability = NOT_CHECKED;
  * Uses a top-level-await-friendly pattern with dynamic import.
  * The module is cached after first load.
  *
- * @returns {Object} The roaring module exports
+ * @returns {any} The roaring module exports
  * @throws {Error} If the roaring package is not installed or fails to load
  * @private
  */
@@ -151,7 +151,7 @@ export function getRoaringBitmap32() {
  */
 export function getNativeRoaringAvailable() {
   if (nativeAvailability !== NOT_CHECKED) {
-    return nativeAvailability;
+    return /** @type {boolean|null} */ (nativeAvailability);
   }
 
   try {
@@ -161,13 +161,13 @@ export function getNativeRoaringAvailable() {
     // Try the method-based API first (roaring >= 2.x)
     if (typeof RoaringBitmap32.isNativelyInstalled === 'function') {
       nativeAvailability = RoaringBitmap32.isNativelyInstalled();
-      return nativeAvailability;
+      return /** @type {boolean|null} */ (nativeAvailability);
     }
 
     // Fall back to property-based API (roaring 1.x)
     if (roaring.isNativelyInstalled !== undefined) {
       nativeAvailability = roaring.isNativelyInstalled;
-      return nativeAvailability;
+      return /** @type {boolean|null} */ (nativeAvailability);
     }
 
     // Could not determine - leave as null (indeterminate)

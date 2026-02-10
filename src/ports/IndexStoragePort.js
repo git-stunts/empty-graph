@@ -18,6 +18,7 @@ import RefPort from './RefPort.js';
 
 class IndexStoragePort {}
 
+/** @type {Array<[{ prototype: object, name: string }, string[]]>} */
 const picks = [
   [BlobPort, ['writeBlob', 'readBlob']],
   [TreePort, ['writeTree', 'readTreeOids']],

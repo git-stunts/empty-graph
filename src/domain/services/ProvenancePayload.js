@@ -68,7 +68,6 @@ class ProvenancePayload {
   /**
    * The internal array of patch entries. Frozen after construction.
    * @type {ReadonlyArray<PatchEntry>}
-   * @private
    */
   #patches;
 
@@ -173,7 +172,7 @@ class ProvenancePayload {
     // Use JoinReducer's reduceV5 for deterministic materialization.
     // Note: reduceV5 returns { state, receipts } when options.receipts is truthy,
     // but returns bare WarpStateV5 when no options passed (as here).
-    return reduceV5(this.#patches, initialState);
+    return /** @type {import('./JoinReducer.js').WarpStateV5} */ (reduceV5(/** @type {*} */ (this.#patches), initialState));
   }
 
   /**

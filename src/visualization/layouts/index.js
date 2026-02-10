@@ -19,9 +19,9 @@ import { runLayout } from './elkLayout.js';
 /**
  * Full pipeline: graphData → PositionedGraph.
  *
- * @param {{ nodes: Array, edges: Array }} graphData - Normalised graph data
- * @param {{ type?: string, layoutOptions?: Object }} [options]
- * @returns {Promise<Object>} PositionedGraph
+ * @param {{ nodes: Array<{ id: string, label: string }>, edges: Array<{ from: string, to: string, label?: string }> }} graphData - Normalised graph data
+ * @param {{ type?: 'query'|'path'|'slice', layoutOptions?: Record<string, string> }} [options]
+ * @returns {Promise<{ nodes: any[], edges: any[], width: number, height: number }>} PositionedGraph
  */
 export async function layoutGraph(graphData, options = {}) {
   const elkGraph = toElkGraph(graphData, options);

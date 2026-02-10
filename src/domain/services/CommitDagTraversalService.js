@@ -39,7 +39,7 @@ export default class CommitDagTraversalService {
    * @param {import('./BitmapIndexReader.js').default} options.indexReader - Index reader for O(1) lookups
    * @param {import('../../ports/LoggerPort.js').default} [options.logger] - Logger instance
    */
-  constructor({ indexReader, logger = nullLogger } = {}) {
+  constructor({ indexReader, logger = nullLogger } = /** @type {*} */ ({})) {
     if (!indexReader) {
       throw new Error('CommitDagTraversalService requires an indexReader');
     }
@@ -56,6 +56,7 @@ export default class CommitDagTraversalService {
 
   /**
    * Breadth-first traversal from a starting node.
+   * @param {*} options
    * @see DagTraversal#bfs
    */
   bfs(options) {
@@ -64,6 +65,7 @@ export default class CommitDagTraversalService {
 
   /**
    * Depth-first pre-order traversal from a starting node.
+   * @param {*} options
    * @see DagTraversal#dfs
    */
   dfs(options) {
@@ -72,6 +74,7 @@ export default class CommitDagTraversalService {
 
   /**
    * Yields all ancestors of a node.
+   * @param {*} options
    * @see DagTraversal#ancestors
    */
   ancestors(options) {
@@ -80,6 +83,7 @@ export default class CommitDagTraversalService {
 
   /**
    * Yields all descendants of a node.
+   * @param {*} options
    * @see DagTraversal#descendants
    */
   descendants(options) {
@@ -88,6 +92,7 @@ export default class CommitDagTraversalService {
 
   /**
    * Checks if there is any path from one node to another.
+   * @param {*} options
    * @see DagTraversal#isReachable
    */
   isReachable(options) {
@@ -98,6 +103,7 @@ export default class CommitDagTraversalService {
 
   /**
    * Finds ANY path between two nodes using BFS.
+   * @param {*} options
    * @see DagPathFinding#findPath
    */
   findPath(options) {
@@ -106,6 +112,7 @@ export default class CommitDagTraversalService {
 
   /**
    * Finds the shortest path using bidirectional BFS.
+   * @param {*} options
    * @see DagPathFinding#shortestPath
    */
   shortestPath(options) {
@@ -114,6 +121,7 @@ export default class CommitDagTraversalService {
 
   /**
    * Finds shortest path using Dijkstra's algorithm.
+   * @param {*} options
    * @see DagPathFinding#weightedShortestPath
    */
   weightedShortestPath(options) {
@@ -122,6 +130,7 @@ export default class CommitDagTraversalService {
 
   /**
    * Finds shortest path using A* with heuristic guidance.
+   * @param {*} options
    * @see DagPathFinding#aStarSearch
    */
   aStarSearch(options) {
@@ -130,6 +139,7 @@ export default class CommitDagTraversalService {
 
   /**
    * Bi-directional A* search.
+   * @param {*} options
    * @see DagPathFinding#bidirectionalAStar
    */
   bidirectionalAStar(options) {
@@ -140,6 +150,7 @@ export default class CommitDagTraversalService {
 
   /**
    * Finds common ancestors of multiple nodes.
+   * @param {*} options
    * @see DagTopology#commonAncestors
    */
   commonAncestors(options) {
@@ -148,6 +159,7 @@ export default class CommitDagTraversalService {
 
   /**
    * Yields nodes in topological order using Kahn's algorithm.
+   * @param {*} options
    * @see DagTopology#topologicalSort
    */
   topologicalSort(options) {

@@ -29,7 +29,7 @@ export {
  * @typedef {Object} WarpStateV5
  * @property {import('../crdt/ORSet.js').ORSet} nodeAlive - ORSet of alive nodes
  * @property {import('../crdt/ORSet.js').ORSet} edgeAlive - ORSet of alive edges
- * @property {Map<string, import('../crdt/LWW.js').LWWRegister>} prop - Properties with LWW
+ * @property {Map<string, import('../crdt/LWW.js').LWWRegister<*>>} prop - Properties with LWW
  * @property {import('../crdt/VersionVector.js').VersionVector} observedFrontier - Observed version vector
  * @property {Map<string, import('../utils/EventId.js').EventId>} edgeBirthEvent - EdgeKey → EventId of most recent EdgeAdd (for clean-slate prop visibility)
  */
@@ -88,14 +88,14 @@ export function createEmptyStateV5() {
 export function applyOpV2(state, op, eventId) {
   switch (op.type) {
     case 'NodeAdd':
-      orsetAdd(state.nodeAlive, op.node, op.dot);
+      orsetAdd(state.nodeAlive, /** @type {string} */ (op.node), /** @type {import('../crdt/Dot.js').Dot} */ (op.dot));
       break;
     case 'NodeRemove':
-      orsetRemove(state.nodeAlive, op.observedDots);
+      orsetRemove(state.nodeAlive, /** @type {Set<string>} */ (/** @type {unknown} */ (op.observedDots)));
       break;
     case 'EdgeAdd': {
-      const edgeKey = encodeEdgeKey(op.from, op.to, op.label);
-      orsetAdd(state.edgeAlive, edgeKey, op.dot);
+      const edgeKey = encodeEdgeKey(/** @type {string} */ (op.from), /** @type {string} */ (op.to), /** @type {string} */ (op.label));
+      orsetAdd(state.edgeAlive, edgeKey, /** @type {import('../crdt/Dot.js').Dot} */ (op.dot));
       // Track the EventId at which this edge incarnation was born.
       // On re-add after remove, the greater EventId replaces the old one,
       // allowing the query layer to filter out stale properties.
@@ -108,13 +108,13 @@ export function applyOpV2(state, op, eventId) {
       break;
     }
     case 'EdgeRemove':
-      orsetRemove(state.edgeAlive, op.observedDots);
+      orsetRemove(state.edgeAlive, /** @type {Set<string>} */ (/** @type {unknown} */ (op.observedDots)));
       break;
     case 'PropSet': {
       // Uses EventId-based LWW, same as v4
-      const key = encodePropKey(op.node, op.key);
+      const key = encodePropKey(/** @type {string} */ (op.node), /** @type {string} */ (op.key));
       const current = state.prop.get(key);
-      state.prop.set(key, lwwMax(current, lwwSet(eventId, op.value)));
+      state.prop.set(key, /** @type {import('../crdt/LWW.js').LWWRegister<*>} */ (lwwMax(current, lwwSet(eventId, op.value))));
       break;
     }
     default:
@@ -290,7 +290,7 @@ function edgeRemoveOutcome(orset, op) {
  * - `superseded`: An existing value with higher EventId wins
  * - `redundant`: Exact same write (identical EventId)
  *
- * @param {Map<string, import('../crdt/LWW.js').LWWRegister>} propMap - The properties map keyed by encoded prop keys
+ * @param {Map<string, import('../crdt/LWW.js').LWWRegister<*>>} propMap - The properties map keyed by encoded prop keys
  * @param {Object} op - The PropSet operation
  * @param {string} op.node - Node ID owning the property
  * @param {string} op.key - Property key/name
@@ -347,8 +347,8 @@ function propSetOutcome(propMap, op, eventId) {
  * @param {Object} patch - The patch to apply
  * @param {string} patch.writer - Writer ID who created this patch
  * @param {number} patch.lamport - Lamport timestamp of this patch
- * @param {Object[]} patch.ops - Array of operations to apply
- * @param {Map|Object} patch.context - Version vector context (Map or serialized form)
+ * @param {Array<{type: string, node?: string, dot?: import('../crdt/Dot.js').Dot, observedDots?: string[], from?: string, to?: string, label?: string, key?: string, value?: *, oid?: string}>} patch.ops - Array of operations to apply
+ * @param {Map<string, number>|{[x: string]: number}} patch.context - Version vector context (Map or serialized form)
  * @param {string} patchSha - The Git SHA of the patch commit (used for EventId creation)
  * @param {boolean} [collectReceipts=false] - When true, computes and returns receipt data
  * @returns {WarpStateV5|{state: WarpStateV5, receipt: import('../types/TickReceipt.js').TickReceipt}}
@@ -370,30 +370,32 @@ export function join(state, patch, patchSha, collectReceipts) {
   }
 
   // Receipt-enabled path
+  /** @type {import('../types/TickReceipt.js').OpOutcome[]} */
   const opResults = [];
   for (let i = 0; i < patch.ops.length; i++) {
     const op = patch.ops[i];
     const eventId = createEventId(patch.lamport, patch.writer, patchSha, i);
 
     // Determine outcome BEFORE applying the op (state is pre-op)
+    /** @type {{target: string, result: string, reason?: string}} */
     let outcome;
     switch (op.type) {
       case 'NodeAdd':
-        outcome = nodeAddOutcome(state.nodeAlive, op);
+        outcome = nodeAddOutcome(state.nodeAlive, /** @type {{node: string, dot: import('../crdt/Dot.js').Dot}} */ (op));
         break;
       case 'NodeRemove':
-        outcome = nodeRemoveOutcome(state.nodeAlive, op);
+        outcome = nodeRemoveOutcome(state.nodeAlive, /** @type {{node?: string, observedDots: string[]}} */ (op));
         break;
       case 'EdgeAdd': {
-        const edgeKey = encodeEdgeKey(op.from, op.to, op.label);
-        outcome = edgeAddOutcome(state.edgeAlive, op, edgeKey);
+        const edgeKey = encodeEdgeKey(/** @type {string} */ (op.from), /** @type {string} */ (op.to), /** @type {string} */ (op.label));
+        outcome = edgeAddOutcome(state.edgeAlive, /** @type {{from: string, to: string, label: string, dot: import('../crdt/Dot.js').Dot}} */ (op), edgeKey);
         break;
       }
       case 'EdgeRemove':
-        outcome = edgeRemoveOutcome(state.edgeAlive, op);
+        outcome = edgeRemoveOutcome(state.edgeAlive, /** @type {{from?: string, to?: string, label?: string, observedDots: string[]}} */ (op));
         break;
       case 'PropSet':
-        outcome = propSetOutcome(state.prop, op, eventId);
+        outcome = propSetOutcome(state.prop, /** @type {{node: string, key: string, value: *}} */ (op), eventId);
         break;
       default:
         // Unknown or BlobValue — always applied
@@ -404,12 +406,13 @@ export function join(state, patch, patchSha, collectReceipts) {
     // Apply the op (mutates state)
     applyOpV2(state, op, eventId);
 
-    const receiptOp = RECEIPT_OP_TYPE[op.type] || op.type;
+    const receiptOp = /** @type {Record<string, string>} */ (RECEIPT_OP_TYPE)[op.type] || op.type;
     // Skip unknown/forward-compatible op types that aren't valid receipt ops
     if (!VALID_RECEIPT_OPS.has(receiptOp)) {
       continue;
     }
-    const entry = { op: receiptOp, target: outcome.target, result: outcome.result };
+    /** @type {import('../types/TickReceipt.js').OpOutcome} */
+    const entry = { op: receiptOp, target: outcome.target, result: /** @type {'applied'|'superseded'|'redundant'} */ (outcome.result) };
     if (outcome.reason) {
       entry.reason = outcome.reason;
     }
@@ -467,16 +470,16 @@ export function joinStates(a, b) {
  *
  * This is a pure function that does not mutate its inputs.
  *
- * @param {Map<string, import('../crdt/LWW.js').LWWRegister>} a - First property map
- * @param {Map<string, import('../crdt/LWW.js').LWWRegister>} b - Second property map
- * @returns {Map<string, import('../crdt/LWW.js').LWWRegister>} New map containing merged properties
+ * @param {Map<string, import('../crdt/LWW.js').LWWRegister<*>>} a - First property map
+ * @param {Map<string, import('../crdt/LWW.js').LWWRegister<*>>} b - Second property map
+ * @returns {Map<string, import('../crdt/LWW.js').LWWRegister<*>>} New map containing merged properties
  */
 function mergeProps(a, b) {
   const result = new Map(a);
 
   for (const [key, regB] of b) {
     const regA = result.get(key);
-    result.set(key, lwwMax(regA, regB));
+    result.set(key, /** @type {import('../crdt/LWW.js').LWWRegister<*>} */ (lwwMax(regA, regB)));
   }
 
   return result;
@@ -527,9 +530,7 @@ function mergeEdgeBirthEvent(a, b) {
  * - When `options.receipts` is true, returns a TickReceipt per patch for
  *   provenance tracking and debugging.
  *
- * @param {Array<{patch: Object, sha: string}>} patches - Array of patch objects with their Git SHAs
- * @param {Object} patches[].patch - The decoded patch object (writer, lamport, ops, context)
- * @param {string} patches[].sha - The Git SHA of the patch commit
+ * @param {Array<{patch: {writer: string, lamport: number, ops: Array<{type: string, node?: string, dot?: import('../crdt/Dot.js').Dot, observedDots?: string[], from?: string, to?: string, label?: string, key?: string, value?: *, oid?: string}>, context: Map<string, number>|{[x: string]: number}}, sha: string}>} patches - Array of patch objects with their Git SHAs
  * @param {WarpStateV5} [initialState] - Optional starting state (for incremental materialization from checkpoint)
  * @param {Object} [options] - Optional configuration
  * @param {boolean} [options.receipts=false] - When true, collect and return TickReceipts
@@ -544,7 +545,7 @@ export function reduceV5(patches, initialState, options) {
   if (options && options.receipts) {
     const receipts = [];
     for (const { patch, sha } of patches) {
-      const result = join(state, patch, sha, true);
+      const result = /** @type {{state: WarpStateV5, receipt: import('../types/TickReceipt.js').TickReceipt}} */ (join(state, patch, sha, true));
       receipts.push(result.receipt);
     }
     return { state, receipts };

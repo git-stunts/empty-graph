@@ -2,6 +2,16 @@
  * ELK adapter: converts normalised graph data into ELK JSON input.
  */
 
+/**
+ * @typedef {{ id: string, label: string, props?: Record<string, any> }} GraphDataNode
+ * @typedef {{ from: string, to: string, label?: string }} GraphDataEdge
+ * @typedef {{ nodes: GraphDataNode[], edges: GraphDataEdge[] }} GraphData
+ * @typedef {{ text: string }} ElkLabel
+ * @typedef {{ id: string, sources: string[], targets: string[], labels?: ElkLabel[] }} ElkEdge
+ * @typedef {{ id: string, width: number, height: number, labels: ElkLabel[] }} ElkChild
+ * @typedef {{ id: string, layoutOptions: Record<string, string>, children: ElkChild[], edges: ElkEdge[] }} ElkGraph
+ */
+
 const LAYOUT_PRESETS = {
   query: {
     'elk.algorithm': 'layered',
@@ -29,7 +39,7 @@ const DEFAULT_PRESET = LAYOUT_PRESETS.query;
  * Returns ELK layout options for a given visualisation type.
  *
  * @param {'query'|'path'|'slice'} type
- * @returns {Object} ELK layout options
+ * @returns {Record<string, string>} ELK layout options
  */
 export function getDefaultLayoutOptions(type) {
   return LAYOUT_PRESETS[type] ?? DEFAULT_PRESET;
@@ -38,6 +48,8 @@ export function getDefaultLayoutOptions(type) {
 /**
  * Estimates pixel width for a node label.
  * Approximates monospace glyph width at ~9px with 24px padding.
+ * @param {string | undefined} label
+ * @returns {number}
  */
 function estimateNodeWidth(label) {
   const charWidth = 9;
@@ -51,9 +63,9 @@ const NODE_HEIGHT = 30;
 /**
  * Converts normalised graph data to an ELK graph JSON object.
  *
- * @param {{ nodes: Array, edges: Array }} graphData
- * @param {{ type?: string, layoutOptions?: Object }} [options]
- * @returns {Object} ELK-format graph
+ * @param {GraphData} graphData
+ * @param {{ type?: 'query'|'path'|'slice', layoutOptions?: Record<string, string> }} [options]
+ * @returns {ElkGraph} ELK-format graph
  */
 export function toElkGraph(graphData, options = {}) {
   const { type = 'query', layoutOptions } = options;
@@ -66,6 +78,7 @@ export function toElkGraph(graphData, options = {}) {
   }));
 
   const edges = (graphData.edges ?? []).map((e, i) => {
+    /** @type {ElkEdge} */
     const edge = {
       id: `e${i}`,
       sources: [e.from],

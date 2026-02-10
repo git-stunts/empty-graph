@@ -50,12 +50,13 @@ export function getWriters(frontier) {
  * Keys are sorted for determinism.
  * @param {Frontier} frontier
  * @param {Object} [options]
- * @param {import('../../ports/CodecPort.js').default} options.codec - Codec for serialization
- * @returns {Buffer}
+ * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for serialization
+ * @returns {Buffer|Uint8Array}
  */
-export function serializeFrontier(frontier, { codec } = {}) {
+export function serializeFrontier(frontier, { codec } = /** @type {{codec?: import('../../ports/CodecPort.js').default}} */ ({})) {
   const c = codec || defaultCodec;
   // Convert Map to sorted object for deterministic encoding
+  /** @type {Record<string, string|undefined>} */
   const obj = {};
   const sortedKeys = Array.from(frontier.keys()).sort();
   for (const key of sortedKeys) {
@@ -68,12 +69,12 @@ export function serializeFrontier(frontier, { codec } = {}) {
  * Deserializes frontier from CBOR bytes.
  * @param {Buffer} buffer
  * @param {Object} [options]
- * @param {import('../../ports/CodecPort.js').default} options.codec - Codec for deserialization
+ * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for deserialization
  * @returns {Frontier}
  */
-export function deserializeFrontier(buffer, { codec } = {}) {
+export function deserializeFrontier(buffer, { codec } = /** @type {{codec?: import('../../ports/CodecPort.js').default}} */ ({})) {
   const c = codec || defaultCodec;
-  const obj = c.decode(buffer);
+  const obj = /** @type {Record<string, string>} */ (c.decode(buffer));
   const frontier = new Map();
   for (const [writerId, patchSha] of Object.entries(obj)) {
     frontier.set(writerId, patchSha);

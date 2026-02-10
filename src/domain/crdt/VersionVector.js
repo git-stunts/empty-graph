@@ -158,11 +158,15 @@ export function vvContains(vv, dot) {
  * @returns {Object<string, number>}
  */
 export function vvSerialize(vv) {
+  /** @type {Record<string, number>} */
   const obj = {};
   const sortedKeys = [...vv.keys()].sort();
 
   for (const key of sortedKeys) {
-    obj[key] = vv.get(key);
+    const val = vv.get(key);
+    if (val !== undefined) {
+      obj[key] = val;
+    }
   }
 
   return obj;

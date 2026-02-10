@@ -46,7 +46,7 @@ export default class HealthCheckService {
   /**
    * Creates a HealthCheckService instance.
    * @param {Object} options
-   * @param {import('../../ports/GraphPersistencePort.js').default} options.persistence - Persistence port for repository checks
+   * @param {import('../../ports/GraphPersistencePort.js').default & import('../../ports/CommitPort.js').default} options.persistence - Persistence port for repository checks
    * @param {import('../../ports/ClockPort.js').default} options.clock - Clock port for timing operations
    * @param {number} [options.cacheTtlMs=5000] - How long to cache health results in milliseconds
    * @param {import('../../ports/LoggerPort.js').default} [options.logger] - Logger for structured logging
@@ -132,22 +132,23 @@ export default class HealthCheckService {
    */
   async getHealth() {
     const { value, cachedAt, fromCache } = await this._healthCache.getWithMetadata();
+    const result = /** @type {HealthResult} */ (value);
 
     if (cachedAt) {
-      return { ...value, cachedAt };
+      return { ...result, cachedAt };
     }
 
     // Log only for fresh computations
     if (!fromCache) {
       this._logger.debug('Health check completed', {
         operation: 'getHealth',
-        status: value.status,
-        repositoryStatus: value.components.repository.status,
-        indexStatus: value.components.index.status,
+        status: result.status,
+        repositoryStatus: result.components.repository.status,
+        indexStatus: result.components.index.status,
       });
     }
 
-    return value;
+    return result;
   }
 
   /**
@@ -184,16 +185,16 @@ export default class HealthCheckService {
     try {
       const pingResult = await this._persistence.ping();
       return {
-        status: pingResult.ok ? HealthStatus.HEALTHY : HealthStatus.UNHEALTHY,
+        status: /** @type {'healthy'|'unhealthy'} */ (pingResult.ok ? HealthStatus.HEALTHY : HealthStatus.UNHEALTHY),
         latencyMs: Math.round(pingResult.latencyMs * 100) / 100, // Round to 2 decimal places
       };
     } catch (err) {
       this._logger.warn('Repository ping failed', {
         operation: 'checkRepository',
-        error: err.message,
+        error: /** @type {any} */ (err).message,
       });
       return {
-        status: HealthStatus.UNHEALTHY,
+        status: /** @type {'healthy'|'unhealthy'} */ (HealthStatus.UNHEALTHY),
         latencyMs: 0,
       };
     }
@@ -207,7 +208,7 @@ export default class HealthCheckService {
   _checkIndex() {
     if (!this._indexReader) {
       return {
-        status: HealthStatus.DEGRADED,
+        status: /** @type {'healthy'|'degraded'|'unhealthy'} */ (HealthStatus.DEGRADED),
         loaded: false,
       };
     }
@@ -216,7 +217,7 @@ export default class HealthCheckService {
     const shardCount = this._indexReader.shardOids?.size ?? 0;
 
     return {
-      status: HealthStatus.HEALTHY,
+      status: /** @type {'healthy'|'degraded'|'unhealthy'} */ (HealthStatus.HEALTHY),
       loaded: true,
       shardCount,
     };
@@ -232,15 +233,15 @@ export default class HealthCheckService {
   _computeOverallStatus(repositoryHealth, indexHealth) {
     // If repository is unhealthy, overall is unhealthy
     if (repositoryHealth.status === HealthStatus.UNHEALTHY) {
-      return HealthStatus.UNHEALTHY;
+      return /** @type {'healthy'|'degraded'|'unhealthy'} */ (HealthStatus.UNHEALTHY);
     }
 
     // If index is degraded (not loaded), overall is degraded
     if (indexHealth.status === HealthStatus.DEGRADED) {
-      return HealthStatus.DEGRADED;
+      return /** @type {'healthy'|'degraded'|'unhealthy'} */ (HealthStatus.DEGRADED);
     }
 
     // All components healthy
-    return HealthStatus.HEALTHY;
+    return /** @type {'healthy'|'degraded'|'unhealthy'} */ (HealthStatus.HEALTHY);
   }
 }

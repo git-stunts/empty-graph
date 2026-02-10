@@ -102,7 +102,7 @@ export default class ObserverView {
     this._graph = graph;
 
     /** @type {LogicalTraversal} */
-    this.traverse = new LogicalTraversal(this);
+    this.traverse = new LogicalTraversal(/** @type {*} */ (this));
   }
 
   /**
@@ -124,11 +124,11 @@ export default class ObserverView {
    * Builds a filtered adjacency structure that only includes edges
    * where both endpoints pass the match filter.
    *
-   * @returns {Promise<{state: *, stateHash: string, adjacency: {outgoing: Map, incoming: Map}}>}
+   * @returns {Promise<{state: *, stateHash: string, adjacency: {outgoing: Map<string, *[]>, incoming: Map<string, *[]>}}>}
    * @private
    */
   async _materializeGraph() {
-    const materialized = await this._graph._materializeGraph();
+    const materialized = await /** @type {*} */ (this._graph)._materializeGraph();
     const { state, stateHash } = materialized;
 
     // Build filtered adjacency: only edges where both endpoints match
@@ -159,8 +159,8 @@ export default class ObserverView {
       incoming.get(to).push({ neighborId: from, label });
     }
 
-    const sortNeighbors = (list) => {
-      list.sort((a, b) => {
+    const sortNeighbors = (/** @type {{ neighborId: string, label: string }[]} */ list) => {
+      list.sort((/** @type {{ neighborId: string, label: string }} */ a, /** @type {{ neighborId: string, label: string }} */ b) => {
         if (a.neighborId !== b.neighborId) {
           return a.neighborId < b.neighborId ? -1 : 1;
         }
@@ -260,6 +260,6 @@ export default class ObserverView {
    * @returns {QueryBuilder} A query builder scoped to this observer
    */
   query() {
-    return new QueryBuilder(this);
+    return new QueryBuilder(/** @type {*} */ (this));
   }
 }

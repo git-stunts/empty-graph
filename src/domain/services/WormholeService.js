@@ -43,7 +43,7 @@ function validateSha(sha, paramName) {
 
 /**
  * Verifies that a SHA exists in the repository.
- * @param {Object} persistence - Git persistence adapter
+ * @param {{ nodeExists: (sha: string) => Promise<boolean> }} persistence - Git persistence adapter
  * @param {string} sha - The SHA to verify
  * @param {string} paramName - Parameter name for error messages
  * @throws {WormholeError} If SHA doesn't exist
@@ -62,10 +62,11 @@ async function verifyShaExists(persistence, sha, paramName) {
 /**
  * Processes a single commit in the wormhole chain.
  * @param {Object} opts - Options
- * @param {Object} opts.persistence - Git persistence adapter
+ * @param {import('../../ports/GraphPersistencePort.js').default & import('../../ports/CommitPort.js').default & import('../../ports/BlobPort.js').default} opts.persistence - Git persistence adapter
  * @param {string} opts.sha - The commit SHA
  * @param {string} opts.graphName - Expected graph name
  * @param {string|null} opts.expectedWriter - Expected writer ID (null for first commit)
+ * @param {import('../../ports/CodecPort.js').default} [opts.codec] - Codec for deserialization
  * @returns {Promise<{patch: Object, sha: string, writerId: string, parentSha: string|null}>}
  * @throws {WormholeError} On validation errors
  * @private
@@ -100,7 +101,7 @@ async function processCommit({ persistence, sha, graphName, expectedWriter, code
   }
 
   const patchBuffer = await persistence.readBlob(patchMeta.patchOid);
-  const patch = codec.decode(patchBuffer);
+  const patch = /** @type {Object} */ (codec.decode(patchBuffer));
 
   return {
     patch,
@@ -135,10 +136,11 @@ async function processCommit({ persistence, sha, graphName, expectedWriter, code
  * are inclusive in the wormhole.
  *
  * @param {Object} options - Wormhole creation options
- * @param {import('../../ports/GraphPersistencePort.js').default} options.persistence - Git persistence adapter
+ * @param {import('../../ports/GraphPersistencePort.js').default & import('../../ports/CommitPort.js').default & import('../../ports/BlobPort.js').default} options.persistence - Git persistence adapter
  * @param {string} options.graphName - Name of the graph
  * @param {string} options.fromSha - SHA of the first (oldest) patch commit
  * @param {string} options.toSha - SHA of the last (newest) patch commit
+ * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for deserialization
  * @returns {Promise<WormholeEdge>} The created wormhole
  * @throws {WormholeError} If fromSha or toSha doesn't exist (E_WORMHOLE_SHA_NOT_FOUND)
  * @throws {WormholeError} If fromSha is not an ancestor of toSha (E_WORMHOLE_INVALID_RANGE)
@@ -156,7 +158,7 @@ export async function createWormhole({ persistence, graphName, fromSha, toSha, c
   // Reverse to get oldest-first order (as required by ProvenancePayload)
   patches.reverse();
 
-  const writerId = patches.length > 0 ? patches[0].writerId : null;
+  const writerId = patches.length > 0 ? patches[0].writerId : /** @type {string} */ ('');
   // Strip writerId to match ProvenancePayload's PatchEntry typedef ({patch, sha})
   const payload = new ProvenancePayload(patches.map(({ patch, sha }) => ({ patch, sha })));
 
@@ -170,10 +172,11 @@ export async function createWormhole({ persistence, graphName, fromSha, toSha, c
  * validating each commit along the way.
  *
  * @param {Object} options
- * @param {import('../../ports/GraphPersistencePort.js').default} options.persistence - Git persistence adapter
+ * @param {import('../../ports/GraphPersistencePort.js').default & import('../../ports/CommitPort.js').default & import('../../ports/BlobPort.js').default} options.persistence - Git persistence adapter
  * @param {string} options.graphName - Expected graph name
  * @param {string} options.fromSha - SHA of the first (oldest) patch commit
  * @param {string} options.toSha - SHA of the last (newest) patch commit
+ * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for deserialization
  * @returns {Promise<Array<{patch: Object, sha: string, writerId: string}>>} Patches in newest-first order
  * @throws {WormholeError} If fromSha is not an ancestor of toSha or range is empty
  * @private
@@ -230,7 +233,7 @@ async function collectPatchRange({ persistence, graphName, fromSha, toSha, codec
  * @param {WormholeEdge} first - The earlier (older) wormhole
  * @param {WormholeEdge} second - The later (newer) wormhole
  * @param {Object} [options] - Composition options
- * @param {import('../../ports/GraphPersistencePort.js').default} [options.persistence] - Git persistence adapter (for validation)
+ * @param {import('../../ports/GraphPersistencePort.js').default & import('../../ports/CommitPort.js').default} [options.persistence] - Git persistence adapter (for validation)
  * @returns {Promise<WormholeEdge>} The composed wormhole
  * @throws {WormholeError} If wormholes are from different writers (E_WORMHOLE_MULTI_WRITER)
  * @throws {WormholeError} If wormholes are not consecutive (E_WORMHOLE_INVALID_RANGE)
@@ -318,9 +321,10 @@ export function deserializeWormhole(json) {
     });
   }
 
+  const /** @type {Record<string, *>} */ typedJson = /** @type {Record<string, *>} */ (json);
   const requiredFields = ['fromSha', 'toSha', 'writerId', 'patchCount', 'payload'];
   for (const field of requiredFields) {
-    if (json[field] === undefined) {
+    if (typedJson[field] === undefined) {
       throw new WormholeError(`Invalid wormhole JSON: missing required field '${field}'`, {
         code: 'E_INVALID_WORMHOLE_JSON',
         context: { missingField: field },
@@ -328,19 +332,19 @@ export function deserializeWormhole(json) {
     }
   }
 
-  if (typeof json.patchCount !== 'number' || json.patchCount < 0) {
+  if (typeof typedJson.patchCount !== 'number' || typedJson.patchCount < 0) {
     throw new WormholeError('Invalid wormhole JSON: patchCount must be a non-negative number', {
       code: 'E_INVALID_WORMHOLE_JSON',
-      context: { patchCount: json.patchCount },
+      context: { patchCount: typedJson.patchCount },
     });
   }
 
   return {
-    fromSha: json.fromSha,
-    toSha: json.toSha,
-    writerId: json.writerId,
-    patchCount: json.patchCount,
-    payload: ProvenancePayload.fromJSON(json.payload),
+    fromSha: typedJson.fromSha,
+    toSha: typedJson.toSha,
+    writerId: typedJson.writerId,
+    patchCount: typedJson.patchCount,
+    payload: ProvenancePayload.fromJSON(typedJson.payload),
   };
 }
 

@@ -6,6 +6,7 @@ import path from 'node:path';
 import process from 'node:process';
 import readline from 'node:readline';
 import { execFileSync } from 'node:child_process';
+// @ts-ignore — no type declarations for @git-stunts/plumbing
 import GitPlumbing, { ShellRunnerFactory } from '@git-stunts/plumbing';
 import WarpGraph from '../src/domain/WarpGraph.js';
 import GitGraphAdapter from '../src/infrastructure/adapters/GitGraphAdapter.js';
@@ -34,6 +35,85 @@ import { renderSeekView } from '../src/visualization/renderers/ascii/seek.js';
 import { renderGraphView } from '../src/visualization/renderers/ascii/graph.js';
 import { renderSvg } from '../src/visualization/renderers/svg/index.js';
 import { layoutGraph, queryResultToGraphData, pathResultToGraphData } from '../src/visualization/layouts/index.js';
+
+/**
+ * @typedef {Object} Persistence
+ * @property {(prefix: string) => Promise<string[]>} listRefs
+ * @property {(ref: string) => Promise<string|null>} readRef
+ * @property {(ref: string, oid: string) => Promise<void>} updateRef
+ * @property {(ref: string) => Promise<void>} deleteRef
+ * @property {(oid: string) => Promise<Buffer>} readBlob
+ * @property {(buf: Buffer) => Promise<string>} writeBlob
+ * @property {(sha: string) => Promise<{date?: string|null}>} getNodeInfo
+ * @property {(sha: string, coverageSha: string) => Promise<boolean>} isAncestor
+ * @property {() => Promise<{ok: boolean}>} ping
+ * @property {*} plumbing
+ */
+
+/**
+ * @typedef {Object} WarpGraphInstance
+ * @property {(opts?: {ceiling?: number}) => Promise<void>} materialize
+ * @property {() => Promise<Array<{id: string}>>} getNodes
+ * @property {() => Promise<Array<{from: string, to: string, label?: string}>>} getEdges
+ * @property {() => Promise<string|null>} createCheckpoint
+ * @property {() => *} query
+ * @property {{ shortestPath: Function }} traverse
+ * @property {(writerId: string) => Promise<Array<{patch: any, sha: string}>>} getWriterPatches
+ * @property {() => Promise<{frontier: Record<string, any>}>} status
+ * @property {() => Promise<Map<string, any>>} getFrontier
+ * @property {() => {totalTombstones: number, tombstoneRatio: number}} getGCMetrics
+ * @property {() => Promise<number>} getPropertyCount
+ * @property {() => Promise<{ticks: number[], maxTick: number, perWriter: Map<string, WriterTickInfo>}>} discoverTicks
+ * @property {(sha: string) => Promise<{ops?: any[]}>} loadPatchBySha
+ * @property {(cache: any) => void} setSeekCache
+ * @property {*} seekCache
+ * @property {number} [_seekCeiling]
+ * @property {boolean} [_provenanceDegraded]
+ */
+
+/**
+ * @typedef {Object} WriterTickInfo
+ * @property {number[]} ticks
+ * @property {string|null} tipSha
+ * @property {Record<number, string>} [tickShas]
+ */
+
+/**
+ * @typedef {Object} CursorBlob
+ * @property {number} tick
+ * @property {string} [mode]
+ * @property {number} [nodes]
+ * @property {number} [edges]
+ * @property {string} [frontierHash]
+ */
+
+/**
+ * @typedef {Object} CliOptions
+ * @property {string} repo
+ * @property {boolean} json
+ * @property {string|null} view
+ * @property {string|null} graph
+ * @property {string} writer
+ * @property {boolean} help
+ */
+
+/**
+ * @typedef {Object} GraphInfoResult
+ * @property {string} name
+ * @property {{count: number, ids?: string[]}} writers
+ * @property {{ref: string, sha: string|null, date?: string|null}} [checkpoint]
+ * @property {{ref: string, sha: string|null}} [coverage]
+ * @property {Record<string, number>} [writerPatches]
+ * @property {{active: boolean, tick?: number, mode?: string}} [cursor]
+ */
+
+/**
+ * @typedef {Object} SeekSpec
+ * @property {string} action
+ * @property {string|null} tickValue
+ * @property {string|null} name
+ * @property {boolean} noPersistentCache
+ */
 
 const EXIT_CODES = {
   OK: 0,
@@ -112,20 +192,25 @@ class CliError extends Error {
   }
 }
 
+/** @param {string} message */
 function usageError(message) {
   return new CliError(message, { code: 'E_USAGE', exitCode: EXIT_CODES.USAGE });
 }
 
+/** @param {string} message */
 function notFoundError(message) {
   return new CliError(message, { code: 'E_NOT_FOUND', exitCode: EXIT_CODES.NOT_FOUND });
 }
 
+/** @param {*} value */
 function stableStringify(value) {
+  /** @param {*} input @returns {*} */
   const normalize = (input) => {
     if (Array.isArray(input)) {
       return input.map(normalize);
     }
     if (input && typeof input === 'object') {
+      /** @type {Record<string, *>} */
       const sorted = {};
       for (const key of Object.keys(input).sort()) {
         sorted[key] = normalize(input[key]);
@@ -138,8 +223,10 @@ function stableStringify(value) {
   return JSON.stringify(normalize(value), null, 2);
 }
 
+/** @param {string[]} argv */
 function parseArgs(argv) {
   const options = createDefaultOptions();
+  /** @type {string[]} */
   const positionals = [];
   const optionDefs = [
     { flag: '--repo', shortFlag: '-r', key: 'repo' },
@@ -170,6 +257,14 @@ function createDefaultOptions() {
   };
 }
 
+/**
+ * @param {Object} params
+ * @param {string[]} params.argv
+ * @param {number} params.index
+ * @param {Record<string, *>} params.options
+ * @param {Array<{flag: string, shortFlag?: string, key: string}>} params.optionDefs
+ * @param {string[]} params.positionals
+ */
 function consumeBaseArg({ argv, index, options, optionDefs, positionals }) {
   const arg = argv[index];
 
@@ -221,8 +316,10 @@ function consumeBaseArg({ argv, index, options, optionDefs, positionals }) {
       shortFlag: matched.shortFlag,
       allowEmpty: false,
     });
-    options[matched.key] = result.value;
-    return { consumed: result.consumed };
+    if (result) {
+      options[matched.key] = result.value;
+      return { consumed: result.consumed };
+    }
   }
 
   if (arg.startsWith('-')) {
@@ -233,6 +330,10 @@ function consumeBaseArg({ argv, index, options, optionDefs, positionals }) {
   return { consumed: argv.length - index - 1, done: true };
 }
 
+/**
+ * @param {string} arg
+ * @param {Array<{flag: string, shortFlag?: string, key: string}>} optionDefs
+ */
 function matchOptionDef(arg, optionDefs) {
   return optionDefs.find((def) =>
     arg === def.flag ||
@@ -241,6 +342,7 @@ function matchOptionDef(arg, optionDefs) {
   );
 }
 
+/** @param {string} repoPath @returns {Promise<{persistence: Persistence}>} */
 async function createPersistence(repoPath) {
   const runner = ShellRunnerFactory.create();
   const plumbing = new GitPlumbing({ cwd: repoPath, runner });
@@ -252,6 +354,7 @@ async function createPersistence(repoPath) {
   return { persistence };
 }
 
+/** @param {Persistence} persistence @returns {Promise<string[]>} */
 async function listGraphNames(persistence) {
   if (typeof persistence.listRefs !== 'function') {
     return [];
@@ -274,6 +377,11 @@ async function listGraphNames(persistence) {
   return [...names].sort();
 }
 
+/**
+ * @param {Persistence} persistence
+ * @param {string|null} explicitGraph
+ * @returns {Promise<string>}
+ */
 async function resolveGraphName(persistence, explicitGraph) {
   if (explicitGraph) {
     return explicitGraph;
@@ -290,14 +398,14 @@ async function resolveGraphName(persistence, explicitGraph) {
 
 /**
  * Collects metadata about a single graph (writer count, refs, patches, checkpoint).
- * @param {Object} persistence - GraphPersistencePort adapter
+ * @param {Persistence} persistence - GraphPersistencePort adapter
  * @param {string} graphName - Name of the graph to inspect
  * @param {Object} [options]
  * @param {boolean} [options.includeWriterIds=false] - Include writer ID list
  * @param {boolean} [options.includeRefs=false] - Include checkpoint/coverage refs
  * @param {boolean} [options.includeWriterPatches=false] - Include per-writer patch counts
  * @param {boolean} [options.includeCheckpointDate=false] - Include checkpoint date
- * @returns {Promise<Object>} Graph info object
+ * @returns {Promise<GraphInfoResult>} Graph info object
  */
 async function getGraphInfo(persistence, graphName, {
   includeWriterIds = false,
@@ -309,11 +417,12 @@ async function getGraphInfo(persistence, graphName, {
   const writerRefs = typeof persistence.listRefs === 'function'
     ? await persistence.listRefs(writersPrefix)
     : [];
-  const writerIds = writerRefs
+  const writerIds = /** @type {string[]} */ (writerRefs
     .map((ref) => parseWriterIdFromRef(ref))
     .filter(Boolean)
-    .sort();
+    .sort());
 
+  /** @type {GraphInfoResult} */
   const info = {
     name: graphName,
     writers: {
@@ -329,6 +438,7 @@ async function getGraphInfo(persistence, graphName, {
     const checkpointRef = buildCheckpointRef(graphName);
     const checkpointSha = await persistence.readRef(checkpointRef);
 
+    /** @type {{ref: string, sha: string|null, date?: string|null}} */
     const checkpoint = { ref: checkpointRef, sha: checkpointSha || null };
 
     if (includeCheckpointDate && checkpointSha) {
@@ -352,10 +462,11 @@ async function getGraphInfo(persistence, graphName, {
       writerId: 'cli',
       crypto: new NodeCryptoAdapter(),
     });
+    /** @type {Record<string, number>} */
     const writerPatches = {};
     for (const writerId of writerIds) {
       const patches = await graph.getWriterPatches(writerId);
-      writerPatches[writerId] = patches.length;
+      writerPatches[/** @type {string} */ (writerId)] = patches.length;
     }
     info.writerPatches = writerPatches;
   }
@@ -365,11 +476,8 @@ async function getGraphInfo(persistence, graphName, {
 
 /**
  * Opens a WarpGraph for the given CLI options.
- * @param {Object} options - Parsed CLI options
- * @param {string} [options.repo] - Repository path
- * @param {string} [options.graph] - Explicit graph name
- * @param {string} [options.writer] - Writer ID
- * @returns {Promise<{graph: Object, graphName: string, persistence: Object}>}
+ * @param {CliOptions} options - Parsed CLI options
+ * @returns {Promise<{graph: WarpGraphInstance, graphName: string, persistence: Persistence}>}
  * @throws {CliError} If the specified graph is not found
  */
 async function openGraph(options) {
@@ -381,15 +489,16 @@ async function openGraph(options) {
       throw notFoundError(`Graph not found: ${options.graph}`);
     }
   }
-  const graph = await WarpGraph.open({
+  const graph = /** @type {WarpGraphInstance} */ (/** @type {*} */ (await WarpGraph.open({
     persistence,
     graphName,
     writerId: options.writer,
     crypto: new NodeCryptoAdapter(),
-  });
+  })));
   return { graph, graphName, persistence };
 }
 
+/** @param {string[]} args */
 function parseQueryArgs(args) {
   const spec = {
     match: null,
@@ -408,6 +517,11 @@ function parseQueryArgs(args) {
   return spec;
 }
 
+/**
+ * @param {string[]} args
+ * @param {number} index
+ * @param {{match: string|null, select: string[]|null, steps: Array<{type: string, label?: string, key?: string, value?: string}>}} spec
+ */
 function consumeQueryArg(args, index, spec) {
   const stepResult = readTraversalStep(args, index);
   if (stepResult) {
@@ -451,6 +565,7 @@ function consumeQueryArg(args, index, spec) {
   return null;
 }
 
+/** @param {string} value */
 function parseWhereProp(value) {
   const [key, ...rest] = value.split('=');
   if (!key || rest.length === 0) {
@@ -459,6 +574,7 @@ function parseWhereProp(value) {
   return { type: 'where-prop', key, value: rest.join('=') };
 }
 
+/** @param {string} value */
 function parseSelectFields(value) {
   if (value === '') {
     return [];
@@ -466,6 +582,10 @@ function parseSelectFields(value) {
   return value.split(',').map((field) => field.trim()).filter(Boolean);
 }
 
+/**
+ * @param {string[]} args
+ * @param {number} index
+ */
 function readTraversalStep(args, index) {
   const arg = args[index];
   if (arg !== '--outgoing' && arg !== '--incoming') {
@@ -477,6 +597,9 @@ function readTraversalStep(args, index) {
   return { step: { type: arg.slice(2), label }, consumed };
 }
 
+/**
+ * @param {{args: string[], index: number, flag: string, shortFlag?: string, allowEmpty?: boolean}} params
+ */
 function readOptionValue({ args, index, flag, shortFlag, allowEmpty = false }) {
   const arg = args[index];
   if (matchesOptionFlag(arg, flag, shortFlag)) {
@@ -490,10 +613,16 @@ function readOptionValue({ args, index, flag, shortFlag, allowEmpty = false }) {
   return null;
 }
 
+/**
+ * @param {string} arg
+ * @param {string} flag
+ * @param {string} [shortFlag]
+ */
 function matchesOptionFlag(arg, flag, shortFlag) {
   return arg === flag || (shortFlag && arg === shortFlag);
 }
 
+/** @param {{args: string[], index: number, flag: string, allowEmpty?: boolean}} params */
 function readNextOptionValue({ args, index, flag, allowEmpty }) {
   const value = args[index + 1];
   if (value === undefined || (!allowEmpty && value === '')) {
@@ -502,6 +631,7 @@ function readNextOptionValue({ args, index, flag, allowEmpty }) {
   return { value, consumed: 1 };
 }
 
+/** @param {{arg: string, flag: string, allowEmpty?: boolean}} params */
 function readInlineOptionValue({ arg, flag, allowEmpty }) {
   const value = arg.slice(flag.length + 1);
   if (!allowEmpty && value === '') {
@@ -510,9 +640,12 @@ function readInlineOptionValue({ arg, flag, allowEmpty }) {
   return { value, consumed: 0 };
 }
 
+/** @param {string[]} args */
 function parsePathArgs(args) {
   const options = createPathOptions();
+  /** @type {string[]} */
   const labels = [];
+  /** @type {string[]} */
   const positionals = [];
 
   for (let i = 0; i < args.length; i += 1) {
@@ -524,6 +657,7 @@ function parsePathArgs(args) {
   return options;
 }
 
+/** @returns {{from: string|null, to: string|null, dir: string|undefined, labelFilter: string|string[]|undefined, maxDepth: number|undefined}} */
 function createPathOptions() {
   return {
     from: null,
@@ -534,8 +668,12 @@ function createPathOptions() {
   };
 }
 
+/**
+ * @param {{args: string[], index: number, options: ReturnType<typeof createPathOptions>, labels: string[], positionals: string[]}} params
+ */
 function consumePathArg({ args, index, options, labels, positionals }) {
   const arg = args[index];
+  /** @type {Array<{flag: string, apply: (value: string) => void}>} */
   const handlers = [
     { flag: '--from', apply: (value) => { options.from = value; } },
     { flag: '--to', apply: (value) => { options.to = value; } },
@@ -560,6 +698,11 @@ function consumePathArg({ args, index, options, labels, positionals }) {
   return { consumed: 0 };
 }
 
+/**
+ * @param {ReturnType<typeof createPathOptions>} options
+ * @param {string[]} labels
+ * @param {string[]} positionals
+ */
 function finalizePathOptions(options, labels, positionals) {
   if (!options.from) {
     options.from = positionals[0] || null;
@@ -580,10 +723,12 @@ function finalizePathOptions(options, labels, positionals) {
   }
 }
 
+/** @param {string} value */
 function parseLabels(value) {
   return value.split(',').map((label) => label.trim()).filter(Boolean);
 }
 
+/** @param {string} value */
 function parseMaxDepth(value) {
   const parsed = Number.parseInt(value, 10);
   if (Number.isNaN(parsed)) {
@@ -592,7 +737,9 @@ function parseMaxDepth(value) {
   return parsed;
 }
 
+/** @param {string[]} args */
 function parseHistoryArgs(args) {
+  /** @type {{node: string|null}} */
   const options = { node: null };
 
   for (let i = 0; i < args.length; i += 1) {
@@ -623,6 +770,10 @@ function parseHistoryArgs(args) {
   return options;
 }
 
+/**
+ * @param {*} patch
+ * @param {string} nodeId
+ */
 function patchTouchesNode(patch, nodeId) {
   const ops = Array.isArray(patch?.ops) ? patch.ops : [];
   for (const op of ops) {
@@ -636,6 +787,7 @@ function patchTouchesNode(patch, nodeId) {
   return false;
 }
 
+/** @param {*} payload */
 function renderInfo(payload) {
   const lines = [`Repo: ${payload.repo}`];
   lines.push(`Graphs: ${payload.graphs.length}`);
@@ -655,6 +807,7 @@ function renderInfo(payload) {
   return `${lines.join('\n')}\n`;
 }
 
+/** @param {*} payload */
 function renderQuery(payload) {
   const lines = [
     `Graph: ${payload.graph}`,
@@ -673,6 +826,7 @@ function renderQuery(payload) {
   return `${lines.join('\n')}\n`;
 }
 
+/** @param {*} payload */
 function renderPath(payload) {
   const lines = [
     `Graph: ${payload.graph}`,
@@ -695,6 +849,7 @@ const ANSI_RED = '\x1b[31m';
 const ANSI_DIM = '\x1b[2m';
 const ANSI_RESET = '\x1b[0m';
 
+/** @param {string} state */
 function colorCachedState(state) {
   if (state === 'fresh') {
     return `${ANSI_GREEN}${state}${ANSI_RESET}`;
@@ -705,6 +860,7 @@ function colorCachedState(state) {
   return `${ANSI_RED}${ANSI_DIM}${state}${ANSI_RESET}`;
 }
 
+/** @param {*} payload */
 function renderCheck(payload) {
   const lines = [
     `Graph: ${payload.graph}`,
@@ -755,6 +911,7 @@ function renderCheck(payload) {
   return `${lines.join('\n')}\n`;
 }
 
+/** @param {*} hook */
 function formatHookStatusLine(hook) {
   if (!hook.installed && hook.foreign) {
     return "Hook: foreign hook present — run 'git warp install-hooks'";
@@ -768,6 +925,7 @@ function formatHookStatusLine(hook) {
   return `Hook: installed (v${hook.version}) — upgrade available, run 'git warp install-hooks'`;
 }
 
+/** @param {*} payload */
 function renderHistory(payload) {
   const lines = [
     `Graph: ${payload.graph}`,
@@ -786,6 +944,7 @@ function renderHistory(payload) {
   return `${lines.join('\n')}\n`;
 }
 
+/** @param {*} payload */
 function renderError(payload) {
   return `Error: ${payload.error.message}\n`;
 }
@@ -804,11 +963,8 @@ function writeHtmlExport(filePath, svgContent) {
  * Writes a command result to stdout/stderr in the appropriate format.
  * Dispatches to JSON, SVG file, HTML file, ASCII view, or plain text
  * based on the combination of flags.
- * @param {Object} payload - Command result payload
- * @param {Object} options
- * @param {boolean} options.json - Emit JSON to stdout
- * @param {string} options.command - Command name (info, query, path, etc.)
- * @param {string|boolean} options.view - View mode (true for ascii, 'svg:PATH', 'html:PATH', 'browser')
+ * @param {*} payload - Command result payload
+ * @param {{json: boolean, command: string, view: string|null}} options
  */
 function emit(payload, { json, command, view }) {
   if (json) {
@@ -926,9 +1082,8 @@ function emit(payload, { json, command, view }) {
 
 /**
  * Handles the `info` command: summarizes graphs in the repository.
- * @param {Object} params
- * @param {Object} params.options - Parsed CLI options
- * @returns {Promise<{repo: string, graphs: Object[]}>} Info payload
+ * @param {{options: CliOptions}} params
+ * @returns {Promise<{repo: string, graphs: GraphInfoResult[]}>} Info payload
  * @throws {CliError} If the specified graph is not found
  */
 async function handleInfo({ options }) {
@@ -975,10 +1130,8 @@ async function handleInfo({ options }) {
 
 /**
  * Handles the `query` command: runs a logical graph query.
- * @param {Object} params
- * @param {Object} params.options - Parsed CLI options
- * @param {string[]} params.args - Remaining positional arguments (query spec)
- * @returns {Promise<{payload: Object, exitCode: number}>} Query result payload
+ * @param {{options: CliOptions, args: string[]}} params
+ * @returns {Promise<{payload: *, exitCode: number}>} Query result payload
  * @throws {CliError} On invalid query options or query execution errors
  */
 async function handleQuery({ options, args }) {
@@ -1022,6 +1175,10 @@ async function handleQuery({ options, args }) {
   }
 }
 
+/**
+ * @param {*} builder
+ * @param {Array<{type: string, label?: string, key?: string, value?: string}>} steps
+ */
 function applyQuerySteps(builder, steps) {
   let current = builder;
   for (const step of steps) {
@@ -1030,6 +1187,10 @@ function applyQuerySteps(builder, steps) {
   return current;
 }
 
+/**
+ * @param {*} builder
+ * @param {{type: string, label?: string, key?: string, value?: string}} step
+ */
 function applyQueryStep(builder, step) {
   if (step.type === 'outgoing') {
     return builder.outgoing(step.label);
@@ -1038,11 +1199,16 @@ function applyQueryStep(builder, step) {
     return builder.incoming(step.label);
   }
   if (step.type === 'where-prop') {
-    return builder.where((node) => matchesPropFilter(node, step.key, step.value));
+    return builder.where((/** @type {*} */ node) => matchesPropFilter(node, /** @type {string} */ (step.key), /** @type {string} */ (step.value)));
   }
   return builder;
 }
 
+/**
+ * @param {*} node
+ * @param {string} key
+ * @param {string} value
+ */
 function matchesPropFilter(node, key, value) {
   const props = node.props || {};
   if (!Object.prototype.hasOwnProperty.call(props, key)) {
@@ -1051,6 +1217,11 @@ function matchesPropFilter(node, key, value) {
   return String(props[key]) === value;
 }
 
+/**
+ * @param {string} graphName
+ * @param {*} result
+ * @returns {{graph: string, stateHash: *, nodes: *, _renderedSvg?: string, _renderedAscii?: string}}
+ */
 function buildQueryPayload(graphName, result) {
   return {
     graph: graphName,
@@ -1059,6 +1230,7 @@ function buildQueryPayload(graphName, result) {
   };
 }
 
+/** @param {*} error */
 function mapQueryError(error) {
   if (error && error.code && String(error.code).startsWith('E_QUERY')) {
     throw usageError(error.message);
@@ -1068,10 +1240,8 @@ function mapQueryError(error) {
 
 /**
  * Handles the `path` command: finds a shortest path between two nodes.
- * @param {Object} params
- * @param {Object} params.options - Parsed CLI options
- * @param {string[]} params.args - Remaining positional arguments (path spec)
- * @returns {Promise<{payload: Object, exitCode: number}>} Path result payload
+ * @param {{options: CliOptions, args: string[]}} params
+ * @returns {Promise<{payload: *, exitCode: number}>} Path result payload
  * @throws {CliError} If --from/--to are missing or a node is not found
  */
 async function handlePath({ options, args }) {
@@ -1108,7 +1278,7 @@ async function handlePath({ options, args }) {
       payload,
       exitCode: result.found ? EXIT_CODES.OK : EXIT_CODES.NOT_FOUND,
     };
-  } catch (error) {
+  } catch (/** @type {*} */ error) {
     if (error && error.code === 'NODE_NOT_FOUND') {
       throw notFoundError(error.message);
     }
@@ -1118,9 +1288,8 @@ async function handlePath({ options, args }) {
 
 /**
  * Handles the `check` command: reports graph health, GC, and hook status.
- * @param {Object} params
- * @param {Object} params.options - Parsed CLI options
- * @returns {Promise<{payload: Object, exitCode: number}>} Health check payload
+ * @param {{options: CliOptions}} params
+ * @returns {Promise<{payload: *, exitCode: number}>} Health check payload
  */
 async function handleCheck({ options }) {
   const { graph, graphName, persistence } = await openGraph(options);
@@ -1150,17 +1319,20 @@ async function handleCheck({ options }) {
   };
 }
 
+/** @param {Persistence} persistence */
 async function getHealth(persistence) {
   const clock = ClockAdapter.node();
-  const healthService = new HealthCheckService({ persistence, clock });
+  const healthService = new HealthCheckService({ persistence: /** @type {*} */ (persistence), clock });
   return await healthService.getHealth();
 }
 
+/** @param {WarpGraphInstance} graph */
 async function getGcMetrics(graph) {
   await graph.materialize();
   return graph.getGCMetrics();
 }
 
+/** @param {WarpGraphInstance} graph */
 async function collectWriterHeads(graph) {
   const frontier = await graph.getFrontier();
   return [...frontier.entries()]
@@ -1168,6 +1340,10 @@ async function collectWriterHeads(graph) {
     .map(([writerId, sha]) => ({ writerId, sha }));
 }
 
+/**
+ * @param {Persistence} persistence
+ * @param {string} graphName
+ */
 async function loadCheckpointInfo(persistence, graphName) {
   const checkpointRef = buildCheckpointRef(graphName);
   const checkpointSha = await persistence.readRef(checkpointRef);
@@ -1182,6 +1358,10 @@ async function loadCheckpointInfo(persistence, graphName) {
   };
 }
 
+/**
+ * @param {Persistence} persistence
+ * @param {string|null} checkpointSha
+ */
 async function readCheckpointDate(persistence, checkpointSha) {
   if (!checkpointSha) {
     return null;
@@ -1190,6 +1370,7 @@ async function readCheckpointDate(persistence, checkpointSha) {
   return info.date || null;
 }
 
+/** @param {string|null} checkpointDate */
 function computeAgeSeconds(checkpointDate) {
   if (!checkpointDate) {
     return null;
@@ -1201,6 +1382,11 @@ function computeAgeSeconds(checkpointDate) {
   return Math.max(0, Math.floor((Date.now() - parsed) / 1000));
 }
 
+/**
+ * @param {Persistence} persistence
+ * @param {string} graphName
+ * @param {Array<{writerId: string, sha: string}>} writerHeads
+ */
 async function loadCoverageInfo(persistence, graphName, writerHeads) {
   const coverageRef = buildCoverageRef(graphName);
   const coverageSha = await persistence.readRef(coverageRef);
@@ -1215,6 +1401,11 @@ async function loadCoverageInfo(persistence, graphName, writerHeads) {
   };
 }
 
+/**
+ * @param {Persistence} persistence
+ * @param {Array<{writerId: string, sha: string}>} writerHeads
+ * @param {string} coverageSha
+ */
 async function findMissingWriters(persistence, writerHeads, coverageSha) {
   const missing = [];
   for (const head of writerHeads) {
@@ -1226,6 +1417,9 @@ async function findMissingWriters(persistence, writerHeads, coverageSha) {
   return missing;
 }
 
+/**
+ * @param {{repo: string, graphName: string, health: *, checkpoint: *, writerHeads: Array<{writerId: string, sha: string}>, coverage: *, gcMetrics: *, hook: *|null, status: *|null}} params
+ */
 function buildCheckPayload({
   repo,
   graphName,
@@ -1255,10 +1449,8 @@ function buildCheckPayload({
 
 /**
  * Handles the `history` command: shows patch history for a writer.
- * @param {Object} params
- * @param {Object} params.options - Parsed CLI options
- * @param {string[]} params.args - Remaining positional arguments (history options)
- * @returns {Promise<{payload: Object, exitCode: number}>} History payload
+ * @param {{options: CliOptions, args: string[]}} params
+ * @returns {Promise<{payload: *, exitCode: number}>} History payload
  * @throws {CliError} If no patches are found for the writer
  */
 async function handleHistory({ options, args }) {
@@ -1270,15 +1462,15 @@ async function handleHistory({ options, args }) {
   const writerId = options.writer;
   let patches = await graph.getWriterPatches(writerId);
   if (cursorInfo.active) {
-    patches = patches.filter(({ patch }) => patch.lamport <= cursorInfo.tick);
+    patches = patches.filter((/** @type {*} */ { patch }) => patch.lamport <= /** @type {number} */ (cursorInfo.tick));
   }
   if (patches.length === 0) {
     throw notFoundError(`No patches found for writer: ${writerId}`);
   }
 
   const entries = patches
-    .filter(({ patch }) => !historyOptions.node || patchTouchesNode(patch, historyOptions.node))
-    .map(({ patch, sha }) => ({
+    .filter((/** @type {*} */ { patch }) => !historyOptions.node || patchTouchesNode(patch, historyOptions.node))
+    .map((/** @type {*} */ { patch, sha }) => ({
       sha,
       schema: patch.schema,
       lamport: patch.lamport,
@@ -1300,12 +1492,8 @@ async function handleHistory({ options, args }) {
  * Materializes a single graph, creates a checkpoint, and returns summary stats.
  * When a ceiling tick is provided (seek cursor active), the checkpoint step is
  * skipped because the user is exploring historical state, not persisting it.
- * @param {Object} params
- * @param {Object} params.persistence - GraphPersistencePort adapter
- * @param {string} params.graphName - Name of the graph to materialize
- * @param {string} params.writerId - Writer ID for the CLI session
- * @param {number} [params.ceiling] - Optional seek ceiling tick
- * @returns {Promise<{graph: string, nodes: number, edges: number, properties: number, checkpoint: string|null, writers: Object, patchCount: number}>}
+ * @param {{persistence: Persistence, graphName: string, writerId: string, ceiling?: number}} params
+ * @returns {Promise<{graph: string, nodes: number, edges: number, properties: number, checkpoint: string|null, writers: Record<string, number>, patchCount: number}>}
  */
 async function materializeOneGraph({ persistence, graphName, writerId, ceiling }) {
   const graph = await WarpGraph.open({ persistence, graphName, writerId, crypto: new NodeCryptoAdapter() });
@@ -1316,6 +1504,7 @@ async function materializeOneGraph({ persistence, graphName, writerId, ceiling }
   const status = await graph.status();
 
   // Build per-writer patch counts for the view renderer
+  /** @type {Record<string, number>} */
   const writers = {};
   let totalPatchCount = 0;
   for (const wId of Object.keys(status.frontier)) {
@@ -1339,9 +1528,8 @@ async function materializeOneGraph({ persistence, graphName, writerId, ceiling }
 
 /**
  * Handles the `materialize` command: materializes and checkpoints all graphs.
- * @param {Object} params
- * @param {Object} params.options - Parsed CLI options
- * @returns {Promise<{payload: Object, exitCode: number}>} Materialize result payload
+ * @param {{options: CliOptions}} params
+ * @returns {Promise<{payload: *, exitCode: number}>} Materialize result payload
  * @throws {CliError} If the specified graph is not found
  */
 async function handleMaterialize({ options }) {
@@ -1388,13 +1576,14 @@ async function handleMaterialize({ options }) {
     }
   }
 
-  const allFailed = results.every((r) => r.error);
+  const allFailed = results.every((r) => /** @type {*} */ (r).error);
   return {
     payload: { graphs: results },
     exitCode: allFailed ? EXIT_CODES.INTERNAL : EXIT_CODES.OK,
   };
 }
 
+/** @param {*} payload */
 function renderMaterialize(payload) {
   if (payload.graphs.length === 0) {
     return 'No graphs found in repo.\n';
@@ -1411,6 +1600,7 @@ function renderMaterialize(payload) {
   return `${lines.join('\n')}\n`;
 }
 
+/** @param {*} payload */
 function renderInstallHooks(payload) {
   if (payload.action === 'up-to-date') {
     return `Hook: already up to date (v${payload.version}) at ${payload.hookPath}\n`;
@@ -1431,7 +1621,7 @@ function createHookInstaller() {
   const templateDir = path.resolve(__dirname, '..', 'hooks');
   const { version } = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', 'package.json'), 'utf8'));
   return new HookInstaller({
-    fs,
+    fs: /** @type {*} */ (fs),
     execGitConfig: execGitConfigValue,
     version,
     templateDir,
@@ -1439,6 +1629,11 @@ function createHookInstaller() {
   });
 }
 
+/**
+ * @param {string} repoPath
+ * @param {string} key
+ * @returns {string|null}
+ */
 function execGitConfigValue(repoPath, key) {
   try {
     if (key === '--git-dir') {
@@ -1458,6 +1653,7 @@ function isInteractive() {
   return Boolean(process.stderr.isTTY);
 }
 
+/** @param {string} question @returns {Promise<string>} */
 function promptUser(question) {
   const rl = readline.createInterface({
     input: process.stdin,
@@ -1471,6 +1667,7 @@ function promptUser(question) {
   });
 }
 
+/** @param {string[]} args */
 function parseInstallHooksArgs(args) {
   const options = { force: false };
   for (const arg of args) {
@@ -1483,6 +1680,10 @@ function parseInstallHooksArgs(args) {
   return options;
 }
 
+/**
+ * @param {*} classification
+ * @param {{force: boolean}} hookOptions
+ */
 async function resolveStrategy(classification, hookOptions) {
   if (hookOptions.force) {
     return 'replace';
@@ -1499,6 +1700,7 @@ async function resolveStrategy(classification, hookOptions) {
   return await promptForForeignStrategy();
 }
 
+/** @param {*} classification */
 async function promptForOursStrategy(classification) {
   const installer = createHookInstaller();
   if (classification.version === installer._version) {
@@ -1540,10 +1742,8 @@ async function promptForForeignStrategy() {
 
 /**
  * Handles the `install-hooks` command: installs or upgrades the post-merge git hook.
- * @param {Object} params
- * @param {Object} params.options - Parsed CLI options
- * @param {string[]} params.args - Remaining positional arguments (install-hooks options)
- * @returns {Promise<{payload: Object, exitCode: number}>} Install result payload
+ * @param {{options: CliOptions, args: string[]}} params
+ * @returns {Promise<{payload: *, exitCode: number}>} Install result payload
  * @throws {CliError} If an existing hook is found and the session is not interactive
  */
 async function handleInstallHooks({ options, args }) {
@@ -1579,6 +1779,7 @@ async function handleInstallHooks({ options, args }) {
   };
 }
 
+/** @param {string} hookPath */
 function readHookContent(hookPath) {
   try {
     return fs.readFileSync(hookPath, 'utf8');
@@ -1587,6 +1788,7 @@ function readHookContent(hookPath) {
   }
 }
 
+/** @param {string} repoPath */
 function getHookStatusForCheck(repoPath) {
   try {
     const installer = createHookInstaller();
@@ -1603,10 +1805,9 @@ function getHookStatusForCheck(repoPath) {
 /**
  * Reads the active seek cursor for a graph from Git ref storage.
  *
- * @private
- * @param {Object} persistence - GraphPersistencePort adapter
+ * @param {Persistence} persistence - GraphPersistencePort adapter
  * @param {string} graphName - Name of the WARP graph
- * @returns {Promise<{tick: number, mode?: string}|null>} Cursor object, or null if no active cursor
+ * @returns {Promise<CursorBlob|null>} Cursor object, or null if no active cursor
  * @throws {Error} If the stored blob is corrupted or not valid JSON
  */
 async function readActiveCursor(persistence, graphName) {
@@ -1625,10 +1826,9 @@ async function readActiveCursor(persistence, graphName) {
  * Serializes the cursor as JSON, stores it as a Git blob, and points
  * the active cursor ref at that blob.
  *
- * @private
- * @param {Object} persistence - GraphPersistencePort adapter
+ * @param {Persistence} persistence - GraphPersistencePort adapter
  * @param {string} graphName - Name of the WARP graph
- * @param {{tick: number, mode?: string}} cursor - Cursor state to persist
+ * @param {CursorBlob} cursor - Cursor state to persist
  * @returns {Promise<void>}
  */
 async function writeActiveCursor(persistence, graphName, cursor) {
@@ -1643,8 +1843,7 @@ async function writeActiveCursor(persistence, graphName, cursor) {
  *
  * No-op if no active cursor exists.
  *
- * @private
- * @param {Object} persistence - GraphPersistencePort adapter
+ * @param {Persistence} persistence - GraphPersistencePort adapter
  * @param {string} graphName - Name of the WARP graph
  * @returns {Promise<void>}
  */
@@ -1659,11 +1858,10 @@ async function clearActiveCursor(persistence, graphName) {
 /**
  * Reads a named saved cursor from Git ref storage.
  *
- * @private
- * @param {Object} persistence - GraphPersistencePort adapter
+ * @param {Persistence} persistence - GraphPersistencePort adapter
  * @param {string} graphName - Name of the WARP graph
  * @param {string} name - Saved cursor name
- * @returns {Promise<{tick: number, mode?: string}|null>} Cursor object, or null if not found
+ * @returns {Promise<CursorBlob|null>} Cursor object, or null if not found
  * @throws {Error} If the stored blob is corrupted or not valid JSON
  */
 async function readSavedCursor(persistence, graphName, name) {
@@ -1682,11 +1880,10 @@ async function readSavedCursor(persistence, graphName, name) {
  * Serializes the cursor as JSON, stores it as a Git blob, and points
  * the named saved-cursor ref at that blob.
  *
- * @private
- * @param {Object} persistence - GraphPersistencePort adapter
+ * @param {Persistence} persistence - GraphPersistencePort adapter
  * @param {string} graphName - Name of the WARP graph
  * @param {string} name - Saved cursor name
- * @param {{tick: number, mode?: string}} cursor - Cursor state to persist
+ * @param {CursorBlob} cursor - Cursor state to persist
  * @returns {Promise<void>}
  */
 async function writeSavedCursor(persistence, graphName, name, cursor) {
@@ -1701,8 +1898,7 @@ async function writeSavedCursor(persistence, graphName, name, cursor) {
  *
  * No-op if the named cursor does not exist.
  *
- * @private
- * @param {Object} persistence - GraphPersistencePort adapter
+ * @param {Persistence} persistence - GraphPersistencePort adapter
  * @param {string} graphName - Name of the WARP graph
  * @param {string} name - Saved cursor name to delete
  * @returns {Promise<void>}
@@ -1718,8 +1914,7 @@ async function deleteSavedCursor(persistence, graphName, name) {
 /**
  * Lists all saved cursors for a graph, reading each blob to include full cursor state.
  *
- * @private
- * @param {Object} persistence - GraphPersistencePort adapter
+ * @param {Persistence} persistence - GraphPersistencePort adapter
  * @param {string} graphName - Name of the WARP graph
  * @returns {Promise<Array<{name: string, tick: number, mode?: string}>>} Array of saved cursors with their names
  * @throws {Error} If any stored blob is corrupted or not valid JSON
@@ -1747,16 +1942,8 @@ async function listSavedCursors(persistence, graphName) {
 // ============================================================================
 
 /**
- * Parses CLI arguments for the `seek` command into a structured spec.
- *
- * Supports mutually exclusive actions: `--tick <value>`, `--latest`,
- * `--save <name>`, `--load <name>`, `--list`, `--drop <name>`.
- * Defaults to `status` when no flags are provided.
- *
- * @private
- * @param {string[]} args - Raw CLI arguments following the `seek` subcommand
- * @returns {{action: string, tickValue: string|null, name: string|null}} Parsed spec
- * @throws {CliError} If arguments are invalid or flags are combined
+ * @param {string} arg
+ * @param {SeekSpec} spec
  */
 function handleSeekBooleanFlag(arg, spec) {
   if (arg === '--clear-cache') {
@@ -1769,7 +1956,13 @@ function handleSeekBooleanFlag(arg, spec) {
   }
 }
 
+/**
+ * Parses CLI arguments for the `seek` command into a structured spec.
+ * @param {string[]} args - Raw CLI arguments following the `seek` subcommand
+ * @returns {SeekSpec} Parsed spec
+ */
 function parseSeekArgs(args) {
+  /** @type {SeekSpec} */
   const spec = {
     action: 'status', // status, tick, latest, save, load, list, drop, clear-cache
     tickValue: null,
@@ -1925,23 +2118,10 @@ function resolveTickValue(tickValue, currentTick, ticks, maxTick) {
 // ============================================================================
 
 /**
- * Handles the `git warp seek` command across all sub-actions.
- *
- * Dispatches to the appropriate logic based on the parsed action:
- * - `status`: show current cursor position or "no cursor" state
- * - `tick`: set the cursor to an absolute or relative Lamport tick
- * - `latest`: clear the cursor, returning to present state
- * - `save`: persist the active cursor under a name
- * - `load`: restore a named cursor as the active cursor
- * - `list`: enumerate all saved cursors
- * - `drop`: delete a named saved cursor
- *
- * @private
- * @param {Object} params - Command parameters
- * @param {Object} params.options - CLI options (repo, graph, writer, json)
- * @param {string[]} params.args - Raw CLI arguments following the `seek` subcommand
- * @returns {Promise<{payload: Object, exitCode: number}>} Command result with payload and exit code
- * @throws {CliError} On invalid arguments or missing cursors
+ * @param {WarpGraphInstance} graph
+ * @param {Persistence} persistence
+ * @param {string} graphName
+ * @param {SeekSpec} seekSpec
  */
 function wireSeekCache(graph, persistence, graphName, seekSpec) {
   if (seekSpec.noPersistentCache) {
@@ -1954,6 +2134,11 @@ function wireSeekCache(graph, persistence, graphName, seekSpec) {
   }));
 }
 
+/**
+ * Handles the `git warp seek` command across all sub-actions.
+ * @param {{options: CliOptions, args: string[]}} params
+ * @returns {Promise<{payload: *, exitCode: number}>}
+ */
 async function handleSeek({ options, args }) {
   const seekSpec = parseSeekArgs(args);
   const { graph, graphName, persistence } = await openGraph(options);
@@ -1987,11 +2172,12 @@ async function handleSeek({ options, args }) {
     };
   }
   if (seekSpec.action === 'drop') {
-    const existing = await readSavedCursor(persistence, graphName, seekSpec.name);
+    const dropName = /** @type {string} */ (seekSpec.name);
+    const existing = await readSavedCursor(persistence, graphName, dropName);
     if (!existing) {
-      throw notFoundError(`Saved cursor not found: ${seekSpec.name}`);
+      throw notFoundError(`Saved cursor not found: ${dropName}`);
     }
-    await deleteSavedCursor(persistence, graphName, seekSpec.name);
+    await deleteSavedCursor(persistence, graphName, dropName);
     return {
       payload: {
         graph: graphName,
@@ -2031,7 +2217,7 @@ async function handleSeek({ options, args }) {
     if (!activeCursor) {
       throw usageError('No active cursor to save. Use --tick first.');
     }
-    await writeSavedCursor(persistence, graphName, seekSpec.name, activeCursor);
+    await writeSavedCursor(persistence, graphName, /** @type {string} */ (seekSpec.name), activeCursor);
     return {
       payload: {
         graph: graphName,
@@ -2043,9 +2229,10 @@ async function handleSeek({ options, args }) {
     };
   }
   if (seekSpec.action === 'load') {
-    const saved = await readSavedCursor(persistence, graphName, seekSpec.name);
+    const loadName = /** @type {string} */ (seekSpec.name);
+    const saved = await readSavedCursor(persistence, graphName, loadName);
     if (!saved) {
-      throw notFoundError(`Saved cursor not found: ${seekSpec.name}`);
+      throw notFoundError(`Saved cursor not found: ${loadName}`);
     }
     await graph.materialize({ ceiling: saved.tick });
     const nodes = await graph.getNodes();
@@ -2074,7 +2261,7 @@ async function handleSeek({ options, args }) {
   }
   if (seekSpec.action === 'tick') {
     const currentTick = activeCursor ? activeCursor.tick : null;
-    const resolvedTick = resolveTickValue(seekSpec.tickValue, currentTick, ticks, maxTick);
+    const resolvedTick = resolveTickValue(/** @type {string} */ (seekSpec.tickValue), currentTick, ticks, maxTick);
     await graph.materialize({ ceiling: resolvedTick });
     const nodes = await graph.getNodes();
     const edges = await graph.getEdges();
@@ -2156,11 +2343,11 @@ async function handleSeek({ options, args }) {
 /**
  * Converts the per-writer Map from discoverTicks() into a plain object for JSON output.
  *
- * @private
- * @param {Map<string, {ticks: number[], tipSha: string|null}>} perWriter - Per-writer tick data
- * @returns {Object<string, {ticks: number[], tipSha: string|null}>} Plain object keyed by writer ID
+ * @param {Map<string, WriterTickInfo>} perWriter - Per-writer tick data
+ * @returns {Record<string, WriterTickInfo>} Plain object keyed by writer ID
  */
 function serializePerWriter(perWriter) {
+  /** @type {Record<string, WriterTickInfo>} */
   const result = {};
   for (const [writerId, info] of perWriter) {
     result[writerId] = { ticks: info.ticks, tipSha: info.tipSha, tickShas: info.tickShas };
@@ -2171,9 +2358,8 @@ function serializePerWriter(perWriter) {
 /**
  * Counts the total number of patches across all writers at or before the given tick.
  *
- * @private
  * @param {number} tick - Lamport tick ceiling (inclusive)
- * @param {Map<string, {ticks: number[], tipSha: string|null}>} perWriter - Per-writer tick data
+ * @param {Map<string, WriterTickInfo>} perWriter - Per-writer tick data
  * @returns {number} Total patch count at or before the given tick
  */
 function countPatchesAtTick(tick, perWriter) {
@@ -2194,11 +2380,11 @@ function countPatchesAtTick(tick, perWriter) {
  * Used to suppress seek diffs when graph history may have changed since the
  * previous cursor snapshot (e.g. new writers/patches, rewritten refs).
  *
- * @private
- * @param {Map<string, {tipSha: string|null}>} perWriter - Per-writer metadata from discoverTicks()
+ * @param {Map<string, WriterTickInfo>} perWriter - Per-writer metadata from discoverTicks()
  * @returns {string} Hex digest of the frontier fingerprint
  */
 function computeFrontierHash(perWriter) {
+  /** @type {Record<string, string|null>} */
   const tips = {};
   for (const [writerId, info] of perWriter) {
     tips[writerId] = info?.tipSha || null;
@@ -2212,8 +2398,7 @@ function computeFrontierHash(perWriter) {
  * Counts may be missing for older cursors (pre-diff support). In that case
  * callers should treat the counts as unknown and suppress diffs.
  *
- * @private
- * @param {Object|null} cursor - Parsed cursor blob object
+ * @param {CursorBlob|null} cursor - Parsed cursor blob object
  * @returns {{nodes: number|null, edges: number|null}} Parsed counts
  */
 function readSeekCounts(cursor) {
@@ -2231,8 +2416,7 @@ function readSeekCounts(cursor) {
  *
  * Returns null if the previous cursor is missing cached counts.
  *
- * @private
- * @param {Object|null} prevCursor - Cursor object read before updating the position
+ * @param {CursorBlob|null} prevCursor - Cursor object read before updating the position
  * @param {{nodes: number, edges: number}} next - Current materialized counts
  * @param {string} frontierHash - Frontier fingerprint of the current graph
  * @returns {{nodes: number, edges: number}|null} Diff object or null when unknown
@@ -2259,22 +2443,19 @@ function computeSeekStateDiff(prevCursor, next, frontierHash) {
  * summarizes patch ops. Typically only a handful of writers have a patch at any
  * single Lamport tick.
  *
- * @private
- * @param {Object} params
- * @param {number} params.tick - Lamport tick to summarize
- * @param {Map<string, {tickShas?: Object}>} params.perWriter - Per-writer tick metadata from discoverTicks()
- * @param {Object} params.graph - WarpGraph instance
- * @returns {Promise<Object<string, Object>|null>} Map of writerId → { sha, opSummary }, or null if empty
+ * @param {{tick: number, perWriter: Map<string, WriterTickInfo>, graph: WarpGraphInstance}} params
+ * @returns {Promise<Record<string, {sha: string, opSummary: *}>|null>} Map of writerId to { sha, opSummary }, or null if empty
  */
 async function buildTickReceipt({ tick, perWriter, graph }) {
   if (!Number.isInteger(tick) || tick <= 0) {
     return null;
   }
 
+  /** @type {Record<string, {sha: string, opSummary: *}>} */
   const receipt = {};
 
   for (const [writerId, info] of perWriter) {
-    const sha = info?.tickShas?.[tick];
+    const sha = /** @type {*} */ (info?.tickShas)?.[tick];
     if (!sha) {
       continue;
     }
@@ -2292,12 +2473,11 @@ async function buildTickReceipt({ tick, perWriter, graph }) {
  *
  * Handles all seek actions: list, drop, save, latest, load, tick, and status.
  *
- * @private
- * @param {Object} payload - Seek result payload from handleSeek
+ * @param {*} payload - Seek result payload from handleSeek
  * @returns {string} Formatted output string (includes trailing newline)
  */
 function renderSeek(payload) {
-  const formatDelta = (n) => {
+  const formatDelta = (/** @type {*} */ n) => {
     if (typeof n !== 'number' || !Number.isFinite(n) || n === 0) {
       return '';
     }
@@ -2305,7 +2485,7 @@ function renderSeek(payload) {
     return ` (${sign}${n})`;
   };
 
-  const formatOpSummaryPlain = (summary) => {
+  const formatOpSummaryPlain = (/** @type {*} */ summary) => {
     const order = [
       ['NodeAdd', '+', 'node'],
       ['EdgeAdd', '+', 'edge'],
@@ -2325,7 +2505,7 @@ function renderSeek(payload) {
     return parts.length > 0 ? parts.join(' ') : '(empty)';
   };
 
-  const appendReceiptSummary = (baseLine) => {
+  const appendReceiptSummary = (/** @type {string} */ baseLine) => {
     const tickReceipt = payload?.tickReceipt;
     if (!tickReceipt || typeof tickReceipt !== 'object') {
       return `${baseLine}\n`;
@@ -2424,9 +2604,8 @@ function renderSeek(payload) {
  * Called by non-seek commands (query, path, check, etc.) that should
  * honour an active seek cursor.
  *
- * @private
- * @param {Object} graph - WarpGraph instance
- * @param {Object} persistence - GraphPersistencePort adapter
+ * @param {WarpGraphInstance} graph - WarpGraph instance
+ * @param {Persistence} persistence - GraphPersistencePort adapter
  * @param {string} graphName - Name of the WARP graph
  * @returns {Promise<{active: boolean, tick: number|null, maxTick: number|null}>} Cursor info — maxTick is always null; non-seek commands intentionally skip discoverTicks() for performance
  */
@@ -2448,7 +2627,6 @@ async function applyCursorCeiling(graph, persistence, graphName) {
  * maxTick to avoid the cost of discoverTicks(); the banner then omits the
  * "of {maxTick}" suffix. Only the seek handler itself populates maxTick.
  *
- * @private
  * @param {{active: boolean, tick: number|null, maxTick: number|null}} cursorInfo - Result from applyCursorCeiling
  * @param {number|null} maxTick - Maximum Lamport tick (from discoverTicks), or null if unknown
  * @returns {void}
@@ -2460,6 +2638,10 @@ function emitCursorWarning(cursorInfo, maxTick) {
   }
 }
 
+/**
+ * @param {{options: CliOptions, args: string[]}} params
+ * @returns {Promise<{payload: *, exitCode: number}>}
+ */
 async function handleView({ options, args }) {
   if (!process.stdin.isTTY || !process.stdout.isTTY) {
     throw usageError('view command requires an interactive terminal (TTY)');
@@ -2470,13 +2652,14 @@ async function handleView({ options, args }) {
       : 'list';
 
   try {
+    // @ts-ignore — optional peer dependency, may not be installed
     const { startTui } = await import('@git-stunts/git-warp-tui');
     await startTui({
       repo: options.repo || '.',
       graph: options.graph || 'default',
       mode: viewMode,
     });
-  } catch (err) {
+  } catch (/** @type {*} */ err) {
     if (err.code === 'ERR_MODULE_NOT_FOUND' || (err.message && err.message.includes('Cannot find module'))) {
       throw usageError(
         'Interactive TUI requires @git-stunts/git-warp-tui.\n' +
@@ -2488,7 +2671,8 @@ async function handleView({ options, args }) {
   return { payload: undefined, exitCode: 0 };
 }
 
-const COMMANDS = new Map([
+/** @type {Map<string, Function>} */
+const COMMANDS = new Map(/** @type {[string, Function][]} */ ([
   ['info', handleInfo],
   ['query', handleQuery],
   ['path', handlePath],
@@ -2498,7 +2682,7 @@ const COMMANDS = new Map([
   ['seek', handleSeek],
   ['view', handleView],
   ['install-hooks', handleInstallHooks],
-]);
+]));
 
 /**
  * CLI entry point. Parses arguments, dispatches to the appropriate command handler,
@@ -2535,12 +2719,13 @@ async function main() {
     throw usageError(`--view is not supported for '${command}'. Supported commands: ${VIEW_SUPPORTED_COMMANDS.join(', ')}`);
   }
 
-  const result = await handler({
+  const result = await /** @type {Function} */ (handler)({
     command,
     args: positionals.slice(1),
     options,
   });
 
+  /** @type {{payload: *, exitCode: number}} */
   const normalized = result && typeof result === 'object' && 'payload' in result
     ? result
     : { payload: result, exitCode: EXIT_CODES.OK };
@@ -2555,6 +2740,7 @@ main().catch((error) => {
   const exitCode = error instanceof CliError ? error.exitCode : EXIT_CODES.INTERNAL;
   const code = error instanceof CliError ? error.code : 'E_INTERNAL';
   const message = error instanceof Error ? error.message : 'Unknown error';
+  /** @type {{error: {code: string, message: string, cause?: *}}} */
   const payload = { error: { code, message } };
 
   if (error && error.cause) {

@@ -13,6 +13,10 @@ import WarpError from './WarpError.js';
  * @property {Object} context - Serializable context object for debugging
  */
 export default class OperationAbortedError extends WarpError {
+  /**
+   * @param {string} operation
+   * @param {{ code?: string, context?: Object, reason?: string }} [options={}]
+   */
   constructor(operation, options = {}) {
     const reason = options.reason || 'Operation was aborted';
     super(`Operation '${operation}' aborted: ${reason}`, 'OPERATION_ABORTED', options);

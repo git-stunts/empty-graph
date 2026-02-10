@@ -72,13 +72,7 @@ export function encodePatchMessage({ graph, writer, lamport, patchOid, schema = 
  * Decodes a patch commit message.
  *
  * @param {string} message - The raw commit message
- * @returns {Object} The decoded patch message
- * @returns {string} return.kind - Always 'patch'
- * @returns {string} return.graph - The graph name
- * @returns {string} return.writer - The writer ID
- * @returns {number} return.lamport - The Lamport timestamp
- * @returns {string} return.patchOid - The patch blob OID
- * @returns {number} return.schema - The schema version
+ * @returns {{ kind: 'patch', graph: string, writer: string, lamport: number, patchOid: string, schema: number }} The decoded patch message
  * @throws {Error} If the message is not a valid patch message
  *
  * @example

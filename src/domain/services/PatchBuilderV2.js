@@ -85,8 +85,8 @@ export class PatchBuilderV2 {
    * @param {{ warn: Function }} [options.logger] - Logger for non-fatal warnings
    */
   constructor({ persistence, graphName, writerId, lamport, versionVector, getCurrentState, expectedParentSha = null, onCommitSuccess = null, onDeleteWithData = 'warn', codec, logger }) {
-    /** @type {import('../../ports/GraphPersistencePort.js').default} */
-    this._persistence = persistence;
+    /** @type {import('../../ports/GraphPersistencePort.js').default & import('../../ports/RefPort.js').default & import('../../ports/CommitPort.js').default & import('../../ports/BlobPort.js').default & import('../../ports/TreePort.js').default} */
+    this._persistence = /** @type {*} */ (persistence);
 
     /** @type {string} */
     this._graphName = graphName;
@@ -214,7 +214,7 @@ export class PatchBuilderV2 {
       const { edges } = findAttachedData(state, nodeId);
       for (const edgeKey of edges) {
         const [from, to, label] = edgeKey.split('\0');
-        const edgeDots = [...orsetGetDots(state.edgeAlive, edgeKey)];
+        const edgeDots = /** @type {import('../crdt/Dot.js').Dot[]} */ (/** @type {unknown} */ ([...orsetGetDots(state.edgeAlive, edgeKey)]));
         this._ops.push(createEdgeRemoveV2(from, to, label, edgeDots));
         // Provenance: cascade-generated EdgeRemove reads the edge key (to observe its dots)
         this._reads.add(edgeKey);
@@ -251,7 +251,7 @@ export class PatchBuilderV2 {
       }
     }
 
-    const observedDots = state ? [...orsetGetDots(state.nodeAlive, nodeId)] : [];
+    const observedDots = /** @type {import('../crdt/Dot.js').Dot[]} */ (/** @type {unknown} */ (state ? [...orsetGetDots(state.nodeAlive, nodeId)] : []));
     this._ops.push(createNodeRemoveV2(nodeId, observedDots));
     // Provenance: NodeRemove reads the node (to observe its dots)
     this._reads.add(nodeId);
@@ -325,7 +325,7 @@ export class PatchBuilderV2 {
     // Get observed dots from current state (orsetGetDots returns already-encoded dot strings)
     const state = this._getCurrentState();
     const edgeKey = encodeEdgeKey(from, to, label);
-    const observedDots = state ? [...orsetGetDots(state.edgeAlive, edgeKey)] : [];
+    const observedDots = /** @type {import('../crdt/Dot.js').Dot[]} */ (/** @type {unknown} */ (state ? [...orsetGetDots(state.edgeAlive, edgeKey)] : []));
     this._ops.push(createEdgeRemoveV2(from, to, label, observedDots));
     // Provenance: EdgeRemove reads the edge key (to observe its dots)
     this._reads.add(edgeKey);
@@ -454,7 +454,7 @@ export class PatchBuilderV2 {
       schema,
       writer: this._writerId,
       lamport: this._lamport,
-      context: this._vv,
+      context: /** @type {*} */ (this._vv),
       ops: this._ops,
       reads: [...this._reads].sort(),
       writes: [...this._writes].sort(),
@@ -515,10 +515,10 @@ export class PatchBuilderV2 {
     const currentRefSha = await this._persistence.readRef(writerRef);
 
     if (currentRefSha !== this._expectedParentSha) {
-      const err = new WriterError(
+      const err = /** @type {WriterError & { expectedSha: string|null, actualSha: string|null }} */ (new WriterError(
         'WRITER_CAS_CONFLICT',
         'Commit failed: writer ref was updated by another process. Re-materialize and retry.'
-      );
+      ));
       err.expectedSha = this._expectedParentSha;
       err.actualSha = currentRefSha;
       throw err;
@@ -556,7 +556,7 @@ export class PatchBuilderV2 {
     const patchCbor = this._codec.encode(patch);
 
     // 5. Write patch.cbor blob
-    const patchBlobOid = await this._persistence.writeBlob(patchCbor);
+    const patchBlobOid = await this._persistence.writeBlob(/** @type {Buffer} */ (patchCbor));
 
     // 6. Create tree with the blob
     // Format for mktree: "mode type oid\tpath"

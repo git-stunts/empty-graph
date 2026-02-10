@@ -13,7 +13,7 @@
 export default class SeekCachePort {
   /**
    * Retrieves a cached state buffer by key.
-   * @param {string} key - Cache key (e.g., 'v1:t42-<frontierHash>')
+   * @param {string} _key - Cache key (e.g., 'v1:t42-<frontierHash>')
    * @returns {Promise<Buffer|null>} The cached buffer, or null on miss
    * @throws {Error} If not implemented by a concrete adapter
    */
@@ -23,8 +23,8 @@ export default class SeekCachePort {
 
   /**
    * Stores a state buffer under the given key.
-   * @param {string} key - Cache key
-   * @param {Buffer} buffer - Serialized state to cache
+   * @param {string} _key - Cache key
+   * @param {Buffer} _buffer - Serialized state to cache
    * @returns {Promise<void>}
    * @throws {Error} If not implemented by a concrete adapter
    */
@@ -34,7 +34,7 @@ export default class SeekCachePort {
 
   /**
    * Checks whether a key exists in the cache.
-   * @param {string} key - Cache key
+   * @param {string} _key - Cache key
    * @returns {Promise<boolean>}
    * @throws {Error} If not implemented by a concrete adapter
    */
@@ -54,7 +54,7 @@ export default class SeekCachePort {
 
   /**
    * Removes a single entry from the cache.
-   * @param {string} key - Cache key to remove
+   * @param {string} _key - Cache key to remove
    * @returns {Promise<boolean>} True if the entry existed and was removed
    * @throws {Error} If not implemented by a concrete adapter
    */

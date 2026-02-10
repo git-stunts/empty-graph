@@ -19,6 +19,8 @@ jobs:
           cache: 'npm'
       - run: npm install
       - run: npm run lint
+      - name: TypeScript ratchet
+        run: npm run typecheck:ratchet
 
   test-node:
     runs-on: ubuntu-latest

@@ -15,7 +15,7 @@ import ClockPort from '../../ports/ClockPort.js';
 export default class ClockAdapter extends ClockPort {
   /**
    * @param {object} [options]
-   * @param {Performance} [options.performanceImpl] - Performance API implementation.
+   * @param {{ now(): number }} [options.performanceImpl] - Performance API implementation.
    *   Defaults to `globalThis.performance`.
    */
   constructor({ performanceImpl } = {}) {
@@ -28,7 +28,7 @@ export default class ClockAdapter extends ClockPort {
    * @returns {ClockAdapter}
    */
   static node() {
-    return new ClockAdapter({ performanceImpl: nodePerformance });
+    return new ClockAdapter({ performanceImpl: /** @type {{ now(): number }} */ (nodePerformance) });
   }
 
   /**

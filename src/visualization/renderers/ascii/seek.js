@@ -15,6 +15,11 @@ import { formatSha, formatWriterName } from './formatters.js';
 import { TIMELINE } from './symbols.js';
 import { formatOpSummary } from './opSummary.js';
 
+/**
+ * @typedef {{ ticks: number[], tipSha?: string, tickShas?: Record<number, string> }} WriterInfo
+ * @typedef {{ graph: string, tick: number, maxTick: number, ticks: number[], nodes: number, edges: number, patchCount: number, perWriter: Map<string, WriterInfo> | Record<string, WriterInfo>, diff?: { nodes?: number, edges?: number }, tickReceipt?: Record<string, any> }} SeekPayload
+ */
+
 /** Maximum number of tick columns shown in the windowed view. */
 const MAX_COLS = 9;
 
@@ -30,6 +35,7 @@ const DOT_MID = '\u00B7'; // ·
 /** Open circle used for excluded-zone patch markers. */
 const CIRCLE_OPEN = '\u25CB'; // ○
 
+/** @param {number} n @returns {string} */
 function formatDelta(n) {
   if (typeof n !== 'number' || !Number.isFinite(n) || n === 0) {
     return '';
@@ -38,10 +44,17 @@ function formatDelta(n) {
   return ` (${sign}${n})`;
 }
 
+/**
+ * @param {number} n
+ * @param {string} singular
+ * @param {string} plural
+ * @returns {string}
+ */
 function pluralize(n, singular, plural) {
   return n === 1 ? singular : plural;
 }
 
+/** @param {Record<string, any> | undefined} tickReceipt @returns {string[]} */
 function buildReceiptLines(tickReceipt) {
   if (!tickReceipt || typeof tickReceipt !== 'object') {
     return [];
@@ -200,7 +213,7 @@ function buildLane(patchSet, points, currentTick) {
  *
  * @param {Object} opts
  * @param {string} opts.writerId
- * @param {Object} opts.writerInfo - `{ ticks, tipSha, tickShas }`
+ * @param {WriterInfo} opts.writerInfo - `{ ticks, tipSha, tickShas }`
  * @param {{ points: number[] }} opts.win - Computed window
  * @param {number} opts.currentTick - Active seek cursor tick
  * @returns {string} Formatted, indented swimlane line
@@ -255,7 +268,7 @@ function buildTickPoints(ticks, tick) {
 /**
  * Builds the body lines for the seek dashboard.
  *
- * @param {Object} payload - Seek payload from the CLI handler
+ * @param {SeekPayload} payload - Seek payload from the CLI handler
  * @returns {string[]} Lines for the box body
  */
 function buildSeekBodyLines(payload) {
@@ -277,6 +290,7 @@ function buildSeekBodyLines(payload) {
     lines.push(buildHeaderRow(win));
 
     // Per-writer swimlanes
+    /** @type {Array<[string, WriterInfo]>} */
     const writerEntries = perWriter instanceof Map
       ? [...perWriter.entries()]
       : Object.entries(perWriter).map(([k, v]) => [k, v]);
@@ -291,8 +305,8 @@ function buildSeekBodyLines(payload) {
   const nodeLabel = pluralize(nodes, 'node', 'nodes');
   const patchLabel = pluralize(patchCount, 'patch', 'patches');
 
-  const nodesStr = `${nodes} ${nodeLabel}${formatDelta(diff?.nodes)}`;
-  const edgesStr = `${edges} ${edgeLabel}${formatDelta(diff?.edges)}`;
+  const nodesStr = `${nodes} ${nodeLabel}${formatDelta(diff?.nodes ?? 0)}`;
+  const edgesStr = `${edges} ${edgeLabel}${formatDelta(diff?.edges ?? 0)}`;
   lines.push(`  ${colors.bold('State:')} ${nodesStr}, ${edgesStr}, ${patchCount} ${patchLabel}`);
 
   const receiptLines = buildReceiptLines(tickReceipt);
@@ -313,7 +327,7 @@ function buildSeekBodyLines(payload) {
 /**
  * Renders the seek view dashboard inside a double-bordered box.
  *
- * @param {Object} payload - Seek payload from the CLI handler
+ * @param {SeekPayload} payload - Seek payload from the CLI handler
  * @returns {string} Boxen-wrapped ASCII dashboard with trailing newline
  */
 export function renderSeekView(payload) {

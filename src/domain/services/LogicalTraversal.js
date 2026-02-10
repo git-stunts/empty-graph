@@ -145,14 +145,14 @@ export default class LogicalTraversal {
    * @param {'out'|'in'|'both'} [options.dir] - Edge direction to follow
    * @param {string|string[]} [options.labelFilter] - Edge label(s) to include
    * @param {number} [options.maxDepth] - Maximum depth to traverse
-   * @returns {Promise<{dir: 'out'|'in'|'both', labelSet: Set<string>|null, adjacency: Object, depthLimit: number}>}
+   * @returns {Promise<{dir: 'out'|'in'|'both', labelSet: Set<string>|null, adjacency: {outgoing: Map<string, Array<{neighborId: string, label: string}>>, incoming: Map<string, Array<{neighborId: string, label: string}>>}, depthLimit: number}>}
    *   The normalized traversal parameters
    * @throws {TraversalError} If the start node is not found (NODE_NOT_FOUND)
    * @throws {TraversalError} If the direction is invalid (INVALID_DIRECTION)
    * @throws {TraversalError} If the labelFilter is invalid (INVALID_LABEL_FILTER)
    */
   async _prepare(start, { dir, labelFilter, maxDepth }) {
-    const materialized = await this._graph._materializeGraph();
+    const materialized = await /** @type {any} */ (this._graph)._materializeGraph();
 
     if (!(await this._graph.hasNode(start))) {
       throw new TraversalError(`Start node not found: ${start}`, {
@@ -187,7 +187,7 @@ export default class LogicalTraversal {
     const result = [];
 
     while (queue.length > 0) {
-      const current = queue.shift();
+      const current = /** @type {{nodeId: string, depth: number}} */ (queue.shift());
       if (visited.has(current.nodeId)) {
         continue;
       }
@@ -237,7 +237,7 @@ export default class LogicalTraversal {
     const result = [];
 
     while (stack.length > 0) {
-      const current = stack.pop();
+      const current = /** @type {{nodeId: string, depth: number}} */ (stack.pop());
       if (visited.has(current.nodeId)) {
         continue;
       }
@@ -298,7 +298,7 @@ export default class LogicalTraversal {
     visited.add(from);
 
     while (queue.length > 0) {
-      const current = queue.shift();
+      const current = /** @type {{nodeId: string, depth: number}} */ (queue.shift());
       if (current.depth >= depthLimit) {
         continue;
       }
@@ -319,10 +319,11 @@ export default class LogicalTraversal {
 
         if (edge.neighborId === to) {
           const path = [to];
+          /** @type {string|undefined} */
           let cursor = current.nodeId;
           while (cursor) {
             path.push(cursor);
-            cursor = parent.get(cursor) || null;
+            cursor = parent.get(cursor);
           }
           path.reverse();
           return { found: true, path, length: path.length - 1 };

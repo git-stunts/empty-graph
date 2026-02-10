@@ -24,6 +24,10 @@ import WarpError from './WarpError.js';
  * @property {Object} context - Serializable context object with error details
  */
 export default class SyncError extends WarpError {
+  /**
+   * @param {string} message
+   * @param {{ code?: string, context?: Object }} [options={}]
+   */
   constructor(message, options = {}) {
     super(message, 'SYNC_ERROR', options);
   }

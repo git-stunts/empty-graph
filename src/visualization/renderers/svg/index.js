@@ -16,6 +16,7 @@ const PALETTE = {
   arrowFill: '#a6adc8',
 };
 
+/** @param {string} str @returns {string} */
 function escapeXml(str) {
   return String(str)
     .replace(/&/g, '&amp;')
@@ -46,6 +47,7 @@ function renderStyle() {
   ].join('\n');
 }
 
+/** @param {{ id: string, x: number, y: number, width: number, height: number, label?: string }} node @returns {string} */
 function renderNode(node) {
   const { x, y, width, height } = node;
   const label = escapeXml(node.label ?? node.id);
@@ -59,6 +61,7 @@ function renderNode(node) {
   ].join('\n');
 }
 
+/** @param {{ startPoint?: { x: number, y: number }, bendPoints?: Array<{ x: number, y: number }>, endPoint?: { x: number, y: number } }} section @returns {Array<{ x: number, y: number }>} */
 function sectionToPoints(section) {
   const pts = [];
   if (section.startPoint) {
@@ -73,6 +76,7 @@ function sectionToPoints(section) {
   return pts;
 }
 
+/** @param {{ sections?: Array<{ startPoint?: { x: number, y: number }, bendPoints?: Array<{ x: number, y: number }>, endPoint?: { x: number, y: number } }>, label?: string }} edge @returns {string} */
 function renderEdge(edge) {
   const { sections } = edge;
   if (!sections || sections.length === 0) {
@@ -115,7 +119,7 @@ function renderEdge(edge) {
 /**
  * Renders a PositionedGraph as an SVG string.
  *
- * @param {Object} positionedGraph - PositionedGraph from runLayout()
+ * @param {{ nodes?: Array<{ id: string, x: number, y: number, width: number, height: number, label?: string }>, edges?: Array<{ sections?: Array<any>, label?: string }>, width?: number, height?: number }} positionedGraph - PositionedGraph from runLayout()
  * @param {{ title?: string }} [options]
  * @returns {string} Complete SVG markup
  */

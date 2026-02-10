@@ -9,13 +9,17 @@ import { padRight, padLeft } from '../../utils/unicode.js';
 import { TIMELINE } from './symbols.js';
 import { OP_DISPLAY, EMPTY_OP_SUMMARY, summarizeOps, formatOpSummary } from './opSummary.js';
 
+/**
+ * @typedef {{ sha?: string, lamport?: number, writerId?: string, opSummary?: Record<string, number>, ops?: Array<{ type: string }> }} PatchEntry
+ */
+
 // Default pagination settings
 const DEFAULT_PAGE_SIZE = 20;
 
 /**
  * Ensures entry has an opSummary, computing one if needed.
- * @param {Object} entry - Patch entry
- * @returns {Object} Operation summary
+ * @param {PatchEntry} entry - Patch entry
+ * @returns {Record<string, number>} Operation summary
  */
 function ensureOpSummary(entry) {
   if (entry.opSummary) {
@@ -29,10 +33,10 @@ function ensureOpSummary(entry) {
 
 /**
  * Paginates entries, returning display entries and truncation info.
- * @param {Object[]} entries - All entries
+ * @param {PatchEntry[]} entries - All entries
  * @param {number} pageSize - Page size
  * @param {boolean} showAll - Whether to show all
- * @returns {{displayEntries: Object[], truncated: boolean, hiddenCount: number}}
+ * @returns {{displayEntries: PatchEntry[], truncated: boolean, hiddenCount: number}}
  */
 function paginateEntries(entries, pageSize, showAll) {
   if (showAll || entries.length <= pageSize) {
@@ -64,17 +68,22 @@ function renderTruncationIndicator(truncated, hiddenCount) {
 /**
  * Renders a single patch entry line.
  * @param {Object} params - Entry parameters
+ * @param {PatchEntry} params.entry - Patch entry
+ * @param {boolean} params.isLast - Whether this is the last entry
+ * @param {number} params.lamportWidth - Width for lamport timestamp padding
+ * @param {string} [params.writerStr] - Writer string
+ * @param {number} [params.maxWriterIdLen] - Max writer ID length for padding
  * @returns {string} Formatted entry line
  */
 function renderEntryLine({ entry, isLast, lamportWidth, writerStr, maxWriterIdLen }) {
   const connector = isLast ? TIMELINE.end : TIMELINE.connector;
   const shortSha = (entry.sha || '').slice(0, 7);
-  const lamportStr = padLeft(String(entry.lamport), lamportWidth);
+  const lamportStr = padLeft(String(entry.lamport ?? 0), lamportWidth);
   const opSummary = ensureOpSummary(entry);
   const opSummaryStr = formatOpSummary(opSummary, writerStr ? 30 : 40);
 
   if (writerStr) {
-    const paddedWriter = padRight(writerStr, maxWriterIdLen);
+    const paddedWriter = padRight(writerStr, maxWriterIdLen ?? 6);
     return `  ${connector}${TIMELINE.dot} ${colors.muted(`L${lamportStr}`)} ${colors.primary(paddedWriter)}:${colors.muted(shortSha)} ${opSummaryStr}`;
   }
   return `  ${connector}${TIMELINE.dot} ${colors.muted(`L${lamportStr}`)} ${colors.primary(shortSha)}  ${opSummaryStr}`;
@@ -101,8 +110,8 @@ function renderSingleWriterFooter(totalCount) {
 
 /**
  * Renders single-writer timeline view.
- * @param {Object} payload - History payload
- * @param {Object} options - Rendering options
+ * @param {{ entries: PatchEntry[], writer: string }} payload - History payload
+ * @param {{ pageSize?: number, showAll?: boolean }} options - Rendering options
  * @returns {string[]} Lines for the timeline
  */
 function renderSingleWriterTimeline(payload, options) {
@@ -121,7 +130,7 @@ function renderSingleWriterTimeline(payload, options) {
     lines.push(colors.muted('  (no patches)'));
     return lines;
   }
-  const maxLamport = Math.max(...displayEntries.map((e) => e.lamport));
+  const maxLamport = Math.max(...displayEntries.map((e) => e.lamport ?? 0));
   const lamportWidth = String(maxLamport).length;
 
   lines.push(...renderTruncationIndicator(truncated, hiddenCount));
@@ -137,8 +146,8 @@ function renderSingleWriterTimeline(payload, options) {
 
 /**
  * Merges and sorts entries from all writers by lamport timestamp.
- * @param {Object} writers - Map of writerId to entries
- * @returns {Object[]} Sorted entries with writerId attached
+ * @param {Record<string, PatchEntry[]>} writers - Map of writerId to entries
+ * @returns {PatchEntry[]} Sorted entries with writerId attached
  */
 function mergeWriterEntries(writers) {
   const allEntries = [];
@@ -147,7 +156,7 @@ function mergeWriterEntries(writers) {
       allEntries.push({ ...entry, writerId });
     }
   }
-  allEntries.sort((a, b) => a.lamport - b.lamport || a.writerId.localeCompare(b.writerId));
+  allEntries.sort((a, b) => (a.lamport ?? 0) - (b.lamport ?? 0) || (a.writerId ?? '').localeCompare(b.writerId ?? ''));
   return allEntries;
 }
 
@@ -178,8 +187,8 @@ function renderMultiWriterFooter(totalCount, writerCount) {
 
 /**
  * Renders multi-writer timeline view with parallel columns.
- * @param {Object} payload - History payload with allWriters data
- * @param {Object} options - Rendering options
+ * @param {{ writers: Record<string, PatchEntry[]>, graph: string }} payload - History payload with allWriters data
+ * @param {{ pageSize?: number, showAll?: boolean }} options - Rendering options
  * @returns {string[]} Lines for the timeline
  */
 function renderMultiWriterTimeline(payload, options) {
@@ -206,7 +215,7 @@ function renderMultiWriterTimeline(payload, options) {
     lines.push(colors.muted('  (no patches)'));
     return lines;
   }
-  const maxLamport = Math.max(...displayEntries.map((e) => e.lamport));
+  const maxLamport = Math.max(...displayEntries.map((e) => e.lamport ?? 0));
   const lamportWidth = String(maxLamport).length;
   const maxWriterIdLen = Math.max(...writerIds.map((id) => id.length), 6);
 
@@ -230,15 +239,8 @@ function renderMultiWriterTimeline(payload, options) {
 
 /**
  * Renders the history view with ASCII timeline.
- * @param {Object} payload - History payload from handleHistory
- * @param {string} payload.graph - Graph name
- * @param {string} [payload.writer] - Writer ID (single writer mode)
- * @param {string|null} [payload.nodeFilter] - Node filter if applied
- * @param {Object[]} [payload.entries] - Array of patch entries (single writer mode)
- * @param {Object} [payload.writers] - Map of writerId to entries (multi-writer mode)
- * @param {Object} [options] - Rendering options
- * @param {number} [options.pageSize=20] - Number of patches to show per page
- * @param {boolean} [options.showAll=false] - Show all patches (no pagination)
+ * @param {{ graph: string, writer?: string, nodeFilter?: string | null, entries?: PatchEntry[], writers?: Record<string, PatchEntry[]> }} payload - History payload from handleHistory
+ * @param {{ pageSize?: number, showAll?: boolean }} [options] - Rendering options
  * @returns {string} Formatted ASCII output
  */
 export function renderHistoryView(payload, options = {}) {
@@ -248,8 +250,8 @@ export function renderHistoryView(payload, options = {}) {
 
   const isMultiWriter = payload.writers && typeof payload.writers === 'object';
   const contentLines = isMultiWriter
-    ? renderMultiWriterTimeline(payload, options)
-    : renderSingleWriterTimeline(payload, options);
+    ? renderMultiWriterTimeline(/** @type {{ writers: Record<string, PatchEntry[]>, graph: string }} */ (payload), options)
+    : renderSingleWriterTimeline(/** @type {{ entries: PatchEntry[], writer: string }} */ (payload), options);
 
   // Add node filter indicator if present
   if (payload.nodeFilter) {

@@ -22,9 +22,10 @@ function canonicalizeJson(value) {
     return value.map(canonicalizeJson);
   }
   if (value && typeof value === 'object') {
+    /** @type {{ [x: string]: * }} */
     const sorted = {};
     for (const key of Object.keys(value).sort()) {
-      sorted[key] = canonicalizeJson(value[key]);
+      sorted[key] = canonicalizeJson(/** @type {{ [x: string]: * }} */ (value)[key]);
     }
     return sorted;
   }
@@ -97,7 +98,7 @@ function isValidSyncRequest(parsed) {
  * Checks the content-type header. Returns an error response if the
  * content type is present but not application/json, otherwise null.
  *
- * @param {Object} headers - Request headers
+ * @param {{ [x: string]: string }} headers - Request headers
  * @returns {{ status: number, headers: Object, body: string }|null}
  * @private
  */
@@ -113,7 +114,7 @@ function checkContentType(headers) {
  * Parses the request URL and validates the path and method.
  * Returns an error response on failure, or null if valid.
  *
- * @param {{ method: string, url: string, headers: Object }} request
+ * @param {{ method: string, url: string, headers: { [x: string]: string } }} request
  * @param {string} expectedPath
  * @param {string} defaultHost
  * @returns {{ status: number, headers: Object, body: string }|null}
@@ -171,12 +172,12 @@ export default class HttpSyncServer {
   /**
    * @param {Object} options
    * @param {import('../../ports/HttpServerPort.js').default} options.httpPort - HTTP server port abstraction
-   * @param {Object} options.graph - WarpGraph instance (must expose processSyncRequest)
+   * @param {{ processSyncRequest: (request: *) => Promise<*> }} options.graph - WarpGraph instance (must expose processSyncRequest)
    * @param {string} [options.path='/sync'] - URL path to handle sync requests on
    * @param {string} [options.host='127.0.0.1'] - Host to bind
    * @param {number} [options.maxRequestBytes=4194304] - Maximum request body size in bytes
    */
-  constructor({ httpPort, graph, path = '/sync', host = '127.0.0.1', maxRequestBytes = DEFAULT_MAX_REQUEST_BYTES } = {}) {
+  constructor({ httpPort, graph, path = '/sync', host = '127.0.0.1', maxRequestBytes = DEFAULT_MAX_REQUEST_BYTES } = /** @type {*} */ ({})) {
     this._httpPort = httpPort;
     this._graph = graph;
     this._path = path && path.startsWith('/') ? path : `/${path || 'sync'}`;
@@ -188,7 +189,7 @@ export default class HttpSyncServer {
   /**
    * Handles an incoming HTTP request through the port abstraction.
    *
-   * @param {{ method: string, url: string, headers: Object, body: Buffer|undefined }} request
+   * @param {{ method: string, url: string, headers: { [x: string]: string }, body: Buffer|undefined }} request
    * @returns {Promise<{ status: number, headers: Object, body: string }>}
    * @private
    */
@@ -212,7 +213,7 @@ export default class HttpSyncServer {
       const response = await this._graph.processSyncRequest(parsed);
       return jsonResponse(response);
     } catch (err) {
-      return errorResponse(500, err?.message || 'Sync failed');
+      return errorResponse(500, /** @type {any} */ (err)?.message || 'Sync failed');
     }
   }
 
@@ -228,18 +229,18 @@ export default class HttpSyncServer {
       throw new Error('listen() requires a numeric port');
     }
 
-    const server = this._httpPort.createServer((request) => this._handleRequest(request));
+    const server = this._httpPort.createServer((/** @type {*} */ request) => this._handleRequest(request));
     this._server = server;
 
-    await new Promise((resolve, reject) => {
-      server.listen(port, this._host, (err) => {
+    await /** @type {Promise<void>} */ (new Promise((resolve, reject) => {
+      server.listen(port, this._host, (/** @type {*} */ err) => {
         if (err) {
           reject(err);
         } else {
           resolve();
         }
       });
-    });
+    }));
 
     const address = server.address();
     const actualPort = typeof address === 'object' && address ? address.port : port;
@@ -248,15 +249,15 @@ export default class HttpSyncServer {
     return {
       url,
       close: () =>
-        new Promise((resolve, reject) => {
-          server.close((err) => {
+        /** @type {Promise<void>} */ (new Promise((resolve, reject) => {
+          server.close((/** @type {*} */ err) => {
             if (err) {
               reject(err);
             } else {
               resolve();
             }
           });
-        }),
+        })),
     };
   }
 }
