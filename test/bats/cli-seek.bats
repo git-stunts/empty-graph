@@ -20,6 +20,7 @@ import json, os
 data = json.loads(os.environ["JSON"])
 assert data["cursor"]["active"] is False, f"expected cursor.active=False, got {data['cursor']['active']}"
 assert len(data["ticks"]) > 0, f"expected ticks array to have entries, got {data['ticks']}"
+assert all(isinstance(t, int) for t in data["ticks"]), f"expected all ticks to be integers, got {data['ticks']}"
 PY
 }
 
@@ -152,8 +153,26 @@ assert len(data["nodes"]) == 3, f"expected 3 nodes at tick 1, got {len(data['nod
 PY
 }
 
+@test "query returns full node set after --latest clears cursor" {
+  run git warp --repo "${TEST_REPO}" --graph demo --json seek --tick 1
+  assert_success
+
+  run git warp --repo "${TEST_REPO}" --graph demo --json seek --latest
+  assert_success
+
+  run git warp --repo "${TEST_REPO}" --graph demo --json query --match '*'
+  assert_success
+
+  JSON="$output" python3 - <<'PY'
+import json, os
+data = json.loads(os.environ["JSON"])
+assert len(data["nodes"]) > 3, f"expected more than 3 nodes after latest, got {len(data['nodes'])}"
+PY
+}
+
 @test "seek plain text output" {
   run git warp --repo "${TEST_REPO}" --graph demo seek
   assert_success
   echo "$output" | grep -q "demo"
+  echo "$output" | grep -qiE "tick|cursor"
 }

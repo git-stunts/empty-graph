@@ -1263,10 +1263,7 @@ function buildCheckPayload({
 async function handleHistory({ options, args }) {
   const historyOptions = parseHistoryArgs(args);
   const { graph, graphName, persistence } = await openGraph(options);
-  const activeCursor = await readActiveCursor(persistence, graphName);
-  const cursorInfo = activeCursor
-    ? { active: true, tick: activeCursor.tick, maxTick: null }
-    : { active: false, tick: null, maxTick: null };
+  const cursorInfo = await applyCursorCeiling(graph, persistence, graphName);
   emitCursorWarning(cursorInfo, null);
 
   const writerId = options.writer;
