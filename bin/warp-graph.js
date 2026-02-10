@@ -1947,11 +1947,11 @@ function wireSeekCache(graph, persistence, graphName, seekSpec) {
   if (seekSpec.noPersistentCache) {
     return;
   }
-  graph._seekCache = new CasSeekCacheAdapter({
+  graph.setSeekCache(new CasSeekCacheAdapter({
     persistence,
     plumbing: persistence.plumbing,
     graphName,
-  });
+  }));
 }
 
 async function handleSeek({ options, args }) {
@@ -1961,8 +1961,8 @@ async function handleSeek({ options, args }) {
 
   // Handle --clear-cache before discovering ticks (no materialization needed)
   if (seekSpec.action === 'clear-cache') {
-    if (graph._seekCache) {
-      await graph._seekCache.clear();
+    if (graph.seekCache) {
+      await graph.seekCache.clear();
     }
     return {
       payload: { graph: graphName, action: 'clear-cache', message: 'Seek cache cleared.' },

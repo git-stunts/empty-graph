@@ -8,8 +8,10 @@
  *
  * Index ref: `refs/warp/<graphName>/seek-cache` → blob containing JSON index.
  *
- * Blobs are loose Git objects — `git gc` prunes them naturally (default: 2 weeks).
- * Use vault pinning for GC-safe persistence.
+ * Blobs are loose Git objects — `git gc` prunes them using the configured
+ * prune expiry (default ~2 weeks). Use vault pinning for GC-safe persistence.
+ *
+ * **Requires Node >= 22.0.0** (inherited from `@git-stunts/git-cas`).
  *
  * @module infrastructure/adapters/CasSeekCacheAdapter
  */
@@ -52,7 +54,7 @@ export default class CasSeekCacheAdapter extends SeekCachePort {
     this._persistence = persistence;
     this._plumbing = plumbing;
     this._graphName = graphName;
-    this._maxEntries = maxEntries || DEFAULT_MAX_ENTRIES;
+    this._maxEntries = maxEntries ?? DEFAULT_MAX_ENTRIES;
     this._ref = buildSeekCacheRef(graphName);
     this._casPromise = null;
   }
@@ -64,7 +66,10 @@ export default class CasSeekCacheAdapter extends SeekCachePort {
    */
   async _getCas() {
     if (!this._casPromise) {
-      this._casPromise = this._initCas();
+      this._casPromise = this._initCas().catch((err) => {
+        this._casPromise = null;
+        throw err;
+      });
     }
     return await this._casPromise;
   }
@@ -117,22 +122,29 @@ export default class CasSeekCacheAdapter extends SeekCachePort {
   }
 
   /**
-   * Atomically mutates the index with optimistic retry on ref conflict.
+   * Mutates the index with retry on write failure.
+   *
+   * Note: this adapter is single-writer — concurrent index mutations from
+   * separate processes may lose updates. The retry loop handles transient
+   * I/O errors (e.g. temporary lock contention), not true CAS conflicts.
+   *
    * @private
    * @param {function(CacheIndex): CacheIndex} mutate - Mutation function applied to current index
    * @returns {Promise<CacheIndex>} The mutated index
    */
   async _mutateIndex(mutate) {
+    let lastErr;
     for (let attempt = 0; attempt < MAX_CAS_RETRIES; attempt++) {
       const index = await this._readIndex();
       const mutated = mutate(index);
       try {
         await this._writeIndex(mutated);
         return mutated;
-      } catch {
-        // Ref conflict — retry with fresh read
+      } catch (err) {
+        lastErr = err;
+        // Transient write failure — retry with fresh read
         if (attempt === MAX_CAS_RETRIES - 1) {
-          throw new Error('CasSeekCacheAdapter: index update failed after retries');
+          throw new Error(`CasSeekCacheAdapter: index update failed after retries: ${lastErr.message}`);
         }
       }
     }
@@ -258,7 +270,11 @@ export default class CasSeekCacheAdapter extends SeekCachePort {
     return existed;
   }
 
-  /** @override */
+  /**
+   * Removes the index ref. CAS tree/blob objects are left as loose Git
+   * objects and will be pruned by `git gc` (default expiry ~2 weeks).
+   * @override
+   */
   async clear() {
     try {
       await this._persistence.deleteRef(this._ref);

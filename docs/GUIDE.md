@@ -938,7 +938,7 @@ git warp seek
 
 **How it works:** The cursor is stored as a lightweight Git ref at `refs/warp/<graph>/cursor/active`. Saved bookmarks live under `refs/warp/<graph>/cursor/saved/<name>`. When a cursor is active, `materialize()` replays only patches with `lamport <= tick`, and auto-checkpoint is skipped to avoid writing snapshots of past state.
 
-**Materialization cache:** Previously-visited ticks are cached as content-addressed blobs via `@git-stunts/git-cas`, enabling near-instant restoration. The cache is keyed by `(ceiling, frontier)` so it invalidates automatically when new patches arrive. Loose blobs naturally GC after ~2 weeks unless pinned to a vault.
+**Materialization cache:** Previously-visited ticks are cached as content-addressed blobs via `@git-stunts/git-cas` (requires Node >= 22), enabling near-instant restoration. The cache is keyed by `(ceiling, frontier)` so it invalidates automatically when new patches arrive. Loose blobs are subject to Git GC (default prune expiry ~2 weeks, configurable) unless pinned to a vault.
 
 ```bash
 # Purge the persistent seek cache

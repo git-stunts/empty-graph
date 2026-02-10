@@ -198,6 +198,26 @@ export default class WarpGraph {
   }
 
   /**
+   * Returns the attached seek cache, or null if none is set.
+   * @returns {import('../ports/SeekCachePort.js').default|null}
+   */
+  get seekCache() {
+    return this._seekCache;
+  }
+
+  /**
+   * Attaches a persistent seek cache after construction.
+   *
+   * Useful when the cache adapter cannot be created until after the
+   * graph is opened (e.g. the CLI wires it based on flags).
+   *
+   * @param {import('../ports/SeekCachePort.js').default} cache - SeekCachePort implementation
+   */
+  setSeekCache(cache) {
+    this._seekCache = cache;
+  }
+
+  /**
    * Logs a timing message for a completed or failed operation.
    * @param {string} op - Operation name (e.g. 'materialize')
    * @param {number} t0 - Start timestamp from this._clock.now()
@@ -807,8 +827,9 @@ export default class WarpGraph {
     }
 
     // Persistent cache check — skip when collectReceipts is requested
+    let cacheKey;
     if (this._seekCache && !collectReceipts) {
-      const cacheKey = buildSeekCacheKey(ceiling, frontier);
+      cacheKey = buildSeekCacheKey(ceiling, frontier);
       try {
         const cached = await this._seekCache.get(cacheKey);
         if (cached) {
@@ -862,10 +883,12 @@ export default class WarpGraph {
     this._cachedCeiling = ceiling;
     this._cachedFrontier = frontier;
 
-    // Store to persistent cache (fire-and-forget for non-receipt paths)
+    // Store to persistent cache (failure is non-fatal)
     if (this._seekCache && !collectReceipts && allPatches.length > 0) {
-      const cacheKey = buildSeekCacheKey(ceiling, frontier);
       try {
+        if (!cacheKey) {
+          cacheKey = buildSeekCacheKey(ceiling, frontier);
+        }
         const buf = serializeFullStateV5(state, { codec: this._codec });
         await this._seekCache.set(cacheKey, buf);
       } catch {
