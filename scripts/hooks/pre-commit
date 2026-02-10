@@ -18,7 +18,7 @@ echo "Running eslint on staged files..."
 
 # Run eslint using NUL-safe xargs
 # Use -- to prevent filenames starting with '-' from being treated as options
-xargs -0 npx eslint -- < "$TMPFILE"
+xargs -0 npx eslint --no-warn-ignored -- < "$TMPFILE"
 
 ESLINT_EXIT=$?
 
