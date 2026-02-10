@@ -5,6 +5,7 @@
 WarpGraph is a graph database built on Git. It uses a patch-based CRDT model where Git commits represent patch objects containing graph operations, with commit messages encoding patch metadata and parent relationships linking patch history.
 
 This architecture enables:
+
 - Content-addressable storage with built-in deduplication
 - Git's proven durability and integrity guarantees
 - Standard Git tooling compatibility
@@ -21,6 +22,7 @@ The codebase follows hexagonal architecture to isolate domain logic from infrast
 - **Domain services** contain pure business logic with injected dependencies
 
 This enables:
+
 - Easy testing via mock adapters
 - Swappable infrastructure (different Git implementations, logging backends)
 - Clear separation of concerns
@@ -28,6 +30,7 @@ This enables:
 ### Domain-Driven Design
 
 The domain layer models the graph database concepts:
+
 - `GraphNode` - Immutable value object representing a node
 - `WarpGraph` - Node CRUD operations (the main API class)
 - `TraversalService` - Graph algorithms (BFS, DFS, shortest path)
@@ -40,6 +43,7 @@ The domain layer models the graph database concepts:
 ### Dependency Injection
 
 All services accept their dependencies via constructor options:
+
 - Persistence adapters
 - Loggers
 - Clocks
@@ -50,10 +54,10 @@ This enables testing with mocks and flexible runtime configuration.
 ## Layer Diagram
 
 ```text
-+-------------------------------------------------------------+
++--------------------------------------------------------------+
 |                       WarpGraph                              |  <- Main API
 |                      (WarpGraph.js)                          |
-+-------------------------------------------------------------+
++--------------------------------------------------------------+
 |                     Supporting Services                      |
 |  +---------------+ +--------------------+                    |
 |  | IndexRebuild  | | TraversalService   |                    |
@@ -63,11 +67,11 @@ This enables testing with mocks and flexible runtime configuration.
 |  | HealthCheck | | BitmapIndex   | | BitmapIndex        |    |
 |  | Service     | | Builder       | | Reader             |    |
 |  +-------------+ +---------------+ +--------------------+    |
-|  +---------------+ +---------------+ +--------------------+    |
+|  +---------------+ +--------------------+                    |
 |  | GitLogParser  | | Streaming          |                    |
 |  |               | | BitmapIndexBuilder |                    |
 |  +---------------+ +--------------------+                    |
-+-------------------------------------------------------------+
++--------------------------------------------------------------+
 |                         Ports                                |
 |  +-------------------+ +---------------------------+         |
 |  | GraphPersistence  | | IndexStoragePort          |         |
@@ -76,7 +80,7 @@ This enables testing with mocks and flexible runtime configuration.
 |  +-------------------+ +---------------------------+         |
 |  | LoggerPort        | | ClockPort                 |         |
 |  +-------------------+ +---------------------------+         |
-+-------------------------------------------------------------+
++--------------------------------------------------------------+
 |                       Adapters                               |
 |  +-------------------+ +---------------------------+         |
 |  | GitGraphAdapter   | | ConsoleLogger             |         |
@@ -86,7 +90,7 @@ This enables testing with mocks and flexible runtime configuration.
 |  | PerformanceClock  |                                       |
 |  | GlobalClock       |                                       |
 |  +-------------------+                                       |
-+-------------------------------------------------------------+
++--------------------------------------------------------------+
 ```
 
 ## Directory Structure
@@ -137,6 +141,7 @@ src/
 ### Main API: WarpGraph
 
 The main entry point (`WarpGraph.js`) provides:
+
 - Direct graph database API
 - `open()` factory for managed mode with automatic durability
 - Batch API for efficient bulk writes
@@ -148,6 +153,7 @@ The main entry point (`WarpGraph.js`) provides:
 #### WarpGraph
 
 Core node operations:
+
 - `createNode()` - Create a single node
 - `createNodes()` - Bulk creation with placeholder references (`$0`, `$1`)
 - `readNode()` / `getNode()` - Retrieve node data
@@ -160,6 +166,7 @@ Message validation enforces size limits (default 1MB) and non-empty content.
 #### IndexRebuildService
 
 Orchestrates index creation:
+
 - **In-memory mode**: Fast, O(N) memory, single serialization pass
 - **Streaming mode**: Memory-bounded, flushes to storage periodically
 
@@ -168,6 +175,7 @@ Supports cancellation via `AbortSignal` and progress callbacks.
 #### TraversalService
 
 Graph algorithms using O(1) bitmap lookups:
+
 - `bfs()` / `dfs()` - Traversal generators
 - `ancestors()` / `descendants()` - Transitive closures
 - `findPath()` - Any path between nodes
@@ -179,6 +187,7 @@ Graph algorithms using O(1) bitmap lookups:
 - `commonAncestors()` - Find shared ancestors of multiple nodes
 
 All traversals support:
+
 - `maxNodes` / `maxDepth` limits
 - Cancellation via `AbortSignal`
 - Direction control (forward/reverse)
@@ -188,11 +197,13 @@ All traversals support:
 Roaring bitmap-based indexes for O(1) neighbor lookups:
 
 **Builder**:
+
 - `registerNode()` - Assign numeric ID to SHA
 - `addEdge()` - Record parent/child relationship
 - `serialize()` - Output sharded JSON structure
 
 **Reader**:
+
 - `setup()` - Configure with shard OID mappings
 - `getParents()` / `getChildren()` - O(1) lookups
 - Lazy loading with LRU cache for bounded memory
@@ -201,6 +212,7 @@ Roaring bitmap-based indexes for O(1) neighbor lookups:
 #### StreamingBitmapIndexBuilder
 
 Memory-bounded variant of BitmapIndexBuilder:
+
 - Flushes bitmap data to storage when threshold exceeded
 - SHA-to-ID mappings remain in memory (required for consistency)
 - Merges chunks at finalization via bitmap OR operations
@@ -210,6 +222,7 @@ Memory-bounded variant of BitmapIndexBuilder:
 #### GraphPersistencePort
 
 Git operations contract:
+
 - `commitNode()` - Create commit pointing to empty tree
 - `showNode()` / `getNodeInfo()` - Retrieve commit data
 - `logNodesStream()` - Stream commit history
@@ -223,6 +236,7 @@ Also includes blob/tree operations for index storage.
 #### IndexStoragePort
 
 Index persistence contract:
+
 - `writeBlob()` / `readBlob()` - Blob I/O
 - `writeTree()` / `readTreeOids()` - Tree I/O
 - `updateRef()` / `readRef()` - Index ref management
@@ -230,12 +244,14 @@ Index persistence contract:
 #### LoggerPort
 
 Structured logging contract:
+
 - `debug()`, `info()`, `warn()`, `error()` - Log levels
 - `child()` - Create scoped logger with inherited context
 
 #### ClockPort
 
 Timing abstraction:
+
 - `now()` - High-resolution timestamp (ms)
 - `timestamp()` - ISO 8601 wall-clock time
 
@@ -244,6 +260,7 @@ Timing abstraction:
 #### GitGraphAdapter
 
 Implements both `GraphPersistencePort` and `IndexStoragePort`:
+
 - Uses `@git-stunts/plumbing` for git command execution
 - Retry logic with exponential backoff for transient errors
 - Input validation to prevent command injection
@@ -302,11 +319,13 @@ SHA: 4b825dc642cb6eb9a060e54bf8d69288fbee4904
 This is the well-known SHA of an empty Git tree, automatically available in every repository.
 
 **How it works:**
+
 - **Data**: Stored in commit message (arbitrary payload up to 1MB default)
 - **Edges**: Commit parent relationships (directed, multi-parent supported)
 - **Identity**: Commit SHA (content-addressable)
 
 **Benefits:**
+
 - Introduces no files into the repository working tree
 - Content-addressable with automatic deduplication
 - Git's proven durability and integrity (SHA verification)
@@ -331,6 +350,7 @@ index-tree/
 ```
 
 **Shard envelope format:**
+
 ```json
 {
   "version": 2,
@@ -340,6 +360,7 @@ index-tree/
 ```
 
 **Meta shard content:**
+
 ```json
 {
   "00a1b2c3d4e5f6789...": 0,
@@ -348,6 +369,7 @@ index-tree/
 ```
 
 **Edge shard content:**
+
 ```json
 {
   "00a1b2c3d4e5f6789...": "OjAAAAEAAAAAAAEAEAAAABAAAA=="
@@ -369,12 +391,14 @@ Git garbage collection (GC) prunes commits that are not reachable from any ref. 
 ### Modes
 
 #### Managed Mode (Default)
+
 In managed mode, WarpGraph guarantees durability for all writes.
 - Every write operation updates the graph ref (or creates an anchor commit).
 - Reachability from the ref is maintained automatically.
 - Users do not need to manage refs or call sync manually.
 
 #### Manual Mode
+
 In manual mode, WarpGraph provides no automatic ref management.
 - Writes create commits but do not update refs.
 - User is responsible for calling `sync()` to persist reachability.
@@ -386,6 +410,7 @@ In manual mode, WarpGraph provides no automatic ref management.
 Anchor commits are the mechanism used to maintain reachability for disconnected graphs (e.g., disjoint roots or imported history).
 
 #### The Problem
+
 In a linear history, every new commit points to the previous tip, maintaining a single chain reachable from the ref. However, graph operations can create disconnected commits:
 - Creating a new root node (no parents).
 - Merging unrelated graph histories.
@@ -394,6 +419,7 @@ In a linear history, every new commit points to the previous tip, maintaining a 
 If the ref simply moves to the new commit, the old history becomes unreachable and will be GC'd.
 
 #### The Solution
+
 An anchor commit is a special infrastructure commit that:
 - Has multiple **parents**: The previous ref tip AND the new commit(s).
 - Has an **Empty Tree** (like all WarpGraph nodes).
@@ -444,6 +470,7 @@ However, anchors do impact **Materialization** (scanning Git history to build st
 ### Sync Algorithm (V7)
 
 In V7 Multi-Writer mode:
+
 1. Each writer maintains their own ref (`refs/.../writers/<id>`), pointing to a chain of **Patch Commits**.
 2. **Durability** is ensured because writes update these refs.
 3. **Global Reachability** (optional) is maintained via `syncCoverage()`, which creates an **Octopus Anchor** commit pointed to by `refs/.../coverage/head`. This anchor has all writer tips as parents, ensuring they aren't GC'd even if individual writer refs are deleted (e.g. during a clone).
@@ -495,6 +522,7 @@ for await (const node of graph.iterateNodes({
 ```
 
 Supported operations:
+
 - `iterateNodes()`
 - `rebuildIndex()`
 - All traversal methods (BFS, DFS, shortest path, etc.)
