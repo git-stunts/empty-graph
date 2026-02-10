@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **ASCII graph arrowheads missing**: `drawArrowhead` was silently dropping arrows when the ELK endpoint fell inside a node's bounding box. Now steps back one cell to place the arrowhead just outside the node border.
 - **Seek ASCII renderer**: Reworked swimlane dashboard with improved windowing, writer rows, tick receipt display, and op summary formatting.
+- **Seek ceiling via public API**: Replaced direct `graph._seekCeiling` mutation in `materializeOneGraph` and `handleSeek` with `graph.materialize({ ceiling })`, using the public option instead of poking at internals.
+- **Seek timeline missing currentTick**: When the active cursor referenced a tick absent from the discovered ticks array, the renderer fell back to index 0 and never showed the current tick marker. Now inserts the cursor tick at the correct sorted position so the window always centres on it.
+- **Docs `--tick` signed-value syntax**: Updated GUIDE.md, README.md, and CHANGELOG examples to use `--tick=+N`/`--tick=-N` (equals form) for signed relative values, matching BATS tests and avoiding CLI parser ambiguity.
 
 ### Changed
 
@@ -31,7 +34,7 @@ Adds cursor-based time travel for exploring graph history. Navigate to any Lampo
 
 - **`git warp seek` command**: Step through graph history by Lamport tick.
   - `seek --tick N` — position cursor at absolute tick N.
-  - `seek --tick +N` / `seek --tick -N` — step forward/backward relative to current position.
+  - `seek --tick=+N` / `seek --tick=-N` — step forward/backward relative to current position.
   - `seek --latest` — clear cursor and return to the present (latest state).
   - `seek --save NAME` / `seek --load NAME` — save and restore named cursor bookmarks.
   - `seek --list` — list all saved cursors.

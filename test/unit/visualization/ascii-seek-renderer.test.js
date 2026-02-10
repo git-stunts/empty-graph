@@ -255,8 +255,14 @@ describe('renderSeekView', () => {
       edges: 2,
       patchCount: 2,
       tickReceipt: {
-        alice: { NodeAdd: 1, EdgeAdd: 2, PropSet: 0, NodeTombstone: 0, EdgeTombstone: 0, BlobValue: 0 },
-        bob: { NodeAdd: 0, EdgeAdd: 0, PropSet: 2, NodeTombstone: 0, EdgeTombstone: 0, BlobValue: 0 },
+        alice: {
+          sha: 'deadbeefaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+          opSummary: { NodeAdd: 1, EdgeAdd: 2, PropSet: 0, NodeTombstone: 0, EdgeTombstone: 0, BlobValue: 0 },
+        },
+        bob: {
+          sha: 'cafebabeaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+          opSummary: { NodeAdd: 0, EdgeAdd: 0, PropSet: 2, NodeTombstone: 0, EdgeTombstone: 0, BlobValue: 0 },
+        },
       },
       perWriter: {
         alice: { ticks: [1, 2], tipSha: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' },
@@ -266,8 +272,56 @@ describe('renderSeekView', () => {
 
     const output = stripAnsi(renderSeekView(payload));
     expect(output).toContain('Tick 1:');
+    expect(output).toContain('deadbee');
+    expect(output).toContain('cafebab');
     expect(output).toContain('+1node');
     expect(output).toContain('+2edge');
     expect(output).toContain('~2prop');
+  });
+
+  it('shows current tick marker when tick is not in ticks array', () => {
+    // Edge case: cursor references a tick that is absent from ticks
+    // (e.g. saved cursor after writer refs changed). The renderer must
+    // still show [5] in the header, not fall back to [0].
+    const payload = {
+      graph: 'orphan',
+      tick: 5,
+      maxTick: 10,
+      ticks: [1, 2, 3, 4, 6, 7, 8, 9, 10],
+      nodes: 3,
+      edges: 1,
+      patchCount: 2,
+      perWriter: {
+        alice: { ticks: [1, 3, 6, 9], tipSha: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' },
+      },
+    };
+
+    const output = stripAnsi(renderSeekView(payload));
+
+    // The current tick should appear as [5] in the header
+    expect(output).toContain('[5]');
+    // Should NOT show [0] as current tick
+    expect(output).not.toMatch(/\[0\]/);
+  });
+
+  it('shows current tick marker when many ticks exceed window and tick is missing', () => {
+    // More than MAX_COLS (9) ticks, and currentTick is absent from array
+    const payload = {
+      graph: 'big',
+      tick: 7,
+      maxTick: 20,
+      ticks: [1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
+      nodes: 10,
+      edges: 5,
+      patchCount: 8,
+      perWriter: {
+        alice: { ticks: [1, 5, 10, 15, 20], tipSha: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' },
+      },
+    };
+
+    const output = stripAnsi(renderSeekView(payload));
+
+    // The current tick 7 should appear as [7] in the header
+    expect(output).toContain('[7]');
   });
 });

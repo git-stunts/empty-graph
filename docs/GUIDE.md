@@ -917,9 +917,9 @@ The `seek` command lets you navigate through graph history by Lamport tick. When
 # Jump to an absolute tick
 git warp seek --tick 3
 
-# Step forward/backward relative to current position
-git warp seek --tick +1
-git warp seek --tick -1
+# Step forward/backward relative to current position (use = for signed values)
+git warp seek --tick=+1
+git warp seek --tick=-1
 
 # Return to the present (clears the cursor)
 git warp seek --latest

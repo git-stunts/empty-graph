@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
@@ -1310,10 +1311,7 @@ async function handleHistory({ options, args }) {
  */
 async function materializeOneGraph({ persistence, graphName, writerId, ceiling }) {
   const graph = await WarpGraph.open({ persistence, graphName, writerId, crypto: new NodeCryptoAdapter() });
-  if (ceiling !== undefined) {
-    graph._seekCeiling = ceiling;
-  }
-  await graph.materialize();
+  await graph.materialize(ceiling !== undefined ? { ceiling } : undefined);
   const nodes = await graph.getNodes();
   const edges = await graph.getEdges();
   const checkpoint = ceiling !== undefined ? null : await graph.createCheckpoint();
@@ -1911,6 +1909,7 @@ async function handleSeek({ options, args }) {
   const { graph, graphName, persistence } = await openGraph(options);
   const activeCursor = await readActiveCursor(persistence, graphName);
   const { ticks, maxTick, perWriter } = await graph.discoverTicks();
+  const frontierHash = computeFrontierHash(perWriter);
   if (seekSpec.action === 'list') {
     const saved = await listSavedCursors(persistence, graphName);
     return {
@@ -1945,7 +1944,7 @@ async function handleSeek({ options, args }) {
     await graph.materialize();
     const nodes = await graph.getNodes();
     const edges = await graph.getEdges();
-    const diff = computeSeekStateDiff(activeCursor, { nodes: nodes.length, edges: edges.length });
+    const diff = computeSeekStateDiff(activeCursor, { nodes: nodes.length, edges: edges.length }, frontierHash);
     const tickReceipt = await buildTickReceipt({ tick: maxTick, perWriter, graph });
     return {
       payload: {
@@ -1985,18 +1984,11 @@ async function handleSeek({ options, args }) {
     if (!saved) {
       throw notFoundError(`Saved cursor not found: ${seekSpec.name}`);
     }
-    graph._seekCeiling = saved.tick;
-    await graph.materialize();
+    await graph.materialize({ ceiling: saved.tick });
     const nodes = await graph.getNodes();
     const edges = await graph.getEdges();
-    const nextCursor = {
-      tick: saved.tick,
-      mode: saved.mode ?? 'lamport',
-      nodes: nodes.length,
-      edges: edges.length,
-    };
-    await writeActiveCursor(persistence, graphName, nextCursor);
-    const diff = computeSeekStateDiff(activeCursor, { nodes: nodes.length, edges: edges.length });
+    await writeActiveCursor(persistence, graphName, { tick: saved.tick, mode: saved.mode ?? 'lamport', nodes: nodes.length, edges: edges.length, frontierHash });
+    const diff = computeSeekStateDiff(activeCursor, { nodes: nodes.length, edges: edges.length }, frontierHash);
     const tickReceipt = await buildTickReceipt({ tick: saved.tick, perWriter, graph });
     return {
       payload: {
@@ -2020,13 +2012,11 @@ async function handleSeek({ options, args }) {
   if (seekSpec.action === 'tick') {
     const currentTick = activeCursor ? activeCursor.tick : null;
     const resolvedTick = resolveTickValue(seekSpec.tickValue, currentTick, ticks, maxTick);
-    graph._seekCeiling = resolvedTick;
-    await graph.materialize();
+    await graph.materialize({ ceiling: resolvedTick });
     const nodes = await graph.getNodes();
     const edges = await graph.getEdges();
-    const cursor = { tick: resolvedTick, mode: 'lamport', nodes: nodes.length, edges: edges.length };
-    await writeActiveCursor(persistence, graphName, cursor);
-    const diff = computeSeekStateDiff(activeCursor, { nodes: nodes.length, edges: edges.length });
+    await writeActiveCursor(persistence, graphName, { tick: resolvedTick, mode: 'lamport', nodes: nodes.length, edges: edges.length, frontierHash });
+    const diff = computeSeekStateDiff(activeCursor, { nodes: nodes.length, edges: edges.length }, frontierHash);
     const tickReceipt = await buildTickReceipt({ tick: resolvedTick, perWriter, graph });
     return {
       payload: {
@@ -2049,21 +2039,15 @@ async function handleSeek({ options, args }) {
 
   // status (bare seek)
   if (activeCursor) {
-    graph._seekCeiling = activeCursor.tick;
-    await graph.materialize();
+    await graph.materialize({ ceiling: activeCursor.tick });
     const nodes = await graph.getNodes();
     const edges = await graph.getEdges();
     const prevCounts = readSeekCounts(activeCursor);
-    if (prevCounts.nodes === null || prevCounts.edges === null || prevCounts.nodes !== nodes.length || prevCounts.edges !== edges.length) {
-      const nextCursor = {
-        tick: activeCursor.tick,
-        mode: activeCursor.mode ?? 'lamport',
-        nodes: nodes.length,
-        edges: edges.length,
-      };
-      await writeActiveCursor(persistence, graphName, nextCursor);
+    const prevFrontierHash = typeof activeCursor.frontierHash === 'string' ? activeCursor.frontierHash : null;
+    if (prevCounts.nodes === null || prevCounts.edges === null || prevCounts.nodes !== nodes.length || prevCounts.edges !== edges.length || prevFrontierHash !== frontierHash) {
+      await writeActiveCursor(persistence, graphName, { tick: activeCursor.tick, mode: activeCursor.mode ?? 'lamport', nodes: nodes.length, edges: edges.length, frontierHash });
     }
-    const diff = computeSeekStateDiff(activeCursor, { nodes: nodes.length, edges: edges.length });
+    const diff = computeSeekStateDiff(activeCursor, { nodes: nodes.length, edges: edges.length }, frontierHash);
     const tickReceipt = await buildTickReceipt({ tick: activeCursor.tick, perWriter, graph });
     return {
       payload: {
@@ -2142,6 +2126,24 @@ function countPatchesAtTick(tick, perWriter) {
 }
 
 /**
+ * Computes a stable fingerprint of the current graph frontier (writer tips).
+ *
+ * Used to suppress seek diffs when graph history may have changed since the
+ * previous cursor snapshot (e.g. new writers/patches, rewritten refs).
+ *
+ * @private
+ * @param {Map<string, {tipSha: string|null}>} perWriter - Per-writer metadata from discoverTicks()
+ * @returns {string} Hex digest of the frontier fingerprint
+ */
+function computeFrontierHash(perWriter) {
+  const tips = {};
+  for (const [writerId, info] of perWriter) {
+    tips[writerId] = info?.tipSha || null;
+  }
+  return crypto.createHash('sha256').update(stableStringify(tips)).digest('hex');
+}
+
+/**
  * Reads cached seek state counts from a cursor blob.
  *
  * Counts may be missing for older cursors (pre-diff support). In that case
@@ -2169,11 +2171,16 @@ function readSeekCounts(cursor) {
  * @private
  * @param {Object|null} prevCursor - Cursor object read before updating the position
  * @param {{nodes: number, edges: number}} next - Current materialized counts
+ * @param {string} frontierHash - Frontier fingerprint of the current graph
  * @returns {{nodes: number, edges: number}|null} Diff object or null when unknown
  */
-function computeSeekStateDiff(prevCursor, next) {
+function computeSeekStateDiff(prevCursor, next, frontierHash) {
   const prev = readSeekCounts(prevCursor);
   if (prev.nodes === null || prev.edges === null) {
+    return null;
+  }
+  const prevFrontierHash = typeof prevCursor?.frontierHash === 'string' ? prevCursor.frontierHash : null;
+  if (!prevFrontierHash || prevFrontierHash !== frontierHash) {
     return null;
   }
   return {
@@ -2194,7 +2201,7 @@ function computeSeekStateDiff(prevCursor, next) {
  * @param {number} params.tick - Lamport tick to summarize
  * @param {Map<string, {tickShas?: Object}>} params.perWriter - Per-writer tick metadata from discoverTicks()
  * @param {Object} params.graph - WarpGraph instance
- * @returns {Promise<Object<string, Object>|null>} Map of writerId → opSummary, or null if empty
+ * @returns {Promise<Object<string, Object>|null>} Map of writerId → { sha, opSummary }, or null if empty
  */
 async function buildTickReceipt({ tick, perWriter, graph }) {
   if (!Number.isInteger(tick) || tick <= 0) {
@@ -2211,7 +2218,7 @@ async function buildTickReceipt({ tick, perWriter, graph }) {
 
     const patch = await graph.loadPatchBySha(sha);
     const ops = Array.isArray(patch?.ops) ? patch.ops : [];
-    receipt[writerId] = summarizeOps(ops);
+    receipt[writerId] = { sha, opSummary: summarizeOps(ops) };
   }
 
   return Object.keys(receipt).length > 0 ? receipt : null;
@@ -2262,7 +2269,7 @@ function renderSeek(payload) {
     }
 
     const entries = Object.entries(tickReceipt)
-      .filter(([writerId, summary]) => writerId && summary && typeof summary === 'object')
+      .filter(([writerId, entry]) => writerId && entry && typeof entry === 'object')
       .sort(([a], [b]) => a.localeCompare(b));
 
     if (entries.length === 0) {
@@ -2271,8 +2278,10 @@ function renderSeek(payload) {
 
     const maxWriterLen = Math.max(5, ...entries.map(([writerId]) => writerId.length));
     const receiptLines = [`  Tick ${payload.tick}:`];
-    for (const [writerId, summary] of entries) {
-      receiptLines.push(`    ${writerId.padEnd(maxWriterLen)}  ${formatOpSummaryPlain(summary)}`);
+    for (const [writerId, entry] of entries) {
+      const sha = typeof entry.sha === 'string' ? entry.sha.slice(0, 7) : '';
+      const opSummary = entry.opSummary && typeof entry.opSummary === 'object' ? entry.opSummary : entry;
+      receiptLines.push(`    ${writerId.padEnd(maxWriterLen)}  ${sha.padEnd(7)}  ${formatOpSummaryPlain(opSummary)}`);
     }
 
     return `${baseLine}\n${receiptLines.join('\n')}\n`;

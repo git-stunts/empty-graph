@@ -409,8 +409,8 @@ git warp check
 
 # Time-travel: step through graph history
 git warp seek --tick 3                  # jump to Lamport tick 3
-git warp seek --tick +1                 # step forward one tick
-git warp seek --tick -1                 # step backward one tick
+git warp seek --tick=+1                 # step forward one tick
+git warp seek --tick=-1                 # step backward one tick
 git warp seek --save before-refactor    # bookmark current position
 git warp seek --load before-refactor    # restore bookmark
 git warp seek --latest                  # return to present

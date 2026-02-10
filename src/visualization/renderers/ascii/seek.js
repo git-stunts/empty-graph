@@ -48,13 +48,16 @@ function buildReceiptLines(tickReceipt) {
   }
 
   const entries = Object.entries(tickReceipt)
-    .filter(([writerId, summary]) => writerId && summary && typeof summary === 'object')
+    .filter(([writerId, entry]) => writerId && entry && typeof entry === 'object')
     .sort(([a], [b]) => a.localeCompare(b));
 
   const lines = [];
-  for (const [writerId, summary] of entries) {
+  for (const [writerId, entry] of entries) {
+    const sha = typeof entry.sha === 'string' ? entry.sha : null;
+    const opSummary = entry.opSummary && typeof entry.opSummary === 'object' ? entry.opSummary : entry;
     const name = padRight(formatWriterName(writerId, NAME_W), NAME_W);
-    lines.push(`    ${name}  ${formatOpSummary(summary, 40)}`);
+    const shaStr = sha ? `  ${formatSha(sha)}` : '';
+    lines.push(`    ${name}${shaStr}  ${formatOpSummary(opSummary, 40)}`);
   }
 
   return lines;
@@ -225,6 +228,31 @@ function buildWriterSwimRow({ writerId, writerInfo, win, currentTick }) {
 // ============================================================================
 
 /**
+ * Builds the tick-position array and index of the current tick.
+ *
+ * Ensures the current tick is always present: if `tick` is absent from
+ * `ticks` (e.g. saved cursor after writer refs changed), it is inserted
+ * at the correct sorted position so the window always centres on it.
+ *
+ * @param {number[]} ticks - Discovered Lamport ticks
+ * @param {number} tick - Current cursor tick
+ * @returns {{ allPoints: number[], currentIdx: number }}
+ */
+function buildTickPoints(ticks, tick) {
+  const allPoints = (ticks[0] === 0) ? [...ticks] : [0, ...ticks];
+  let currentIdx = allPoints.indexOf(tick);
+  if (currentIdx === -1) {
+    let ins = allPoints.findIndex((t) => t > tick);
+    if (ins === -1) {
+      ins = allPoints.length;
+    }
+    allPoints.splice(ins, 0, tick);
+    currentIdx = ins;
+  }
+  return { allPoints, currentIdx };
+}
+
+/**
  * Builds the body lines for the seek dashboard.
  *
  * @param {Object} payload - Seek payload from the CLI handler
@@ -242,9 +270,8 @@ function buildSeekBodyLines(payload) {
   if (ticks.length === 0) {
     lines.push(`  ${colors.muted('(no ticks)')}`);
   } else {
-    const allPoints = (ticks[0] === 0) ? [...ticks] : [0, ...ticks];
-    const currentIdx = allPoints.indexOf(tick);
-    const win = computeWindow(allPoints, currentIdx === -1 ? 0 : currentIdx);
+    const { allPoints, currentIdx } = buildTickPoints(ticks, tick);
+    const win = computeWindow(allPoints, currentIdx);
 
     // Column headers with relative offsets
     lines.push(buildHeaderRow(win));
