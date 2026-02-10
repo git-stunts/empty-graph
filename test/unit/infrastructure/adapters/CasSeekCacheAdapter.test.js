@@ -198,6 +198,33 @@ describe('CasSeekCacheAdapter', () => {
       expect(mockRestore).toHaveBeenCalledWith({ manifest });
     });
 
+    it('updates lastAccessedAt on successful cache hit', async () => {
+      const treeOid = 'tree-oid-abc';
+      const manifest = { chunks: ['c1'] };
+      const stateBuffer = Buffer.from('restored-state');
+      const originalEntry = {
+        treeOid,
+        createdAt: '2025-01-01T00:00:00Z',
+      };
+
+      persistence.readRef.mockResolvedValue('index-oid');
+      persistence.readBlob.mockResolvedValue(
+        indexBuffer({ [SAMPLE_KEY]: originalEntry })
+      );
+      mockReadManifest.mockResolvedValue(manifest);
+      mockRestore.mockResolvedValue({ buffer: stateBuffer });
+
+      await adapter.get(SAMPLE_KEY);
+
+      // Verify index was written back with lastAccessedAt
+      expect(persistence.writeBlob).toHaveBeenCalled();
+      const writtenJson = JSON.parse(
+        persistence.writeBlob.mock.calls[0][0].toString('utf8')
+      );
+      expect(writtenJson.entries[SAMPLE_KEY].lastAccessedAt).toBeDefined();
+      expect(writtenJson.entries[SAMPLE_KEY].createdAt).toBe('2025-01-01T00:00:00Z');
+    });
+
     it('self-heals on corrupted/GC-d blob by removing the dead entry', async () => {
       const treeOid = 'dead-tree-oid';
 
@@ -486,6 +513,42 @@ describe('CasSeekCacheAdapter', () => {
 
       const result = smallAdapter._enforceMaxEntries(index);
       expect(Object.keys(result.entries)).toHaveLength(3);
+    });
+
+    it('prefers lastAccessedAt over createdAt for LRU ordering', () => {
+      const smallAdapter = new CasSeekCacheAdapter({
+        persistence,
+        plumbing,
+        graphName: GRAPH_NAME,
+        maxEntries: 2,
+      });
+
+      const index = {
+        schemaVersion: 1,
+        entries: {
+          // Oldest by creation but recently accessed
+          'v1:t1-old-but-used': {
+            createdAt: '2025-01-01T00:00:00Z',
+            lastAccessedAt: '2025-01-10T00:00:00Z',
+          },
+          // Newer by creation but never accessed since
+          'v1:t2-new-unused': {
+            createdAt: '2025-01-05T00:00:00Z',
+          },
+          // Newest by creation, not accessed
+          'v1:t3-newest': {
+            createdAt: '2025-01-06T00:00:00Z',
+          },
+        },
+      };
+
+      const result = smallAdapter._enforceMaxEntries(index);
+      const remaining = Object.keys(result.entries);
+      expect(remaining).toHaveLength(2);
+      // The old-but-recently-used entry should survive (LRU)
+      expect(remaining).toContain('v1:t1-old-but-used');
+      expect(remaining).toContain('v1:t3-newest');
+      expect(remaining).not.toContain('v1:t2-new-unused');
     });
 
     it('handles entries with missing createdAt gracefully', () => {

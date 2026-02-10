@@ -33,6 +33,7 @@ const MAX_CAS_RETRIES = 3;
  * @property {number} sizeBytes - Serialized state size in bytes
  * @property {string} codec - Codec identifier (e.g. 'cbor-v1')
  * @property {number} schemaVersion - Index entry schema version
+ * @property {string} [lastAccessedAt] - ISO 8601 timestamp of last read (for LRU eviction)
  */
 
 /**
@@ -163,10 +164,12 @@ export default class CasSeekCacheAdapter extends SeekCachePort {
     if (keys.length <= this._maxEntries) {
       return index;
     }
-    // Sort by createdAt ascending, evict oldest
+    // Sort by last access (or creation) ascending — evict least recently used
     const sorted = keys.sort((a, b) => {
-      const ta = index.entries[a].createdAt || '';
-      const tb = index.entries[b].createdAt || '';
+      const ea = index.entries[a];
+      const eb = index.entries[b];
+      const ta = ea.lastAccessedAt || ea.createdAt || '';
+      const tb = eb.lastAccessedAt || eb.createdAt || '';
       return ta < tb ? -1 : ta > tb ? 1 : 0;
     });
     const toEvict = sorted.slice(0, keys.length - this._maxEntries);
@@ -207,6 +210,13 @@ export default class CasSeekCacheAdapter extends SeekCachePort {
     try {
       const manifest = await cas.readManifest({ treeOid: entry.treeOid });
       const { buffer } = await cas.restore({ manifest });
+      // Update lastAccessedAt for LRU eviction ordering
+      await this._mutateIndex((idx) => {
+        if (idx.entries[key]) {
+          idx.entries[key].lastAccessedAt = new Date().toISOString();
+        }
+        return idx;
+      });
       return buffer;
     } catch {
       // Blob GC'd or corrupted — self-heal by removing dead entry
