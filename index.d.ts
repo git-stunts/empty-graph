@@ -1490,8 +1490,8 @@ export default class WarpGraph {
   /** Returns the attached seek cache, or null if none is set. */
   readonly seekCache: SeekCachePort | null;
 
-  /** Attaches a persistent seek cache after construction. */
-  setSeekCache(cache: SeekCachePort): void;
+  /** Attaches (or detaches, with null) a persistent seek cache. */
+  setSeekCache(cache: SeekCachePort | null): void;
 
   /**
    * Creates a new patch for adding operations.

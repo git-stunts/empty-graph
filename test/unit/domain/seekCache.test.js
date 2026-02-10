@@ -347,4 +347,53 @@ describe('WarpGraph seek cache integration', () => {
     expect(state).toBeDefined();
     expect(graph._seekCache).toBeNull();
   });
+
+  it('setSeekCache(null) detaches the cache', async () => {
+    setupPersistence(persistence, { w1: 3 });
+    const graph = await WarpGraph.open({
+      persistence,
+      graphName: 'test',
+      writerId: 'w1',
+      seekCache,
+    });
+
+    expect(graph.seekCache).toBe(seekCache);
+    graph.setSeekCache(null);
+    expect(graph.seekCache).toBeNull();
+
+    // Materialize should still work without cache
+    const state = await graph.materialize({ ceiling: 2 });
+    expect(state).toBeDefined();
+    expect(seekCache.get).not.toHaveBeenCalled();
+    expect(seekCache.set).not.toHaveBeenCalled();
+  });
+
+  it('deletes corrupted cache entry on deserialize failure', async () => {
+    setupPersistence(persistence, { w1: 3 });
+    const graph = await WarpGraph.open({
+      persistence,
+      graphName: 'test',
+      writerId: 'w1',
+      seekCache,
+    });
+
+    // First materialize populates cache
+    await graph.materialize({ ceiling: 2 });
+    expect(seekCache.set).toHaveBeenCalledTimes(1);
+    const [cacheKey] = seekCache.set.mock.calls[0];
+
+    // Corrupt the cached data
+    seekCache._store.set(cacheKey, Buffer.from('corrupted-data'));
+
+    // Clear in-memory cache
+    graph._cachedState = null;
+    graph._cachedCeiling = null;
+    graph._cachedFrontier = null;
+
+    // Second materialize should self-heal: delete bad entry and re-materialize
+    const state = await graph.materialize({ ceiling: 2 });
+    expect(state).toBeDefined();
+    expect(state.nodeAlive).toBeDefined();
+    expect(seekCache.delete).toHaveBeenCalledWith(cacheKey);
+  });
 });
