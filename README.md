@@ -423,6 +423,10 @@ All commands accept `--repo <path>` to target a specific Git repository, `--json
 
 When a seek cursor is active, `query`, `info`, `materialize`, and `history` automatically show state at the selected tick.
 
+<p align="center">
+  <img src="docs/seek-demo.gif" alt="git warp seek time-travel demo" width="600">
+</p>
+
 ## Architecture
 
 The codebase follows hexagonal architecture with ports and adapters:

@@ -2439,3 +2439,15 @@ Things this project should not try to become:
 | ECHO | 3 | 3 | 17 | ~820 |
 | BULKHEAD | 5 | 15 | 49 | ~2,580 |
 | **Total** | **40** | **67** | **230** | **~11,510** |
+
+---
+
+## Backlog
+
+Ideas that don't yet have milestone homes. No estimates, no ordering — just a
+parking lot so they aren't forgotten.
+
+| Idea | Description |
+|------|-------------|
+| **Structural seek diff** | Full `diffStates()` between arbitrary ticks returning added/removed nodes, edges, and properties — not just count deltas. Would power a `--diff` flag on `git warp seek` showing exactly what changed at each tick. |
+| **git-cas materialization cache** | Cache `WarpStateV5` at each visited ceiling tick as content-addressed blobs via `@git-stunts/git-cas`, enabling O(1) restoration for previously-visited ticks during seek exploration. Blobs naturally GC unless pinned to a vault. |

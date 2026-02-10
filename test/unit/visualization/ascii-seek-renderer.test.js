@@ -48,6 +48,8 @@ describe('renderSeekView', () => {
 
     expect(output).toContain('POSITION: tick 0 of 3');
     expect(output).toContain('0 nodes, 0 edges');
+    // Current tick shown as [0] in header
+    expect(output).toContain('[0]');
   });
 
   it('renders seek at latest tick', () => {
@@ -68,6 +70,7 @@ describe('renderSeekView', () => {
 
     expect(output).toContain('POSITION: tick 5 of 5');
     expect(output).toContain('100 nodes, 200 edges');
+    expect(output).toContain('[5]');
   });
 
   it('renders with single writer', () => {
@@ -89,6 +92,7 @@ describe('renderSeekView', () => {
     expect(output).toContain('GRAPH: solo');
     expect(output).toContain('alice');
     expect(output).toContain('5 nodes, 3 edges');
+    expect(output).toContain('[2]');
   });
 
   it('handles empty graph (no ticks)', () => {
@@ -107,6 +111,7 @@ describe('renderSeekView', () => {
 
     expect(output).toContain('POSITION: tick 0 of 0');
     expect(output).toContain('0 nodes, 0 edges');
+    expect(output).toContain('(no ticks)');
   });
 
   it('renders singular labels for 1 node, 1 edge, 1 patch', () => {
@@ -159,60 +164,110 @@ describe('renderSeekView', () => {
       nodes: 0,
       edges: 0,
       patchCount: 0,
-      perWriter: {},
-    };
-
-    const output = stripAnsi(renderSeekView(payload));
-
-    // The timeline should have exactly 3 dots (0, 1, 2) — not 4 (0, 0, 1, 2)
-    // Extract the timeline line (first line of the timeline block)
-    const lines = output.split('\n');
-    // Count circle/dot characters (● = \u25CF or similar, ○ = \u25CB)
-    const timelineLine = lines.find((l) => /[●○\u25CB\u25CF]/.test(l));
-    if (timelineLine) {
-      const dotCount = (timelineLine.match(/[●○\u25CB\u25CF]/g) || []).length;
-      expect(dotCount).toBe(3);
-    }
-  });
-
-  it('multi-digit tick labels stay aligned under their dots', () => {
-    const payload = {
-      graph: 'align',
-      tick: 10,
-      maxTick: 100,
-      ticks: [10, 50, 100],
-      nodes: 5,
-      edges: 3,
-      patchCount: 3,
       perWriter: {
-        alice: { ticks: [10, 50, 100], tipSha: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' },
+        alice: { ticks: [1, 2], tipSha: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' },
       },
     };
 
     const output = stripAnsi(renderSeekView(payload));
-    const lines = output.split('\n');
 
-    // Find the timeline and labels lines
-    const timelineIdx = lines.findIndex((l) => /[●○\u25CB\u25CF]/.test(l));
-    if (timelineIdx >= 0) {
-      const tl = lines[timelineIdx];
-      const lb = lines[timelineIdx + 1];
+    // [0] should appear exactly once in the header (no duplicate column)
+    const matches = output.match(/\[0\]/g) || [];
+    expect(matches.length).toBe(1);
+  });
 
-      // Each dot in the timeline should have its tick label starting
-      // at the same character position in the labels line.
-      // Find positions of dots in the timeline
-      const dotPositions = [];
-      for (let c = 0; c < tl.length; c++) {
-        if (/[●○\u25CB\u25CF]/.test(tl[c])) {
-          dotPositions.push(c);
-        }
-      }
+  it('shows relative offsets in column headers', () => {
+    const payload = {
+      graph: 'offsets',
+      tick: 2,
+      maxTick: 4,
+      ticks: [1, 2, 3, 4],
+      nodes: 5,
+      edges: 3,
+      patchCount: 3,
+      perWriter: {
+        alice: { ticks: [1, 2, 3, 4], tipSha: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' },
+      },
+    };
 
-      // For each dot position, the label line should have the start of a number
-      for (const pos of dotPositions) {
-        const ch = lb[pos];
-        expect(ch).toMatch(/[0-9]/);
-      }
-    }
+    const output = stripAnsi(renderSeekView(payload));
+
+    // Header should contain relative labels and the current tick
+    expect(output).toContain('[2]');
+    expect(output).toContain('-1');
+    expect(output).toContain('+1');
+    expect(output).toContain('+2');
+  });
+
+  it('shows included markers (filled) and excluded markers (open)', () => {
+    const payload = {
+      graph: 'markers',
+      tick: 1,
+      maxTick: 2,
+      ticks: [1, 2],
+      nodes: 5,
+      edges: 3,
+      patchCount: 2,
+      perWriter: {
+        alice: {
+          ticks: [1, 2],
+          tipSha: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+          tickShas: { 1: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', 2: 'cccccccccccccccccccccccccccccccccccccccc' },
+        },
+      },
+    };
+
+    const output = stripAnsi(renderSeekView(payload));
+
+    // Should contain filled dot (●) for included patch and open circle (○) for excluded
+    expect(output).toContain('\u25CF'); // ●
+    expect(output).toContain('\u25CB'); // ○
+    // SHA should be from tick 1 (the included tick), not the tip
+    expect(output).toContain('bbbbbbb');
+  });
+
+  it('renders state deltas when diff is provided', () => {
+    const payload = {
+      graph: 'delta',
+      tick: 2,
+      maxTick: 4,
+      ticks: [1, 2, 3, 4],
+      nodes: 10,
+      edges: 15,
+      patchCount: 6,
+      diff: { nodes: 1, edges: 3 },
+      perWriter: {
+        alice: { ticks: [1, 2, 3, 4], tipSha: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' },
+      },
+    };
+
+    const output = stripAnsi(renderSeekView(payload));
+    expect(output).toContain('State: 10 nodes (+1), 15 edges (+3), 6 patches');
+  });
+
+  it('renders a per-writer tick receipt section when tickReceipt is provided', () => {
+    const payload = {
+      graph: 'receipt',
+      tick: 1,
+      maxTick: 2,
+      ticks: [1, 2],
+      nodes: 3,
+      edges: 2,
+      patchCount: 2,
+      tickReceipt: {
+        alice: { NodeAdd: 1, EdgeAdd: 2, PropSet: 0, NodeTombstone: 0, EdgeTombstone: 0, BlobValue: 0 },
+        bob: { NodeAdd: 0, EdgeAdd: 0, PropSet: 2, NodeTombstone: 0, EdgeTombstone: 0, BlobValue: 0 },
+      },
+      perWriter: {
+        alice: { ticks: [1, 2], tipSha: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' },
+        bob: { ticks: [1], tipSha: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' },
+      },
+    };
+
+    const output = stripAnsi(renderSeekView(payload));
+    expect(output).toContain('Tick 1:');
+    expect(output).toContain('+1node');
+    expect(output).toContain('+2edge');
+    expect(output).toContain('~2prop');
   });
 });

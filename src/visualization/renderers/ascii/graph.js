@@ -220,6 +220,8 @@ function drawArrowhead(grid, section, nodeSet) {
   const pc = toCol(prev.x);
 
   let arrow;
+  let ar = er;
+  let ac = ec;
   if (er > pr) {
     arrow = ARROW.down;
   } else if (er < pr) {
@@ -230,8 +232,21 @@ function drawArrowhead(grid, section, nodeSet) {
     arrow = ARROW.left;
   }
 
-  if (!isNodeCell(nodeSet, er, ec)) {
-    writeChar(grid, er, ec, arrow);
+  // If the endpoint is inside a node box, step back one cell into free space
+  if (isNodeCell(nodeSet, ar, ac)) {
+    if (er > pr) {
+      ar = er - 1;
+    } else if (er < pr) {
+      ar = er + 1;
+    } else if (ec > pc) {
+      ac = ec - 1;
+    } else {
+      ac = ec + 1;
+    }
+  }
+
+  if (!isNodeCell(nodeSet, ar, ac)) {
+    writeChar(grid, ar, ac, arrow);
   }
 }
 

@@ -1604,6 +1604,15 @@ function getHookStatusForCheck(repoPath) {
 // Cursor I/O Helpers
 // ============================================================================
 
+/**
+ * Reads the active seek cursor for a graph from Git ref storage.
+ *
+ * @private
+ * @param {Object} persistence - GraphPersistencePort adapter
+ * @param {string} graphName - Name of the WARP graph
+ * @returns {Promise<{tick: number, mode?: string}|null>} Cursor object, or null if no active cursor
+ * @throws {Error} If the stored blob is corrupted or not valid JSON
+ */
 async function readActiveCursor(persistence, graphName) {
   const ref = buildCursorActiveRef(graphName);
   const oid = await persistence.readRef(ref);
@@ -1614,6 +1623,18 @@ async function readActiveCursor(persistence, graphName) {
   return parseCursorBlob(buf, 'active cursor');
 }
 
+/**
+ * Writes (creates or overwrites) the active seek cursor for a graph.
+ *
+ * Serializes the cursor as JSON, stores it as a Git blob, and points
+ * the active cursor ref at that blob.
+ *
+ * @private
+ * @param {Object} persistence - GraphPersistencePort adapter
+ * @param {string} graphName - Name of the WARP graph
+ * @param {{tick: number, mode?: string}} cursor - Cursor state to persist
+ * @returns {Promise<void>}
+ */
 async function writeActiveCursor(persistence, graphName, cursor) {
   const ref = buildCursorActiveRef(graphName);
   const json = JSON.stringify(cursor);
@@ -1621,6 +1642,16 @@ async function writeActiveCursor(persistence, graphName, cursor) {
   await persistence.updateRef(ref, oid);
 }
 
+/**
+ * Removes the active seek cursor for a graph, returning to present state.
+ *
+ * No-op if no active cursor exists.
+ *
+ * @private
+ * @param {Object} persistence - GraphPersistencePort adapter
+ * @param {string} graphName - Name of the WARP graph
+ * @returns {Promise<void>}
+ */
 async function clearActiveCursor(persistence, graphName) {
   const ref = buildCursorActiveRef(graphName);
   const exists = await persistence.readRef(ref);
@@ -1629,6 +1660,16 @@ async function clearActiveCursor(persistence, graphName) {
   }
 }
 
+/**
+ * Reads a named saved cursor from Git ref storage.
+ *
+ * @private
+ * @param {Object} persistence - GraphPersistencePort adapter
+ * @param {string} graphName - Name of the WARP graph
+ * @param {string} name - Saved cursor name
+ * @returns {Promise<{tick: number, mode?: string}|null>} Cursor object, or null if not found
+ * @throws {Error} If the stored blob is corrupted or not valid JSON
+ */
 async function readSavedCursor(persistence, graphName, name) {
   const ref = buildCursorSavedRef(graphName, name);
   const oid = await persistence.readRef(ref);
@@ -1639,6 +1680,19 @@ async function readSavedCursor(persistence, graphName, name) {
   return parseCursorBlob(buf, `saved cursor '${name}'`);
 }
 
+/**
+ * Persists a cursor under a named saved-cursor ref.
+ *
+ * Serializes the cursor as JSON, stores it as a Git blob, and points
+ * the named saved-cursor ref at that blob.
+ *
+ * @private
+ * @param {Object} persistence - GraphPersistencePort adapter
+ * @param {string} graphName - Name of the WARP graph
+ * @param {string} name - Saved cursor name
+ * @param {{tick: number, mode?: string}} cursor - Cursor state to persist
+ * @returns {Promise<void>}
+ */
 async function writeSavedCursor(persistence, graphName, name, cursor) {
   const ref = buildCursorSavedRef(graphName, name);
   const json = JSON.stringify(cursor);
@@ -1646,6 +1700,17 @@ async function writeSavedCursor(persistence, graphName, name, cursor) {
   await persistence.updateRef(ref, oid);
 }
 
+/**
+ * Deletes a named saved cursor from Git ref storage.
+ *
+ * No-op if the named cursor does not exist.
+ *
+ * @private
+ * @param {Object} persistence - GraphPersistencePort adapter
+ * @param {string} graphName - Name of the WARP graph
+ * @param {string} name - Saved cursor name to delete
+ * @returns {Promise<void>}
+ */
 async function deleteSavedCursor(persistence, graphName, name) {
   const ref = buildCursorSavedRef(graphName, name);
   const exists = await persistence.readRef(ref);
@@ -1654,6 +1719,15 @@ async function deleteSavedCursor(persistence, graphName, name) {
   }
 }
 
+/**
+ * Lists all saved cursors for a graph, reading each blob to include full cursor state.
+ *
+ * @private
+ * @param {Object} persistence - GraphPersistencePort adapter
+ * @param {string} graphName - Name of the WARP graph
+ * @returns {Promise<Array<{name: string, tick: number, mode?: string}>>} Array of saved cursors with their names
+ * @throws {Error} If any stored blob is corrupted or not valid JSON
+ */
 async function listSavedCursors(persistence, graphName) {
   const prefix = buildCursorSavedPrefix(graphName);
   const refs = await persistence.listRefs(prefix);
@@ -1676,6 +1750,18 @@ async function listSavedCursors(persistence, graphName) {
 // Seek Arg Parser
 // ============================================================================
 
+/**
+ * Parses CLI arguments for the `seek` command into a structured spec.
+ *
+ * Supports mutually exclusive actions: `--tick <value>`, `--latest`,
+ * `--save <name>`, `--load <name>`, `--list`, `--drop <name>`.
+ * Defaults to `status` when no flags are provided.
+ *
+ * @private
+ * @param {string[]} args - Raw CLI arguments following the `seek` subcommand
+ * @returns {{action: string, tickValue: string|null, name: string|null}} Parsed spec
+ * @throws {CliError} If arguments are invalid or flags are combined
+ */
 function parseSeekArgs(args) {
   const spec = {
     action: 'status', // status, tick, latest, save, load, list, drop
@@ -1755,12 +1841,19 @@ function parseSeekArgs(args) {
 }
 
 /**
- * Resolves a tick value (absolute, relative +N/-N) against available ticks.
- * @param {string} tickValue - Raw tick value from args
- * @param {number|null} currentTick - Current cursor tick (null if no cursor)
- * @param {number[]} ticks - Sorted array of available ticks
- * @param {number} maxTick - Maximum tick
- * @returns {number} Resolved tick value
+ * Resolves a tick value (absolute or relative +N/-N) against available ticks.
+ *
+ * For relative values, steps through the sorted tick array (with 0 prepended
+ * as a virtual "empty state" position) by the given delta from the current
+ * position. For absolute values, clamps to maxTick.
+ *
+ * @private
+ * @param {string} tickValue - Raw tick string from CLI args (e.g. "5", "+1", "-2")
+ * @param {number|null} currentTick - Current cursor tick, or null if no active cursor
+ * @param {number[]} ticks - Sorted ascending array of available Lamport ticks
+ * @param {number} maxTick - Maximum tick across all writers
+ * @returns {number} Resolved tick value (clamped to valid range)
+ * @throws {CliError} If tickValue is not a valid integer or relative delta
  */
 function resolveTickValue(tickValue, currentTick, ticks, maxTick) {
   // Relative: +N or -N
@@ -1794,13 +1887,30 @@ function resolveTickValue(tickValue, currentTick, ticks, maxTick) {
 // Seek Handler
 // ============================================================================
 
+/**
+ * Handles the `git warp seek` command across all sub-actions.
+ *
+ * Dispatches to the appropriate logic based on the parsed action:
+ * - `status`: show current cursor position or "no cursor" state
+ * - `tick`: set the cursor to an absolute or relative Lamport tick
+ * - `latest`: clear the cursor, returning to present state
+ * - `save`: persist the active cursor under a name
+ * - `load`: restore a named cursor as the active cursor
+ * - `list`: enumerate all saved cursors
+ * - `drop`: delete a named saved cursor
+ *
+ * @private
+ * @param {Object} params - Command parameters
+ * @param {Object} params.options - CLI options (repo, graph, writer, json)
+ * @param {string[]} params.args - Raw CLI arguments following the `seek` subcommand
+ * @returns {Promise<{payload: Object, exitCode: number}>} Command result with payload and exit code
+ * @throws {CliError} On invalid arguments or missing cursors
+ */
 async function handleSeek({ options, args }) {
   const seekSpec = parseSeekArgs(args);
   const { graph, graphName, persistence } = await openGraph(options);
-
   const activeCursor = await readActiveCursor(persistence, graphName);
   const { ticks, maxTick, perWriter } = await graph.discoverTicks();
-
   if (seekSpec.action === 'list') {
     const saved = await listSavedCursors(persistence, graphName);
     return {
@@ -1814,7 +1924,6 @@ async function handleSeek({ options, args }) {
       exitCode: EXIT_CODES.OK,
     };
   }
-
   if (seekSpec.action === 'drop') {
     const existing = await readSavedCursor(persistence, graphName, seekSpec.name);
     if (!existing) {
@@ -1831,12 +1940,13 @@ async function handleSeek({ options, args }) {
       exitCode: EXIT_CODES.OK,
     };
   }
-
   if (seekSpec.action === 'latest') {
     await clearActiveCursor(persistence, graphName);
     await graph.materialize();
     const nodes = await graph.getNodes();
     const edges = await graph.getEdges();
+    const diff = computeSeekStateDiff(activeCursor, { nodes: nodes.length, edges: edges.length });
+    const tickReceipt = await buildTickReceipt({ tick: maxTick, perWriter, graph });
     return {
       payload: {
         graph: graphName,
@@ -1848,12 +1958,13 @@ async function handleSeek({ options, args }) {
         edges: edges.length,
         perWriter: serializePerWriter(perWriter),
         patchCount: countPatchesAtTick(maxTick, perWriter),
+        diff,
+        tickReceipt,
         cursor: { active: false },
       },
       exitCode: EXIT_CODES.OK,
     };
   }
-
   if (seekSpec.action === 'save') {
     if (!activeCursor) {
       throw usageError('No active cursor to save. Use --tick first.');
@@ -1869,17 +1980,24 @@ async function handleSeek({ options, args }) {
       exitCode: EXIT_CODES.OK,
     };
   }
-
   if (seekSpec.action === 'load') {
     const saved = await readSavedCursor(persistence, graphName, seekSpec.name);
     if (!saved) {
       throw notFoundError(`Saved cursor not found: ${seekSpec.name}`);
     }
-    await writeActiveCursor(persistence, graphName, saved);
     graph._seekCeiling = saved.tick;
     await graph.materialize();
     const nodes = await graph.getNodes();
     const edges = await graph.getEdges();
+    const nextCursor = {
+      tick: saved.tick,
+      mode: saved.mode ?? 'lamport',
+      nodes: nodes.length,
+      edges: edges.length,
+    };
+    await writeActiveCursor(persistence, graphName, nextCursor);
+    const diff = computeSeekStateDiff(activeCursor, { nodes: nodes.length, edges: edges.length });
+    const tickReceipt = await buildTickReceipt({ tick: saved.tick, perWriter, graph });
     return {
       payload: {
         graph: graphName,
@@ -1892,21 +2010,24 @@ async function handleSeek({ options, args }) {
         edges: edges.length,
         perWriter: serializePerWriter(perWriter),
         patchCount: countPatchesAtTick(saved.tick, perWriter),
+        diff,
+        tickReceipt,
         cursor: { active: true, mode: saved.mode, tick: saved.tick, maxTick, name: seekSpec.name },
       },
       exitCode: EXIT_CODES.OK,
     };
   }
-
   if (seekSpec.action === 'tick') {
     const currentTick = activeCursor ? activeCursor.tick : null;
     const resolvedTick = resolveTickValue(seekSpec.tickValue, currentTick, ticks, maxTick);
-    const cursor = { tick: resolvedTick, mode: 'lamport' };
-    await writeActiveCursor(persistence, graphName, cursor);
     graph._seekCeiling = resolvedTick;
     await graph.materialize();
     const nodes = await graph.getNodes();
     const edges = await graph.getEdges();
+    const cursor = { tick: resolvedTick, mode: 'lamport', nodes: nodes.length, edges: edges.length };
+    await writeActiveCursor(persistence, graphName, cursor);
+    const diff = computeSeekStateDiff(activeCursor, { nodes: nodes.length, edges: edges.length });
+    const tickReceipt = await buildTickReceipt({ tick: resolvedTick, perWriter, graph });
     return {
       payload: {
         graph: graphName,
@@ -1918,6 +2039,8 @@ async function handleSeek({ options, args }) {
         edges: edges.length,
         perWriter: serializePerWriter(perWriter),
         patchCount: countPatchesAtTick(resolvedTick, perWriter),
+        diff,
+        tickReceipt,
         cursor: { active: true, mode: 'lamport', tick: resolvedTick, maxTick, name: 'active' },
       },
       exitCode: EXIT_CODES.OK,
@@ -1930,6 +2053,18 @@ async function handleSeek({ options, args }) {
     await graph.materialize();
     const nodes = await graph.getNodes();
     const edges = await graph.getEdges();
+    const prevCounts = readSeekCounts(activeCursor);
+    if (prevCounts.nodes === null || prevCounts.edges === null || prevCounts.nodes !== nodes.length || prevCounts.edges !== edges.length) {
+      const nextCursor = {
+        tick: activeCursor.tick,
+        mode: activeCursor.mode ?? 'lamport',
+        nodes: nodes.length,
+        edges: edges.length,
+      };
+      await writeActiveCursor(persistence, graphName, nextCursor);
+    }
+    const diff = computeSeekStateDiff(activeCursor, { nodes: nodes.length, edges: edges.length });
+    const tickReceipt = await buildTickReceipt({ tick: activeCursor.tick, perWriter, graph });
     return {
       payload: {
         graph: graphName,
@@ -1941,12 +2076,17 @@ async function handleSeek({ options, args }) {
         edges: edges.length,
         perWriter: serializePerWriter(perWriter),
         patchCount: countPatchesAtTick(activeCursor.tick, perWriter),
+        diff,
+        tickReceipt,
         cursor: { active: true, mode: activeCursor.mode, tick: activeCursor.tick, maxTick, name: 'active' },
       },
       exitCode: EXIT_CODES.OK,
     };
   }
-
+  await graph.materialize();
+  const nodes = await graph.getNodes();
+  const edges = await graph.getEdges();
+  const tickReceipt = await buildTickReceipt({ tick: maxTick, perWriter, graph });
   return {
     payload: {
       graph: graphName,
@@ -1954,24 +2094,41 @@ async function handleSeek({ options, args }) {
       tick: maxTick,
       maxTick,
       ticks,
-      nodes: 0,
-      edges: 0,
+      nodes: nodes.length,
+      edges: edges.length,
       perWriter: serializePerWriter(perWriter),
-      patchCount: 0,
+      patchCount: countPatchesAtTick(maxTick, perWriter),
+      diff: null,
+      tickReceipt,
       cursor: { active: false },
     },
     exitCode: EXIT_CODES.OK,
   };
 }
 
+/**
+ * Converts the per-writer Map from discoverTicks() into a plain object for JSON output.
+ *
+ * @private
+ * @param {Map<string, {ticks: number[], tipSha: string|null}>} perWriter - Per-writer tick data
+ * @returns {Object<string, {ticks: number[], tipSha: string|null}>} Plain object keyed by writer ID
+ */
 function serializePerWriter(perWriter) {
   const result = {};
   for (const [writerId, info] of perWriter) {
-    result[writerId] = { ticks: info.ticks, tipSha: info.tipSha };
+    result[writerId] = { ticks: info.ticks, tipSha: info.tipSha, tickShas: info.tickShas };
   }
   return result;
 }
 
+/**
+ * Counts the total number of patches across all writers at or before the given tick.
+ *
+ * @private
+ * @param {number} tick - Lamport tick ceiling (inclusive)
+ * @param {Map<string, {ticks: number[], tipSha: string|null}>} perWriter - Per-writer tick data
+ * @returns {number} Total patch count at or before the given tick
+ */
 function countPatchesAtTick(tick, perWriter) {
   let count = 0;
   for (const [, info] of perWriter) {
@@ -1984,7 +2141,154 @@ function countPatchesAtTick(tick, perWriter) {
   return count;
 }
 
+/**
+ * Reads cached seek state counts from a cursor blob.
+ *
+ * Counts may be missing for older cursors (pre-diff support). In that case
+ * callers should treat the counts as unknown and suppress diffs.
+ *
+ * @private
+ * @param {Object|null} cursor - Parsed cursor blob object
+ * @returns {{nodes: number|null, edges: number|null}} Parsed counts
+ */
+function readSeekCounts(cursor) {
+  if (!cursor || typeof cursor !== 'object') {
+    return { nodes: null, edges: null };
+  }
+
+  const nodes = typeof cursor.nodes === 'number' && Number.isFinite(cursor.nodes) ? cursor.nodes : null;
+  const edges = typeof cursor.edges === 'number' && Number.isFinite(cursor.edges) ? cursor.edges : null;
+  return { nodes, edges };
+}
+
+/**
+ * Computes node/edge deltas between the current seek position and the previous cursor.
+ *
+ * Returns null if the previous cursor is missing cached counts.
+ *
+ * @private
+ * @param {Object|null} prevCursor - Cursor object read before updating the position
+ * @param {{nodes: number, edges: number}} next - Current materialized counts
+ * @returns {{nodes: number, edges: number}|null} Diff object or null when unknown
+ */
+function computeSeekStateDiff(prevCursor, next) {
+  const prev = readSeekCounts(prevCursor);
+  if (prev.nodes === null || prev.edges === null) {
+    return null;
+  }
+  return {
+    nodes: next.nodes - prev.nodes,
+    edges: next.edges - prev.edges,
+  };
+}
+
+/**
+ * Builds a per-writer operation summary for patches at an exact tick.
+ *
+ * Uses discoverTicks() tickShas mapping to locate patch SHAs, then loads and
+ * summarizes patch ops. Typically only a handful of writers have a patch at any
+ * single Lamport tick.
+ *
+ * @private
+ * @param {Object} params
+ * @param {number} params.tick - Lamport tick to summarize
+ * @param {Map<string, {tickShas?: Object}>} params.perWriter - Per-writer tick metadata from discoverTicks()
+ * @param {Object} params.graph - WarpGraph instance
+ * @returns {Promise<Object<string, Object>|null>} Map of writerId → opSummary, or null if empty
+ */
+async function buildTickReceipt({ tick, perWriter, graph }) {
+  if (!Number.isInteger(tick) || tick <= 0) {
+    return null;
+  }
+
+  const receipt = {};
+
+  for (const [writerId, info] of perWriter) {
+    const sha = info?.tickShas?.[tick];
+    if (!sha) {
+      continue;
+    }
+
+    const patch = await graph.loadPatchBySha(sha);
+    const ops = Array.isArray(patch?.ops) ? patch.ops : [];
+    receipt[writerId] = summarizeOps(ops);
+  }
+
+  return Object.keys(receipt).length > 0 ? receipt : null;
+}
+
+/**
+ * Renders a seek command payload as a human-readable string for terminal output.
+ *
+ * Handles all seek actions: list, drop, save, latest, load, tick, and status.
+ *
+ * @private
+ * @param {Object} payload - Seek result payload from handleSeek
+ * @returns {string} Formatted output string (includes trailing newline)
+ */
 function renderSeek(payload) {
+  const formatDelta = (n) => {
+    if (typeof n !== 'number' || !Number.isFinite(n) || n === 0) {
+      return '';
+    }
+    const sign = n > 0 ? '+' : '';
+    return ` (${sign}${n})`;
+  };
+
+  const formatOpSummaryPlain = (summary) => {
+    const order = [
+      ['NodeAdd', '+', 'node'],
+      ['EdgeAdd', '+', 'edge'],
+      ['PropSet', '~', 'prop'],
+      ['NodeTombstone', '-', 'node'],
+      ['EdgeTombstone', '-', 'edge'],
+      ['BlobValue', '+', 'blob'],
+    ];
+
+    const parts = [];
+    for (const [opType, symbol, label] of order) {
+      const n = summary?.[opType];
+      if (typeof n === 'number' && Number.isFinite(n) && n > 0) {
+        parts.push(`${symbol}${n}${label}`);
+      }
+    }
+    return parts.length > 0 ? parts.join(' ') : '(empty)';
+  };
+
+  const appendReceiptSummary = (baseLine) => {
+    const tickReceipt = payload?.tickReceipt;
+    if (!tickReceipt || typeof tickReceipt !== 'object') {
+      return `${baseLine}\n`;
+    }
+
+    const entries = Object.entries(tickReceipt)
+      .filter(([writerId, summary]) => writerId && summary && typeof summary === 'object')
+      .sort(([a], [b]) => a.localeCompare(b));
+
+    if (entries.length === 0) {
+      return `${baseLine}\n`;
+    }
+
+    const maxWriterLen = Math.max(5, ...entries.map(([writerId]) => writerId.length));
+    const receiptLines = [`  Tick ${payload.tick}:`];
+    for (const [writerId, summary] of entries) {
+      receiptLines.push(`    ${writerId.padEnd(maxWriterLen)}  ${formatOpSummaryPlain(summary)}`);
+    }
+
+    return `${baseLine}\n${receiptLines.join('\n')}\n`;
+  };
+
+  const buildStateStrings = () => {
+    const nodeLabel = payload.nodes === 1 ? 'node' : 'nodes';
+    const edgeLabel = payload.edges === 1 ? 'edge' : 'edges';
+    const patchLabel = payload.patchCount === 1 ? 'patch' : 'patches';
+    return {
+      nodesStr: `${payload.nodes} ${nodeLabel}${formatDelta(payload.diff?.nodes)}`,
+      edgesStr: `${payload.edges} ${edgeLabel}${formatDelta(payload.diff?.edges)}`,
+      patchesStr: `${payload.patchCount} ${patchLabel}`,
+    };
+  };
+
   if (payload.action === 'list') {
     if (payload.cursors.length === 0) {
       return 'No saved cursors.\n';
@@ -2006,32 +2310,49 @@ function renderSeek(payload) {
   }
 
   if (payload.action === 'latest') {
-    return `${payload.graph}: returned to present (tick ${payload.maxTick}, ${payload.nodes} nodes, ${payload.edges} edges)\n`;
+    const { nodesStr, edgesStr } = buildStateStrings();
+    return appendReceiptSummary(
+      `${payload.graph}: returned to present (tick ${payload.maxTick}, ${nodesStr}, ${edgesStr})`,
+    );
   }
 
   if (payload.action === 'load') {
-    return `${payload.graph}: loaded cursor "${payload.name}" at tick ${payload.tick} of ${payload.maxTick} (${payload.nodes} nodes, ${payload.edges} edges)\n`;
+    const { nodesStr, edgesStr } = buildStateStrings();
+    return appendReceiptSummary(
+      `${payload.graph}: loaded cursor "${payload.name}" at tick ${payload.tick} of ${payload.maxTick} (${nodesStr}, ${edgesStr})`,
+    );
   }
 
   if (payload.action === 'tick') {
-    return `${payload.graph}: tick ${payload.tick} of ${payload.maxTick} (${payload.nodes} nodes, ${payload.edges} edges, ${payload.patchCount} patches)\n`;
+    const { nodesStr, edgesStr, patchesStr } = buildStateStrings();
+    return appendReceiptSummary(
+      `${payload.graph}: tick ${payload.tick} of ${payload.maxTick} (${nodesStr}, ${edgesStr}, ${patchesStr})`,
+    );
   }
 
   // status
   if (payload.cursor && payload.cursor.active) {
-    return `${payload.graph}: tick ${payload.tick} of ${payload.maxTick} (${payload.nodes} nodes, ${payload.edges} edges, ${payload.patchCount} patches)\n`;
+    const { nodesStr, edgesStr, patchesStr } = buildStateStrings();
+    return appendReceiptSummary(
+      `${payload.graph}: tick ${payload.tick} of ${payload.maxTick} (${nodesStr}, ${edgesStr}, ${patchesStr})`,
+    );
   }
 
   return `${payload.graph}: no cursor active, ${payload.ticks.length} ticks available\n`;
 }
 
 /**
- * Reads the active cursor and sets _seekCeiling on the graph instance.
- * Call this for commands that should respect the seek cursor.
+ * Reads the active cursor and sets `_seekCeiling` on the graph instance
+ * so that subsequent materialize calls respect the time-travel boundary.
+ *
+ * Called by non-seek commands (query, path, check, etc.) that should
+ * honour an active seek cursor.
+ *
+ * @private
  * @param {Object} graph - WarpGraph instance
- * @param {Object} persistence - Persistence adapter
- * @param {string} graphName - Graph name
- * @returns {Promise<{active: boolean, tick: number|null, maxTick: number|null}>}
+ * @param {Object} persistence - GraphPersistencePort adapter
+ * @param {string} graphName - Name of the WARP graph
+ * @returns {Promise<{active: boolean, tick: number|null, maxTick: number|null}>} Cursor info (maxTick is always null here; callers populate it)
  */
 async function applyCursorCeiling(graph, persistence, graphName) {
   const cursor = await readActiveCursor(persistence, graphName);
@@ -2043,9 +2364,14 @@ async function applyCursorCeiling(graph, persistence, graphName) {
 }
 
 /**
- * Prints a seek cursor warning banner to stderr.
- * @param {Object} cursorInfo - From applyCursorCeiling
- * @param {number|null} maxTick - Max tick (from discoverTicks or null)
+ * Prints a seek cursor warning banner to stderr when a cursor is active.
+ *
+ * No-op if the cursor is not active.
+ *
+ * @private
+ * @param {{active: boolean, tick: number|null, maxTick: number|null}} cursorInfo - Result from applyCursorCeiling
+ * @param {number|null} maxTick - Maximum Lamport tick (from discoverTicks), or null if unknown
+ * @returns {void}
  */
 function emitCursorWarning(cursorInfo, maxTick) {
   if (cursorInfo.active) {

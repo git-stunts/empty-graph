@@ -51,20 +51,22 @@ const PATH_TRAVERSAL_PATTERN = /\.\./;
  * Validates a graph name and throws if invalid.
  *
  * Graph names must not contain:
- * - Path traversal sequences (`../`)
+ * - Path traversal sequences (`..`)
  * - Semicolons (`;`)
  * - Spaces
  * - Null bytes (`\0`)
  * - Empty strings
  *
  * @param {string} name - The graph name to validate
- * @throws {Error} If the graph name is invalid
+ * @throws {Error} If the name is not a string, is empty, or contains
+ *   forbidden characters (`..`, `;`, space, `\0`)
  * @returns {void}
  *
  * @example
- * validateGraphName('events'); // OK
- * validateGraphName('../etc'); // throws
- * validateGraphName('my graph'); // throws
+ * validateGraphName('events');    // OK
+ * validateGraphName('team/proj'); // OK (slashes allowed)
+ * validateGraphName('../etc');    // throws — path traversal
+ * validateGraphName('my graph');  // throws — contains space
  */
 export function validateGraphName(name) {
   if (typeof name !== 'string') {
@@ -96,18 +98,20 @@ export function validateGraphName(name) {
  * Validates a writer ID and throws if invalid.
  *
  * Writer IDs must:
- * - Be ASCII ref-safe: only [A-Za-z0-9._-]
+ * - Be ASCII ref-safe: only `[A-Za-z0-9._-]`
  * - Be 1-64 characters long
  * - Not contain `/`, `..`, whitespace, or NUL
  *
  * @param {string} id - The writer ID to validate
- * @throws {Error} If the writer ID is invalid
+ * @throws {Error} If the ID is not a string, is empty, exceeds 64 characters,
+ *   or contains forbidden characters (`/`, `..`, whitespace, NUL, non-ASCII)
  * @returns {void}
  *
  * @example
- * validateWriterId('node-1'); // OK
- * validateWriterId('a/b'); // throws (contains /)
- * validateWriterId('x'.repeat(65)); // throws (too long)
+ * validateWriterId('node-1');        // OK
+ * validateWriterId('a/b');           // throws — contains forward slash
+ * validateWriterId('x'.repeat(65));  // throws — exceeds max length
+ * validateWriterId('has space');     // throws — contains whitespace
  */
 export function validateWriterId(id) {
   if (typeof id !== 'string') {
@@ -159,7 +163,7 @@ export function validateWriterId(id) {
  *
  * @param {string} graphName - The name of the graph
  * @param {string} writerId - The writer's unique identifier
- * @returns {string} The full ref path
+ * @returns {string} The full ref path, e.g. `refs/warp/<graphName>/writers/<writerId>`
  * @throws {Error} If graphName or writerId is invalid
  *
  * @example
@@ -176,7 +180,7 @@ export function buildWriterRef(graphName, writerId) {
  * Builds the checkpoint head ref path for the given graph.
  *
  * @param {string} graphName - The name of the graph
- * @returns {string} The full ref path
+ * @returns {string} The full ref path, e.g. `refs/warp/<graphName>/checkpoints/head`
  * @throws {Error} If graphName is invalid
  *
  * @example
@@ -192,7 +196,7 @@ export function buildCheckpointRef(graphName) {
  * Builds the coverage head ref path for the given graph.
  *
  * @param {string} graphName - The name of the graph
- * @returns {string} The full ref path
+ * @returns {string} The full ref path, e.g. `refs/warp/<graphName>/coverage/head`
  * @throws {Error} If graphName is invalid
  *
  * @example
@@ -206,10 +210,12 @@ export function buildCoverageRef(graphName) {
 
 /**
  * Builds the writers prefix path for the given graph.
- * Useful for listing all writer refs under a graph.
+ * Useful for listing all writer refs under a graph
+ * (e.g. via `git for-each-ref`).
  *
  * @param {string} graphName - The name of the graph
- * @returns {string} The writers prefix path
+ * @returns {string} The writers prefix path (with trailing slash),
+ *   e.g. `refs/warp/<graphName>/writers/`
  * @throws {Error} If graphName is invalid
  *
  * @example
@@ -224,8 +230,12 @@ export function buildWritersPrefix(graphName) {
 /**
  * Builds the active cursor ref path for the given graph.
  *
+ * The active cursor is a single ref that stores the current time-travel
+ * position used by `git warp seek`. It points to a commit SHA representing
+ * the materialization frontier the user has seeked to.
+ *
  * @param {string} graphName - The name of the graph
- * @returns {string} The full ref path
+ * @returns {string} The full ref path, e.g. `refs/warp/<graphName>/cursor/active`
  * @throws {Error} If graphName is invalid
  *
  * @example
@@ -238,11 +248,18 @@ export function buildCursorActiveRef(graphName) {
 }
 
 /**
- * Builds a saved cursor ref path for the given graph and cursor name.
+ * Builds a saved (named) cursor ref path for the given graph and cursor name.
+ *
+ * Saved cursors are bookmarks created by `git warp seek --save <name>`.
+ * Each saved cursor persists a time-travel position that can be restored
+ * later without re-seeking.
+ *
+ * The cursor name is validated with the same rules as a writer ID
+ * (ASCII ref-safe: `[A-Za-z0-9._-]`, 1-64 characters).
  *
  * @param {string} graphName - The name of the graph
- * @param {string} name - The cursor name (validated like a writer ID)
- * @returns {string} The full ref path
+ * @param {string} name - The cursor bookmark name (validated like a writer ID)
+ * @returns {string} The full ref path, e.g. `refs/warp/<graphName>/cursor/saved/<name>`
  * @throws {Error} If graphName or name is invalid
  *
  * @example
@@ -257,10 +274,12 @@ export function buildCursorSavedRef(graphName, name) {
 
 /**
  * Builds the saved cursor prefix path for the given graph.
- * Useful for listing all saved cursors under a graph.
+ * Useful for listing all saved cursor bookmarks under a graph
+ * (e.g. via `git for-each-ref`).
  *
  * @param {string} graphName - The name of the graph
- * @returns {string} The saved cursor prefix path
+ * @returns {string} The saved cursor prefix path (with trailing slash),
+ *   e.g. `refs/warp/<graphName>/cursor/saved/`
  * @throws {Error} If graphName is invalid
  *
  * @example

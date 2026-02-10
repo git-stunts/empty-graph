@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [10.3.1] — 2026-02-09 — Seek polish, arrowheads & demo GIF
+
+### Added
+
+- **Seek demo GIF** (`docs/seek-demo.gif`): Animated walkthrough showing `git warp seek` time-travel — graph topology visually changes at each tick while `git status` proves the worktree is untouched. VHS tape at `docs/seek-demo.tape`.
+- **README seek demo**: Embedded `seek-demo.gif` in the CLI section below the seek command examples.
+- **ROADMAP backlog**: New `## Backlog` section with two future ideas — structural seek diff (`diffStates()`) and git-cas materialization cache.
+- **Op summary renderer** (`src/visualization/renderers/ascii/opSummary.js`): Extracted operation summary formatting from history renderer into a shared module used by both history and seek views.
+
+### Fixed
+
+- **ASCII graph arrowheads missing**: `drawArrowhead` was silently dropping arrows when the ELK endpoint fell inside a node's bounding box. Now steps back one cell to place the arrowhead just outside the node border.
+- **Seek ASCII renderer**: Reworked swimlane dashboard with improved windowing, writer rows, tick receipt display, and op summary formatting.
+
+### Changed
+
+- **History renderer**: Extracted `summarizeOps` and `formatOpSummary` into shared modules, reducing duplication between history and seek views.
+
 ## [10.3.0] — 2026-02-09 — Time Travel (`git warp seek`)
 
 Adds cursor-based time travel for exploring graph history. Navigate to any Lamport tick, save/load named bookmarks, and see materialized state at any point in time. Existing commands (`info`, `materialize`, `history`, `query`) respect the active cursor.

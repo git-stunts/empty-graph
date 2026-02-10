@@ -35,7 +35,7 @@ exports[`ASCII graph renderer > renders a 3-node DAG with edges 1`] = `
 ║         +─────+   +─────+        ║
 ║         │               │        ║
 ║         │               │        ║
-║         │               │        ║
+║         ▼               ▼        ║
 ║     ┌────────┐      ┌────────┐   ║
 ║     │  Beta  │      │ Gamma  │   ║
 ║     └────────┘      └────────┘   ║

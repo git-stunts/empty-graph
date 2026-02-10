@@ -576,6 +576,11 @@ export default class WarpGraph {
    * When false or omitted (default), returns just the state for backward
    * compatibility with zero receipt overhead.
    *
+   * When a Lamport ceiling is active (via `options.ceiling` or the
+   * instance-level `_seekCeiling`), delegates to a ceiling-aware path
+   * that replays only patches with `lamport <= ceiling`, bypassing
+   * checkpoints, auto-checkpoint, and GC.
+   *
    * Side effects: Updates internal cached state, version vector, last frontier,
    * and patches-since-checkpoint counter. May trigger auto-checkpoint and GC
    * based on configured policies. Notifies subscribers if state changed.
@@ -714,8 +719,15 @@ export default class WarpGraph {
 
   /**
    * Resolves the effective ceiling from options and instance state.
-   * @param {{ceiling?: number|null}} [options]
-   * @returns {number|null} The ceiling to use, or null for latest
+   *
+   * Precedence: explicit `ceiling` in options overrides the instance-level
+   * `_seekCeiling`. Uses the `'ceiling' in options` check, so passing
+   * `{ ceiling: null }` explicitly clears the seek ceiling for that call
+   * (returns `null`), while omitting the key falls through to `_seekCeiling`.
+   *
+   * @param {{ceiling?: number|null}} [options] - Options object; when the
+   *   `ceiling` key is present (even if `null`), its value takes precedence
+   * @returns {number|null} Lamport ceiling to apply, or `null` for latest
    * @private
    */
   _resolveCeiling(options) {
@@ -729,13 +741,23 @@ export default class WarpGraph {
    * Materializes the graph with a Lamport ceiling (time-travel).
    *
    * Bypasses checkpoints entirely — replays all patches from all writers,
-   * filtering to only those with lamport <= ceiling. Skips auto-checkpoint
+   * filtering to only those with `lamport <= ceiling`. Skips auto-checkpoint
    * and GC since this is an exploratory read.
    *
-   * @param {number} ceiling - Maximum Lamport tick to include
-   * @param {boolean} collectReceipts - Whether to collect tick receipts
-   * @param {number} t0 - Start timestamp for timing
-   * @returns {Promise<import('./services/JoinReducer.js').WarpStateV5|{state: import('./services/JoinReducer.js').WarpStateV5, receipts: Array}>}
+   * Uses a dedicated cache keyed on `ceiling`. Cache is bypassed when
+   * `collectReceipts` is `true` because the cached path does not retain
+   * receipt data.
+   *
+   * @param {number} ceiling - Maximum Lamport tick to include (patches with
+   *   `lamport <= ceiling` are replayed; `ceiling <= 0` yields empty state)
+   * @param {boolean} collectReceipts - When `true`, return receipts alongside
+   *   state and skip the ceiling cache
+   * @param {number} t0 - Start timestamp for performance logging
+   * @returns {Promise<import('./services/JoinReducer.js').WarpStateV5 |
+   *   {state: import('./services/JoinReducer.js').WarpStateV5,
+   *    receipts: import('./types/TickReceipt.js').TickReceipt[]}>}
+   *   Plain state when `collectReceipts` is falsy; `{ state, receipts }`
+   *   when truthy
    * @private
    */
   async _materializeWithCeiling(ceiling, collectReceipts, t0) {
@@ -1117,10 +1139,21 @@ export default class WarpGraph {
   /**
    * Discovers all distinct Lamport ticks across all writers.
    *
-   * Walks each writer's patch chain reading only commit messages (no blob
-   * deserialization) to extract Lamport timestamps.
+   * Walks each writer's patch chain from tip to root, reading commit
+   * messages (no CBOR blob deserialization) to extract Lamport timestamps.
+   * Stops when a non-patch commit (e.g. checkpoint) is encountered.
+   * Logs a warning for any non-monotonic lamport sequence within a single
+   * writer's chain.
    *
-   * @returns {Promise<{ticks: number[], maxTick: number, perWriter: Map<string, {ticks: number[], tipSha: string|null}>}>}
+   * @returns {Promise<{
+   *   ticks: number[],
+   *   maxTick: number,
+   *   perWriter: Map<string, {ticks: number[], tipSha: string|null}>
+   * }>} `ticks` is the sorted (ascending) deduplicated union of all
+   *   Lamport values; `maxTick` is the largest value (0 if none);
+   *   `perWriter` maps each writer ID to its ticks in ascending order
+   *   and its current tip SHA (or `null` if the writer ref is missing)
+   * @throws {Error} If reading refs or commit metadata fails
    */
   async discoverTicks() {
     const writerIds = await this.discoverWriters();
@@ -1131,6 +1164,7 @@ export default class WarpGraph {
       const writerRef = buildWriterRef(this._graphName, writerId);
       const tipSha = await this._persistence.readRef(writerRef);
       const writerTicks = [];
+      const tickShas = {};
 
       if (tipSha) {
         let currentSha = tipSha;
@@ -1146,6 +1180,7 @@ export default class WarpGraph {
           const patchMeta = decodePatchMessage(nodeInfo.message);
           globalTickSet.add(patchMeta.lamport);
           writerTicks.push(patchMeta.lamport);
+          tickShas[patchMeta.lamport] = currentSha;
 
           // Check monotonic invariant (walking newest→oldest, lamport should decrease)
           if (patchMeta.lamport > lastLamport && this._logger) {
@@ -1164,6 +1199,7 @@ export default class WarpGraph {
       perWriter.set(writerId, {
         ticks: writerTicks.reverse(),
         tipSha: tipSha || null,
+        tickShas,
       });
     }
 
@@ -3186,6 +3222,23 @@ export default class WarpGraph {
     }
 
     return cone;
+  }
+
+  /**
+   * Loads a single patch by its SHA.
+   *
+   * @param {string} sha - The patch commit SHA
+   * @returns {Promise<Object>} The decoded patch object
+   * @throws {Error} If the commit is not a patch or loading fails
+   *
+   * @public
+   * @remarks
+   * Thin wrapper around the internal `_loadPatchBySha` helper. Exposed for
+   * CLI/debug tooling (e.g. seek tick receipts) that needs to inspect patch
+   * operations without re-materializing intermediate states.
+   */
+  async loadPatchBySha(sha) {
+    return await this._loadPatchBySha(sha);
   }
 
   /**
