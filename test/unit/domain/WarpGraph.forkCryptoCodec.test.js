@@ -109,7 +109,7 @@ describe('WarpGraph.fork crypto/codec propagation', () => {
   });
 
   it('forked graph without crypto/codec uses parent defaults', async () => {
-    // Create a graph without explicit crypto (should be undefined)
+    // Create a graph without explicit crypto (uses defaultCrypto)
     const plainGraph = await WarpGraph.open({
       persistence,
       graphName: 'plain-graph',
@@ -149,7 +149,7 @@ describe('WarpGraph.fork crypto/codec propagation', () => {
     expect(fork).toBeInstanceOf(WarpGraph);
     // Both should share the same default codec
     expect(fork._codec).toBe(plainGraph._codec);
-    // Both should have undefined crypto (no crypto port injected)
+    // Both should share the same default crypto
     expect(fork._crypto).toBe(plainGraph._crypto);
   });
 });

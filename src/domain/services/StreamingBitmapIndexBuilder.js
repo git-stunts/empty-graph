@@ -1,4 +1,5 @@
 import defaultCodec from '../utils/defaultCodec.js';
+import defaultCrypto from '../utils/defaultCrypto.js';
 import ShardCorruptionError from '../errors/ShardCorruptionError.js';
 import ShardValidationError from '../errors/ShardValidationError.js';
 import nullLogger from '../utils/nullLogger.js';
@@ -36,10 +37,9 @@ const BITMAP_BASE_OVERHEAD = 64;
  *
  * @param {Object} data - The data object to checksum
  * @param {import('../../ports/CryptoPort.js').default} crypto - CryptoPort instance
- * @returns {Promise<string|null>} Hex-encoded SHA-256 hash
+ * @returns {Promise<string>} Hex-encoded SHA-256 hash
  */
 const computeChecksum = async (data, crypto) => {
-  if (!crypto) { return null; }
   const json = canonicalStringify(data);
   return await crypto.hash('sha256', json);
 };
@@ -99,7 +99,7 @@ export default class StreamingBitmapIndexBuilder {
     }
 
     /** @type {import('../../ports/CryptoPort.js').default} */
-    this._crypto = crypto;
+    this._crypto = crypto || defaultCrypto;
 
     /** @type {import('../../ports/CodecPort.js').default|undefined} */
     this._codec = codec || defaultCodec;

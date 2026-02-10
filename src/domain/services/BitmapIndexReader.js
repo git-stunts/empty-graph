@@ -1,4 +1,5 @@
 import { ShardLoadError, ShardCorruptionError, ShardValidationError } from '../errors/index.js';
+import defaultCrypto from '../utils/defaultCrypto.js';
 import nullLogger from '../utils/nullLogger.js';
 import LRUCache from '../utils/LRUCache.js';
 import { getRoaringBitmap32 } from '../utils/roaring.js';
@@ -25,10 +26,9 @@ const DEFAULT_MAX_CACHED_SHARDS = 100;
  * @param {Object} data - The data object to checksum
  * @param {number} version - Shard version (1 uses JSON.stringify, 2+ uses canonicalStringify)
  * @param {import('../../ports/CryptoPort.js').default} crypto - CryptoPort instance
- * @returns {Promise<string|null>} Hex-encoded SHA-256 hash
+ * @returns {Promise<string>} Hex-encoded SHA-256 hash
  */
 const computeChecksum = async (data, version, crypto) => {
-  if (!crypto) { return null; }
   const json = version === 1 ? JSON.stringify(data) : canonicalStringify(data);
   return await crypto.hash('sha256', json);
 };
@@ -84,7 +84,6 @@ export default class BitmapIndexReader {
    * @param {number} [options.maxCachedShards=100] - Maximum number of shards to keep in the LRU cache.
    *   When exceeded, least recently used shards are evicted to free memory.
    * @param {import('../../ports/CryptoPort.js').default} [options.crypto] - CryptoPort instance for checksum verification.
-   *   When not provided, checksum validation is skipped.
    */
   constructor({ storage, strict = false, logger = nullLogger, maxCachedShards = DEFAULT_MAX_CACHED_SHARDS, crypto } = {}) {
     if (!storage) {
@@ -95,7 +94,7 @@ export default class BitmapIndexReader {
     this.logger = logger;
     this.maxCachedShards = maxCachedShards;
     /** @type {import('../../ports/CryptoPort.js').default} */
-    this._crypto = crypto;
+    this._crypto = crypto || defaultCrypto;
     this.shardOids = new Map(); // path -> OID
     this.loadedShards = new LRUCache(maxCachedShards); // path -> Data
     this._idToShaCache = null; // Lazy-built reverse mapping
@@ -277,7 +276,7 @@ export default class BitmapIndexReader {
     }
     // Use version-appropriate checksum computation for backward compatibility
     const actualChecksum = await computeChecksum(envelope.data, envelope.version, this._crypto);
-    if (actualChecksum !== null && envelope.checksum !== actualChecksum) {
+    if (envelope.checksum !== actualChecksum) {
       throw new ShardValidationError('Checksum mismatch', {
         shardPath: path,
         expected: envelope.checksum,

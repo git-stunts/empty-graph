@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [10.4.1] — 2026-02-10 — Default crypto & join() fix
+
+### Added
+
+- **`defaultCrypto.js`** (`src/domain/utils/defaultCrypto.js`): Domain-local default crypto adapter wrapping `node:crypto` directly, following the `defaultCodec.js` / `defaultClock.js` pattern. Completes the BULKHEAD port injection pattern — all ports now have domain-local defaults.
+
+### Fixed
+
+- **`WarpGraph.join()`**: Replaced 4 references to non-existent `.elements.size` on ORSet with `orsetElements(...).length`. The `join()` happy path was always throwing a TypeError.
+
+### Changed
+
+- **`WarpGraph` constructor**: `this._crypto` now falls back to `defaultCrypto` when no crypto adapter is injected (same pattern as `this._codec = codec || defaultCodec`).
+- **`BitmapIndexBuilder`**, **`StreamingBitmapIndexBuilder`**, **`BitmapIndexReader`**: Removed `if (!crypto) { return null; }` null guards from `computeChecksum`. Checksums are now always computed.
+- **`BitmapIndexReader._validateShard`**: Removed `actualChecksum !== null &&` guard — checksum validation now always runs.
+- **`StateSerializerV5.computeStateHashV5`**: Removed `crypto ? ... : null` ternary — always returns a hash string.
+
 ## [10.4.0] — 2026-02-09 — RECALL: Seek Materialization Cache
 
 Caches materialized `WarpStateV5` at each visited ceiling tick as content-addressed blobs via `@git-stunts/git-cas`, enabling near-instant restoration for previously-visited ticks during seek exploration. Blobs are loose Git objects subject to Git GC (default prune expiry ~2 weeks, configurable) unless pinned to a vault.

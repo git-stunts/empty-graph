@@ -1,4 +1,5 @@
 import defaultCodec from '../utils/defaultCodec.js';
+import defaultCrypto from '../utils/defaultCrypto.js';
 import { orsetContains, orsetElements } from '../crdt/ORSet.js';
 import { decodeEdgeKey, decodePropKey } from './KeyCodec.js';
 
@@ -124,11 +125,12 @@ export function serializeStateV5(state, { codec } = {}) {
  * @param {Object} [options] - Options
  * @param {import('../../ports/CryptoPort.js').default} options.crypto - CryptoPort instance
  * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for serialization
- * @returns {Promise<string|null>} Hex-encoded SHA-256 hash, or null if no crypto
+ * @returns {Promise<string>} Hex-encoded SHA-256 hash
  */
 export async function computeStateHashV5(state, { crypto, codec } = {}) {
+  const c = crypto || defaultCrypto;
   const serialized = serializeStateV5(state, { codec });
-  return crypto ? await crypto.hash('sha256', serialized) : null;
+  return await c.hash('sha256', serialized);
 }
 
 /**

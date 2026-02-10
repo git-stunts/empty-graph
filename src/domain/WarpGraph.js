@@ -17,6 +17,7 @@ import { ProvenancePayload } from './services/ProvenancePayload.js';
 import { diffStates, isEmptyDiff } from './services/StateDiff.js';
 import { orsetContains, orsetElements } from './crdt/ORSet.js';
 import defaultCodec from './utils/defaultCodec.js';
+import defaultCrypto from './utils/defaultCrypto.js';
 import { decodePatchMessage, detectMessageKind, encodeAnchorMessage } from './services/WarpMessageCodec.js';
 import { loadCheckpoint, materializeIncremental, create as createCheckpointCommit } from './services/CheckpointService.js';
 import { createFrontier, updateFrontier } from './services/Frontier.js';
@@ -160,8 +161,8 @@ export default class WarpGraph {
     /** @type {import('../ports/ClockPort.js').default} */
     this._clock = clock || defaultClock;
 
-    /** @type {import('../ports/CryptoPort.js').default|undefined} */
-    this._crypto = crypto;
+    /** @type {import('../ports/CryptoPort.js').default} */
+    this._crypto = crypto || defaultCrypto;
 
     /** @type {import('../ports/CodecPort.js').default} */
     this._codec = codec || defaultCodec;
@@ -949,16 +950,16 @@ export default class WarpGraph {
     }
 
     // Capture pre-merge counts for receipt
-    const beforeNodes = this._cachedState.nodeAlive.elements.size;
-    const beforeEdges = this._cachedState.edgeAlive.elements.size;
+    const beforeNodes = orsetElements(this._cachedState.nodeAlive).length;
+    const beforeEdges = orsetElements(this._cachedState.edgeAlive).length;
     const beforeFrontierSize = this._cachedState.observedFrontier.size;
 
     // Perform the join
     const mergedState = joinStates(this._cachedState, otherState);
 
     // Calculate receipt
-    const afterNodes = mergedState.nodeAlive.elements.size;
-    const afterEdges = mergedState.edgeAlive.elements.size;
+    const afterNodes = orsetElements(mergedState.nodeAlive).length;
+    const afterEdges = orsetElements(mergedState.edgeAlive).length;
     const afterFrontierSize = mergedState.observedFrontier.size;
 
     // Count property changes (keys that existed in both but have different values)
@@ -1020,7 +1021,7 @@ export default class WarpGraph {
    * @example
    * // Time-travel to a previous checkpoint
    * const oldState = await graph.materializeAt('abc123');
-   * console.log('Nodes at checkpoint:', [...oldState.nodeAlive.elements.keys()]);
+   * console.log('Nodes at checkpoint:', orsetElements(oldState.nodeAlive));
    */
   async materializeAt(checkpointSha) {
     // 1. Discover current writers to build target frontier
