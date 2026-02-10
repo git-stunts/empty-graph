@@ -1,6 +1,6 @@
 {
   "name": "@git-stunts/git-warp",
-  "version": "10.2.0",
+  "version": "10.3.2",
   "exports": {
     ".": "./index.js",
     "./node": "./src/domain/entities/GraphNode.js",
