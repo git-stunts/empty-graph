@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [10.3.2] — 2026-02-09 — Seek CLI fixes & demo portability
+
+### Added
+
+- **`--save=NAME`, `--load=NAME`, `--drop=NAME` equals form**: `parseSeekArgs` now accepts `=`-separated values for `--save`, `--load`, and `--drop`, matching the existing `--tick=VALUE` form.
+
+### Fixed
+
+- **BATS CI: missing `append-patch.js` helper**: `test/bats/helpers/append-patch.js` was untracked, so Docker builds (which copy from the git context) never included it — causing test 55 to fail with `MODULE_NOT_FOUND` on Node 20.
+- **`seek-demo.tape` not portable**: Replaced hardcoded `$HOME/git/git-stunts/git-warp` with `export PROJECT_ROOT=$(pwd)` captured before entering the temp sandbox.
+- **`emitCursorWarning` / `applyCursorCeiling` JSDoc**: Clarified that non-seek commands intentionally pass `null` for `maxTick` to skip the cost of `discoverTicks()`.
+
 ## [10.3.1] — 2026-02-09 — Seek polish, arrowheads & demo GIF
 
 ### Added

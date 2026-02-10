@@ -16,11 +16,11 @@ Set TypingSpeed 40ms
 
 # ── Bootstrap a sandbox repo with a seeded graph ────────────────────────
 Hide
+Type "export PROJECT_ROOT=$(pwd)"
+Enter
 Type "TMPDIR=$(mktemp -d) && cd $TMPDIR && git init -q sandbox && cd sandbox"
 Enter
 Sleep 500ms
-Type "export PROJECT_ROOT=$HOME/git/git-stunts/git-warp"
-Enter
 Type "export REPO_PATH=$(pwd)"
 Enter
 Type "export PATH=$PROJECT_ROOT/bin:$PATH"

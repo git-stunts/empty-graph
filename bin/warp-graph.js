@@ -1800,6 +1800,15 @@ function parseSeekArgs(args) {
       }
       spec.name = val;
       i += 1;
+    } else if (arg.startsWith('--save=')) {
+      if (spec.action !== 'status') {
+        throw usageError('--save cannot be combined with other seek flags');
+      }
+      spec.action = 'save';
+      spec.name = arg.slice('--save='.length);
+      if (!spec.name) {
+        throw usageError('Missing name for --save');
+      }
     } else if (arg === '--load') {
       if (spec.action !== 'status') {
         throw usageError('--load cannot be combined with other seek flags');
@@ -1811,6 +1820,15 @@ function parseSeekArgs(args) {
       }
       spec.name = val;
       i += 1;
+    } else if (arg.startsWith('--load=')) {
+      if (spec.action !== 'status') {
+        throw usageError('--load cannot be combined with other seek flags');
+      }
+      spec.action = 'load';
+      spec.name = arg.slice('--load='.length);
+      if (!spec.name) {
+        throw usageError('Missing name for --load');
+      }
     } else if (arg === '--list') {
       if (spec.action !== 'status') {
         throw usageError('--list cannot be combined with other seek flags');
@@ -1827,6 +1845,15 @@ function parseSeekArgs(args) {
       }
       spec.name = val;
       i += 1;
+    } else if (arg.startsWith('--drop=')) {
+      if (spec.action !== 'status') {
+        throw usageError('--drop cannot be combined with other seek flags');
+      }
+      spec.action = 'drop';
+      spec.name = arg.slice('--drop='.length);
+      if (!spec.name) {
+        throw usageError('Missing name for --drop');
+      }
     } else if (arg.startsWith('-')) {
       throw usageError(`Unknown seek option: ${arg}`);
     }
@@ -2358,7 +2385,7 @@ function renderSeek(payload) {
  * @param {Object} graph - WarpGraph instance
  * @param {Object} persistence - GraphPersistencePort adapter
  * @param {string} graphName - Name of the WARP graph
- * @returns {Promise<{active: boolean, tick: number|null, maxTick: number|null}>} Cursor info (maxTick is always null here; callers populate it)
+ * @returns {Promise<{active: boolean, tick: number|null, maxTick: number|null}>} Cursor info — maxTick is always null; non-seek commands intentionally skip discoverTicks() for performance
  */
 async function applyCursorCeiling(graph, persistence, graphName) {
   const cursor = await readActiveCursor(persistence, graphName);
@@ -2373,6 +2400,10 @@ async function applyCursorCeiling(graph, persistence, graphName) {
  * Prints a seek cursor warning banner to stderr when a cursor is active.
  *
  * No-op if the cursor is not active.
+ *
+ * Non-seek commands (query, path, check, history, materialize) pass null for
+ * maxTick to avoid the cost of discoverTicks(); the banner then omits the
+ * "of {maxTick}" suffix. Only the seek handler itself populates maxTick.
  *
  * @private
  * @param {{active: boolean, tick: number|null, maxTick: number|null}} cursorInfo - Result from applyCursorCeiling
