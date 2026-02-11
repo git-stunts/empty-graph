@@ -13,9 +13,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`typecheck:policy` npm script**: Runs the policy checker (`node scripts/ts-policy-check.js`).
 - **CI enforcement**: Policy check step added to both `ci.yml` (lint job) and `release-pr.yml` (preflight job), after the existing TypeScript step.
 - **Pre-push hook**: Policy check runs in parallel with lint and typecheck.
+- **BATS test timing**: `STARTING TEST` / `ENDED TEST` instrumentation in BATS helpers for diagnosing slow tests.
 
 ### Changed
 
+- **Node.js >= 22.0.0**: Minimum engine bumped from 20 to 22, matching `@git-stunts/git-cas` requirement. CI matrix, release workflows, and documentation updated accordingly.
+- **`@git-stunts/git-cas`**: Moved from `optionalDependencies` to `dependencies` now that Node 22 is the minimum.
+- **Seek cache write is fire-and-forget**: `WarpGraph.materialize({ ceiling })` no longer awaits the persistent cache write — the CLI exits immediately after emitting output instead of blocking on background I/O (~30s → <1s for seek commands).
+- **CLI uses `process.exit()`**: Ensures the process terminates promptly after emitting output, preventing fire-and-forget I/O from holding the event loop open.
+- **Pre-push hook**: Removed BATS E2E tests (now CI-only) to keep pre-push fast.
 - **`@ts-ignore` → `@ts-expect-error`** across 3 source files and 4 test files. `@ts-expect-error` is strictly better: it errors when the suppression becomes unnecessary.
 - **~108 wildcard casts tagged** with `// TODO(ts-cleanup): reason` across ~30 source files in `src/`, `bin/`, and `scripts/`. Categorized reasons: `needs options type`, `type error`, `narrow port type`, `type patch array`, `type CLI payload`, `type http callback`, `type sync protocol`, `type lazy singleton`, `type observer cast`, and others.
 - **`TYPESCRIPT_ZERO.md`**: B3 (Policy enforcement) marked complete.

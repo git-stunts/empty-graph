@@ -1,6 +1,8 @@
 #!/usr/bin/env bats
 
 setup() {
+  _BATS_T0=$(date +%s)
+  echo "STARTING TEST: ${BATS_TEST_DESCRIPTION}" >&3
   PROJECT_ROOT="$(cd "${BATS_TEST_DIRNAME}/../.." && pwd)"
   export PROJECT_ROOT
   export TEST_REPO
@@ -58,6 +60,8 @@ EOF
 
 teardown() {
   rm -rf "${TEST_REPO}"
+  local elapsed=$(( $(date +%s) - _BATS_T0 ))
+  echo "ENDED TEST: ${BATS_TEST_DESCRIPTION} took ${elapsed}s" >&3
 }
 
 assert_success() {

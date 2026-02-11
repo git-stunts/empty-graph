@@ -447,7 +447,7 @@ The codebase follows hexagonal architecture with ports and adapters:
 - `GitGraphAdapter` -- wraps `@git-stunts/plumbing` for Git operations
 - `ClockAdapter` -- unified clock (factory: `ClockAdapter.node()`, `ClockAdapter.global()`)
 - `NodeCryptoAdapter` -- cryptographic operations via `node:crypto`
-- `WebCryptoAdapter` -- cryptographic operations via Web Crypto API (browsers, Deno, Bun, Node 20+)
+- `WebCryptoAdapter` -- cryptographic operations via Web Crypto API (browsers, Deno, Bun, Node 22+)
 - `NodeHttpAdapter` / `BunHttpAdapter` / `DenoHttpAdapter` -- HTTP server per runtime
 - `ConsoleLogger` / `NoOpLogger` -- logging implementations
 - `CborCodec` -- CBOR serialization for patches
@@ -487,10 +487,9 @@ npm run lint            # eslint
 
 # Multi-runtime test matrix (Docker)
 npm run test:node22     # Node 22: unit + integration + BATS CLI
-npm run test:node20     # Node 20: unit + integration + BATS CLI
 npm run test:bun        # Bun: API integration tests
 npm run test:deno       # Deno: API integration tests
-npm run test:matrix     # All four runtimes in parallel
+npm run test:matrix     # All runtimes in parallel
 ```
 
 ## AIΩN Foundations Series

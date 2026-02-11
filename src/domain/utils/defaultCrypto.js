@@ -6,7 +6,7 @@
  * the infrastructure layer. This follows the same pattern as
  * defaultCodec.js and defaultClock.js.
  *
- * Since git-warp requires Git (and therefore Node 20+, Deno, or Bun),
+ * Since git-warp requires Git (and therefore Node 22+, Deno, or Bun),
  * node:crypto is always available.
  *
  * @module domain/utils/defaultCrypto

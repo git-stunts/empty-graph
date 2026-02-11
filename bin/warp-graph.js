@@ -2733,7 +2733,8 @@ async function main() {
   if (normalized.payload !== undefined) {
     emit(normalized.payload, { json: options.json, command, view: options.view });
   }
-  process.exitCode = normalized.exitCode ?? EXIT_CODES.OK;
+  // Use process.exit() to avoid waiting for fire-and-forget I/O (e.g. seek cache writes).
+  process.exit(normalized.exitCode ?? EXIT_CODES.OK);
 }
 
 main().catch((error) => {
@@ -2752,5 +2753,5 @@ main().catch((error) => {
   } else {
     process.stderr.write(renderError(payload));
   }
-  process.exitCode = exitCode;
+  process.exit(exitCode);
 });

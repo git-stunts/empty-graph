@@ -1,8 +1,7 @@
 /**
- * Type stub for @git-stunts/git-cas (optional dependency, Node >= 22 only).
+ * Type stub for @git-stunts/git-cas.
  *
- * Provides just enough shape for CasSeekCacheAdapter to typecheck on
- * runtimes where the package is not installed.
+ * Provides just enough shape for CasSeekCacheAdapter to typecheck.
  */
 declare module '@git-stunts/git-cas' {
   interface CasStore {

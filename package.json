@@ -14,7 +14,7 @@
     "url": "https://github.com/git-stunts/git-warp/issues"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.0.0"
   },
   "sideEffects": false,
   "main": "./index.js",
@@ -90,11 +90,9 @@
     "typecheck:test": "tsc --noEmit -p tsconfig.test.json",
     "typecheck:policy": "node scripts/ts-policy-check.js"
   },
-  "optionalDependencies": {
-    "@git-stunts/git-cas": "^3.0.0"
-  },
   "dependencies": {
     "@git-stunts/alfred": "^0.4.0",
+    "@git-stunts/git-cas": "^3.0.0",
     "@git-stunts/plumbing": "^2.8.0",
     "@git-stunts/trailer-codec": "^2.1.1",
     "boxen": "^7.1.1",

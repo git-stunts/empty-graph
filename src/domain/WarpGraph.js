@@ -899,17 +899,13 @@ export default class WarpGraph {
     this._cachedCeiling = ceiling;
     this._cachedFrontier = frontier;
 
-    // Store to persistent cache (failure is non-fatal)
+    // Store to persistent cache (fire-and-forget — failure is non-fatal)
     if (this._seekCache && !collectReceipts && allPatches.length > 0) {
-      try {
-        if (!cacheKey) {
-          cacheKey = buildSeekCacheKey(ceiling, frontier);
-        }
-        const buf = serializeFullStateV5(state, { codec: this._codec });
-        await this._seekCache.set(cacheKey, /** @type {Buffer} */ (buf));
-      } catch {
-        // Cache write failed — non-fatal, continue normally
+      if (!cacheKey) {
+        cacheKey = buildSeekCacheKey(ceiling, frontier);
       }
+      const buf = serializeFullStateV5(state, { codec: this._codec });
+      this._seekCache.set(cacheKey, /** @type {Buffer} */ (buf)).catch(() => {});
     }
 
     // Skip auto-checkpoint and GC — this is an exploratory read

@@ -60,7 +60,7 @@ function bufToHex(buf) {
  * Web Crypto API adapter implementing CryptoPort.
  *
  * Uses the standard Web Crypto API (globalThis.crypto.subtle) which is
- * available in browsers, Deno, Bun, and Node.js 20+.
+ * available in browsers, Deno, Bun, and Node.js 22+.
  *
  * All hash and HMAC operations are async because the Web Crypto API
  * is inherently promise-based.

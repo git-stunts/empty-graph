@@ -40,5 +40,4 @@ echo "Running pre-push unit tests..."
 docker compose run --no-build --rm test npm run test:local
 echo "Running pre-push benchmarks..."
 docker compose run --no-build --rm test npm run benchmark:local
-echo "Running pre-push git-warp CLI bats tests..."
-docker compose run --no-build --rm test bats test/bats/
+# BATS E2E tests run in CI only (too slow for pre-push)

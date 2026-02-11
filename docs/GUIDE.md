@@ -12,7 +12,7 @@ WarpGraph is a multi-writer graph database that uses Git commits as its storage 
 
 ## Prerequisites
 
-- Node.js >= 20.0.0
+- Node.js >= 22.0.0
 - Git >= 2.0
 
 ## Installation

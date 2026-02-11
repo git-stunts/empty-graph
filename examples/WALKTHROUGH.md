@@ -15,7 +15,7 @@ Let's dive in!
 ## Prerequisites
 
 - Docker and Docker Compose installed
-- Node.js 20+ (for local development)
+- Node.js 22+ (for local development)
 - About 10 minutes of your time
 
 ---
