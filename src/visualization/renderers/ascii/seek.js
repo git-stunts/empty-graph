@@ -265,6 +265,13 @@ function buildTickPoints(ticks, tick) {
   return { allPoints, currentIdx };
 }
 
+// ============================================================================
+// Structural Diff
+// ============================================================================
+
+/** Maximum structural diff lines shown in ASCII view. */
+const MAX_DIFF_LINES = 20;
+
 /**
  * Builds the state summary, receipt, and structural diff footer lines.
  * @param {SeekPayload} payload
@@ -285,7 +292,7 @@ function buildFooterLines(payload) {
     lines.push(...receiptLines);
   }
 
-  const sdLines = buildStructuralDiffLines(payload, 20);
+  const sdLines = buildStructuralDiffLines(payload, MAX_DIFF_LINES);
   if (sdLines.length > 0) {
     lines.push('');
     lines.push(...sdLines);
@@ -325,17 +332,10 @@ function buildSeekBodyLines(payload) {
   return lines;
 }
 
-// ============================================================================
-// Structural Diff
-// ============================================================================
-
-/** Maximum structural diff lines shown in ASCII view. */
-const MAX_DIFF_LINES = 20;
-
 /**
  * Builds structural diff lines for the seek dashboard.
  *
- * @param {*} payload - Seek payload containing structuralDiff
+ * @param {SeekPayload} payload - Seek payload containing structuralDiff
  * @param {number} maxLines - Maximum number of change lines to show
  * @returns {string[]} Lines for the structural diff section
  */
@@ -364,7 +364,11 @@ function buildStructuralDiffLines(payload, maxLines) {
   }
 
   const totalEntries = entries.length;
-  if (totalEntries > maxLines) {
+  if (totalEntries > maxLines && truncated) {
+    // Both display and data truncation active — show combined message
+    const omitted = totalChanges - shown;
+    lines.push(`    ${colors.muted(`... and ${omitted} more changes (${totalChanges} total, use --diff-limit to increase)`)}`);
+  } else if (totalEntries > maxLines) {
     const remaining = totalEntries - maxLines;
     lines.push(`    ${colors.muted(`... and ${remaining} more changes`)}`);
   } else if (truncated) {
@@ -378,7 +382,7 @@ function buildStructuralDiffLines(payload, maxLines) {
 /**
  * Collects formatted diff entries from a structural diff result.
  *
- * @param {*} diff - StateDiffResult
+ * @param {import('../../../domain/services/StateDiff.js').StateDiffResult} diff
  * @returns {string[]} Formatted entries with +/-/~ prefixes
  */
 function collectDiffEntries(diff) {
@@ -430,7 +434,7 @@ function formatPropValue(value) {
  *
  * Used by the non-view renderSeek() path in the CLI.
  *
- * @param {*} payload - Seek payload containing structuralDiff
+ * @param {SeekPayload} payload - Seek payload containing structuralDiff
  * @returns {string} Formatted diff section, or empty string if no diff
  */
 export function formatStructuralDiff(payload) {

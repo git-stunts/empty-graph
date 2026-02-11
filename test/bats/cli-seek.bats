@@ -319,3 +319,48 @@ PY
   echo "$output" | grep -q "Changes (baseline: empty):"
   echo "$output" | grep -q "+ node"
 }
+
+@test "seek --diff --latest --json shows structural diff" {
+  run git warp --repo "${TEST_REPO}" --graph demo --json seek --tick 1
+  assert_success
+
+  run git warp --repo "${TEST_REPO}" --graph demo --json seek --latest --diff
+  assert_success
+
+  JSON="$output" python3 - <<'PY'
+import json, os
+data = json.loads(os.environ["JSON"])
+assert data["action"] == "latest", f"expected action='latest', got {data['action']}"
+assert "structuralDiff" in data, "expected structuralDiff in payload"
+sd = data["structuralDiff"]
+assert data["diffBaseline"] == "tick", f"expected diffBaseline='tick', got {data['diffBaseline']}"
+assert data["baselineTick"] == 1, f"expected baselineTick=1, got {data['baselineTick']}"
+PY
+}
+
+@test "seek --diff-limit=0 is rejected" {
+  run git warp --repo "${TEST_REPO}" --graph demo --json seek --tick 1 --diff --diff-limit=0
+  assert_failure
+  echo "$output" | grep -qi "positive integer"
+}
+
+@test "seek --diff-limit without value is rejected" {
+  run git warp --repo "${TEST_REPO}" --graph demo --json seek --tick 1 --diff --diff-limit
+  assert_failure
+  echo "$output" | grep -qi "missing value"
+}
+
+@test "seek --diff-limit=-1 is rejected" {
+  run git warp --repo "${TEST_REPO}" --graph demo --json seek --tick 1 --diff --diff-limit=-1
+  assert_failure
+  echo "$output" | grep -qi "positive integer"
+}
+
+@test "seek --diff with --save is rejected" {
+  run git warp --repo "${TEST_REPO}" --graph demo --json seek --tick 1
+  assert_success
+
+  run git warp --repo "${TEST_REPO}" --graph demo --json seek --save snap1 --diff
+  assert_failure
+  echo "$output" | grep -qi "cannot be used"
+}

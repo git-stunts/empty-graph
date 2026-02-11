@@ -478,3 +478,93 @@ describe('formatStructuralDiff', () => {
     expect(output).toContain('+ node n1');
   });
 });
+
+describe('structural diff edge cases', () => {
+  it('shows combined truncation message when both display and data truncation active', () => {
+    // 25 entries in data (more than MAX_DIFF_LINES=20), AND marked as data-truncated
+    const added = Array.from({ length: 25 }, (_, i) => `n${i}`);
+    const payload = {
+      graph: 'combo',
+      tick: 2,
+      maxTick: 2,
+      ticks: [1, 2],
+      nodes: 100,
+      edges: 0,
+      patchCount: 2,
+      perWriter: { alice: { ticks: [1, 2] } },
+      structuralDiff: {
+        nodes: { added, removed: [] },
+        edges: { added: [], removed: [] },
+        props: { set: [], removed: [] },
+      },
+      diffBaseline: 'tick',
+      baselineTick: 1,
+      truncated: true,
+      totalChanges: 500,
+      shownChanges: 25,
+    };
+
+    const output = stripAnsi(renderSeekView(payload));
+    // Should mention the total and the --diff-limit hint
+    expect(output).toContain('480 more changes');
+    expect(output).toContain('500 total');
+    expect(output).toContain('--diff-limit');
+  });
+
+  it('renders structural diff on latest action payload', () => {
+    const payload = {
+      graph: 'latest-test',
+      action: 'latest',
+      tick: 3,
+      maxTick: 3,
+      ticks: [1, 2, 3],
+      nodes: 5,
+      edges: 2,
+      patchCount: 3,
+      perWriter: { alice: { ticks: [1, 2, 3] } },
+      structuralDiff: {
+        nodes: { added: ['n3'], removed: [] },
+        edges: { added: [], removed: [] },
+        props: { set: [], removed: [] },
+      },
+      diffBaseline: 'tick',
+      baselineTick: 2,
+      truncated: false,
+      totalChanges: 1,
+      shownChanges: 1,
+    };
+
+    const output = stripAnsi(renderSeekView(payload));
+    expect(output).toContain('Changes (baseline: tick 2):');
+    expect(output).toContain('+ node n3');
+  });
+
+  it('renders structural diff on load action payload', () => {
+    const payload = {
+      graph: 'load-test',
+      action: 'load',
+      name: 'snap1',
+      tick: 2,
+      maxTick: 3,
+      ticks: [1, 2, 3],
+      nodes: 4,
+      edges: 1,
+      patchCount: 2,
+      perWriter: { alice: { ticks: [1, 2, 3] } },
+      structuralDiff: {
+        nodes: { added: [], removed: ['n3'] },
+        edges: { added: [], removed: [] },
+        props: { set: [], removed: [] },
+      },
+      diffBaseline: 'tick',
+      baselineTick: 3,
+      truncated: false,
+      totalChanges: 1,
+      shownChanges: 1,
+    };
+
+    const output = stripAnsi(renderSeekView(payload));
+    expect(output).toContain('Changes (baseline: tick 3):');
+    expect(output).toContain('- node n3');
+  });
+});

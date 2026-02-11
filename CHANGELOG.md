@@ -12,21 +12,24 @@ Shows *which* nodes/edges were added/removed and *which* properties changed (wit
 ### Added
 
 - **`--diff` flag** on `git warp seek`: Computes a structural diff between the previous cursor position and the new one. First seek uses baseline `"empty"` (everything appears as an addition); subsequent seeks use the previous cursor tick as baseline.
-- **`--diff-limit=N` flag** on `git warp seek`: Caps the number of change entries in the structural diff (default 2000). When truncated, the payload includes `truncated: true`, `totalChanges`, and `shownChanges` metadata.
+- **`--diff-limit=N` flag** on `git warp seek`: Caps the number of change entries in the structural diff (default 2000, minimum 1). When truncated, the payload includes `truncated: true`, `totalChanges`, and `shownChanges` metadata.
 - **`WarpGraph.getStateSnapshot()`**: Returns a defensive copy of the current materialized `WarpStateV5` via `cloneStateV5()`. Returns null when no state is materialized. Prevents aliasing bugs when callers need to hold a reference across re-materializations.
 - **ASCII structural diff section**: Colored `+` (green) / `-` (red) / `~` (yellow) lines in a `Changes (baseline: ...)` section, rendered in both plain text and `--view` (boxen) modes. Property changes show `old -> new` values.
 - **JSON structural diff fields**: `structuralDiff`, `diffBaseline`, `baselineTick`, `truncated`, `totalChanges`, `shownChanges` added to the seek payload when `--diff` is active.
 - **`formatStructuralDiff()`** export from `src/visualization/renderers/ascii/seek.js` for plain-text rendering.
 - **SEEKDIFF milestone** (v10.5.0) added to `ROADMAP.md` and `scripts/roadmap.js` with 4 tasks (all closed).
 - **Unit tests**: `WarpGraph.seekDiff.test.js` (8 tests) — state snapshot identity, defensive copy, forward/backward diff, first seek, same-tick no-op, property changes.
-- **ASCII renderer tests**: 7 new tests — structural diff with tick/empty baselines, truncation message, null diff backward compat, removal entries.
-- **BATS E2E tests**: 4 new tests — `--diff --json` first seek, forward/backward structural diff, ASCII `Changes` section.
+- **ASCII renderer tests**: 10 new tests — structural diff with tick/empty baselines, truncation message, null diff backward compat, removal entries, combined truncation, latest/load action payloads.
+- **BATS E2E tests**: 9 new tests — `--diff --json` first seek, forward/backward structural diff, ASCII `Changes` section, `--latest --diff`, `--diff-limit` validation (=0, =-1, missing value), `--diff --save` rejection.
 
 ### Changed
 
-- **`parseSeekArgs()`**: Extracted `parseSeekNamedAction()` helper for `--save`/`--load`/`--drop` parsing, reducing cyclomatic complexity.
-- **`handleSeek()`**: Extracted `handleSeekStatus()` to stay within ESLint `max-lines-per-function` limit.
+- **`parseSeekArgs()`**: Extracted `parseSeekNamedAction()` helper for `--save`/`--load`/`--drop` parsing, reducing cyclomatic complexity. Now rejects `--diff` on non-navigating actions (`--save`, `--drop`, `--list`, `--clear-cache`).
+- **`handleSeek()`**: Extracted `handleSeekStatus()` to stay within ESLint `max-lines-per-function` limit. `--diff` skips redundant re-materialization when `computeStructuralDiff` already materialized the target tick.
+- **`computeStructuralDiff()`**: Short-circuits with an empty diff when `prevTick === currentTick`.
 - **`buildSeekBodyLines()`**: Extracted `buildFooterLines()` for state summary + receipt + structural diff rendering.
+- **`buildStructuralDiffLines()`**: Shows combined truncation message when both display-level (20 lines) and data-level (`--diff-limit`) truncation are active.
+- **`--diff`/`--diff-limit`** added to `git warp --help` seek options.
 
 ## [10.4.2] — 2026-02-10 — TS policy enforcement (B3)
 

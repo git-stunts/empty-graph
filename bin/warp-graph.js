@@ -64,7 +64,7 @@ import { layoutGraph, queryResultToGraphData, pathResultToGraphData } from '../s
  * @property {() => Promise<Map<string, any>>} getFrontier
  * @property {() => {totalTombstones: number, tombstoneRatio: number}} getGCMetrics
  * @property {() => Promise<number>} getPropertyCount
- * @property {() => Promise<*>} getStateSnapshot
+ * @property {() => Promise<import('./src/domain/services/JoinReducer.js').WarpStateV5 | null>} getStateSnapshot
  * @property {() => Promise<{ticks: number[], maxTick: number, perWriter: Map<string, WriterTickInfo>}>} discoverTicks
  * @property {(sha: string) => Promise<{ops?: any[]}>} loadPatchBySha
  * @property {(cache: any) => void} setSeekCache
@@ -175,6 +175,8 @@ Seek options:
   --load <name>         Restore a saved cursor
   --list                List all saved cursors
   --drop <name>         Delete a saved cursor
+  --diff                Show structural diff (added/removed nodes, edges, props)
+  --diff-limit <N>      Max diff entries (default 2000)
 `;
 
 /**
@@ -1980,8 +1982,8 @@ function handleDiffLimitFlag(arg, args, i, spec) {
     }
   }
   const n = parseInt(raw, 10);
-  if (!Number.isInteger(n) || n < 0) {
-    throw usageError(`Invalid --diff-limit value: ${raw}. Must be a non-negative integer.`);
+  if (!Number.isInteger(n) || n < 1) {
+    throw usageError(`Invalid --diff-limit value: ${raw}. Must be a positive integer.`);
   }
   spec.diffLimit = n;
 }
@@ -2077,6 +2079,12 @@ function parseSeekArgs(args) {
     } else if (arg.startsWith('-')) {
       throw usageError(`Unknown seek option: ${arg}`);
     }
+  }
+
+  // --diff is only meaningful for actions that navigate to a tick
+  const DIFF_ACTIONS = new Set(['status', 'tick', 'latest', 'load']);
+  if (spec.diff && !DIFF_ACTIONS.has(spec.action)) {
+    throw usageError(`--diff cannot be used with --${spec.action}`);
   }
 
   return spec;
@@ -2207,7 +2215,10 @@ async function handleSeek({ options, args }) {
       sdResult = await computeStructuralDiff({ graph, prevTick, currentTick: maxTick, diffLimit: seekSpec.diffLimit });
     }
     await clearActiveCursor(persistence, graphName);
-    await graph.materialize();
+    // When --diff already materialized at maxTick, skip redundant re-materialize
+    if (!sdResult) {
+      await graph.materialize({ ceiling: maxTick });
+    }
     const nodes = await graph.getNodes();
     const edges = await graph.getEdges();
     const diff = computeSeekStateDiff(activeCursor, { nodes: nodes.length, edges: edges.length }, frontierHash);
@@ -2257,7 +2268,10 @@ async function handleSeek({ options, args }) {
     if (seekSpec.diff) {
       sdResult = await computeStructuralDiff({ graph, prevTick, currentTick: saved.tick, diffLimit: seekSpec.diffLimit });
     }
-    await graph.materialize({ ceiling: saved.tick });
+    // When --diff already materialized at saved.tick, skip redundant call
+    if (!sdResult) {
+      await graph.materialize({ ceiling: saved.tick });
+    }
     const nodes = await graph.getNodes();
     const edges = await graph.getEdges();
     await writeActiveCursor(persistence, graphName, { tick: saved.tick, mode: saved.mode ?? 'lamport', nodes: nodes.length, edges: edges.length, frontierHash });
@@ -2290,7 +2304,10 @@ async function handleSeek({ options, args }) {
     if (seekSpec.diff) {
       sdResult = await computeStructuralDiff({ graph, prevTick: currentTick, currentTick: resolvedTick, diffLimit: seekSpec.diffLimit });
     }
-    await graph.materialize({ ceiling: resolvedTick });
+    // When --diff already materialized at resolvedTick, skip redundant call
+    if (!sdResult) {
+      await graph.materialize({ ceiling: resolvedTick });
+    }
     const nodes = await graph.getNodes();
     const edges = await graph.getEdges();
     await writeActiveCursor(persistence, graphName, { tick: resolvedTick, mode: 'lamport', nodes: nodes.length, edges: edges.length, frontierHash });
@@ -2522,6 +2539,12 @@ async function computeStructuralDiff({ graph, prevTick, currentTick, diffLimit }
   let diffBaseline = 'empty';
   let baselineTick = null;
 
+  // Short-circuit: same tick produces an empty diff
+  if (prevTick !== null && prevTick === currentTick) {
+    const empty = { nodes: { added: [], removed: [] }, edges: { added: [], removed: [] }, props: { set: [], removed: [] } };
+    return { structuralDiff: empty, diffBaseline: 'tick', baselineTick: prevTick, truncated: false, totalChanges: 0, shownChanges: 0 };
+  }
+
   if (prevTick !== null && prevTick > 0) {
     await graph.materialize({ ceiling: prevTick });
     beforeState = await graph.getStateSnapshot();
@@ -2555,7 +2578,7 @@ function applyDiffLimit(diff, diffBaseline, baselineTick, diffLimit) {
     return { structuralDiff: diff, diffBaseline, baselineTick, truncated: false, totalChanges, shownChanges: totalChanges };
   }
 
-  // Truncate each category proportionally, keeping order
+  // Truncate greedily in category order: nodes, edges, props
   let remaining = diffLimit;
   const cap = (/** @type {any[]} */ arr) => {
     const take = Math.min(arr.length, remaining);
@@ -2694,13 +2717,12 @@ function renderSeek(payload) {
     return base + formatStructuralDiff(payload);
   }
 
-  // status
+  // status (structuralDiff is never populated here; no formatStructuralDiff call)
   if (payload.cursor && payload.cursor.active) {
     const { nodesStr, edgesStr, patchesStr } = buildStateStrings();
-    const base = appendReceiptSummary(
+    return appendReceiptSummary(
       `${payload.graph}: tick ${payload.tick} of ${payload.maxTick} (${nodesStr}, ${edgesStr}, ${patchesStr})`,
     );
-    return base + formatStructuralDiff(payload);
   }
 
   return `${payload.graph}: no cursor active, ${payload.ticks.length} ticks available\n`;
