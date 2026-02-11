@@ -12,8 +12,8 @@ const DEFAULT_PATTERN = '*';
  * @typedef {Object} QueryNodeSnapshot
  * @property {string} id - The unique identifier of the node
  * @property {Record<string, unknown>} props - Frozen snapshot of node properties
- * @property {Array<{label: string, to: string}>} edgesOut - Outgoing edges sorted by label then target
- * @property {Array<{label: string, from: string}>} edgesIn - Incoming edges sorted by label then source
+ * @property {ReadonlyArray<{label: string, to?: string, from?: string}>} edgesOut - Outgoing edges sorted by label then target
+ * @property {ReadonlyArray<{label: string, to?: string, from?: string}>} edgesIn - Incoming edges sorted by label then source
  */
 
 /**
@@ -271,6 +271,7 @@ function cloneValue(value) {
  * @private
  */
 function buildPropsSnapshot(propsMap) {
+  /** @type {Record<string, unknown>} */
   const props = {};
   const keys = [...propsMap.keys()].sort();
   for (const key of keys) {
@@ -299,8 +300,8 @@ function buildEdgesSnapshot(edges, directionKey) {
     if (a.label !== b.label) {
       return a.label < b.label ? -1 : 1;
     }
-    const aPeer = a[directionKey];
-    const bPeer = b[directionKey];
+    const aPeer = /** @type {string} */ (a[directionKey]);
+    const bPeer = /** @type {string} */ (b[directionKey]);
     return aPeer < bPeer ? -1 : aPeer > bPeer ? 1 : 0;
   });
   return deepFreeze(list);
@@ -493,9 +494,13 @@ export default class QueryBuilder {
    */
   constructor(graph) {
     this._graph = graph;
+    /** @type {string|null} */
     this._pattern = null;
+    /** @type {Array<{type: string, fn?: (node: QueryNodeSnapshot) => boolean, label?: string, depth?: [number, number]}>} */
     this._operations = [];
+    /** @type {string[]|null} */
     this._select = null;
+    /** @type {AggregateSpec|null} */
     this._aggregate = null;
   }
 
@@ -531,7 +536,7 @@ export default class QueryBuilder {
    */
   where(fn) {
     assertPredicate(fn);
-    const predicate = isPlainObject(fn) ? objectToPredicate(fn) : fn;
+    const predicate = isPlainObject(fn) ? objectToPredicate(/** @type {Record<string, unknown>} */ (fn)) : /** @type {(node: QueryNodeSnapshot) => boolean} */ (fn);
     this._operations.push({ type: 'where', fn: predicate });
     return this;
   }
@@ -628,11 +633,6 @@ export default class QueryBuilder {
    * The "props." prefix is optional and will be stripped automatically.
    *
    * @param {AggregateSpec} spec - Aggregation specification
-   * @param {boolean} [spec.count] - If true, include count of matched nodes
-   * @param {string} [spec.sum] - Property path to sum
-   * @param {string} [spec.avg] - Property path to average
-   * @param {string} [spec.min] - Property path to find minimum
-   * @param {string} [spec.max] - Property path to find maximum
    * @returns {QueryBuilder} This builder for chaining
    * @throws {QueryError} If spec is not a plain object (code: E_QUERY_AGGREGATE_TYPE)
    * @throws {QueryError} If numeric aggregation keys are not strings (code: E_QUERY_AGGREGATE_TYPE)
@@ -646,11 +646,12 @@ export default class QueryBuilder {
       });
     }
     const numericKeys = ['sum', 'avg', 'min', 'max'];
+    const specAny = /** @type {Record<string, unknown>} */ (/** @type {unknown} */ (spec));
     for (const key of numericKeys) {
-      if (spec[key] !== undefined && typeof spec[key] !== 'string') {
+      if (specAny[key] !== undefined && typeof specAny[key] !== 'string') {
         throw new QueryError(`aggregate() expects ${key} to be a string path`, {
           code: 'E_QUERY_AGGREGATE_TYPE',
-          context: { key, receivedType: typeof spec[key] },
+          context: { key, receivedType: typeof specAny[key] },
         });
       }
     }
@@ -674,7 +675,7 @@ export default class QueryBuilder {
    * @throws {QueryError} If an unknown select field is specified (code: E_QUERY_SELECT_FIELD)
    */
   async run() {
-    const materialized = await this._graph._materializeGraph();
+    const materialized = await /** @type {any} */ (this._graph)._materializeGraph(); // TODO(ts-cleanup): narrow port type
     const { adjacency, stateHash } = materialized;
     const allNodes = sortIds(await this._graph.getNodes());
 
@@ -696,15 +697,16 @@ export default class QueryBuilder {
             };
           })
         );
+        const predicate = /** @type {(node: QueryNodeSnapshot) => boolean} */ (op.fn);
         const filtered = snapshots
-          .filter(({ snapshot }) => op.fn(snapshot))
+          .filter(({ snapshot }) => predicate(snapshot))
           .map(({ nodeId }) => nodeId);
         workingSet = sortIds(filtered);
         continue;
       }
 
       if (op.type === 'outgoing' || op.type === 'incoming') {
-        const [minD, maxD] = op.depth;
+        const [minD, maxD] = /** @type {[number, number]} */ (op.depth);
         if (minD === 1 && maxD === 1) {
           workingSet = applyHop({
             direction: op.type,
@@ -718,7 +720,7 @@ export default class QueryBuilder {
             label: op.label,
             workingSet,
             adjacency,
-            depth: op.depth,
+            depth: /** @type {[number, number]} */ (op.depth),
           });
         }
       }
@@ -778,21 +780,24 @@ export default class QueryBuilder {
    * @private
    */
   async _runAggregate(workingSet, stateHash) {
-    const spec = this._aggregate;
+    const spec = /** @type {AggregateSpec} */ (this._aggregate);
+    /** @type {AggregateResult} */
     const result = { stateHash };
+    const specRec = /** @type {Record<string, unknown>} */ (/** @type {unknown} */ (spec));
 
     if (spec.count) {
       result.count = workingSet.length;
     }
 
     const numericAggs = ['sum', 'avg', 'min', 'max'];
-    const activeAggs = numericAggs.filter((key) => spec[key]);
+    const activeAggs = numericAggs.filter((key) => specRec[key]);
 
     if (activeAggs.length > 0) {
+      /** @type {Map<string, {segments: string[], values: number[]}>} */
       const propsByAgg = new Map();
       for (const key of activeAggs) {
         propsByAgg.set(key, {
-          segments: spec[key].replace(/^props\./, '').split('.'),
+          segments: /** @type {string} */ (specRec[key]).replace(/^props\./, '').split('.'),
           values: [],
         });
       }
@@ -800,6 +805,7 @@ export default class QueryBuilder {
       for (const nodeId of workingSet) {
         const propsMap = (await this._graph.getNodeProps(nodeId)) || new Map();
         for (const { segments, values } of propsByAgg.values()) {
+          /** @type {*} */ // TODO(ts-cleanup): type deep property traversal
           let value = propsMap.get(segments[0]);
           for (let i = 1; i < segments.length; i++) {
             if (value && typeof value === 'object') {
@@ -817,15 +823,15 @@ export default class QueryBuilder {
 
       for (const [key, { values }] of propsByAgg) {
         if (key === 'sum') {
-          result.sum = values.length > 0 ? values.reduce((a, b) => a + b, 0) : 0;
+          result.sum = values.length > 0 ? values.reduce((/** @type {number} */ a, /** @type {number} */ b) => a + b, 0) : 0;
         } else if (key === 'avg') {
-          result.avg = values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : 0;
+          result.avg = values.length > 0 ? values.reduce((/** @type {number} */ a, /** @type {number} */ b) => a + b, 0) / values.length : 0;
         } else if (key === 'min') {
           result.min =
-            values.length > 0 ? values.reduce((m, v) => (v < m ? v : m), Infinity) : 0;
+            values.length > 0 ? values.reduce((/** @type {number} */ m, /** @type {number} */ v) => (v < m ? v : m), Infinity) : 0;
         } else if (key === 'max') {
           result.max =
-            values.length > 0 ? values.reduce((m, v) => (v > m ? v : m), -Infinity) : 0;
+            values.length > 0 ? values.reduce((/** @type {number} */ m, /** @type {number} */ v) => (v > m ? v : m), -Infinity) : 0;
         }
       }
     }

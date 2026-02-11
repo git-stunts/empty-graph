@@ -10,15 +10,13 @@
  *
  * @property {string} name - Error name (set from constructor.name)
  * @property {string} code - Machine-readable error code
- * @property {Object} context - Serializable context for debugging
+ * @property {Record<string, *>} context - Serializable context for debugging
  */
 export default class WarpError extends Error {
   /**
    * @param {string} message - Human-readable error message
    * @param {string} defaultCode - Default error code if not overridden by options
-   * @param {Object} [options={}] - Error options
-   * @param {string} [options.code] - Override error code
-   * @param {Object} [options.context={}] - Serializable context for debugging
+   * @param {{ code?: string, context?: Record<string, *> }} [options={}] - Error options
    */
   constructor(message, defaultCode, options = {}) {
     super(message);

@@ -35,7 +35,7 @@ class LRUCache {
       return undefined;
     }
     // Move to end (most recently used) by deleting and re-inserting
-    const value = this._cache.get(key);
+    const value = /** @type {V} */ (this._cache.get(key));
     this._cache.delete(key);
     this._cache.set(key, value);
     return value;
@@ -48,7 +48,7 @@ class LRUCache {
    *
    * @param {K} key - The key to set
    * @param {V} value - The value to cache
-   * @returns {LRUCache} The cache instance for chaining
+   * @returns {LRUCache<K, V>} The cache instance for chaining
    */
   set(key, value) {
     // If key exists, delete it first so it moves to the end
@@ -61,7 +61,7 @@ class LRUCache {
 
     // Evict oldest entry if over capacity
     if (this._cache.size > this.maxSize) {
-      const oldestKey = this._cache.keys().next().value;
+      const oldestKey = /** @type {K} */ (this._cache.keys().next().value);
       this._cache.delete(oldestKey);
     }
 

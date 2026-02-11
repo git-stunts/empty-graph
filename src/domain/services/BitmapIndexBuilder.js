@@ -1,4 +1,5 @@
 import defaultCodec from '../utils/defaultCodec.js';
+import defaultCrypto from '../utils/defaultCrypto.js';
 import { getRoaringBitmap32, getNativeRoaringAvailable } from '../utils/roaring.js';
 import { canonicalStringify } from '../utils/canonicalStringify.js';
 import { SHARD_VERSION } from '../utils/shardVersion.js';
@@ -13,10 +14,9 @@ export { SHARD_VERSION };
  *
  * @param {Object} data - The data object to checksum
  * @param {import('../../ports/CryptoPort.js').default} crypto - CryptoPort instance
- * @returns {Promise<string|null>} Hex-encoded SHA-256 hash
+ * @returns {Promise<string>} Hex-encoded SHA-256 hash
  */
 const computeChecksum = async (data, crypto) => {
-  if (!crypto) { return null; }
   const json = canonicalStringify(data);
   return await crypto.hash('sha256', json);
 };
@@ -51,6 +51,7 @@ const wrapShard = async (data, crypto) => ({
  * @param {import('../../ports/CodecPort.js').default} codec - Codec for CBOR serialization
  */
 function serializeFrontierToTree(frontier, tree, codec) {
+  /** @type {Record<string, string|undefined>} */
   const sorted = {};
   for (const key of Array.from(frontier.keys()).sort()) {
     sorted[key] = frontier.get(key);
@@ -95,14 +96,14 @@ export default class BitmapIndexBuilder {
    */
   constructor({ crypto, codec } = {}) {
     /** @type {import('../../ports/CryptoPort.js').default} */
-    this._crypto = crypto;
-    /** @type {import('../../ports/CodecPort.js').default|undefined} */
+    this._crypto = crypto || defaultCrypto;
+    /** @type {import('../../ports/CodecPort.js').default} */
     this._codec = codec || defaultCodec;
     /** @type {Map<string, number>} */
     this.shaToId = new Map();
     /** @type {string[]} */
     this.idToSha = [];
-    /** @type {Map<string, RoaringBitmap32>} */
+    /** @type {Map<string, any>} */
     this.bitmaps = new Map();
   }
 
@@ -148,9 +149,11 @@ export default class BitmapIndexBuilder {
    * @returns {Promise<Record<string, Buffer>>} Map of path → serialized content
    */
   async serialize({ frontier } = {}) {
+    /** @type {Record<string, Buffer>} */
     const tree = {};
 
     // Serialize ID mappings (sharded by prefix)
+    /** @type {Record<string, Record<string, number>>} */
     const idShards = {};
     for (const [sha, id] of this.shaToId) {
       const prefix = sha.substring(0, 2);
@@ -165,6 +168,7 @@ export default class BitmapIndexBuilder {
 
     // Serialize bitmaps (sharded by prefix, per-node within shard)
     // Keys are constructed as '${type}_${sha}' by _addToBitmap (e.g., 'fwd_abc123', 'rev_def456')
+    /** @type {Record<string, Record<string, Record<string, string>>>} */
     const bitmapShards = { fwd: {}, rev: {} };
     for (const [key, bitmap] of this.bitmaps) {
       const [type, sha] = [key.substring(0, 3), key.substring(4)];
@@ -198,7 +202,7 @@ export default class BitmapIndexBuilder {
    */
   _getOrCreateId(sha) {
     if (this.shaToId.has(sha)) {
-      return this.shaToId.get(sha);
+      return /** @type {number} */ (this.shaToId.get(sha));
     }
     const id = this.idToSha.length;
     this.idToSha.push(sha);

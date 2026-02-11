@@ -414,6 +414,8 @@ git warp seek --tick=-1                 # step backward one tick
 git warp seek --save before-refactor    # bookmark current position
 git warp seek --load before-refactor    # restore bookmark
 git warp seek --latest                  # return to present
+git warp seek --clear-cache             # purge persistent seek cache
+git warp seek --no-persistent-cache --tick 5  # skip cache for one invocation
 
 # Visualize query results (ascii output by default)
 git warp query --match 'user:*' --outgoing manages --view
@@ -439,15 +441,17 @@ The codebase follows hexagonal architecture with ports and adapters:
 - `CryptoPort` -- hash/HMAC operations
 - `LoggerPort` -- structured logging
 - `ClockPort` -- time measurement
+- `SeekCachePort` -- persistent seek materialization cache
 
 **Adapters** implement the ports:
 - `GitGraphAdapter` -- wraps `@git-stunts/plumbing` for Git operations
 - `ClockAdapter` -- unified clock (factory: `ClockAdapter.node()`, `ClockAdapter.global()`)
 - `NodeCryptoAdapter` -- cryptographic operations via `node:crypto`
-- `WebCryptoAdapter` -- cryptographic operations via Web Crypto API (browsers, Deno, Bun, Node 20+)
+- `WebCryptoAdapter` -- cryptographic operations via Web Crypto API (browsers, Deno, Bun, Node 22+)
 - `NodeHttpAdapter` / `BunHttpAdapter` / `DenoHttpAdapter` -- HTTP server per runtime
 - `ConsoleLogger` / `NoOpLogger` -- logging implementations
 - `CborCodec` -- CBOR serialization for patches
+- `CasSeekCacheAdapter` -- persistent seek cache via `@git-stunts/git-cas`
 
 **Domain** contains the core logic:
 - `WarpGraph` -- public API facade
@@ -483,10 +487,9 @@ npm run lint            # eslint
 
 # Multi-runtime test matrix (Docker)
 npm run test:node22     # Node 22: unit + integration + BATS CLI
-npm run test:node20     # Node 20: unit + integration + BATS CLI
 npm run test:bun        # Bun: API integration tests
 npm run test:deno       # Deno: API integration tests
-npm run test:matrix     # All four runtimes in parallel
+npm run test:matrix     # All runtimes in parallel
 ```
 
 ## AIΩN Foundations Series

@@ -178,7 +178,7 @@ export async function resolveWriterId({ graphName, explicitWriterId, configGet, 
   try {
     existing = await configGet(key);
   } catch (e) {
-    throw new WriterIdError('CONFIG_READ_FAILED', `Failed to read git config key ${key}`, e);
+    throw new WriterIdError('CONFIG_READ_FAILED', `Failed to read git config key ${key}`, /** @type {Error|undefined} */ (e));
   }
 
   if (existing) {
@@ -198,7 +198,7 @@ export async function resolveWriterId({ graphName, explicitWriterId, configGet, 
   try {
     await configSet(key, fresh);
   } catch (e) {
-    throw new WriterIdError('CONFIG_WRITE_FAILED', `Failed to persist writerId to git config key ${key}`, e);
+    throw new WriterIdError('CONFIG_WRITE_FAILED', `Failed to persist writerId to git config key ${key}`, /** @type {Error|undefined} */ (e));
   }
 
   return fresh;

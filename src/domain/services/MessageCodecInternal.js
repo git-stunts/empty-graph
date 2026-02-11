@@ -12,6 +12,7 @@
  * @private
  */
 
+// @ts-expect-error -- no declaration file for @git-stunts/trailer-codec
 import { TrailerCodec, TrailerCodecService } from '@git-stunts/trailer-codec';
 
 // -----------------------------------------------------------------------------
@@ -62,6 +63,7 @@ const SHA256_PATTERN = /^[0-9a-f]{64}$/;
 // -----------------------------------------------------------------------------
 
 // Lazy singleton codec instance
+/** @type {*} */ // TODO(ts-cleanup): type lazy singleton
 let _codec = null;
 
 /**

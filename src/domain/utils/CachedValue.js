@@ -68,7 +68,7 @@ class CachedValue {
    */
   async get() {
     if (this._isValid()) {
-      return this._value;
+      return /** @type {T} */ (this._value);
     }
 
     const value = await this._compute();

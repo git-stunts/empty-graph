@@ -79,13 +79,7 @@ export function encodeCheckpointMessage({ graph, stateHash, frontierOid, indexOi
  * Decodes a checkpoint commit message.
  *
  * @param {string} message - The raw commit message
- * @returns {Object} The decoded checkpoint message
- * @returns {string} return.kind - Always 'checkpoint'
- * @returns {string} return.graph - The graph name
- * @returns {string} return.stateHash - The SHA-256 state hash
- * @returns {string} return.frontierOid - The frontier blob OID
- * @returns {string} return.indexOid - The index tree OID
- * @returns {number} return.schema - The schema version
+ * @returns {{ kind: 'checkpoint', graph: string, stateHash: string, frontierOid: string, indexOid: string, schema: number, checkpointVersion: string|null }} The decoded checkpoint message
  * @throws {Error} If the message is not a valid checkpoint message
  *
  * @example

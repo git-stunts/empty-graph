@@ -7,12 +7,18 @@
  */
 
 /**
+ * @typedef {{ id: string, label: string, props?: Record<string, any> }} GraphDataNode
+ * @typedef {{ from: string, to: string, label?: string }} GraphDataEdge
+ * @typedef {{ nodes: GraphDataNode[], edges: GraphDataEdge[] }} GraphData
+ */
+
+/**
  * Converts a query result payload + edge array into graph data.
  * Edges are filtered to only those connecting matched nodes.
  *
- * @param {Object} payload - Query result { nodes: [{id, props}] }
- * @param {Array}  edges   - Edge array from graph.getEdges()
- * @returns {{ nodes: Array, edges: Array }}
+ * @param {{ nodes?: Array<{ id: string, props?: Record<string, any> }> } | null} payload - Query result
+ * @param {Array<{ from: string, to: string, label?: string }>}  edges   - Edge array from graph.getEdges()
+ * @returns {GraphData}
  */
 export function queryResultToGraphData(payload, edges) {
   const nodes = (payload?.nodes ?? []).map((n) => ({
@@ -34,8 +40,8 @@ export function queryResultToGraphData(payload, edges) {
  * Converts a path result payload into graph data.
  * Builds a linear chain of nodes with labelled edges.
  *
- * @param {Object} payload - Path result { path: string[], edges?: string[] }
- * @returns {{ nodes: Array, edges: Array }}
+ * @param {{ path?: string[], edges?: string[] } | null} payload - Path result
+ * @returns {GraphData}
  */
 export function pathResultToGraphData(payload) {
   const pathArr = payload?.path ?? [];
@@ -43,6 +49,7 @@ export function pathResultToGraphData(payload) {
 
   const nodes = pathArr.map((id) => ({ id, label: id }));
 
+  /** @type {GraphDataEdge[]} */
   const edges = [];
   for (let i = 0; i < pathArr.length - 1; i++) {
     edges.push({
@@ -59,8 +66,8 @@ export function pathResultToGraphData(payload) {
  * Converts raw getNodes() + getEdges() output into graph data.
  *
  * @param {string[]} nodeIds - Array of node IDs
- * @param {Array}    edges   - Edge array from graph.getEdges()
- * @returns {{ nodes: Array, edges: Array }}
+ * @param {Array<{ from: string, to: string, label?: string }>}    edges   - Edge array from graph.getEdges()
+ * @returns {GraphData}
  */
 export function rawGraphToGraphData(nodeIds, edges) {
   const nodes = (nodeIds ?? []).map((id) => ({ id, label: id }));

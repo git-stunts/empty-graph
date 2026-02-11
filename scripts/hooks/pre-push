@@ -8,22 +8,26 @@ if [ -z "$ROOT" ]; then
 fi
 cd "$ROOT"
 
-if ! command -v docker >/dev/null 2>&1; then
-  echo "pre-push: docker is required to run git-warp CLI bats tests" >&2
-  exit 1
-fi
-
 echo "Running pre-push link check..."
 if command -v lychee >/dev/null 2>&1; then
   lychee --config .lychee.toml '**/*.md'
 else
   echo "  skipped (lychee not installed — brew install lychee)"
 fi
-echo "Running pre-push lint..."
-npm run lint
+
+# Run lint + typecheck + policy in parallel (all are read-only)
+echo "Running pre-push lint + typecheck + policy (parallel)..."
+npm run lint &
+LINT_PID=$!
+npm run typecheck &
+TC_PID=$!
+npm run typecheck:policy &
+POLICY_PID=$!
+wait $LINT_PID || { echo "Lint failed"; exit 1; }
+wait $TC_PID || { echo "Typecheck failed"; exit 1; }
+wait $POLICY_PID || { echo "TS policy check failed"; exit 1; }
+
 echo "Running pre-push unit tests..."
-npm test
-echo "Running pre-push benchmarks..."
-npm run benchmark
-echo "Running pre-push git-warp CLI bats tests..."
-docker compose run --build --rm test bats test/bats/
+npm run test:local
+
+# Docker builds, benchmarks, and BATS E2E tests run in CI only

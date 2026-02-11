@@ -5,7 +5,11 @@
 
 import defaultCodec from '../utils/defaultCodec.js';
 
-/** @private */
+/**
+ * @param {*} envelope
+ * @param {string} label
+ * @private
+ */
 function validateEnvelope(envelope, label) {
   if (!envelope || typeof envelope !== 'object' || !envelope.frontier || typeof envelope.frontier !== 'object') {
     throw new Error(`invalid frontier envelope for ${label}`);
@@ -16,17 +20,17 @@ function validateEnvelope(envelope, label) {
  * Loads the frontier from an index tree's shard OIDs.
  *
  * @param {Record<string, string>} shardOids - Map of path → blob OID from readTreeOids
- * @param {import('../../ports/IndexStoragePort.js').default} storage - Storage adapter
+ * @param {import('../../ports/IndexStoragePort.js').default & import('../../ports/BlobPort.js').default} storage - Storage adapter
  * @param {Object} [options]
  * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for deserialization
  * @returns {Promise<Map<string, string>|null>} Frontier map, or null if not present (legacy index)
  */
-export async function loadIndexFrontier(shardOids, storage, { codec } = {}) {
+export async function loadIndexFrontier(shardOids, storage, { codec } = /** @type {*} */ ({})) { // TODO(ts-cleanup): needs options type
   const c = codec || defaultCodec;
   const cborOid = shardOids['frontier.cbor'];
   if (cborOid) {
     const buffer = await storage.readBlob(cborOid);
-    const envelope = c.decode(buffer);
+    const envelope = /** @type {{ frontier: Record<string, string> }} */ (c.decode(buffer));
     validateEnvelope(envelope, 'frontier.cbor');
     return new Map(Object.entries(envelope.frontier));
   }
@@ -34,7 +38,7 @@ export async function loadIndexFrontier(shardOids, storage, { codec } = {}) {
   const jsonOid = shardOids['frontier.json'];
   if (jsonOid) {
     const buffer = await storage.readBlob(jsonOid);
-    const envelope = JSON.parse(buffer.toString('utf-8'));
+    const envelope = /** @type {{ frontier: Record<string, string> }} */ (JSON.parse(buffer.toString('utf-8')));
     validateEnvelope(envelope, 'frontier.json');
     return new Map(Object.entries(envelope.frontier));
   }
@@ -51,7 +55,10 @@ export async function loadIndexFrontier(shardOids, storage, { codec } = {}) {
  * @property {string[]} removedWriters - Writers in index but not current
  */
 
-/** @private */
+/**
+ * @param {{ stale: boolean, advancedWriters: string[], newWriters: string[], removedWriters: string[] }} opts
+ * @private
+ */
 function buildReason({ stale, advancedWriters, newWriters, removedWriters }) {
   if (!stale) {
     return 'index is current';

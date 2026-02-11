@@ -12,6 +12,11 @@ import { padRight } from '../../utils/unicode.js';
 import { truncate } from '../../utils/truncate.js';
 import { formatNumber, formatSha } from './formatters.js';
 
+/**
+ * @typedef {{ graph: string, error?: string, noOp?: boolean, patchCount?: number, nodes?: number, edges?: number, properties?: number, writers?: Record<string, number>, checkpoint?: string | null }} GraphResult
+ * @typedef {{ maxNodes: number, maxEdges: number, maxProps: number }} MaxValues
+ */
+
 // Bar chart settings
 const BAR_WIDTH = 20;
 const STAT_LABEL_WIDTH = 12;
@@ -55,15 +60,15 @@ function renderErrorState(errorMessage) {
 
 /**
  * Render no-op state (already materialized).
- * @param {Object} graph - Graph data
+ * @param {GraphResult} graph - Graph data
  * @returns {string[]} No-op state lines
  */
 function renderNoOpState(graph) {
   const lines = [
     `  ${colors.success('\u2713')} Already materialized (no new patches)`,
     '',
-    `  ${padRight('Nodes:', STAT_LABEL_WIDTH)} ${formatNumber(graph.nodes)}`,
-    `  ${padRight('Edges:', STAT_LABEL_WIDTH)} ${formatNumber(graph.edges)}`,
+    `  ${padRight('Nodes:', STAT_LABEL_WIDTH)} ${formatNumber(graph.nodes || 0)}`,
+    `  ${padRight('Edges:', STAT_LABEL_WIDTH)} ${formatNumber(graph.edges || 0)}`,
   ];
   if (typeof graph.properties === 'number') {
     lines.push(`  ${padRight('Properties:', STAT_LABEL_WIDTH)} ${formatNumber(graph.properties)}`);
@@ -73,7 +78,7 @@ function renderNoOpState(graph) {
 
 /**
  * Render empty graph state (0 patches).
- * @param {Object} graph - Graph data
+ * @param {GraphResult} graph - Graph data
  * @returns {string[]} Empty state lines
  */
 function renderEmptyState(graph) {
@@ -86,7 +91,7 @@ function renderEmptyState(graph) {
 
 /**
  * Render writer progress section.
- * @param {Object} writers - Writer patch counts
+ * @param {Record<string, number> | undefined} writers - Writer patch counts
  * @returns {string[]} Writer lines
  */
 function renderWriterSection(writers) {
@@ -108,15 +113,15 @@ function renderWriterSection(writers) {
 
 /**
  * Render statistics section with bar charts.
- * @param {Object} graph - Graph data
- * @param {Object} maxValues - Max values for scaling
+ * @param {GraphResult} graph - Graph data
+ * @param {MaxValues} maxValues - Max values for scaling
  * @returns {string[]} Statistics lines
  */
 function renderStatsSection(graph, { maxNodes, maxEdges, maxProps }) {
   const lines = [
     `  ${colors.dim('Statistics:')}`,
-    `  ${padRight('Nodes:', STAT_LABEL_WIDTH)} ${statBar(graph.nodes, maxNodes)} ${formatNumber(graph.nodes)}`,
-    `  ${padRight('Edges:', STAT_LABEL_WIDTH)} ${statBar(graph.edges, maxEdges)} ${formatNumber(graph.edges)}`,
+    `  ${padRight('Nodes:', STAT_LABEL_WIDTH)} ${statBar(graph.nodes || 0, maxNodes)} ${formatNumber(graph.nodes || 0)}`,
+    `  ${padRight('Edges:', STAT_LABEL_WIDTH)} ${statBar(graph.edges || 0, maxEdges)} ${formatNumber(graph.edges || 0)}`,
   ];
   if (typeof graph.properties === 'number') {
     lines.push(`  ${padRight('Properties:', STAT_LABEL_WIDTH)} ${statBar(graph.properties, maxProps)} ${formatNumber(graph.properties)}`);
@@ -139,8 +144,8 @@ function renderCheckpointInfo(checkpoint) {
 
 /**
  * Render a single graph's materialization result.
- * @param {Object} graph - Graph result from materialize
- * @param {Object} maxValues - Max values for scaling bars
+ * @param {GraphResult} graph - Graph result from materialize
+ * @param {MaxValues} maxValues - Max values for scaling bars
  * @returns {string[]} Array of lines for this graph
  */
 function renderGraphResult(graph, maxValues) {
@@ -158,14 +163,14 @@ function renderGraphResult(graph, maxValues) {
 
   lines.push(...renderWriterSection(graph.writers));
   lines.push(...renderStatsSection(graph, maxValues));
-  lines.push(...renderCheckpointInfo(graph.checkpoint));
+  lines.push(...renderCheckpointInfo(graph.checkpoint ?? null));
   return lines;
 }
 
 /**
  * Calculate max values for scaling bar charts.
- * @param {Object[]} graphs - Array of graph results
- * @returns {Object} Max values object
+ * @param {GraphResult[]} graphs - Array of graph results
+ * @returns {MaxValues} Max values object
  */
 function calculateMaxValues(graphs) {
   const successfulGraphs = graphs.filter((g) => !g.error);
@@ -212,8 +217,7 @@ function getBorderColor(successCount, errorCount) {
 
 /**
  * Render the materialize view dashboard.
- * @param {Object} payload - The materialize command payload
- * @param {Object[]} payload.graphs - Array of graph results
+ * @param {{ graphs: GraphResult[] }} payload - The materialize command payload
  * @returns {string} Formatted dashboard string
  */
 export function renderMaterializeView(payload) {

@@ -46,9 +46,10 @@ async function readStreamBody(bodyStream) {
  * HttpServerPort request handlers.
  *
  * @param {Request} request - Deno Request object
- * @returns {Promise<{ method: string, url: string, headers: Object, body: Uint8Array|undefined }>}
+ * @returns {Promise<{ method: string, url: string, headers: Record<string, string>, body: Uint8Array|undefined }>}
  */
 async function toPlainRequest(request) {
+  /** @type {Record<string, string>} */
   const headers = {};
   request.headers.forEach((value, key) => {
     headers[key] = value;
@@ -75,11 +76,11 @@ async function toPlainRequest(request) {
 /**
  * Converts a plain-object response from the handler into a Deno Response.
  *
- * @param {{ status?: number, headers?: Object, body?: string|Uint8Array }} plain
+ * @param {{ status?: number, headers?: Record<string, string>, body?: string|Uint8Array|null }} plain
  * @returns {Response}
  */
 function toDenoResponse(plain) {
-  return new Response(plain.body ?? null, {
+  return new Response(/** @type {BodyInit | null} */ (plain.body ?? null), {
     status: plain.status || 200,
     headers: plain.headers || {},
   });
@@ -99,7 +100,7 @@ function createHandler(requestHandler, logger) {
       const plain = await toPlainRequest(request);
       const response = await requestHandler(plain);
       return toDenoResponse(response);
-    } catch (err) {
+    } catch (/** @type {*} */ err) { // TODO(ts-cleanup): type error
       if (err.status === 413) {
         const msg = new TextEncoder().encode('Payload Too Large');
         return new Response(msg, {
@@ -122,7 +123,7 @@ function createHandler(requestHandler, logger) {
 /**
  * Gracefully shuts down the Deno HTTP server.
  *
- * @param {object} state - Shared mutable state `{ server }`
+ * @param {{ server: *}} state - Shared mutable state `{ server }`
  * @param {Function} [callback]
  */
 function closeImpl(state, callback) {
@@ -139,7 +140,7 @@ function closeImpl(state, callback) {
         callback();
       }
     },
-    (err) => {
+    /** @param {*} err */ (err) => {
       state.server = null;
       if (callback) {
         callback(err);
@@ -151,7 +152,7 @@ function closeImpl(state, callback) {
 /**
  * Returns the server's bound address info.
  *
- * @param {object} state - Shared mutable state `{ server }`
+ * @param {{ server: * }} state - Shared mutable state `{ server }`
  * @returns {{ address: string, port: number, family: string }|null}
  */
 function addressImpl(state) {
@@ -189,17 +190,27 @@ export default class DenoHttpAdapter extends HttpServerPort {
     this._logger = logger || noopLogger;
   }
 
-  /** @inheritdoc */
+  /**
+   * @param {Function} requestHandler
+   * @returns {{ listen: Function, close: Function, address: Function }}
+   */
   createServer(requestHandler) {
     const handler = createHandler(requestHandler, this._logger);
+    /** @type {{ server: * }} */
     const state = { server: null };
 
     return {
+      /**
+       * @param {number} port
+       * @param {string|Function} [host]
+       * @param {Function} [callback]
+       */
       listen: (port, host, callback) => {
         const cb = typeof host === 'function' ? host : callback;
         const hostname = typeof host === 'string' ? host : undefined;
 
         try {
+          /** @type {*} */ // TODO(ts-cleanup): type Deno.serve options
           const serveOptions = {
             port,
             onListen() {
@@ -212,8 +223,9 @@ export default class DenoHttpAdapter extends HttpServerPort {
             serveOptions.hostname = hostname;
           }
 
+          // @ts-expect-error — Deno global is only available in Deno runtime
           state.server = globalThis.Deno.serve(serveOptions, handler);
-        } catch (err) {
+        } catch (/** @type {*} */ err) { // TODO(ts-cleanup): type error
           if (cb) {
             cb(err);
           } else {
@@ -221,6 +233,7 @@ export default class DenoHttpAdapter extends HttpServerPort {
           }
         }
       },
+      /** @param {Function} [callback] */
       close: (callback) => {
         closeImpl(state, callback);
       },

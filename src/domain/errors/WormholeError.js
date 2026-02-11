@@ -22,6 +22,10 @@ import WarpError from './WarpError.js';
  * @property {Object} context - Serializable context object with error details
  */
 export default class WormholeError extends WarpError {
+  /**
+   * @param {string} message
+   * @param {{ code?: string, context?: Object }} [options={}]
+   */
   constructor(message, options = {}) {
     super(message, 'WORMHOLE_ERROR', options);
   }

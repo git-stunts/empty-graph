@@ -4,6 +4,8 @@
 # Sets up a fresh temporary git repo and PROJECT_ROOT.
 # Usage: call setup_test_repo in your setup() function.
 setup_test_repo() {
+  _BATS_T0=$(date +%s)
+  echo "STARTING TEST: ${BATS_TEST_DESCRIPTION}" >&3
   PROJECT_ROOT="$(cd "${BATS_TEST_DIRNAME}/../.." && pwd)"
   export PROJECT_ROOT
   export TEST_REPO
@@ -23,6 +25,8 @@ setup_test_repo() {
 # Usage: call teardown_test_repo in your teardown() function.
 teardown_test_repo() {
   rm -rf "${TEST_REPO}"
+  local elapsed=$(( $(date +%s) - _BATS_T0 ))
+  echo "ENDED TEST: ${BATS_TEST_DESCRIPTION} took ${elapsed}s" >&3
 }
 
 # Assert that the last command succeeded (exit code 0).

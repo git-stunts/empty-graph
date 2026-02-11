@@ -83,17 +83,18 @@ const encoder = new Encoder({
  * @private
  */
 function isPlainObject(value) {
-  return typeof value === 'object' && (value.constructor === Object || value.constructor === undefined);
+  return typeof value === 'object' && value !== null && (value.constructor === Object || value.constructor === undefined);
 }
 
 /**
  * Sorts the keys of a plain object and recursively processes values.
  *
- * @param {Object} obj - The plain object to process
- * @returns {Object} A new object with sorted keys
+ * @param {Record<string, unknown>} obj - The plain object to process
+ * @returns {Record<string, unknown>} A new object with sorted keys
  * @private
  */
 function sortPlainObject(obj) {
+  /** @type {Record<string, unknown>} */
   const sorted = {};
   const keys = Object.keys(obj).sort();
   for (const key of keys) {
@@ -106,8 +107,8 @@ function sortPlainObject(obj) {
  * Converts a Map to a sorted plain object with recursive value processing.
  * Validates that all Map keys are strings (required for CBOR encoding).
  *
- * @param {Map} map - The Map instance to convert
- * @returns {Object} A plain object with sorted keys
+ * @param {Map<string, unknown>} map - The Map instance to convert
+ * @returns {Record<string, unknown>} A plain object with sorted keys
  * @throws {TypeError} If any Map key is not a string
  * @private
  */
@@ -118,6 +119,7 @@ function sortMapToObject(map) {
       throw new TypeError(`Map keys must be strings for CBOR encoding, got ${typeof key}`);
     }
   }
+  /** @type {Record<string, unknown>} */
   const sorted = {};
   keys.sort();
   for (const key of keys) {
@@ -198,7 +200,7 @@ function sortKeys(value) {
 
   // Plain objects: sort keys and recursively process values
   if (isPlainObject(value)) {
-    return sortPlainObject(value);
+    return sortPlainObject(/** @type {Record<string, unknown>} */ (value));
   }
 
   // Map instances: convert to sorted object
@@ -370,12 +372,18 @@ export function decode(buffer) {
  * @extends CodecPort
  */
 export class CborCodec extends CodecPort {
-  /** @inheritdoc */
+  /**
+   * @param {unknown} data
+   * @returns {Buffer|Uint8Array}
+   */
   encode(data) {
     return encode(data);
   }
 
-  /** @inheritdoc */
+  /**
+   * @param {Buffer|Uint8Array} buffer
+   * @returns {unknown}
+   */
   decode(buffer) {
     return decode(buffer);
   }

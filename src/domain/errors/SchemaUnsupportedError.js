@@ -11,6 +11,10 @@ import WarpError from './WarpError.js';
  * @property {Object} context - Serializable context object for debugging
  */
 export default class SchemaUnsupportedError extends WarpError {
+  /**
+   * @param {string} message
+   * @param {{ code?: string, context?: Object }} [options={}]
+   */
   constructor(message, options = {}) {
     super(message, 'E_SCHEMA_UNSUPPORTED', options);
   }

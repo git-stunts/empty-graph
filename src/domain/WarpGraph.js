@@ -17,13 +17,14 @@ import { ProvenancePayload } from './services/ProvenancePayload.js';
 import { diffStates, isEmptyDiff } from './services/StateDiff.js';
 import { orsetContains, orsetElements } from './crdt/ORSet.js';
 import defaultCodec from './utils/defaultCodec.js';
+import defaultCrypto from './utils/defaultCrypto.js';
 import { decodePatchMessage, detectMessageKind, encodeAnchorMessage } from './services/WarpMessageCodec.js';
 import { loadCheckpoint, materializeIncremental, create as createCheckpointCommit } from './services/CheckpointService.js';
 import { createFrontier, updateFrontier } from './services/Frontier.js';
 import { createVersionVector, vvClone, vvIncrement } from './crdt/VersionVector.js';
 import { DEFAULT_GC_POLICY, shouldRunGC, executeGC } from './services/GCPolicy.js';
 import { collectGCMetrics } from './services/GCMetrics.js';
-import { computeAppliedVV } from './services/CheckpointSerializerV5.js';
+import { computeAppliedVV, serializeFullStateV5, deserializeFullStateV5 } from './services/CheckpointSerializerV5.js';
 import { computeStateHashV5 } from './services/StateSerializerV5.js';
 import {
   createSyncRequest,
@@ -48,7 +49,12 @@ import OperationAbortedError from './errors/OperationAbortedError.js';
 import { compareEventIds } from './utils/EventId.js';
 import { TemporalQuery } from './services/TemporalQuery.js';
 import HttpSyncServer from './services/HttpSyncServer.js';
+import { buildSeekCacheKey } from './utils/seekCacheKey.js';
 import defaultClock from './utils/defaultClock.js';
+
+/**
+ * @typedef {import('../ports/GraphPersistencePort.js').default & import('../ports/RefPort.js').default & import('../ports/CommitPort.js').default & import('../ports/BlobPort.js').default & import('../ports/TreePort.js').default & import('../ports/ConfigPort.js').default} FullPersistence
+ */
 
 const DEFAULT_SYNC_SERVER_MAX_BYTES = 4 * 1024 * 1024;
 const DEFAULT_SYNC_WITH_RETRIES = 3;
@@ -99,10 +105,11 @@ export default class WarpGraph {
    * @param {import('../ports/ClockPort.js').default} [options.clock] - Clock for timing instrumentation (defaults to performance-based clock)
    * @param {import('../ports/CryptoPort.js').default} [options.crypto] - Crypto adapter for hashing
    * @param {import('../ports/CodecPort.js').default} [options.codec] - Codec for CBOR serialization (defaults to domain-local codec)
+   * @param {import('../ports/SeekCachePort.js').default} [options.seekCache] - Persistent cache for seek materialization (optional)
    */
-  constructor({ persistence, graphName, writerId, gcPolicy = {}, adjacencyCacheSize = DEFAULT_ADJACENCY_CACHE_SIZE, checkpointPolicy, autoMaterialize = false, onDeleteWithData = 'warn', logger, clock, crypto, codec }) {
-    /** @type {import('../ports/GraphPersistencePort.js').default} */
-    this._persistence = persistence;
+  constructor({ persistence, graphName, writerId, gcPolicy = {}, adjacencyCacheSize = DEFAULT_ADJACENCY_CACHE_SIZE, checkpointPolicy, autoMaterialize = false, onDeleteWithData = 'warn', logger, clock, crypto, codec, seekCache }) {
+    /** @type {FullPersistence} */
+    this._persistence = /** @type {FullPersistence} */ (persistence);
 
     /** @type {string} */
     this._graphName = graphName;
@@ -146,7 +153,7 @@ export default class WarpGraph {
     /** @type {MaterializedGraph|null} */
     this._materializedGraph = null;
 
-    /** @type {import('./utils/LRUCache.js').default|null} */
+    /** @type {import('./utils/LRUCache.js').default<string, {outgoing: Map<string, Array<{neighborId: string, label: string}>>, incoming: Map<string, Array<{neighborId: string, label: string}>>}>|null} */
     this._adjacencyCache = adjacencyCacheSize > 0 ? new LRUCache(adjacencyCacheSize) : null;
 
     /** @type {Map<string, string>|null} */
@@ -158,8 +165,8 @@ export default class WarpGraph {
     /** @type {import('../ports/ClockPort.js').default} */
     this._clock = clock || defaultClock;
 
-    /** @type {import('../ports/CryptoPort.js').default|undefined} */
-    this._crypto = crypto;
+    /** @type {import('../ports/CryptoPort.js').default} */
+    this._crypto = crypto || defaultCrypto;
 
     /** @type {import('../ports/CodecPort.js').default} */
     this._codec = codec || defaultCodec;
@@ -167,7 +174,7 @@ export default class WarpGraph {
     /** @type {'reject'|'cascade'|'warn'} */
     this._onDeleteWithData = onDeleteWithData;
 
-    /** @type {Array<{onChange: Function, onError?: Function}>} */
+    /** @type {Array<{onChange: Function, onError?: Function, pendingReplay?: boolean}>} */
     this._subscribers = [];
 
     /** @type {import('./services/JoinReducer.js').WarpStateV5|null} */
@@ -187,6 +194,32 @@ export default class WarpGraph {
 
     /** @type {Map<string, string>|null} */
     this._cachedFrontier = null;
+
+    /** @type {import('../ports/SeekCachePort.js').default|null} */
+    this._seekCache = seekCache || null;
+
+    /** @type {boolean} */
+    this._provenanceDegraded = false;
+  }
+
+  /**
+   * Returns the attached seek cache, or null if none is set.
+   * @returns {import('../ports/SeekCachePort.js').default|null}
+   */
+  get seekCache() {
+    return this._seekCache;
+  }
+
+  /**
+   * Attaches a persistent seek cache after construction.
+   *
+   * Useful when the cache adapter cannot be created until after the
+   * graph is opened (e.g. the CLI wires it based on flags).
+   *
+   * @param {import('../ports/SeekCachePort.js').default} cache - SeekCachePort implementation
+   */
+  setSeekCache(cache) {
+    this._seekCache = cache;
   }
 
   /**
@@ -227,6 +260,7 @@ export default class WarpGraph {
    * @param {import('../ports/ClockPort.js').default} [options.clock] - Clock for timing instrumentation (defaults to performance-based clock)
    * @param {import('../ports/CryptoPort.js').default} [options.crypto] - Crypto adapter for hashing
    * @param {import('../ports/CodecPort.js').default} [options.codec] - Codec for CBOR serialization (defaults to domain-local codec)
+   * @param {import('../ports/SeekCachePort.js').default} [options.seekCache] - Persistent cache for seek materialization (optional)
    * @returns {Promise<WarpGraph>} The opened graph instance
    * @throws {Error} If graphName, writerId, checkpointPolicy, or onDeleteWithData is invalid
    *
@@ -237,7 +271,7 @@ export default class WarpGraph {
    *   writerId: 'node-1'
    * });
    */
-  static async open({ persistence, graphName, writerId, gcPolicy = {}, adjacencyCacheSize, checkpointPolicy, autoMaterialize, onDeleteWithData, logger, clock, crypto, codec }) {
+  static async open({ persistence, graphName, writerId, gcPolicy = {}, adjacencyCacheSize, checkpointPolicy, autoMaterialize, onDeleteWithData, logger, clock, crypto, codec, seekCache }) {
     // Validate inputs
     validateGraphName(graphName);
     validateWriterId(writerId);
@@ -269,7 +303,7 @@ export default class WarpGraph {
       }
     }
 
-    const graph = new WarpGraph({ persistence, graphName, writerId, gcPolicy, adjacencyCacheSize, checkpointPolicy, autoMaterialize, onDeleteWithData, logger, clock, crypto, codec });
+    const graph = new WarpGraph({ persistence, graphName, writerId, gcPolicy, adjacencyCacheSize, checkpointPolicy, autoMaterialize, onDeleteWithData, logger, clock, crypto, codec, seekCache });
 
     // Validate migration boundary
     await graph._validateMigrationBoundary();
@@ -295,7 +329,7 @@ export default class WarpGraph {
 
   /**
    * Gets the persistence adapter.
-   * @returns {import('../ports/GraphPersistencePort.js').default} The persistence adapter
+   * @returns {FullPersistence} The persistence adapter
    */
   get persistence() {
     return this._persistence;
@@ -337,9 +371,9 @@ export default class WarpGraph {
       getCurrentState: () => this._cachedState,
       expectedParentSha: parentSha,
       onDeleteWithData: this._onDeleteWithData,
-      onCommitSuccess: (opts) => this._onPatchCommitted(this._writerId, opts),
+      onCommitSuccess: (/** @type {{patch?: import('./types/WarpTypesV2.js').PatchV2, sha?: string}} */ opts) => this._onPatchCommitted(this._writerId, opts),
       codec: this._codec,
-      logger: this._logger,
+      logger: this._logger || undefined,
     });
   }
 
@@ -348,7 +382,7 @@ export default class WarpGraph {
    *
    * @param {string} writerId - The writer ID to load patches for
    * @param {string|null} [stopAtSha=null] - Stop walking when reaching this SHA (exclusive)
-   * @returns {Promise<Array<{patch: import('./types/WarpTypes.js').PatchV1, sha: string}>>} Array of patches
+   * @returns {Promise<Array<{patch: import('./types/WarpTypesV2.js').PatchV2, sha: string}>>} Array of patches
    */
   async getWriterPatches(writerId, stopAtSha = null) {
     return await this._loadWriterPatches(writerId, stopAtSha);
@@ -399,7 +433,7 @@ export default class WarpGraph {
    *
    * @param {string} writerId - The writer ID to load patches for
    * @param {string|null} [stopAtSha=null] - Stop walking when reaching this SHA (exclusive)
-   * @returns {Promise<Array<{patch: import('./types/WarpTypes.js').PatchV1, sha: string}>>} Array of patches
+   * @returns {Promise<Array<{patch: import('./types/WarpTypesV2.js').PatchV2, sha: string}>>} Array of patches
    * @private
    */
   async _loadWriterPatches(writerId, stopAtSha = null) {
@@ -430,7 +464,7 @@ export default class WarpGraph {
 
       // Read the patch blob
       const patchBuffer = await this._persistence.readBlob(patchMeta.patchOid);
-      const patch = this._codec.decode(patchBuffer);
+      const patch = /** @type {import('./types/WarpTypesV2.js').PatchV2} */ (this._codec.decode(patchBuffer));
 
       patches.push({ patch, sha: currentSha });
 
@@ -474,8 +508,8 @@ export default class WarpGraph {
       incoming.get(to).push({ neighborId: from, label });
     }
 
-    const sortNeighbors = (list) => {
-      list.sort((a, b) => {
+    const sortNeighbors = (/** @type {Array<{neighborId: string, label: string}>} */ list) => {
+      list.sort((/** @type {{neighborId: string, label: string}} */ a, /** @type {{neighborId: string, label: string}} */ b) => {
         if (a.neighborId !== b.neighborId) {
           return a.neighborId < b.neighborId ? -1 : 1;
         }
@@ -529,7 +563,7 @@ export default class WarpGraph {
    * provenance index, and frontier tracking.
    *
    * @param {string} writerId - The writer ID that committed the patch
-   * @param {{patch?: Object, sha?: string}} [opts] - Commit details
+   * @param {{patch?: import('./types/WarpTypesV2.js').PatchV2, sha?: string}} [opts] - Commit details
    * @private
    */
   async _onPatchCommitted(writerId, { patch, sha } = {}) {
@@ -538,11 +572,11 @@ export default class WarpGraph {
     // Eager re-materialize: apply the just-committed patch to cached state
     // Only when the cache is clean — applying a patch to stale state would be incorrect
     if (this._cachedState && !this._stateDirty && patch && sha) {
-      joinPatch(this._cachedState, patch, sha);
+      joinPatch(this._cachedState, /** @type {any} */ (patch), sha); // TODO(ts-cleanup): type patch array
       await this._setMaterializedState(this._cachedState);
       // Update provenance index with new patch
       if (this._provenanceIndex) {
-        this._provenanceIndex.addPatch(sha, patch.reads, patch.writes);
+        this._provenanceIndex.addPatch(sha, /** @type {string[]|undefined} */ (patch.reads), /** @type {string[]|undefined} */ (patch.writes));
       }
       // Keep _lastFrontier in sync so hasFrontierChanged() won't misreport stale
       if (this._lastFrontier) {
@@ -561,9 +595,9 @@ export default class WarpGraph {
   async _materializeGraph() {
     const state = await this.materialize();
     if (!this._materializedGraph || this._materializedGraph.state !== state) {
-      await this._setMaterializedState(state);
+      await this._setMaterializedState(/** @type {import('./services/JoinReducer.js').WarpStateV5} */ (state));
     }
-    return this._materializedGraph;
+    return /** @type {MaterializedGraph} */ (this._materializedGraph);
   }
 
   /**
@@ -602,14 +636,16 @@ export default class WarpGraph {
 
     // When ceiling is active, delegate to ceiling-aware path (with its own cache)
     if (ceiling !== null) {
-      return await this._materializeWithCeiling(ceiling, collectReceipts, t0);
+      return await this._materializeWithCeiling(ceiling, !!collectReceipts, t0);
     }
 
     try {
       // Check for checkpoint
       const checkpoint = await this._loadLatestCheckpoint();
 
+      /** @type {import('./services/JoinReducer.js').WarpStateV5|undefined} */
       let state;
+      /** @type {import('./types/TickReceipt.js').TickReceipt[]|undefined} */
       let receipts;
       let patchCount = 0;
 
@@ -617,20 +653,21 @@ export default class WarpGraph {
       if (checkpoint?.schema === 2 || checkpoint?.schema === 3) {
         const patches = await this._loadPatchesSince(checkpoint);
         if (collectReceipts) {
-          const result = reduceV5(patches, checkpoint.state, { receipts: true });
+          const result = /** @type {{state: import('./services/JoinReducer.js').WarpStateV5, receipts: import('./types/TickReceipt.js').TickReceipt[]}} */ (reduceV5(/** @type {any} */ (patches), /** @type {import('./services/JoinReducer.js').WarpStateV5} */ (checkpoint.state), { receipts: true })); // TODO(ts-cleanup): type patch array
           state = result.state;
           receipts = result.receipts;
         } else {
-          state = reduceV5(patches, checkpoint.state);
+          state = /** @type {import('./services/JoinReducer.js').WarpStateV5} */ (reduceV5(/** @type {any} */ (patches), /** @type {import('./services/JoinReducer.js').WarpStateV5} */ (checkpoint.state))); // TODO(ts-cleanup): type patch array
         }
         patchCount = patches.length;
 
         // Build provenance index: start from checkpoint index if present, then add new patches
-        this._provenanceIndex = checkpoint.provenanceIndex
-          ? checkpoint.provenanceIndex.clone()
+        const ckPI = /** @type {any} */ (checkpoint).provenanceIndex; // TODO(ts-cleanup): type checkpoint cast
+        this._provenanceIndex = ckPI
+          ? ckPI.clone()
           : new ProvenanceIndex();
         for (const { patch, sha } of patches) {
-          this._provenanceIndex.addPatch(sha, patch.reads, patch.writes);
+          /** @type {import('./services/ProvenanceIndex.js').ProvenanceIndex} */ (this._provenanceIndex).addPatch(sha, patch.reads, patch.writes);
         }
       } else {
         // 1. Discover all writers
@@ -661,11 +698,11 @@ export default class WarpGraph {
           } else {
             // 5. Reduce all patches to state
             if (collectReceipts) {
-              const result = reduceV5(allPatches, undefined, { receipts: true });
+              const result = /** @type {{state: import('./services/JoinReducer.js').WarpStateV5, receipts: import('./types/TickReceipt.js').TickReceipt[]}} */ (reduceV5(/** @type {any} */ (allPatches), undefined, { receipts: true })); // TODO(ts-cleanup): type patch array
               state = result.state;
               receipts = result.receipts;
             } else {
-              state = reduceV5(allPatches);
+              state = /** @type {import('./services/JoinReducer.js').WarpStateV5} */ (reduceV5(/** @type {any} */ (allPatches))); // TODO(ts-cleanup): type patch array
             }
             patchCount = allPatches.length;
 
@@ -679,6 +716,7 @@ export default class WarpGraph {
       }
 
       await this._setMaterializedState(state);
+      this._provenanceDegraded = false;
       this._cachedCeiling = null;
       this._cachedFrontier = null;
       this._lastFrontier = await this.getFrontier();
@@ -712,11 +750,11 @@ export default class WarpGraph {
       this._logTiming('materialize', t0, { metrics: `${patchCount} patches` });
 
       if (collectReceipts) {
-        return { state, receipts };
+        return { state, receipts: /** @type {import('./types/TickReceipt.js').TickReceipt[]} */ (receipts) };
       }
       return state;
     } catch (err) {
-      this._logTiming('materialize', t0, { error: err });
+      this._logTiming('materialize', t0, { error: /** @type {Error} */ (err) });
       throw err;
     }
   }
@@ -770,12 +808,13 @@ export default class WarpGraph {
 
     // Cache hit: same ceiling, clean state, AND frontier unchanged.
     // Bypass cache when collectReceipts is true — cached path has no receipts.
+    const cf = this._cachedFrontier;
     if (
       this._cachedState && !this._stateDirty &&
       ceiling === this._cachedCeiling && !collectReceipts &&
-      this._cachedFrontier !== null &&
-      this._cachedFrontier.size === frontier.size &&
-      [...frontier].every(([w, sha]) => this._cachedFrontier.get(w) === sha)
+      cf !== null &&
+      cf.size === frontier.size &&
+      [...frontier].every(([w, sha]) => cf.get(w) === sha)
     ) {
       return this._cachedState;
     }
@@ -785,6 +824,7 @@ export default class WarpGraph {
     if (writerIds.length === 0 || ceiling <= 0) {
       const state = createEmptyStateV5();
       this._provenanceIndex = new ProvenanceIndex();
+      this._provenanceDegraded = false;
       await this._setMaterializedState(state);
       this._cachedCeiling = ceiling;
       this._cachedFrontier = frontier;
@@ -793,6 +833,32 @@ export default class WarpGraph {
         return { state, receipts: [] };
       }
       return state;
+    }
+
+    // Persistent cache check — skip when collectReceipts is requested
+    let cacheKey;
+    if (this._seekCache && !collectReceipts) {
+      cacheKey = buildSeekCacheKey(ceiling, frontier);
+      try {
+        const cached = await this._seekCache.get(cacheKey);
+        if (cached) {
+          try {
+            const state = deserializeFullStateV5(cached, { codec: this._codec });
+            this._provenanceIndex = new ProvenanceIndex();
+            this._provenanceDegraded = true;
+            await this._setMaterializedState(state);
+            this._cachedCeiling = ceiling;
+            this._cachedFrontier = frontier;
+            this._logTiming('materialize', t0, { metrics: `cache hit (ceiling=${ceiling})` });
+            return state;
+          } catch {
+            // Corrupted payload — self-heal by removing the bad entry
+            try { await this._seekCache.delete(cacheKey); } catch { /* best-effort */ }
+          }
+        }
+      } catch {
+        // Cache read failed — fall through to full materialization
+      }
     }
 
     const allPatches = [];
@@ -805,7 +871,9 @@ export default class WarpGraph {
       }
     }
 
+    /** @type {import('./services/JoinReducer.js').WarpStateV5|undefined} */
     let state;
+    /** @type {import('./types/TickReceipt.js').TickReceipt[]|undefined} */
     let receipts;
 
     if (allPatches.length === 0) {
@@ -814,27 +882,37 @@ export default class WarpGraph {
         receipts = [];
       }
     } else if (collectReceipts) {
-      const result = reduceV5(allPatches, undefined, { receipts: true });
+      const result = /** @type {{state: import('./services/JoinReducer.js').WarpStateV5, receipts: import('./types/TickReceipt.js').TickReceipt[]}} */ (reduceV5(/** @type {any} */ (allPatches), undefined, { receipts: true })); // TODO(ts-cleanup): type patch array
       state = result.state;
       receipts = result.receipts;
     } else {
-      state = reduceV5(allPatches);
+      state = /** @type {import('./services/JoinReducer.js').WarpStateV5} */ (reduceV5(/** @type {any} */ (allPatches))); // TODO(ts-cleanup): type patch array
     }
 
     this._provenanceIndex = new ProvenanceIndex();
     for (const { patch, sha } of allPatches) {
-      this._provenanceIndex.addPatch(sha, patch.reads, patch.writes);
+      this._provenanceIndex.addPatch(sha, /** @type {string[]|undefined} */ (patch.reads), /** @type {string[]|undefined} */ (patch.writes));
     }
+    this._provenanceDegraded = false;
 
     await this._setMaterializedState(state);
     this._cachedCeiling = ceiling;
     this._cachedFrontier = frontier;
 
+    // Store to persistent cache (fire-and-forget — failure is non-fatal)
+    if (this._seekCache && !collectReceipts && allPatches.length > 0) {
+      if (!cacheKey) {
+        cacheKey = buildSeekCacheKey(ceiling, frontier);
+      }
+      const buf = serializeFullStateV5(state, { codec: this._codec });
+      this._seekCache.set(cacheKey, /** @type {Buffer} */ (buf)).catch(() => {});
+    }
+
     // Skip auto-checkpoint and GC — this is an exploratory read
     this._logTiming('materialize', t0, { metrics: `${allPatches.length} patches (ceiling=${ceiling})` });
 
     if (collectReceipts) {
-      return { state, receipts };
+      return { state, receipts: /** @type {import('./types/TickReceipt.js').TickReceipt[]} */ (receipts) };
     }
     return state;
   }
@@ -883,16 +961,16 @@ export default class WarpGraph {
     }
 
     // Capture pre-merge counts for receipt
-    const beforeNodes = this._cachedState.nodeAlive.elements.size;
-    const beforeEdges = this._cachedState.edgeAlive.elements.size;
+    const beforeNodes = orsetElements(this._cachedState.nodeAlive).length;
+    const beforeEdges = orsetElements(this._cachedState.edgeAlive).length;
     const beforeFrontierSize = this._cachedState.observedFrontier.size;
 
     // Perform the join
     const mergedState = joinStates(this._cachedState, otherState);
 
     // Calculate receipt
-    const afterNodes = mergedState.nodeAlive.elements.size;
-    const afterEdges = mergedState.edgeAlive.elements.size;
+    const afterNodes = orsetElements(mergedState.nodeAlive).length;
+    const afterEdges = orsetElements(mergedState.edgeAlive).length;
     const afterFrontierSize = mergedState.observedFrontier.size;
 
     // Count property changes (keys that existed in both but have different values)
@@ -954,7 +1032,7 @@ export default class WarpGraph {
    * @example
    * // Time-travel to a previous checkpoint
    * const oldState = await graph.materializeAt('abc123');
-   * console.log('Nodes at checkpoint:', [...oldState.nodeAlive.elements.keys()]);
+   * console.log('Nodes at checkpoint:', orsetElements(oldState.nodeAlive));
    */
   async materializeAt(checkpointSha) {
     // 1. Discover current writers to build target frontier
@@ -971,7 +1049,7 @@ export default class WarpGraph {
     }
 
     // 3. Create a patch loader function for incremental materialization
-    const patchLoader = async (writerId, fromSha, toSha) => {
+    const patchLoader = async (/** @type {string} */ writerId, /** @type {string|null} */ fromSha, /** @type {string} */ toSha) => {
       // Load patches from fromSha (exclusive) to toSha (inclusive)
       // Walk from toSha back to fromSha
       const patches = [];
@@ -1004,7 +1082,7 @@ export default class WarpGraph {
 
     // 4. Call materializeIncremental with the checkpoint and target frontier
     const state = await materializeIncremental({
-      persistence: this._persistence,
+      persistence: /** @type {any} */ (this._persistence), // TODO(ts-cleanup): narrow port type
       graphName: this._graphName,
       checkpointSha,
       targetFrontier,
@@ -1048,23 +1126,24 @@ export default class WarpGraph {
       // 3. Materialize current state (reuse cached if fresh, guard against recursion)
       const prevCheckpointing = this._checkpointing;
       this._checkpointing = true;
+      /** @type {import('./services/JoinReducer.js').WarpStateV5} */
       let state;
       try {
-        state = (this._cachedState && !this._stateDirty)
+        state = /** @type {import('./services/JoinReducer.js').WarpStateV5} */ ((this._cachedState && !this._stateDirty)
           ? this._cachedState
-          : await this.materialize();
+          : await this.materialize());
       } finally {
         this._checkpointing = prevCheckpointing;
       }
 
       // 4. Call CheckpointService.create() with provenance index if available
       const checkpointSha = await createCheckpointCommit({
-        persistence: this._persistence,
+        persistence: /** @type {any} */ (this._persistence), // TODO(ts-cleanup): narrow port type
         graphName: this._graphName,
         state,
         frontier,
         parents,
-        provenanceIndex: this._provenanceIndex,
+        provenanceIndex: this._provenanceIndex || undefined,
         crypto: this._crypto,
         codec: this._codec,
       });
@@ -1078,7 +1157,7 @@ export default class WarpGraph {
       // 6. Return checkpoint SHA
       return checkpointSha;
     } catch (err) {
-      this._logTiming('createCheckpoint', t0, { error: err });
+      this._logTiming('createCheckpoint', t0, { error: /** @type {Error} */ (err) });
       throw err;
     }
   }
@@ -1172,6 +1251,7 @@ export default class WarpGraph {
    */
   async discoverTicks() {
     const writerIds = await this.discoverWriters();
+    /** @type {Set<number>} */
     const globalTickSet = new Set();
     const perWriter = new Map();
 
@@ -1179,6 +1259,7 @@ export default class WarpGraph {
       const writerRef = buildWriterRef(this._graphName, writerId);
       const tipSha = await this._persistence.readRef(writerRef);
       const writerTicks = [];
+      /** @type {Record<number, string>} */
       const tickShas = {};
 
       if (tipSha) {
@@ -1256,7 +1337,7 @@ export default class WarpGraph {
   /**
    * Loads the latest checkpoint for this graph.
    *
-   * @returns {Promise<{state: Object, frontier: Map, stateHash: string, schema: number}|null>} The checkpoint or null
+   * @returns {Promise<{state: import('./services/JoinReducer.js').WarpStateV5, frontier: Map<string, string>, stateHash: string, schema: number, provenanceIndex?: import('./services/ProvenanceIndex.js').ProvenanceIndex}|null>} The checkpoint or null
    * @private
    */
   async _loadLatestCheckpoint() {
@@ -1298,7 +1379,7 @@ export default class WarpGraph {
       if (kind === 'patch') {
         const patchMeta = decodePatchMessage(nodeInfo.message);
         const patchBuffer = await this._persistence.readBlob(patchMeta.patchOid);
-        const patch = this._codec.decode(patchBuffer);
+        const patch = /** @type {{schema?: number}} */ (this._codec.decode(patchBuffer));
 
         // If any patch has schema:1, we have v1 history
         if (patch.schema === 1 || patch.schema === undefined) {
@@ -1313,8 +1394,8 @@ export default class WarpGraph {
   /**
    * Loads patches since a checkpoint for incremental materialization.
    *
-   * @param {{state: Object, frontier: Map<string, string>, stateHash: string, schema: number}} checkpoint - The checkpoint to start from
-   * @returns {Promise<Array<{patch: import('./types/WarpTypes.js').PatchV1, sha: string}>>} Patches since checkpoint
+   * @param {{state: import('./services/JoinReducer.js').WarpStateV5, frontier: Map<string, string>, stateHash: string, schema: number}} checkpoint - The checkpoint to start from
+   * @returns {Promise<Array<{patch: import('./types/WarpTypesV2.js').PatchV2, sha: string}>>} Patches since checkpoint
    * @private
    */
   async _loadPatchesSince(checkpoint) {
@@ -1396,7 +1477,7 @@ export default class WarpGraph {
    *
    * @param {string} writerId - The writer ID for this patch
    * @param {string} incomingSha - The incoming patch commit SHA
-   * @param {{state: Object, frontier: Map<string, string>, stateHash: string, schema: number}} checkpoint - The checkpoint to validate against
+   * @param {{state: import('./services/JoinReducer.js').WarpStateV5, frontier: Map<string, string>, stateHash: string, schema: number}} checkpoint - The checkpoint to validate against
    * @returns {Promise<void>}
    * @throws {Error} If patch is behind/same as checkpoint frontier (backfill rejected)
    * @throws {Error} If patch does not extend checkpoint head (writer fork detected)
@@ -1444,18 +1525,19 @@ export default class WarpGraph {
   _maybeRunGC(state) {
     try {
       const metrics = collectGCMetrics(state);
+      /** @type {import('./services/GCPolicy.js').GCInputMetrics} */
       const inputMetrics = {
         ...metrics,
         patchesSinceCompaction: this._patchesSinceGC,
         timeSinceCompaction: Date.now() - this._lastGCTime,
       };
-      const { shouldRun, reasons } = shouldRunGC(inputMetrics, this._gcPolicy);
+      const { shouldRun, reasons } = shouldRunGC(inputMetrics, /** @type {import('./services/GCPolicy.js').GCPolicy} */ (this._gcPolicy));
 
       if (!shouldRun) {
         return;
       }
 
-      if (this._gcPolicy.enabled) {
+      if (/** @type {import('./services/GCPolicy.js').GCPolicy} */ (this._gcPolicy).enabled) {
         const appliedVV = computeAppliedVV(state);
         const result = executeGC(state, appliedVV);
         this._lastGCTime = Date.now();
@@ -1494,11 +1576,15 @@ export default class WarpGraph {
       return { ran: false, result: null, reasons: [] };
     }
 
-    const metrics = collectGCMetrics(this._cachedState);
-    metrics.patchesSinceCompaction = this._patchesSinceGC;
-    metrics.lastCompactionTime = this._lastGCTime;
+    const rawMetrics = collectGCMetrics(this._cachedState);
+    /** @type {import('./services/GCPolicy.js').GCInputMetrics} */
+    const metrics = {
+      ...rawMetrics,
+      patchesSinceCompaction: this._patchesSinceGC,
+      timeSinceCompaction: this._lastGCTime > 0 ? Date.now() - this._lastGCTime : 0,
+    };
 
-    const { shouldRun, reasons } = shouldRunGC(metrics, this._gcPolicy);
+    const { shouldRun, reasons } = shouldRunGC(metrics, /** @type {import('./services/GCPolicy.js').GCPolicy} */ (this._gcPolicy));
 
     if (!shouldRun) {
       return { ran: false, result: null, reasons: [] };
@@ -1545,7 +1631,7 @@ export default class WarpGraph {
 
       return result;
     } catch (err) {
-      this._logTiming('runGC', t0, { error: err });
+      this._logTiming('runGC', t0, { error: /** @type {Error} */ (err) });
       throw err;
     }
   }
@@ -1567,10 +1653,15 @@ export default class WarpGraph {
       return null;
     }
 
-    const metrics = collectGCMetrics(this._cachedState);
-    metrics.patchesSinceCompaction = this._patchesSinceGC;
-    metrics.lastCompactionTime = this._lastGCTime;
-    return metrics;
+    const rawMetrics = collectGCMetrics(this._cachedState);
+    return {
+      ...rawMetrics,
+      nodeCount: rawMetrics.nodeLiveDots,
+      edgeCount: rawMetrics.edgeLiveDots,
+      tombstoneCount: rawMetrics.totalTombstones,
+      patchesSinceCompaction: this._patchesSinceGC,
+      lastCompactionTime: this._lastGCTime,
+    };
   }
 
   /**
@@ -1653,6 +1744,7 @@ export default class WarpGraph {
    */
   async status() {
     // Determine cachedState
+    /** @type {'fresh' | 'stale' | 'none'} */
     let cachedState;
     if (this._cachedState === null) {
       cachedState = 'none';
@@ -1702,7 +1794,7 @@ export default class WarpGraph {
    * One handler's error does not prevent other handlers from being called.
    *
    * @param {Object} options - Subscription options
-   * @param {(diff: import('./services/StateDiff.js').StateDiff) => void} options.onChange - Called with diff when graph changes
+   * @param {(diff: import('./services/StateDiff.js').StateDiffResult) => void} options.onChange - Called with diff when graph changes
    * @param {(error: Error) => void} [options.onError] - Called if onChange throws an error
    * @param {boolean} [options.replay=false] - If true, immediately fires onChange with initial state diff
    * @returns {{unsubscribe: () => void}} Subscription handle
@@ -1745,7 +1837,7 @@ export default class WarpGraph {
         } catch (err) {
           if (onError) {
             try {
-              onError(err);
+              onError(/** @type {Error} */ (err));
             } catch {
               // onError itself threw — swallow to prevent cascade
             }
@@ -1782,7 +1874,7 @@ export default class WarpGraph {
    *
    * @param {string} pattern - Glob pattern (e.g., 'user:*', 'order:123', '*')
    * @param {Object} options - Watch options
-   * @param {(diff: import('./services/StateDiff.js').StateDiff) => void} options.onChange - Called with filtered diff when matching changes occur
+   * @param {(diff: import('./services/StateDiff.js').StateDiffResult) => void} options.onChange - Called with filtered diff when matching changes occur
    * @param {(error: Error) => void} [options.onError] - Called if onChange throws an error
    * @param {number} [options.poll] - Poll interval in ms (min 1000); checks frontier and auto-materializes
    * @returns {{unsubscribe: () => void}} Subscription handle
@@ -1823,31 +1915,32 @@ export default class WarpGraph {
 
     // Pattern matching: same logic as QueryBuilder.match()
     // Pre-compile pattern matcher once for performance
+    /** @type {(nodeId: string) => boolean} */
     let matchesPattern;
     if (pattern === '*') {
       matchesPattern = () => true;
     } else if (pattern.includes('*')) {
       const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
       const regex = new RegExp(`^${escaped.replace(/\*/g, '.*')}$`);
-      matchesPattern = (nodeId) => regex.test(nodeId);
+      matchesPattern = (/** @type {string} */ nodeId) => regex.test(nodeId);
     } else {
-      matchesPattern = (nodeId) => nodeId === pattern;
+      matchesPattern = (/** @type {string} */ nodeId) => nodeId === pattern;
     }
 
     // Filtered onChange that only passes matching changes
-    const filteredOnChange = (diff) => {
+    const filteredOnChange = (/** @type {import('./services/StateDiff.js').StateDiffResult} */ diff) => {
       const filteredDiff = {
         nodes: {
           added: diff.nodes.added.filter(matchesPattern),
           removed: diff.nodes.removed.filter(matchesPattern),
         },
         edges: {
-          added: diff.edges.added.filter(e => matchesPattern(e.from) || matchesPattern(e.to)),
-          removed: diff.edges.removed.filter(e => matchesPattern(e.from) || matchesPattern(e.to)),
+          added: diff.edges.added.filter((/** @type {import('./services/StateDiff.js').EdgeChange} */ e) => matchesPattern(e.from) || matchesPattern(e.to)),
+          removed: diff.edges.removed.filter((/** @type {import('./services/StateDiff.js').EdgeChange} */ e) => matchesPattern(e.from) || matchesPattern(e.to)),
         },
         props: {
-          set: diff.props.set.filter(p => matchesPattern(p.nodeId)),
-          removed: diff.props.removed.filter(p => matchesPattern(p.nodeId)),
+          set: diff.props.set.filter((/** @type {import('./services/StateDiff.js').PropSet} */ p) => matchesPattern(p.nodeId)),
+          removed: diff.props.removed.filter((/** @type {import('./services/StateDiff.js').PropRemoved} */ p) => matchesPattern(p.nodeId)),
         },
       };
 
@@ -1869,6 +1962,7 @@ export default class WarpGraph {
     const subscription = this.subscribe({ onChange: filteredOnChange, onError });
 
     // Polling: periodically check frontier and auto-materialize if changed
+    /** @type {ReturnType<typeof setInterval>|null} */
     let pollIntervalId = null;
     let pollInFlight = false;
     if (poll) {
@@ -1950,7 +2044,7 @@ export default class WarpGraph {
    * Creates a sync request to send to a remote peer.
    * The request contains the local frontier for comparison.
    *
-   * @returns {Promise<{type: 'sync-request', frontier: Map<string, string>}>} The sync request
+   * @returns {Promise<import('./services/SyncProtocol.js').SyncRequest>} The sync request
    * @throws {Error} If listing refs fails
    *
    * @example
@@ -1965,8 +2059,8 @@ export default class WarpGraph {
   /**
    * Processes an incoming sync request and returns patches the requester needs.
    *
-   * @param {{type: 'sync-request', frontier: Map<string, string>}} request - The incoming sync request
-   * @returns {Promise<{type: 'sync-response', frontier: Map, patches: Map}>} The sync response
+   * @param {import('./services/SyncProtocol.js').SyncRequest} request - The incoming sync request
+   * @returns {Promise<import('./services/SyncProtocol.js').SyncResponse>} The sync response
    * @throws {Error} If listing refs or reading patches fails
    *
    * @example
@@ -1979,7 +2073,7 @@ export default class WarpGraph {
     return await processSyncRequest(
       request,
       localFrontier,
-      this._persistence,
+      /** @type {any} */ (this._persistence), // TODO(ts-cleanup): narrow port type
       this._graphName,
       { codec: this._codec }
     );
@@ -1991,8 +2085,8 @@ export default class WarpGraph {
    *
    * **Requires a cached state.**
    *
-   * @param {{type: 'sync-response', frontier: Map, patches: Map}} response - The sync response
-   * @returns {{state: Object, frontier: Map, applied: number}} Result with updated state
+   * @param {import('./services/SyncProtocol.js').SyncResponse} response - The sync response
+   * @returns {{state: import('./services/JoinReducer.js').WarpStateV5, applied: number}} Result with updated state
    * @throws {QueryError} If no cached state exists (code: `E_NO_STATE`)
    *
    * @example
@@ -2007,8 +2101,8 @@ export default class WarpGraph {
       });
     }
 
-    const currentFrontier = this._cachedState.observedFrontier;
-    const result = applySyncResponse(response, this._cachedState, currentFrontier);
+    const currentFrontier = /** @type {any} */ (this._cachedState.observedFrontier); // TODO(ts-cleanup): narrow port type
+    const result = /** @type {{state: import('./services/JoinReducer.js').WarpStateV5, frontier: Map<string, string>, applied: number}} */ (applySyncResponse(response, this._cachedState, currentFrontier));
 
     // Update cached state
     this._cachedState = result.state;
@@ -2079,7 +2173,7 @@ export default class WarpGraph {
     let targetUrl = null;
     if (!isDirectPeer) {
       try {
-        targetUrl = remote instanceof URL ? new URL(remote.toString()) : new URL(remote);
+        targetUrl = remote instanceof URL ? new URL(remote.toString()) : new URL(/** @type {string} */ (remote));
       } catch {
         throw new SyncError('Invalid remote URL', {
           code: 'E_SYNC_REMOTE_URL',
@@ -2104,13 +2198,13 @@ export default class WarpGraph {
     }
 
     let attempt = 0;
-    const emit = (type, payload = {}) => {
+    const emit = (/** @type {string} */ type, /** @type {Record<string, any>} */ payload = {}) => {
       if (typeof onStatus === 'function') {
-        onStatus({ type, attempt, ...payload });
+        onStatus(/** @type {any} */ ({ type, attempt, ...payload })); // TODO(ts-cleanup): type sync protocol
       }
     };
 
-    const shouldRetry = (err) => {
+    const shouldRetry = (/** @type {any} */ err) => { // TODO(ts-cleanup): type error
       if (isDirectPeer) { return false; }
       if (err instanceof SyncError) {
         return ['E_SYNC_REMOTE', 'E_SYNC_TIMEOUT', 'E_SYNC_NETWORK'].includes(err.code);
@@ -2140,7 +2234,7 @@ export default class WarpGraph {
             const combinedSignal = signal
               ? AbortSignal.any([timeoutSignal, signal])
               : timeoutSignal;
-            return fetch(targetUrl.toString(), {
+            return fetch(/** @type {URL} */ (targetUrl).toString(), {
               method: 'POST',
               headers: {
                 'content-type': 'application/json',
@@ -2151,7 +2245,7 @@ export default class WarpGraph {
             });
           });
         } catch (err) {
-          if (err?.name === 'AbortError') {
+          if (/** @type {any} */ (err)?.name === 'AbortError') { // TODO(ts-cleanup): type error
             throw new OperationAbortedError('syncWith', { reason: 'Signal received' });
           }
           if (err instanceof TimeoutError) {
@@ -2162,7 +2256,7 @@ export default class WarpGraph {
           }
           throw new SyncError('Network error', {
             code: 'E_SYNC_NETWORK',
-            context: { message: err?.message },
+            context: { message: /** @type {any} */ (err)?.message }, // TODO(ts-cleanup): type error
           });
         }
 
@@ -2223,9 +2317,9 @@ export default class WarpGraph {
         jitter: 'decorrelated',
         signal,
         shouldRetry,
-        onRetry: (error, attemptNumber, delayMs) => {
+        onRetry: (/** @type {Error} */ error, /** @type {number} */ attemptNumber, /** @type {number} */ delayMs) => {
           if (typeof onStatus === 'function') {
-            onStatus({ type: 'retrying', attempt: attemptNumber, delayMs, error });
+            onStatus(/** @type {any} */ ({ type: 'retrying', attempt: attemptNumber, delayMs, error })); // TODO(ts-cleanup): type sync protocol
           }
         },
       });
@@ -2234,12 +2328,12 @@ export default class WarpGraph {
 
       if (materializeAfterSync) {
         if (!this._cachedState) { await this.materialize(); }
-        return { ...syncResult, state: this._cachedState };
+        return { ...syncResult, state: /** @type {import('./services/JoinReducer.js').WarpStateV5} */ (this._cachedState) };
       }
       return syncResult;
     } catch (err) {
-      this._logTiming('syncWith', t0, { error: err });
-      if (err?.name === 'AbortError') {
+      this._logTiming('syncWith', t0, { error: /** @type {Error} */ (err) });
+      if (/** @type {any} */ (err)?.name === 'AbortError') { // TODO(ts-cleanup): type error
         const abortedError = new OperationAbortedError('syncWith', { reason: 'Signal received' });
         if (typeof onStatus === 'function') {
           onStatus({ type: 'failed', attempt, error: abortedError });
@@ -2247,14 +2341,14 @@ export default class WarpGraph {
         throw abortedError;
       }
       if (err instanceof RetryExhaustedError) {
-        const cause = err.cause || err;
+        const cause = /** @type {Error} */ (err.cause || err);
         if (typeof onStatus === 'function') {
           onStatus({ type: 'failed', attempt: err.attempts, error: cause });
         }
         throw cause;
       }
       if (typeof onStatus === 'function') {
-        onStatus({ type: 'failed', attempt, error: err });
+        onStatus({ type: 'failed', attempt, error: /** @type {Error} */ (err) });
       }
       throw err;
     }
@@ -2273,7 +2367,7 @@ export default class WarpGraph {
    * @throws {Error} If port is not a number
    * @throws {Error} If httpPort adapter is not provided
    */
-  async serve({ port, host = '127.0.0.1', path = '/sync', maxRequestBytes = DEFAULT_SYNC_SERVER_MAX_BYTES, httpPort } = {}) {
+  async serve({ port, host = '127.0.0.1', path = '/sync', maxRequestBytes = DEFAULT_SYNC_SERVER_MAX_BYTES, httpPort } = /** @type {any} */ ({})) { // TODO(ts-cleanup): needs options type
     if (typeof port !== 'number') {
       throw new Error('serve() requires a numeric port');
     }
@@ -2318,8 +2412,8 @@ export default class WarpGraph {
    */
   async writer(writerId) {
     // Build config adapters for resolveWriterId
-    const configGet = async (key) => await this._persistence.configGet(key);
-    const configSet = async (key, value) => await this._persistence.configSet(key, value);
+    const configGet = async (/** @type {string} */ key) => await this._persistence.configGet(key);
+    const configSet = async (/** @type {string} */ key, /** @type {string} */ value) => await this._persistence.configSet(key, value);
 
     // Resolve the writer ID
     const resolvedWriterId = await resolveWriterId({
@@ -2330,13 +2424,13 @@ export default class WarpGraph {
     });
 
     return new Writer({
-      persistence: this._persistence,
+      persistence: /** @type {any} */ (this._persistence), // TODO(ts-cleanup): narrow port type
       graphName: this._graphName,
       writerId: resolvedWriterId,
       versionVector: this._versionVector,
-      getCurrentState: () => this._cachedState,
+      getCurrentState: () => /** @type {any} */ (this._cachedState), // TODO(ts-cleanup): narrow port type
       onDeleteWithData: this._onDeleteWithData,
-      onCommitSuccess: (opts) => this._onPatchCommitted(resolvedWriterId, opts),
+      onCommitSuccess: (/** @type {any} */ opts) => this._onPatchCommitted(resolvedWriterId, opts), // TODO(ts-cleanup): type sync protocol
       codec: this._codec,
     });
   }
@@ -2384,13 +2478,13 @@ export default class WarpGraph {
     }
 
     return new Writer({
-      persistence: this._persistence,
+      persistence: /** @type {any} */ (this._persistence), // TODO(ts-cleanup): narrow port type
       graphName: this._graphName,
       writerId: freshWriterId,
       versionVector: this._versionVector,
-      getCurrentState: () => this._cachedState,
+      getCurrentState: () => /** @type {any} */ (this._cachedState), // TODO(ts-cleanup): narrow port type
       onDeleteWithData: this._onDeleteWithData,
-      onCommitSuccess: (commitOpts) => this._onPatchCommitted(freshWriterId, commitOpts),
+      onCommitSuccess: (/** @type {any} */ commitOpts) => this._onPatchCommitted(freshWriterId, commitOpts), // TODO(ts-cleanup): type sync protocol
       codec: this._codec,
     });
   }
@@ -2545,7 +2639,8 @@ export default class WarpGraph {
    */
   async hasNode(nodeId) {
     await this._ensureFreshState();
-    return orsetContains(this._cachedState.nodeAlive, nodeId);
+    const s = /** @type {import('./services/JoinReducer.js').WarpStateV5} */ (this._cachedState);
+    return orsetContains(s.nodeAlive, nodeId);
   }
 
   /**
@@ -2570,15 +2665,16 @@ export default class WarpGraph {
    */
   async getNodeProps(nodeId) {
     await this._ensureFreshState();
+    const s = /** @type {import('./services/JoinReducer.js').WarpStateV5} */ (this._cachedState);
 
     // Check if node exists
-    if (!orsetContains(this._cachedState.nodeAlive, nodeId)) {
+    if (!orsetContains(s.nodeAlive, nodeId)) {
       return null;
     }
 
     // Collect all properties for this node
     const props = new Map();
-    for (const [propKey, register] of this._cachedState.prop) {
+    for (const [propKey, register] of s.prop) {
       const decoded = decodePropKey(propKey);
       if (decoded.nodeId === nodeId) {
         props.set(decoded.propKey, register.value);
@@ -2612,26 +2708,28 @@ export default class WarpGraph {
    */
   async getEdgeProps(from, to, label) {
     await this._ensureFreshState();
+    const s = /** @type {import('./services/JoinReducer.js').WarpStateV5} */ (this._cachedState);
 
     // Check if edge exists
     const edgeKey = encodeEdgeKey(from, to, label);
-    if (!orsetContains(this._cachedState.edgeAlive, edgeKey)) {
+    if (!orsetContains(s.edgeAlive, edgeKey)) {
       return null;
     }
 
     // Check node liveness for both endpoints
-    if (!orsetContains(this._cachedState.nodeAlive, from) ||
-        !orsetContains(this._cachedState.nodeAlive, to)) {
+    if (!orsetContains(s.nodeAlive, from) ||
+        !orsetContains(s.nodeAlive, to)) {
       return null;
     }
 
     // Determine the birth EventId for clean-slate filtering
-    const birthEvent = this._cachedState.edgeBirthEvent?.get(edgeKey);
+    const birthEvent = s.edgeBirthEvent?.get(edgeKey);
 
     // Collect all properties for this edge, filtering out stale props
     // (props set before the edge's most recent re-add)
+    /** @type {Record<string, any>} */
     const props = {};
-    for (const [propKey, register] of this._cachedState.prop) {
+    for (const [propKey, register] of s.prop) {
       if (!isEdgePropKey(propKey)) {
         continue;
       }
@@ -2673,11 +2771,13 @@ export default class WarpGraph {
    */
   async neighbors(nodeId, direction = 'both', edgeLabel = undefined) {
     await this._ensureFreshState();
+    const s = /** @type {import('./services/JoinReducer.js').WarpStateV5} */ (this._cachedState);
 
+    /** @type {Array<{nodeId: string, label: string, direction: 'outgoing' | 'incoming'}>} */
     const neighbors = [];
 
     // Iterate over all visible edges
-    for (const edgeKey of orsetElements(this._cachedState.edgeAlive)) {
+    for (const edgeKey of orsetElements(s.edgeAlive)) {
       const { from, to, label } = decodeEdgeKey(edgeKey);
 
       // Filter by label if specified
@@ -2688,15 +2788,15 @@ export default class WarpGraph {
       // Check edge direction and collect neighbors
       if ((direction === 'outgoing' || direction === 'both') && from === nodeId) {
         // Ensure target node is visible
-        if (orsetContains(this._cachedState.nodeAlive, to)) {
-          neighbors.push({ nodeId: to, label, direction: 'outgoing' });
+        if (orsetContains(s.nodeAlive, to)) {
+          neighbors.push({ nodeId: to, label, direction: /** @type {const} */ ('outgoing') });
         }
       }
 
       if ((direction === 'incoming' || direction === 'both') && to === nodeId) {
         // Ensure source node is visible
-        if (orsetContains(this._cachedState.nodeAlive, from)) {
-          neighbors.push({ nodeId: from, label, direction: 'incoming' });
+        if (orsetContains(s.nodeAlive, from)) {
+          neighbors.push({ nodeId: from, label, direction: /** @type {const} */ ('incoming') });
         }
       }
     }
@@ -2721,7 +2821,8 @@ export default class WarpGraph {
    */
   async getNodes() {
     await this._ensureFreshState();
-    return [...orsetElements(this._cachedState.nodeAlive)];
+    const s = /** @type {import('./services/JoinReducer.js').WarpStateV5} */ (this._cachedState);
+    return [...orsetElements(s.nodeAlive)];
   }
 
   /**
@@ -2744,12 +2845,13 @@ export default class WarpGraph {
    */
   async getEdges() {
     await this._ensureFreshState();
+    const s = /** @type {import('./services/JoinReducer.js').WarpStateV5} */ (this._cachedState);
 
     // Pre-collect edge props into a lookup: "from\0to\0label" → {propKey: value}
     // Filters out stale props using full EventId ordering via compareEventIds
     // against the edge's birth EventId (clean-slate semantics on re-add)
     const edgePropsByKey = new Map();
-    for (const [propKey, register] of this._cachedState.prop) {
+    for (const [propKey, register] of s.prop) {
       if (!isEdgePropKey(propKey)) {
         continue;
       }
@@ -2757,7 +2859,7 @@ export default class WarpGraph {
       const ek = encodeEdgeKey(decoded.from, decoded.to, decoded.label);
 
       // Clean-slate filter: skip props from before the edge's current incarnation
-      const birthEvent = this._cachedState.edgeBirthEvent?.get(ek);
+      const birthEvent = s.edgeBirthEvent?.get(ek);
       if (birthEvent && register.eventId && compareEventIds(register.eventId, birthEvent) < 0) {
         continue;
       }
@@ -2771,11 +2873,11 @@ export default class WarpGraph {
     }
 
     const edges = [];
-    for (const edgeKey of orsetElements(this._cachedState.edgeAlive)) {
+    for (const edgeKey of orsetElements(s.edgeAlive)) {
       const { from, to, label } = decodeEdgeKey(edgeKey);
       // Only include edges where both endpoints are visible
-      if (orsetContains(this._cachedState.nodeAlive, from) &&
-          orsetContains(this._cachedState.nodeAlive, to)) {
+      if (orsetContains(s.nodeAlive, from) &&
+          orsetContains(s.nodeAlive, to)) {
         const props = edgePropsByKey.get(edgeKey) || {};
         edges.push({ from, to, label, props });
       }
@@ -2794,7 +2896,8 @@ export default class WarpGraph {
    */
   async getPropertyCount() {
     await this._ensureFreshState();
-    return this._cachedState.prop.size;
+    const s = /** @type {import('./services/JoinReducer.js').WarpStateV5} */ (this._cachedState);
+    return s.prop.size;
   }
 
   // ============================================================================
@@ -2913,9 +3016,9 @@ export default class WarpGraph {
       try {
         validateGraphName(resolvedForkName);
       } catch (err) {
-        throw new ForkError(`Invalid fork name: ${err.message}`, {
+        throw new ForkError(`Invalid fork name: ${/** @type {Error} */ (err).message}`, {
           code: 'E_FORK_NAME_INVALID',
-          context: { forkName: resolvedForkName, originalError: err.message },
+          context: { forkName: resolvedForkName, originalError: /** @type {Error} */ (err).message },
         });
       }
 
@@ -2934,9 +3037,9 @@ export default class WarpGraph {
       try {
         validateWriterId(resolvedForkWriterId);
       } catch (err) {
-        throw new ForkError(`Invalid fork writer ID: ${err.message}`, {
+        throw new ForkError(`Invalid fork writer ID: ${/** @type {Error} */ (err).message}`, {
           code: 'E_FORK_WRITER_ID_INVALID',
-          context: { forkWriterId: resolvedForkWriterId, originalError: err.message },
+          context: { forkWriterId: resolvedForkWriterId, originalError: /** @type {Error} */ (err).message },
         });
       }
 
@@ -2951,10 +3054,10 @@ export default class WarpGraph {
         writerId: resolvedForkWriterId,
         gcPolicy: this._gcPolicy,
         adjacencyCacheSize: this._adjacencyCache?.maxSize ?? DEFAULT_ADJACENCY_CACHE_SIZE,
-        checkpointPolicy: this._checkpointPolicy,
+        checkpointPolicy: this._checkpointPolicy || undefined,
         autoMaterialize: this._autoMaterialize,
         onDeleteWithData: this._onDeleteWithData,
-        logger: this._logger,
+        logger: this._logger || undefined,
         clock: this._clock,
         crypto: this._crypto,
         codec: this._codec,
@@ -2966,7 +3069,7 @@ export default class WarpGraph {
 
       return forkGraph;
     } catch (err) {
-      this._logTiming('fork', t0, { error: err });
+      this._logTiming('fork', t0, { error: /** @type {Error} */ (err) });
       throw err;
     }
   }
@@ -3020,13 +3123,13 @@ export default class WarpGraph {
     const t0 = this._clock.now();
 
     try {
-      const wormhole = await createWormholeImpl({
+      const wormhole = await createWormholeImpl(/** @type {any} */ ({ // TODO(ts-cleanup): needs options type
         persistence: this._persistence,
         graphName: this._graphName,
         fromSha,
         toSha,
         codec: this._codec,
-      });
+      }));
 
       this._logTiming('createWormhole', t0, {
         metrics: `${wormhole.patchCount} patches from=${fromSha.slice(0, 7)} to=${toSha.slice(0, 7)}`,
@@ -3034,7 +3137,7 @@ export default class WarpGraph {
 
       return wormhole;
     } catch (err) {
-      this._logTiming('createWormhole', t0, { error: err });
+      this._logTiming('createWormhole', t0, { error: /** @type {Error} */ (err) });
       throw err;
     }
   }
@@ -3067,6 +3170,12 @@ export default class WarpGraph {
    */
   async patchesFor(entityId) {
     await this._ensureFreshState();
+
+    if (this._provenanceDegraded) {
+      throw new QueryError('Provenance unavailable for cached seek. Re-seek with --no-persistent-cache or call materialize({ ceiling }) directly.', {
+        code: 'E_PROVENANCE_DEGRADED',
+      });
+    }
 
     if (!this._provenanceIndex) {
       throw new QueryError('No provenance index. Call materialize() first.', {
@@ -3129,6 +3238,12 @@ export default class WarpGraph {
       // Ensure fresh state before accessing provenance index
       await this._ensureFreshState();
 
+      if (this._provenanceDegraded) {
+        throw new QueryError('Provenance unavailable for cached seek. Re-seek with --no-persistent-cache or call materialize({ ceiling }) directly.', {
+          code: 'E_PROVENANCE_DEGRADED',
+        });
+      }
+
       if (!this._provenanceIndex) {
         throw new QueryError('No provenance index. Call materialize() first.', {
           code: 'E_NO_STATE',
@@ -3163,7 +3278,7 @@ export default class WarpGraph {
       this._logTiming('materializeSlice', t0, { metrics: `${sortedPatches.length} patches` });
 
       if (collectReceipts) {
-        const result = reduceV5(sortedPatches, undefined, { receipts: true });
+        const result = /** @type {{state: import('./services/JoinReducer.js').WarpStateV5, receipts: import('./types/TickReceipt.js').TickReceipt[]}} */ (reduceV5(sortedPatches, undefined, { receipts: true }));
         return {
           state: result.state,
           patchCount: sortedPatches.length,
@@ -3177,7 +3292,7 @@ export default class WarpGraph {
         patchCount: sortedPatches.length,
       };
     } catch (err) {
-      this._logTiming('materializeSlice', t0, { error: err });
+      this._logTiming('materializeSlice', t0, { error: /** @type {Error} */ (err) });
       throw err;
     }
   }
@@ -3214,7 +3329,7 @@ export default class WarpGraph {
       visited.add(entityId);
 
       // Get all patches that affected this entity
-      const patchShas = this._provenanceIndex.patchesFor(entityId);
+      const patchShas = /** @type {import('./services/ProvenanceIndex.js').ProvenanceIndex} */ (this._provenanceIndex).patchesFor(entityId);
 
       for (const sha of patchShas) {
         if (cone.has(sha)) {
@@ -3226,8 +3341,9 @@ export default class WarpGraph {
         cone.set(sha, patch);
 
         // Add read dependencies to the queue
-        if (patch && patch.reads) {
-          for (const readEntity of patch.reads) {
+        const patchReads = /** @type {any} */ (patch)?.reads; // TODO(ts-cleanup): type patch array
+        if (patchReads) {
+          for (const readEntity of patchReads) {
             if (!visited.has(readEntity)) {
               queue.push(readEntity);
             }
@@ -3274,7 +3390,7 @@ export default class WarpGraph {
 
     const patchMeta = decodePatchMessage(nodeInfo.message);
     const patchBuffer = await this._persistence.readBlob(patchMeta.patchOid);
-    return this._codec.decode(patchBuffer);
+    return /** @type {Object} */ (this._codec.decode(patchBuffer));
   }
 
   /**
@@ -3302,8 +3418,8 @@ export default class WarpGraph {
    * Sort order: Lamport timestamp (ascending), then writer ID, then SHA.
    * This ensures deterministic ordering regardless of discovery order.
    *
-   * @param {Array<{patch: Object, sha: string}>} patches - Unsorted patch entries
-   * @returns {Array<{patch: Object, sha: string}>} Sorted patch entries
+   * @param {Array<{patch: any, sha: string}>} patches - Unsorted patch entries
+   * @returns {Array<{patch: any, sha: string}>} Sorted patch entries
    * @private
    */
   _sortPatchesCausally(patches) {

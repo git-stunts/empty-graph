@@ -1,8 +1,13 @@
 import { ShardLoadError, ShardCorruptionError, ShardValidationError } from '../errors/index.js';
+import defaultCrypto from '../utils/defaultCrypto.js';
 import nullLogger from '../utils/nullLogger.js';
 import LRUCache from '../utils/LRUCache.js';
 import { getRoaringBitmap32 } from '../utils/roaring.js';
 import { canonicalStringify } from '../utils/canonicalStringify.js';
+
+/** @typedef {import('../../ports/IndexStoragePort.js').default} IndexStoragePort */
+/** @typedef {import('../../ports/LoggerPort.js').default} LoggerPort */
+/** @typedef {import('../../ports/CryptoPort.js').default} CryptoPort */
 
 /**
  * Supported shard format versions for backward compatibility.
@@ -25,10 +30,9 @@ const DEFAULT_MAX_CACHED_SHARDS = 100;
  * @param {Object} data - The data object to checksum
  * @param {number} version - Shard version (1 uses JSON.stringify, 2+ uses canonicalStringify)
  * @param {import('../../ports/CryptoPort.js').default} crypto - CryptoPort instance
- * @returns {Promise<string|null>} Hex-encoded SHA-256 hash
+ * @returns {Promise<string>} Hex-encoded SHA-256 hash
  */
 const computeChecksum = async (data, version, crypto) => {
-  if (!crypto) { return null; }
   const json = version === 1 ? JSON.stringify(data) : canonicalStringify(data);
   return await crypto.hash('sha256', json);
 };
@@ -77,16 +81,15 @@ export default class BitmapIndexReader {
   /**
    * Creates a BitmapIndexReader instance.
    * @param {Object} options
-   * @param {import('../../ports/IndexStoragePort.js').default} options.storage - Storage adapter for reading index data
+   * @param {IndexStoragePort} options.storage - Storage adapter for reading index data
    * @param {boolean} [options.strict=false] - If true, throw errors on validation failures; if false, log warnings and return empty shards
    * @param {import('../../ports/LoggerPort.js').default} [options.logger] - Logger for structured logging.
    *   Defaults to NoOpLogger (no logging).
    * @param {number} [options.maxCachedShards=100] - Maximum number of shards to keep in the LRU cache.
    *   When exceeded, least recently used shards are evicted to free memory.
    * @param {import('../../ports/CryptoPort.js').default} [options.crypto] - CryptoPort instance for checksum verification.
-   *   When not provided, checksum validation is skipped.
    */
-  constructor({ storage, strict = false, logger = nullLogger, maxCachedShards = DEFAULT_MAX_CACHED_SHARDS, crypto } = {}) {
+  constructor({ storage, strict = false, logger = nullLogger, maxCachedShards = DEFAULT_MAX_CACHED_SHARDS, crypto } = /** @type {*} */ ({})) { // TODO(ts-cleanup): needs options type
     if (!storage) {
       throw new Error('BitmapIndexReader requires a storage adapter');
     }
@@ -95,9 +98,10 @@ export default class BitmapIndexReader {
     this.logger = logger;
     this.maxCachedShards = maxCachedShards;
     /** @type {import('../../ports/CryptoPort.js').default} */
-    this._crypto = crypto;
+    this._crypto = crypto || defaultCrypto;
     this.shardOids = new Map(); // path -> OID
     this.loadedShards = new LRUCache(maxCachedShards); // path -> Data
+    /** @type {string[]|null} */
     this._idToShaCache = null; // Lazy-built reverse mapping
   }
 
@@ -191,7 +195,7 @@ export default class BitmapIndexReader {
         shardPath,
         oid: this.shardOids.get(shardPath),
         reason: 'bitmap_deserialize_error',
-        originalError: err.message,
+        context: { originalError: /** @type {any} */ (err).message }, // TODO(ts-cleanup): type error
       });
       this._handleShardError(corruptionError, {
         path: shardPath,
@@ -243,10 +247,10 @@ export default class BitmapIndexReader {
   /**
    * Validates a shard envelope for version and checksum integrity.
    *
-   * @param {Object} envelope - The shard envelope to validate
+   * @param {{ data?: any, version?: number, checksum?: string }} envelope - The shard envelope to validate
    * @param {string} path - Shard path (for error context)
    * @param {string} oid - Object ID (for error context)
-   * @returns {Promise<Object>} The validated data from the envelope
+   * @returns {Promise<any>} The validated data from the envelope
    * @throws {ShardCorruptionError} If envelope format is invalid
    * @throws {ShardValidationError} If version or checksum validation fails
    * @private
@@ -267,7 +271,7 @@ export default class BitmapIndexReader {
         reason: 'missing_or_invalid_data',
       });
     }
-    if (!SUPPORTED_SHARD_VERSIONS.includes(envelope.version)) {
+    if (!SUPPORTED_SHARD_VERSIONS.includes(/** @type {number} */ (envelope.version))) {
       throw new ShardValidationError('Unsupported version', {
         shardPath: path,
         expected: SUPPORTED_SHARD_VERSIONS,
@@ -276,8 +280,8 @@ export default class BitmapIndexReader {
       });
     }
     // Use version-appropriate checksum computation for backward compatibility
-    const actualChecksum = await computeChecksum(envelope.data, envelope.version, this._crypto);
-    if (actualChecksum !== null && envelope.checksum !== actualChecksum) {
+    const actualChecksum = await computeChecksum(envelope.data, /** @type {number} */ (envelope.version), this._crypto);
+    if (envelope.checksum !== actualChecksum) {
       throw new ShardValidationError('Checksum mismatch', {
         shardPath: path,
         expected: envelope.checksum,
@@ -295,7 +299,7 @@ export default class BitmapIndexReader {
    * @param {string} context.path - Shard path
    * @param {string} context.oid - Object ID
    * @param {string} context.format - 'json' or 'bitmap'
-   * @returns {Object|RoaringBitmap32} Empty shard (non-strict mode only)
+   * @returns {any} Empty shard (non-strict mode only)
    * @throws {ShardCorruptionError|ShardValidationError} In strict mode
    * @private
    */
@@ -303,15 +307,17 @@ export default class BitmapIndexReader {
     if (this.strict) {
       throw err;
     }
+    /** @type {any} */ // TODO(ts-cleanup): type lazy singleton
+    const errAny = err;
     this.logger.warn('Shard validation warning', {
       operation: 'loadShard',
       shardPath: path,
       oid,
       error: err.message,
       code: err.code,
-      field: err.field,
-      expected: err.expected,
-      actual: err.actual,
+      field: errAny.field,
+      expected: errAny.expected,
+      actual: errAny.actual,
     });
     const emptyShard = format === 'json' ? {} : new (getRoaringBitmap32())();
     this.loadedShards.set(path, emptyShard);
@@ -343,12 +349,12 @@ export default class BitmapIndexReader {
    */
   async _loadShardBuffer(path, oid) {
     try {
-      return await this.storage.readBlob(oid);
+      return await /** @type {any} */ (this.storage).readBlob(oid); // TODO(ts-cleanup): narrow port type
     } catch (cause) {
       throw new ShardLoadError('Failed to load shard from storage', {
         shardPath: path,
         oid,
-        cause,
+        cause: /** @type {Error} */ (cause),
       });
     }
   }
@@ -376,12 +382,12 @@ export default class BitmapIndexReader {
   /**
    * Attempts to handle a shard error based on its type.
    * Returns handled result for validation/corruption errors, null otherwise.
-   * @param {Error} err - The error to handle
+   * @param {any} err - The error to handle
    * @param {Object} context - Error context
    * @param {string} context.path - Shard path
    * @param {string} context.oid - Object ID
    * @param {string} context.format - 'json' or 'bitmap'
-   * @returns {Object|RoaringBitmap32|null} Handled result or null if error should be re-thrown
+   * @returns {any} Handled result or null if error should be re-thrown
    * @private
    */
   _tryHandleShardError(err, context) {
@@ -400,7 +406,7 @@ export default class BitmapIndexReader {
    *
    * @param {string} path - Shard path
    * @param {string} format - 'json' or 'bitmap'
-   * @returns {Promise<Object|RoaringBitmap32>}
+   * @returns {Promise<any>}
    * @throws {ShardLoadError} When storage.readBlob fails
    * @throws {ShardCorruptionError} When shard format is invalid (strict mode only)
    * @throws {ShardValidationError} When version or checksum validation fails (strict mode only)

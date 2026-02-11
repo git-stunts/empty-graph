@@ -10,6 +10,10 @@ import { padRight } from '../../utils/unicode.js';
 import { timeAgo } from '../../utils/time.js';
 import { TIMELINE } from './symbols.js';
 
+/**
+ * @typedef {{ name: string, writers?: { count?: number, ids?: string[] }, checkpoint?: { sha?: string, date?: string | Date }, coverage?: { sha?: string }, writerPatches?: Record<string, number> }} GraphInfo
+ */
+
 // Box drawing characters (info.js uses verbose key names for card rendering)
 const BOX = {
   topLeft: '\u250C',     // ┌
@@ -77,7 +81,7 @@ function formatWriterNames(writerIds) {
 
 /**
  * Renders the header lines for a graph card.
- * @param {Object} graph - Graph info object
+ * @param {GraphInfo} graph - Graph info object
  * @param {number} contentWidth - Available content width
  * @returns {string[]} Header lines
  */
@@ -102,7 +106,7 @@ function renderCardHeader(graph, contentWidth) {
 
 /**
  * Renders writer timeline lines for a graph card.
- * @param {Object} writerPatches - Map of writerId to patch count
+ * @param {Record<string, number> | undefined} writerPatches - Map of writerId to patch count
  * @param {number} contentWidth - Available content width
  * @returns {string[]} Timeline lines
  */
@@ -133,7 +137,7 @@ function renderWriterTimelines(writerPatches, contentWidth) {
 
 /**
  * Renders checkpoint and coverage lines for a graph card.
- * @param {Object} graph - Graph info object
+ * @param {GraphInfo} graph - Graph info object
  * @param {number} contentWidth - Available content width
  * @returns {string[]} Status lines
  */
@@ -169,7 +173,7 @@ function renderCardStatus(graph, contentWidth) {
 
 /**
  * Renders a single graph card.
- * @param {Object} graph - Graph info object
+ * @param {GraphInfo} graph - Graph info object
  * @param {number} innerWidth - Available width inside the card
  * @returns {string[]} Array of lines for this graph card
  */
@@ -186,9 +190,7 @@ function renderGraphCard(graph, innerWidth) {
 
 /**
  * Renders the info view with ASCII box art.
- * @param {Object} data - Info payload from handleInfo
- * @param {string} data.repo - Repository path
- * @param {Object[]} data.graphs - Array of graph info objects
+ * @param {{ repo?: string, graphs: GraphInfo[] }} data - Info payload from handleInfo
  * @returns {string} Formatted ASCII output
  */
 export function renderInfoView(data) {

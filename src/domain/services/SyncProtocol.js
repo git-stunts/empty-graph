@@ -56,18 +56,16 @@ import { vvDeserialize } from '../crdt/VersionVector.js';
  * **Mutation**: This function mutates the input patch object for efficiency.
  * The original object reference is returned.
  *
- * @param {Object} patch - The raw decoded patch from CBOR
- * @param {Object|Map} [patch.context] - The causal context (version vector).
- *   If present as a plain object, will be converted to a Map.
- * @param {Array} patch.ops - The patch operations (not modified)
- * @returns {Object} The same patch object with context converted to Map
+ * @param {{ context?: Object | Map<any, any>, ops: any[] }} patch - The raw decoded patch from CBOR.
+ *   If context is present as a plain object, it will be converted to a Map.
+ * @returns {{ context?: Object | Map<any, any>, ops: any[] }} The same patch object with context converted to Map
  * @private
  */
 function normalizePatch(patch) {
   // Convert context from plain object to Map (VersionVector)
   // CBOR deserialization returns plain objects, but join() expects a Map
   if (patch.context && !(patch.context instanceof Map)) {
-    patch.context = vvDeserialize(patch.context);
+    patch.context = vvDeserialize(/** @type {{ [x: string]: number }} */ (patch.context));
   }
   return patch;
 }
@@ -85,12 +83,12 @@ function normalizePatch(patch) {
  * **Commit message format**: The message is encoded using WarpMessageCodec
  * and contains metadata (schema version, writer info) plus the patch OID.
  *
- * @param {import('../../ports/GraphPersistencePort.js').default} persistence - Git persistence layer
+ * @param {import('../../ports/GraphPersistencePort.js').default & import('../../ports/CommitPort.js').default & import('../../ports/BlobPort.js').default} persistence - Git persistence layer
  *   (uses CommitPort.showNode() + BlobPort.readBlob() methods)
  * @param {string} sha - The 40-character commit SHA to load the patch from
  * @param {Object} [options]
  * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for deserialization
- * @returns {Promise<Object>} The decoded and normalized patch object containing:
+ * @returns {Promise<{ context?: Object | Map<any, any>, ops: any[] }>} The decoded and normalized patch object containing:
  *   - `ops`: Array of patch operations
  *   - `context`: VersionVector (Map) of causal dependencies
  *   - `writerId`: The writer who created this patch
@@ -101,7 +99,7 @@ function normalizePatch(patch) {
  * @throws {Error} If the patch blob cannot be CBOR-decoded (corrupted data)
  * @private
  */
-async function loadPatchFromCommit(persistence, sha, { codec: codecOpt } = {}) {
+async function loadPatchFromCommit(persistence, sha, { codec: codecOpt } = /** @type {*} */ ({})) { // TODO(ts-cleanup): needs options type
   const codec = codecOpt || defaultCodec;
   // Read commit message to extract patch OID
   const message = await persistence.showNode(sha);
@@ -109,7 +107,7 @@ async function loadPatchFromCommit(persistence, sha, { codec: codecOpt } = {}) {
 
   // Read and decode the patch blob
   const patchBuffer = await persistence.readBlob(decoded.patchOid);
-  const patch = codec.decode(patchBuffer);
+  const patch = /** @type {{ context?: Object | Map<any, any>, ops: any[] }} */ (codec.decode(patchBuffer));
 
   // Normalize the patch (convert context from object to Map)
   return normalizePatch(patch);
@@ -129,7 +127,7 @@ async function loadPatchFromCommit(persistence, sha, { codec: codecOpt } = {}) {
  * **Performance**: O(N) where N is the number of commits between fromSha and toSha.
  * Each commit requires two reads: commit info (for parent) and patch blob.
  *
- * @param {import('../../ports/GraphPersistencePort.js').default} persistence - Git persistence layer
+ * @param {import('../../ports/GraphPersistencePort.js').default & import('../../ports/CommitPort.js').default & import('../../ports/BlobPort.js').default} persistence - Git persistence layer
  *   (uses CommitPort.getNodeInfo()/showNode() + BlobPort.readBlob() methods)
  * @param {string} graphName - Graph name (used in error messages, not for lookups)
  * @param {string} writerId - Writer ID (used in error messages, not for lookups)
@@ -154,7 +152,7 @@ async function loadPatchFromCommit(persistence, sha, { codec: codecOpt } = {}) {
  * // Load ALL patches for a new writer
  * const patches = await loadPatchRange(persistence, 'events', 'new-writer', null, tipSha);
  */
-export async function loadPatchRange(persistence, graphName, writerId, fromSha, toSha, { codec } = {}) {
+export async function loadPatchRange(persistence, graphName, writerId, fromSha, toSha, { codec } = /** @type {*} */ ({})) { // TODO(ts-cleanup): needs options type
   const patches = [];
   let cur = toSha;
 
@@ -172,9 +170,9 @@ export async function loadPatchRange(persistence, graphName, writerId, fromSha, 
 
   // If fromSha was specified but we didn't reach it, we have divergence
   if (fromSha && cur === null) {
-    const err = new Error(
+    const err = /** @type {Error & { code: string }} */ (new Error(
       `Divergence detected: ${toSha} does not descend from ${fromSha} for writer ${writerId}`
-    );
+    ));
     err.code = 'E_SYNC_DIVERGENCE';
     throw err;
   }
@@ -214,11 +212,7 @@ export async function loadPatchRange(persistence, graphName, writerId, fromSha, 
  *   Maps writerId to the SHA of their latest patch commit.
  * @param {Map<string, string>} remoteFrontier - Remote writer heads.
  *   Maps writerId to the SHA of their latest patch commit.
- * @returns {Object} Sync delta containing:
- *   - `needFromRemote`: Map<writerId, {from: string|null, to: string}> - Patches local needs
- *   - `needFromLocal`: Map<writerId, {from: string|null, to: string}> - Patches remote needs
- *   - `newWritersForLocal`: string[] - Writers that local has never seen
- *   - `newWritersForRemote`: string[] - Writers that remote has never seen
+ * @returns {{ needFromRemote: Map<string, {from: string|null, to: string}>, needFromLocal: Map<string, {from: string|null, to: string}>, newWritersForLocal: string[], newWritersForRemote: string[] }} Sync delta
  *
  * @example
  * const local = new Map([['w1', 'sha-a'], ['w2', 'sha-b']]);
@@ -333,13 +327,14 @@ export function computeSyncDelta(localFrontier, remoteFrontier) {
  */
 export function createSyncRequest(frontier) {
   // Convert Map to plain object for serialization
+  /** @type {{ [x: string]: string }} */
   const frontierObj = {};
   for (const [writerId, sha] of frontier) {
     frontierObj[writerId] = sha;
   }
 
   return {
-    type: 'sync-request',
+    type: /** @type {'sync-request'} */ ('sync-request'),
     frontier: frontierObj,
   };
 }
@@ -363,7 +358,7 @@ export function createSyncRequest(frontier) {
  *
  * @param {SyncRequest} request - Incoming sync request containing the requester's frontier
  * @param {Map<string, string>} localFrontier - Local frontier (what this node has)
- * @param {import('../../ports/GraphPersistencePort.js').default} persistence - Git persistence
+ * @param {import('../../ports/GraphPersistencePort.js').default & import('../../ports/CommitPort.js').default & import('../../ports/BlobPort.js').default} persistence - Git persistence
  *   layer for loading patches (uses CommitPort + BlobPort methods)
  * @param {string} graphName - Graph name for error messages and logging
  * @returns {Promise<SyncResponse>} Response containing local frontier and patches.
@@ -379,7 +374,7 @@ export function createSyncRequest(frontier) {
  *   res.json(response);
  * });
  */
-export async function processSyncRequest(request, localFrontier, persistence, graphName, { codec } = {}) {
+export async function processSyncRequest(request, localFrontier, persistence, graphName, { codec } = /** @type {*} */ ({})) { // TODO(ts-cleanup): needs options type
   // Convert incoming frontier from object to Map
   const remoteFrontier = new Map(Object.entries(request.frontier));
 
@@ -406,7 +401,7 @@ export async function processSyncRequest(request, localFrontier, persistence, gr
     } catch (err) {
       // If we detect divergence, skip this writer
       // The requester may need to handle this separately
-      if (err.code === 'E_SYNC_DIVERGENCE' || err.message.includes('Divergence detected')) {
+      if (/** @type {any} */ (err).code === 'E_SYNC_DIVERGENCE' || /** @type {any} */ (err).message?.includes('Divergence detected')) { // TODO(ts-cleanup): type error
         continue;
       }
       throw err;
@@ -414,13 +409,14 @@ export async function processSyncRequest(request, localFrontier, persistence, gr
   }
 
   // Convert local frontier to plain object
+  /** @type {{ [x: string]: string }} */
   const frontierObj = {};
   for (const [writerId, sha] of localFrontier) {
     frontierObj[writerId] = sha;
   }
 
   return {
-    type: 'sync-response',
+    type: /** @type {'sync-response'} */ ('sync-response'),
     frontier: frontierObj,
     patches,
   };
@@ -495,7 +491,7 @@ export function applySyncResponse(response, state, frontier) {
       // will prevent silent data loss until the reader is upgraded.
       assertOpsCompatible(normalizedPatch.ops, SCHEMA_V3);
       // Apply patch to state
-      join(newState, normalizedPatch, sha);
+      join(newState, /** @type {*} */ (normalizedPatch), sha); // TODO(ts-cleanup): type patch array
       applied++;
     }
 
@@ -580,13 +576,14 @@ export function syncNeeded(localFrontier, remoteFrontier) {
  * }
  */
 export function createEmptySyncResponse(frontier) {
+  /** @type {{ [x: string]: string }} */
   const frontierObj = {};
   for (const [writerId, sha] of frontier) {
     frontierObj[writerId] = sha;
   }
 
   return {
-    type: 'sync-response',
+    type: /** @type {'sync-response'} */ ('sync-response'),
     frontier: frontierObj,
     patches: [],
   };

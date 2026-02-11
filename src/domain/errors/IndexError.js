@@ -17,6 +17,10 @@ import WarpError from './WarpError.js';
  * });
  */
 export default class IndexError extends WarpError {
+  /**
+   * @param {string} message
+   * @param {{ code?: string, context?: Object }} [options={}]
+   */
   constructor(message, options = {}) {
     super(message, 'INDEX_ERROR', options);
   }

@@ -131,7 +131,7 @@ export function lwwMax(a, b) {
     return null;
   }
   if (a === null || a === undefined) {
-    return b;
+    return /** @type {LWWRegister<T>} */ (b);
   }
   if (b === null || b === undefined) {
     return a;

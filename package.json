@@ -1,6 +1,6 @@
 {
   "name": "@git-stunts/git-warp",
-  "version": "10.3.2",
+  "version": "10.4.2",
   "description": "Deterministic WARP graph over Git: graph-native storage, traversal, and tooling.",
   "type": "module",
   "license": "Apache-2.0",
@@ -14,7 +14,7 @@
     "url": "https://github.com/git-stunts/git-warp/issues"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.0.0"
   },
   "sideEffects": false,
   "main": "./index.js",
@@ -84,10 +84,15 @@
     "test:node22": "docker compose -f docker-compose.test.yml --profile node22 run --build --rm test-node22",
     "test:bun": "docker compose -f docker-compose.test.yml --profile bun run --build --rm test-bun",
     "test:deno": "docker compose -f docker-compose.test.yml --profile deno run --build --rm test-deno",
-    "test:matrix": "docker compose -f docker-compose.test.yml --profile full up --build --abort-on-container-exit"
+    "test:matrix": "docker compose -f docker-compose.test.yml --profile full up --build --abort-on-container-exit",
+    "typecheck": "tsc --noEmit",
+    "typecheck:src": "tsc --noEmit -p tsconfig.src.json",
+    "typecheck:test": "tsc --noEmit -p tsconfig.test.json",
+    "typecheck:policy": "node scripts/ts-policy-check.js"
   },
   "dependencies": {
     "@git-stunts/alfred": "^0.4.0",
+    "@git-stunts/git-cas": "^3.0.0",
     "@git-stunts/plumbing": "^2.8.0",
     "@git-stunts/trailer-codec": "^2.1.1",
     "boxen": "^7.1.1",

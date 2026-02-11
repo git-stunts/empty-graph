@@ -74,8 +74,12 @@ const TRANSIENT_ERROR_PATTERNS = [
 ];
 
 /**
+ * @typedef {Error & { details?: { stderr?: string, code?: number }, exitCode?: number, code?: number }} GitError
+ */
+
+/**
  * Determines if an error is transient and safe to retry.
- * @param {Error} error - The error to check
+ * @param {GitError} error - The error to check
  * @returns {boolean} True if the error is transient
  */
 function isTransientError(error) {
@@ -102,7 +106,7 @@ const DEFAULT_RETRY_OPTIONS = {
 /**
  * Extracts the exit code from a Git command error.
  * Checks multiple possible locations where the exit code may be stored.
- * @param {Error} err - The error object
+ * @param {GitError} err - The error object
  * @returns {number|undefined} The exit code if found
  */
 function getExitCode(err) {
@@ -120,7 +124,7 @@ async function refExists(execute, ref) {
   try {
     await execute({ args: ['show-ref', '--verify', '--quiet', ref] });
     return true;
-  } catch (err) {
+  } catch (/** @type {*} */ err) { // TODO(ts-cleanup): type error
     if (getExitCode(err) === 1) {
       return false;
     }
@@ -164,11 +168,6 @@ async function refExists(execute, ref) {
  * synchronization, and the retry logic handles lock contention gracefully.
  *
  * @extends GraphPersistencePort
- * @implements {CommitPort}
- * @implements {BlobPort}
- * @implements {TreePort}
- * @implements {RefPort}
- * @implements {ConfigPort}
  * @see {@link GraphPersistencePort} for the abstract interface contract
  * @see {@link DEFAULT_RETRY_OPTIONS} for retry configuration details
  *
@@ -198,19 +197,7 @@ export default class GitGraphAdapter extends GraphPersistencePort {
   /**
    * Creates a new GitGraphAdapter instance.
    *
-   * @param {Object} options - Configuration options
-   * @param {import('@git-stunts/plumbing').default} options.plumbing - The Git plumbing
-   *   instance to use for executing Git commands. Must be initialized with a valid
-   *   repository path.
-   * @param {import('@git-stunts/alfred').RetryOptions} [options.retryOptions={}] - Custom
-   *   retry options to override the defaults. Useful for tuning retry behavior based
-   *   on deployment environment:
-   *   - `retries` (number): Maximum retry attempts (default: 3)
-   *   - `delay` (number): Initial delay in ms (default: 100)
-   *   - `maxDelay` (number): Maximum delay cap in ms (default: 2000)
-   *   - `backoff` ('exponential'|'linear'|'constant'): Backoff strategy
-   *   - `jitter` ('full'|'decorrelated'|'none'): Jitter strategy
-   *   - `shouldRetry` (function): Custom predicate for retryable errors
+   * @param {{ plumbing: *, retryOptions?: Object }} options - Configuration options
    *
    * @throws {Error} If plumbing is not provided
    *
@@ -447,6 +434,7 @@ export default class GitGraphAdapter extends GraphPersistencePort {
    */
   async readTree(treeOid) {
     const oids = await this.readTreeOids(treeOid);
+    /** @type {Record<string, Buffer>} */
     const files = {};
     // Process sequentially to avoid spawning thousands of concurrent readBlob calls
     for (const [path, oid] of Object.entries(oids)) {
@@ -468,6 +456,7 @@ export default class GitGraphAdapter extends GraphPersistencePort {
       args: ['ls-tree', '-r', '-z', treeOid]
     });
 
+    /** @type {Record<string, string>} */
     const oids = {};
     // NUL-separated records: "mode type oid\tpath\0"
     const records = output.split('\0');
@@ -534,7 +523,7 @@ export default class GitGraphAdapter extends GraphPersistencePort {
         args: ['rev-parse', ref]
       });
       return oid.trim();
-    } catch (err) {
+    } catch (/** @type {*} */ err) { // TODO(ts-cleanup): type error
       if (getExitCode(err) === 1) {
         return null;
       }
@@ -607,7 +596,7 @@ export default class GitGraphAdapter extends GraphPersistencePort {
     try {
       await this._executeWithRetry({ args: ['cat-file', '-e', sha] });
       return true;
-    } catch (err) {
+    } catch (/** @type {*} */ err) { // TODO(ts-cleanup): type error
       if (getExitCode(err) === 1) {
         return false;
       }
@@ -683,7 +672,7 @@ export default class GitGraphAdapter extends GraphPersistencePort {
         args: ['merge-base', '--is-ancestor', potentialAncestor, descendant]
       });
       return true;  // Exit code 0 means it IS an ancestor
-    } catch (err) {
+    } catch (/** @type {*} */ err) { // TODO(ts-cleanup): type error
       if (this._getExitCode(err) === 1) {
         return false; // Exit code 1 means it is NOT an ancestor
       }
@@ -705,7 +694,7 @@ export default class GitGraphAdapter extends GraphPersistencePort {
       });
       // Preserve empty-string values; only drop trailing newline
       return value.replace(/\n$/, '');
-    } catch (err) {
+    } catch (/** @type {*} */ err) { // TODO(ts-cleanup): type error
       if (this._isConfigKeyNotFound(err)) {
         return null;
       }
@@ -757,7 +746,7 @@ export default class GitGraphAdapter extends GraphPersistencePort {
   /**
    * Extracts the exit code from a Git command error.
    * Delegates to the standalone getExitCode helper.
-   * @param {Error} err - The error object
+   * @param {GitError} err - The error object
    * @returns {number|undefined} The exit code if found
    * @private
    */
@@ -768,7 +757,7 @@ export default class GitGraphAdapter extends GraphPersistencePort {
   /**
    * Checks if an error indicates a config key was not found.
    * Exit code 1 from `git config --get` means the key doesn't exist.
-   * @param {Error} err - The error object
+   * @param {GitError} err - The error object
    * @returns {boolean} True if the error indicates key not found
    * @private
    */

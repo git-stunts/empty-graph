@@ -10,10 +10,7 @@
 export default class CommitPort {
   /**
    * Creates a commit pointing to the empty tree.
-   * @param {Object} options
-   * @param {string} options.message - The commit message (typically CBOR-encoded patch data)
-   * @param {string[]} [options.parents=[]] - Parent commit SHAs for the commit graph
-   * @param {boolean} [options.sign=false] - Whether to GPG-sign the commit
+   * @param {{ message: string, parents?: string[], sign?: boolean }} _options
    * @returns {Promise<string>} The SHA of the created commit
    * @throws {Error} If not implemented by a concrete adapter
    */
@@ -23,7 +20,7 @@ export default class CommitPort {
 
   /**
    * Retrieves the raw commit message for a given SHA.
-   * @param {string} sha - The commit SHA to read
+   * @param {string} _sha - The commit SHA to read
    * @returns {Promise<string>} The raw commit message content
    * @throws {Error} If not implemented by a concrete adapter
    */
@@ -33,7 +30,7 @@ export default class CommitPort {
 
   /**
    * Gets full commit metadata for a node.
-   * @param {string} sha - The commit SHA to retrieve
+   * @param {string} _sha - The commit SHA to retrieve
    * @returns {Promise<{sha: string, message: string, author: string, date: string, parents: string[]}>}
    *   Full commit metadata including SHA, message, author, date, and parent SHAs
    * @throws {Error} If not implemented by a concrete adapter
@@ -44,10 +41,7 @@ export default class CommitPort {
 
   /**
    * Returns raw git log output for a ref.
-   * @param {Object} options
-   * @param {string} options.ref - The Git ref to log from
-   * @param {number} [options.limit=50] - Maximum number of commits to return
-   * @param {string} [options.format] - Custom format string for git log
+   * @param {{ ref: string, limit?: number, format?: string }} _options
    * @returns {Promise<string>} The raw log output
    * @throws {Error} If not implemented by a concrete adapter
    */
@@ -57,10 +51,7 @@ export default class CommitPort {
 
   /**
    * Streams git log output for a ref.
-   * @param {Object} options
-   * @param {string} options.ref - The Git ref to log from
-   * @param {number} [options.limit=1000000] - Maximum number of commits to return
-   * @param {string} [options.format] - Custom format string for git log
+   * @param {{ ref: string, limit?: number, format?: string }} _options
    * @returns {Promise<import('node:stream').Readable>} A readable stream of log output
    * @throws {Error} If not implemented by a concrete adapter
    */
@@ -70,7 +61,7 @@ export default class CommitPort {
 
   /**
    * Counts nodes reachable from a ref without loading them into memory.
-   * @param {string} ref - Git ref to count from (e.g., 'HEAD', 'main', or a SHA)
+   * @param {string} _ref - Git ref to count from (e.g., 'HEAD', 'main', or a SHA)
    * @returns {Promise<number>} The count of reachable nodes
    * @throws {Error} If not implemented by a concrete adapter
    */
@@ -81,11 +72,7 @@ export default class CommitPort {
   /**
    * Creates a commit pointing to a specified tree (not the empty tree).
    * Used by CheckpointService and PatchBuilderV2 for tree-backed commits.
-   * @param {Object} options
-   * @param {string} options.treeOid - The tree OID to commit
-   * @param {string[]} [options.parents=[]] - Parent commit SHAs
-   * @param {string} options.message - The commit message
-   * @param {boolean} [options.sign=false] - Whether to GPG-sign the commit
+   * @param {{ treeOid: string, parents?: string[], message: string, sign?: boolean }} _options
    * @returns {Promise<string>} The SHA of the created commit
    * @throws {Error} If not implemented by a concrete adapter
    */
@@ -95,7 +82,7 @@ export default class CommitPort {
 
   /**
    * Checks whether a commit exists in the repository.
-   * @param {string} sha - The commit SHA to check
+   * @param {string} _sha - The commit SHA to check
    * @returns {Promise<boolean>} True if the commit exists
    * @throws {Error} If not implemented by a concrete adapter
    */

@@ -10,7 +10,7 @@
 export default class ConfigPort {
   /**
    * Reads a git config value.
-   * @param {string} key - The config key to read (e.g., 'warp.writerId.events')
+   * @param {string} _key - The config key to read (e.g., 'warp.writerId.events')
    * @returns {Promise<string|null>} The config value, or null if not set
    * @throws {Error} If not implemented by a concrete adapter
    */
@@ -20,8 +20,8 @@ export default class ConfigPort {
 
   /**
    * Sets a git config value.
-   * @param {string} key - The config key to set (e.g., 'warp.writerId.events')
-   * @param {string} value - The value to set
+   * @param {string} _key - The config key to set (e.g., 'warp.writerId.events')
+   * @param {string} _value - The value to set
    * @returns {Promise<void>}
    * @throws {Error} If not implemented by a concrete adapter
    */

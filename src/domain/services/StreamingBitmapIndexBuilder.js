@@ -1,4 +1,5 @@
 import defaultCodec from '../utils/defaultCodec.js';
+import defaultCrypto from '../utils/defaultCrypto.js';
 import ShardCorruptionError from '../errors/ShardCorruptionError.js';
 import ShardValidationError from '../errors/ShardValidationError.js';
 import nullLogger from '../utils/nullLogger.js';
@@ -36,10 +37,9 @@ const BITMAP_BASE_OVERHEAD = 64;
  *
  * @param {Object} data - The data object to checksum
  * @param {import('../../ports/CryptoPort.js').default} crypto - CryptoPort instance
- * @returns {Promise<string|null>} Hex-encoded SHA-256 hash
+ * @returns {Promise<string>} Hex-encoded SHA-256 hash
  */
 const computeChecksum = async (data, crypto) => {
-  if (!crypto) { return null; }
   const json = canonicalStringify(data);
   return await crypto.hash('sha256', json);
 };
@@ -89,6 +89,8 @@ export default class StreamingBitmapIndexBuilder {
    *   Receives { flushedBytes, totalFlushedBytes, flushCount }.
    * @param {import('../../ports/LoggerPort.js').default} [options.logger] - Logger for structured logging.
    *   Defaults to NoOpLogger (no logging).
+   * @param {import('../../ports/CryptoPort.js').default} [options.crypto] - CryptoPort instance for hashing
+   * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for serialization
    */
   constructor({ storage, maxMemoryBytes = DEFAULT_MAX_MEMORY_BYTES, onFlush, logger = nullLogger, crypto, codec }) {
     if (!storage) {
@@ -99,9 +101,9 @@ export default class StreamingBitmapIndexBuilder {
     }
 
     /** @type {import('../../ports/CryptoPort.js').default} */
-    this._crypto = crypto;
+    this._crypto = crypto || defaultCrypto;
 
-    /** @type {import('../../ports/CodecPort.js').default|undefined} */
+    /** @type {import('../../ports/CodecPort.js').default} */
     this._codec = codec || defaultCodec;
 
     /** @type {Object} */
@@ -122,7 +124,7 @@ export default class StreamingBitmapIndexBuilder {
     /** @type {string[]} ID → SHA reverse mapping (kept in memory) */
     this.idToSha = [];
 
-    /** @type {Map<string, RoaringBitmap32>} Current in-memory bitmaps */
+    /** @type {Map<string, any>} Current in-memory bitmaps */
     this.bitmaps = new Map();
 
     /** @type {number} Estimated bytes used by current bitmaps */
@@ -137,8 +139,8 @@ export default class StreamingBitmapIndexBuilder {
     /** @type {number} Number of flush operations performed */
     this.flushCount = 0;
 
-    /** @type {typeof import('roaring').RoaringBitmap32} Cached constructor */
-    this._RoaringBitmap32 = getRoaringBitmap32();
+    /** @type {any} Cached Roaring bitmap constructor */ // TODO(ts-cleanup): type lazy singleton
+    this._RoaringBitmap32 = getRoaringBitmap32(); // TODO(ts-cleanup): type lazy singleton
   }
 
   /**
@@ -189,11 +191,12 @@ export default class StreamingBitmapIndexBuilder {
    * Groups bitmaps by type ('fwd' or 'rev') and SHA prefix (first 2 hex chars).
    * Each bitmap is serialized to a portable format and base64-encoded.
    *
-   * @returns {{fwd: Object<string, Object<string, string>>, rev: Object<string, Object<string, string>>}}
+   * @returns {Record<string, Record<string, Record<string, string>>>}
    *   Object with 'fwd' and 'rev' keys, each mapping prefix to SHA→base64Bitmap entries
    * @private
    */
   _serializeBitmapsToShards() {
+    /** @type {Record<string, Record<string, Record<string, string>>>} */
     const bitmapShards = { fwd: {}, rev: {} };
     for (const [key, bitmap] of this.bitmaps) {
       const type = key.substring(0, 3);
@@ -215,7 +218,7 @@ export default class StreamingBitmapIndexBuilder {
    * The resulting blob OIDs are tracked in `flushedChunks` for later merging.
    * Writes are performed in parallel for efficiency.
    *
-   * @param {{fwd: Object<string, Object<string, string>>, rev: Object<string, Object<string, string>>}} bitmapShards
+   * @param {Record<string, Record<string, Record<string, string>>>} bitmapShards
    *   Object with 'fwd' and 'rev' keys containing prefix-grouped bitmap data
    * @returns {Promise<void>} Resolves when all shards have been written
    * @async
@@ -235,11 +238,11 @@ export default class StreamingBitmapIndexBuilder {
               data: shardData,
             };
             const buffer = Buffer.from(JSON.stringify(envelope));
-            const oid = await this.storage.writeBlob(buffer);
+            const oid = await /** @type {any} */ (this.storage).writeBlob(buffer); // TODO(ts-cleanup): narrow port type
             if (!this.flushedChunks.has(path)) {
               this.flushedChunks.set(path, []);
             }
-            this.flushedChunks.get(path).push(oid);
+            /** @type {string[]} */ (this.flushedChunks.get(path)).push(oid);
           })
         );
       }
@@ -310,6 +313,7 @@ export default class StreamingBitmapIndexBuilder {
    * @private
    */
   _buildMetaShards() {
+    /** @type {Record<string, Record<string, number>>} */
     const idShards = {};
     for (const [sha, id] of this.shaToId) {
       const prefix = sha.substring(0, 2);
@@ -344,7 +348,7 @@ export default class StreamingBitmapIndexBuilder {
           data: map,
         };
         const buffer = Buffer.from(JSON.stringify(envelope));
-        const oid = await this.storage.writeBlob(buffer);
+        const oid = await /** @type {any} */ (this.storage).writeBlob(buffer); // TODO(ts-cleanup): narrow port type
         return `100644 blob ${oid}\t${path}`;
       })
     );
@@ -436,18 +440,19 @@ export default class StreamingBitmapIndexBuilder {
 
     // Store frontier metadata for staleness detection
     if (frontier) {
+      /** @type {Record<string, number|undefined>} */
       const sorted = {};
       for (const key of Array.from(frontier.keys()).sort()) {
         sorted[key] = frontier.get(key);
       }
       const envelope = { version: 1, writerCount: frontier.size, frontier: sorted };
-      const cborOid = await this.storage.writeBlob(Buffer.from(this._codec.encode(envelope)));
+      const cborOid = await /** @type {any} */ (this.storage).writeBlob(Buffer.from(/** @type {any} */ (this._codec).encode(envelope))); // TODO(ts-cleanup): narrow port type
       flatEntries.push(`100644 blob ${cborOid}\tfrontier.cbor`);
-      const jsonOid = await this.storage.writeBlob(Buffer.from(canonicalStringify(envelope)));
+      const jsonOid = await /** @type {any} */ (this.storage).writeBlob(Buffer.from(canonicalStringify(envelope))); // TODO(ts-cleanup): narrow port type
       flatEntries.push(`100644 blob ${jsonOid}\tfrontier.json`);
     }
 
-    const treeOid = await this.storage.writeTree(flatEntries);
+    const treeOid = await /** @type {any} */ (this.storage).writeTree(flatEntries); // TODO(ts-cleanup): narrow port type
 
     this.logger.debug('Index finalized', {
       operation: 'finalize',
@@ -501,7 +506,7 @@ export default class StreamingBitmapIndexBuilder {
    */
   _getOrCreateId(sha) {
     if (this.shaToId.has(sha)) {
-      return this.shaToId.get(sha);
+      return /** @type {number} */ (this.shaToId.get(sha));
     }
     const id = this.idToSha.length;
     this.idToSha.push(sha);
@@ -564,7 +569,7 @@ export default class StreamingBitmapIndexBuilder {
    * @private
    */
   async _loadAndValidateChunk(oid) {
-    const buffer = await this.storage.readBlob(oid);
+    const buffer = await /** @type {any} */ (this.storage).readBlob(oid); // TODO(ts-cleanup): narrow port type
     let envelope;
     try {
       envelope = JSON.parse(buffer.toString('utf-8'));
@@ -572,14 +577,13 @@ export default class StreamingBitmapIndexBuilder {
       throw new ShardCorruptionError('Failed to parse shard JSON', {
         oid,
         reason: 'invalid_format',
-        originalError: err.message,
+        context: { originalError: /** @type {any} */ (err).message }, // TODO(ts-cleanup): type error
       });
     }
 
     // Validate version
     if (envelope.version !== SHARD_VERSION) {
       throw new ShardValidationError('Shard version mismatch', {
-        oid,
         expected: SHARD_VERSION,
         actual: envelope.version,
         field: 'version',
@@ -610,7 +614,7 @@ export default class StreamingBitmapIndexBuilder {
    * it using `orInPlace` to combine edge sets.
    *
    * @param {Object} opts - Options object
-   * @param {Object<string, RoaringBitmap32>} opts.merged - Object mapping SHA to
+   * @param {Record<string, any>} opts.merged - Object mapping SHA to
    *   RoaringBitmap32 instances (mutated in place)
    * @param {string} opts.sha - The SHA key for this bitmap (40-character hex string)
    * @param {string} opts.base64Bitmap - Base64-encoded serialized RoaringBitmap32 data
@@ -627,7 +631,7 @@ export default class StreamingBitmapIndexBuilder {
       throw new ShardCorruptionError('Failed to deserialize bitmap', {
         oid,
         reason: 'invalid_bitmap',
-        originalError: err.message,
+        context: { originalError: /** @type {any} */ (err).message }, // TODO(ts-cleanup): type error
       });
     }
 
@@ -671,6 +675,7 @@ export default class StreamingBitmapIndexBuilder {
    */
   async _mergeChunks(oids, { signal } = {}) {
     // Load all chunks and merge bitmaps by SHA
+    /** @type {Record<string, any>} */
     const merged = {};
 
     for (const oid of oids) {
@@ -683,6 +688,7 @@ export default class StreamingBitmapIndexBuilder {
     }
 
     // Serialize merged result
+    /** @type {Record<string, string>} */
     const result = {};
     for (const [sha, bitmap] of Object.entries(merged)) {
       result[sha] = bitmap.serialize(true).toString('base64');
@@ -701,9 +707,9 @@ export default class StreamingBitmapIndexBuilder {
     } catch (err) {
       throw new ShardCorruptionError('Failed to serialize merged shard', {
         reason: 'serialization_error',
-        originalError: err.message,
+        context: { originalError: /** @type {any} */ (err).message }, // TODO(ts-cleanup): type error
       });
     }
-    return this.storage.writeBlob(serialized);
+    return /** @type {any} */ (this.storage).writeBlob(serialized); // TODO(ts-cleanup): narrow port type
   }
 }

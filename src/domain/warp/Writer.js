@@ -36,7 +36,7 @@ export class Writer {
    * Creates a new Writer instance.
    *
    * @param {Object} options
-   * @param {import('../../ports/GraphPersistencePort.js').default} options.persistence - Git adapter
+   * @param {import('../../ports/GraphPersistencePort.js').default & import('../../ports/RefPort.js').default & import('../../ports/CommitPort.js').default} options.persistence - Git adapter
    * @param {string} options.graphName - Graph namespace
    * @param {string} options.writerId - This writer's ID
    * @param {import('../crdt/VersionVector.js').VersionVector} options.versionVector - Current version vector
@@ -48,7 +48,7 @@ export class Writer {
   constructor({ persistence, graphName, writerId, versionVector, getCurrentState, onCommitSuccess, onDeleteWithData = 'warn', codec }) {
     validateWriterId(writerId);
 
-    /** @type {import('../../ports/GraphPersistencePort.js').default} */
+    /** @type {import('../../ports/GraphPersistencePort.js').default & import('../../ports/RefPort.js').default & import('../../ports/CommitPort.js').default} */
     this._persistence = persistence;
 
     /** @type {string} */

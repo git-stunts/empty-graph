@@ -21,7 +21,7 @@ export class PatchSession {
    *
    * @param {Object} options
    * @param {import('../services/PatchBuilderV2.js').PatchBuilderV2} options.builder - Internal builder
-   * @param {import('../../ports/GraphPersistencePort.js').default} options.persistence - Git adapter
+   * @param {import('../../ports/GraphPersistencePort.js').default & import('../../ports/RefPort.js').default} options.persistence - Git adapter
    * @param {string} options.graphName - Graph namespace
    * @param {string} options.writerId - Writer ID
    * @param {string|null} options.expectedOldHead - Expected parent SHA for CAS
@@ -30,7 +30,7 @@ export class PatchSession {
     /** @type {import('../services/PatchBuilderV2.js').PatchBuilderV2} */
     this._builder = builder;
 
-    /** @type {import('../../ports/GraphPersistencePort.js').default} */
+    /** @type {import('../../ports/GraphPersistencePort.js').default & import('../../ports/RefPort.js').default} */
     this._persistence = persistence;
 
     /** @type {string} */
@@ -176,7 +176,7 @@ export class PatchSession {
       const sha = await this._builder.commit();
       this._committed = true;
       return sha;
-    } catch (err) {
+    } catch (/** @type {any} */ err) { // TODO(ts-cleanup): type error
       // Check if it's a concurrent commit error from PatchBuilderV2
       if (err.message?.includes('Concurrent commit detected') ||
           err.message?.includes('has advanced')) {

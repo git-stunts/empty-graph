@@ -50,9 +50,10 @@ async function readStreamBody(bodyStream) {
  * HttpServerPort request handlers.
  *
  * @param {Request} request - Bun fetch Request
- * @returns {Promise<{ method: string, url: string, headers: Object, body: Buffer|undefined }>}
+ * @returns {Promise<{ method: string, url: string, headers: Record<string, string>, body: Uint8Array|undefined }>}
  */
 async function toPortRequest(request) {
+  /** @type {Record<string, string>} */
   const headers = {};
   request.headers.forEach((value, key) => {
     headers[key] = value;
@@ -81,11 +82,11 @@ async function toPortRequest(request) {
 /**
  * Converts a plain-object port response into a Bun Response.
  *
- * @param {{ status?: number, headers?: Object, body?: string|Uint8Array }} portResponse
+ * @param {{ status?: number, headers?: Record<string, string>, body?: string|Uint8Array|null }} portResponse
  * @returns {Response}
  */
 function toResponse(portResponse) {
-  return new Response(portResponse.body ?? null, {
+  return new Response(/** @type {BodyInit | null} */ (portResponse.body ?? null), {
     status: portResponse.status || 200,
     headers: portResponse.headers || {},
   });
@@ -105,7 +106,7 @@ function createFetchHandler(requestHandler, logger) {
       const portReq = await toPortRequest(request);
       const portRes = await requestHandler(portReq);
       return toResponse(portRes);
-    } catch (err) {
+    } catch (/** @type {*} */ err) { // TODO(ts-cleanup): type error
       if (err.status === 413) {
         return new Response(PAYLOAD_TOO_LARGE, {
           status: 413,
@@ -131,11 +132,12 @@ function createFetchHandler(requestHandler, logger) {
  * Note: Bun.serve() is synchronous, so cb fires on the same tick
  * (unlike Node's server.listen which defers via the event loop).
  *
- * @param {{ port: number, hostname?: string, fetch: Function }} serveOptions
+ * @param {*} serveOptions
  * @param {Function|undefined} cb - Node-style callback
- * @returns {Object} The Bun server instance
+ * @returns {*} The Bun server instance
  */
 function startServer(serveOptions, cb) {
+  // @ts-expect-error — Bun global is only available in Bun runtime
   const server = globalThis.Bun.serve(serveOptions);
   if (cb) {
     cb(null);
@@ -146,7 +148,7 @@ function startServer(serveOptions, cb) {
 /**
  * Safely stops a Bun server, forwarding errors to the callback.
  *
- * @param {{ server: Object|null }} state - Shared mutable state
+ * @param {{ server: * }} state - Shared mutable state
  * @param {Function} [callback]
  */
 function stopServer(state, callback) {
@@ -184,15 +186,25 @@ export default class BunHttpAdapter extends HttpServerPort {
     this._logger = logger || noopLogger;
   }
 
-  /** @inheritdoc */
+  /**
+   * @param {Function} requestHandler
+   * @returns {{ listen: Function, close: Function, address: Function }}
+   */
   createServer(requestHandler) {
     const fetchHandler = createFetchHandler(requestHandler, this._logger);
+    /** @type {{ server: * }} */
     const state = { server: null };
 
     return {
+      /**
+       * @param {number} port
+       * @param {string|Function} [host]
+       * @param {Function} [callback]
+       */
       listen(port, host, callback) {
         const cb = typeof host === 'function' ? host : callback;
         const bindHost = typeof host === 'string' ? host : undefined;
+        /** @type {*} */ // TODO(ts-cleanup): type Bun.serve options
         const serveOptions = { port, fetch: fetchHandler };
 
         if (bindHost !== undefined) {
@@ -208,6 +220,7 @@ export default class BunHttpAdapter extends HttpServerPort {
         }
       },
 
+      /** @param {Function} [callback] */
       close: (callback) => stopServer(state, callback),
 
       address() {

@@ -7,6 +7,21 @@
  * @module domain/services/HookInstaller
  */
 
+/**
+ * @typedef {Object} FsAdapter
+ * @property {(path: string, content: string | Buffer, options?: Object) => void} writeFileSync
+ * @property {(path: string, mode: number) => void} chmodSync
+ * @property {(path: string, encoding?: string) => string} readFileSync
+ * @property {(path: string) => boolean} existsSync
+ * @property {(path: string, options?: Object) => void} mkdirSync
+ */
+
+/**
+ * @typedef {Object} PathUtils
+ * @property {(...segments: string[]) => string} join
+ * @property {(...segments: string[]) => string} resolve
+ */
+
 const DELIMITER_START_PREFIX = '# --- @git-stunts/git-warp post-merge hook';
 const DELIMITER_END = '# --- end @git-stunts/git-warp ---';
 const VERSION_MARKER_PREFIX = '# warp-hook-version:';
@@ -59,17 +74,22 @@ export class HookInstaller {
    * Creates a new HookInstaller.
    *
    * @param {Object} deps - Injected dependencies
-   * @param {Object} deps.fs - Filesystem adapter with methods: readFileSync, writeFileSync, mkdirSync, existsSync, chmodSync, copyFileSync
+   * @param {FsAdapter} deps.fs - Filesystem adapter with methods: readFileSync, writeFileSync, mkdirSync, existsSync, chmodSync
    * @param {(repoPath: string, key: string) => string|null} deps.execGitConfig - Function to read git config values
    * @param {string} deps.version - Package version
    * @param {string} deps.templateDir - Directory containing hook templates
-   * @param {{ join: (...segments: string[]) => string, resolve: (...segments: string[]) => string }} deps.path - Path utilities (join and resolve)
+   * @param {PathUtils} deps.path - Path utilities (join and resolve)
    */
-  constructor({ fs, execGitConfig, version, templateDir, path } = {}) {
+  constructor({ fs, execGitConfig, version, templateDir, path } = /** @type {*} */ ({})) { // TODO(ts-cleanup): needs options type
+    /** @type {FsAdapter} */
     this._fs = fs;
+    /** @type {(repoPath: string, key: string) => string|null} */
     this._execGitConfig = execGitConfig;
+    /** @type {string} */
     this._templateDir = templateDir;
+    /** @type {string} */
     this._version = version;
+    /** @type {PathUtils} */
     this._path = path;
   }
 
@@ -134,7 +154,11 @@ export class HookInstaller {
     throw new Error(`Unknown install strategy: ${strategy}`);
   }
 
-  /** @private */
+  /**
+   * @param {string} hookPath
+   * @param {string} content
+   * @private
+   */
   _freshInstall(hookPath, content) {
     this._fs.writeFileSync(hookPath, content, { mode: 0o755 });
     this._fs.chmodSync(hookPath, 0o755);
@@ -145,13 +169,17 @@ export class HookInstaller {
     };
   }
 
-  /** @private */
+  /**
+   * @param {string} hookPath
+   * @param {string} stamped
+   * @private
+   */
   _upgradeInstall(hookPath, stamped) {
     const existing = this._readFile(hookPath);
     const classification = classifyExistingHook(existing);
 
     if (classification.appended) {
-      const updated = replaceDelimitedSection(existing, stamped);
+      const updated = replaceDelimitedSection(/** @type {string} */ (existing), stamped);
       // If delimiters were corrupted, replaceDelimitedSection returns unchanged content — fall back to overwrite
       if (updated === existing) {
         this._fs.writeFileSync(hookPath, stamped, { mode: 0o755 });
@@ -170,7 +198,11 @@ export class HookInstaller {
     };
   }
 
-  /** @private */
+  /**
+   * @param {string} hookPath
+   * @param {string} stamped
+   * @private
+   */
   _appendInstall(hookPath, stamped) {
     const existing = this._readFile(hookPath) || '';
     const body = stripShebang(stamped);
@@ -184,7 +216,11 @@ export class HookInstaller {
     };
   }
 
-  /** @private */
+  /**
+   * @param {string} hookPath
+   * @param {string} stamped
+   * @private
+   */
   _replaceInstall(hookPath, stamped) {
     const existing = this._readFile(hookPath);
     let backupPath;
@@ -210,12 +246,18 @@ export class HookInstaller {
     return this._fs.readFileSync(templatePath, 'utf8');
   }
 
-  /** @private */
+  /**
+   * @param {string} template
+   * @private
+   */
   _stampVersion(template) {
     return template.replaceAll(VERSION_PLACEHOLDER, this._version);
   }
 
-  /** @private */
+  /**
+   * @param {string} repoPath
+   * @private
+   */
   _resolveHooksDir(repoPath) {
     const customPath = this._execGitConfig(repoPath, 'core.hooksPath');
     if (customPath) {
@@ -230,12 +272,18 @@ export class HookInstaller {
     return this._path.join(repoPath, '.git', 'hooks');
   }
 
-  /** @private */
+  /**
+   * @param {string} repoPath
+   * @private
+   */
   _resolveHookPath(repoPath) {
     return this._path.join(this._resolveHooksDir(repoPath), 'post-merge');
   }
 
-  /** @private */
+  /**
+   * @param {string} filePath
+   * @private
+   */
   _readFile(filePath) {
     try {
       return this._fs.readFileSync(filePath, 'utf8');
@@ -244,7 +292,10 @@ export class HookInstaller {
     }
   }
 
-  /** @private */
+  /**
+   * @param {string} dirPath
+   * @private
+   */
   _ensureDir(dirPath) {
     if (!this._fs.existsSync(dirPath)) {
       this._fs.mkdirSync(dirPath, { recursive: true });

@@ -5,6 +5,62 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [10.4.2] — 2026-02-10 — TS policy enforcement (B3)
+
+### Added
+
+- **`scripts/ts-policy-check.js`**: Standalone policy checker that walks `src/`, `bin/`, `scripts/` and enforces two rules: (1) no `@ts-ignore` — use `@ts-expect-error` instead, (2) every inline `@type {*}` / `@type {any}` cast must carry a `// TODO(ts-cleanup): reason` tag.
+- **`typecheck:policy` npm script**: Runs the policy checker (`node scripts/ts-policy-check.js`).
+- **CI enforcement**: Policy check step added to both `ci.yml` (lint job) and `release-pr.yml` (preflight job), after the existing TypeScript step.
+- **Pre-push hook**: Policy check runs in parallel with lint and typecheck.
+- **BATS test timing**: `STARTING TEST` / `ENDED TEST` instrumentation in BATS helpers for diagnosing slow tests.
+
+### Changed
+
+- **Node.js >= 22.0.0**: Minimum engine bumped from 20 to 22, matching `@git-stunts/git-cas` requirement. CI matrix, release workflows, and documentation updated accordingly.
+- **`@git-stunts/git-cas`**: Moved from `optionalDependencies` to `dependencies` now that Node 22 is the minimum.
+- **Seek cache write is fire-and-forget**: `WarpGraph.materialize({ ceiling })` no longer awaits the persistent cache write — the CLI exits immediately after emitting output instead of blocking on background I/O (~30s → <1s for seek commands).
+- **CLI uses `process.exit()`**: Ensures the process terminates promptly after emitting output, preventing fire-and-forget I/O from holding the event loop open.
+- **Pre-push hook**: Removed BATS E2E tests (now CI-only) to keep pre-push fast.
+- **`@ts-ignore` → `@ts-expect-error`** across 3 source files and 4 test files. `@ts-expect-error` is strictly better: it errors when the suppression becomes unnecessary.
+- **~108 wildcard casts tagged** with `// TODO(ts-cleanup): reason` across ~30 source files in `src/`, `bin/`, and `scripts/`. Categorized reasons: `needs options type`, `type error`, `narrow port type`, `type patch array`, `type CLI payload`, `type http callback`, `type sync protocol`, `type lazy singleton`, `type observer cast`, and others.
+- **`TYPESCRIPT_ZERO.md`**: B3 (Policy enforcement) marked complete.
+
+## [10.4.1] — 2026-02-10 — Default crypto & join() fix
+
+### Added
+
+- **`defaultCrypto.js`** (`src/domain/utils/defaultCrypto.js`): Domain-local default crypto adapter wrapping `node:crypto` directly, following the `defaultCodec.js` / `defaultClock.js` pattern. Completes the BULKHEAD port injection pattern — all ports now have domain-local defaults.
+
+### Fixed
+
+- **`WarpGraph.join()`**: Replaced 4 references to non-existent `.elements.size` on ORSet with `orsetElements(...).length`. The `join()` happy path was always throwing a TypeError.
+
+### Changed
+
+- **`WarpGraph` constructor**: `this._crypto` now falls back to `defaultCrypto` when no crypto adapter is injected (same pattern as `this._codec = codec || defaultCodec`).
+- **`BitmapIndexBuilder`**, **`StreamingBitmapIndexBuilder`**, **`BitmapIndexReader`**: Removed `if (!crypto) { return null; }` null guards from `computeChecksum`. Checksums are now always computed.
+- **`BitmapIndexReader._validateShard`**: Removed `actualChecksum !== null &&` guard — checksum validation now always runs.
+- **`StateSerializerV5.computeStateHashV5`**: Removed `crypto ? ... : null` ternary — always returns a hash string.
+
+## [10.4.0] — 2026-02-09 — RECALL: Seek Materialization Cache
+
+Caches materialized `WarpStateV5` at each visited ceiling tick as content-addressed blobs via `@git-stunts/git-cas`, enabling near-instant restoration for previously-visited ticks during seek exploration. Blobs are loose Git objects subject to Git GC (default prune expiry ~2 weeks, configurable) unless pinned to a vault.
+
+### Added
+
+- **`SeekCachePort`** (`src/ports/SeekCachePort.js`): Abstract port for seek materialization cache with `get`, `set`, `has`, `keys`, `delete`, `clear` methods.
+- **`CasSeekCacheAdapter`** (`src/infrastructure/adapters/CasSeekCacheAdapter.js`): Git-CAS backed adapter with rich index metadata (treeOid, createdAt, ceiling, frontierHash, sizeBytes, codec, schemaVersion), LRU eviction (default max 200 entries), self-healing on read miss (removes dead entries when blobs are GC'd), and retry loop for transient write failures. **Requires Node >= 22.0.0** (inherited from `@git-stunts/git-cas`).
+- **`seekCacheKey`** (`src/domain/utils/seekCacheKey.js`): Deterministic cache key builder producing `v1:t<ceiling>-<sha256hex>` keys. Uses SHA-256 via `node:crypto` with no fallback.
+- **`buildSeekCacheRef`** in `RefLayout.js`: Builds `refs/warp/<graph>/seek-cache` ref path for the cache index.
+- **`WarpGraph.open({ seekCache })`** / **`graph.setSeekCache(cache)`**: Optional `SeekCachePort` for persistent seek cache injection. Cache is checked after in-memory miss and stored after full materialization in `_materializeWithCeiling`.
+- **`--clear-cache` flag** on `git warp seek`: Purges the persistent seek cache.
+- **`--no-persistent-cache` flag** on `git warp seek`: Bypasses persistent cache for a single invocation (useful for full provenance access or performance testing).
+- **Provenance degradation guardrails**: `_provenanceDegraded` flag on WarpGraph, set on persistent cache hit. `patchesFor()` and `materializeSlice()` throw `E_PROVENANCE_DEGRADED` with clear instructions to re-seek with `--no-persistent-cache`.
+- **`SeekCachePort` export** from main entry point (`index.js`) and TypeScript definitions (`index.d.ts`).
+- **Unit tests** (`test/unit/domain/seekCache.test.js`, 16 tests): Cache key determinism, WarpGraph integration with mock cache (hit/miss/error/degradation), provenance guardrails.
+- **ROADMAP milestone RECALL** (v10.4.0): 6 tasks, all closed.
+
 ## [10.3.2] — 2026-02-09 — Seek CLI fixes & demo portability
 
 ### Added

@@ -12,11 +12,7 @@ export default class HttpServerPort {
    * and must return `{ status, headers, body }`. No raw req/res objects
    * are exposed to the domain.
    *
-   * @param {Function} requestHandler - Async function (request) => response
-   * @param {string} requestHandler.method - HTTP method
-   * @param {string} requestHandler.url - Request URL
-   * @param {Object} requestHandler.headers - Request headers (lowercased keys)
-   * @param {Buffer|undefined} requestHandler.body - Request body (undefined if none)
+   * @param {(request: { method: string, url: string, headers: Object, body: Buffer|undefined }) => Promise<{ status: number, headers: Object, body: string|Buffer }>} _requestHandler - Async function (request) => response
    * @returns {{ listen: Function, close: Function, address: Function }} Server with listen(port, [host], cb(err)), close(cb), and address()
    */
   createServer(_requestHandler) {

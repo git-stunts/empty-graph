@@ -52,7 +52,6 @@ class ProvenanceIndex {
   /**
    * Internal index mapping nodeId/edgeKey to Set of patch SHAs.
    * @type {Map<string, Set<string>>}
-   * @private
    */
   #index;
 
@@ -120,7 +119,6 @@ class ProvenanceIndex {
    *
    * @param {string} entityId - The node ID or edge key
    * @param {string} patchSha - The patch SHA
-   * @private
    */
   #addEntry(entityId, patchSha) {
     let shas = this.#index.get(entityId);
@@ -227,12 +225,12 @@ class ProvenanceIndex {
    * Returns sorted entries for deterministic output.
    *
    * @returns {Array<[string, string[]]>} Sorted array of [entityId, sortedShas[]] pairs
-   * @private
    */
   #sortedEntries() {
+    /** @type {Array<[string, string[]]>} */
     const entries = [];
     for (const [entityId, shas] of this.#index) {
-      entries.push([entityId, [...shas].sort()]);
+      entries.push(/** @type {[string, string[]]} */ ([entityId, [...shas].sort()]));
     }
     entries.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
     return entries;
@@ -246,7 +244,7 @@ class ProvenanceIndex {
    *
    * @param {Object} [options]
    * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for serialization
-   * @returns {Buffer} CBOR-encoded index
+   * @returns {Buffer|Uint8Array} CBOR-encoded index
    */
   serialize({ codec } = {}) {
     const c = codec || defaultCodec;
@@ -258,7 +256,6 @@ class ProvenanceIndex {
    *
    * @param {Array<[string, string[]]>} entries - Array of [entityId, shas[]] pairs
    * @returns {Map<string, Set<string>>} The built index
-   * @private
    */
   static #buildIndex(entries) {
     const index = new Map();
@@ -279,7 +276,8 @@ class ProvenanceIndex {
    */
   static deserialize(buffer, { codec } = {}) {
     const c = codec || defaultCodec;
-    const obj = c.decode(buffer);
+    /** @type {{ version?: number, entries?: Array<[string, string[]]> }} */
+    const obj = /** @type {any} */ (c.decode(buffer)); // TODO(ts-cleanup): narrow port type
 
     if (obj.version !== 1) {
       throw new Error(`Unsupported ProvenanceIndex version: ${obj.version}`);
@@ -304,7 +302,7 @@ class ProvenanceIndex {
   /**
    * Creates a ProvenanceIndex from a JSON representation.
    *
-   * @param {Object} json - Object with version and entries array
+   * @param {{ version?: number, entries?: Array<[string, string[]]> }} json - Object with version and entries array
    * @returns {ProvenanceIndex} The deserialized index
    * @throws {Error} If the JSON contains an unsupported version
    */

@@ -12,7 +12,7 @@ WarpGraph is a multi-writer graph database that uses Git commits as its storage 
 
 ## Prerequisites
 
-- Node.js >= 20.0.0
+- Node.js >= 22.0.0
 - Git >= 2.0
 
 ## Installation
@@ -937,6 +937,18 @@ git warp seek
 ```
 
 **How it works:** The cursor is stored as a lightweight Git ref at `refs/warp/<graph>/cursor/active`. Saved bookmarks live under `refs/warp/<graph>/cursor/saved/<name>`. When a cursor is active, `materialize()` replays only patches with `lamport <= tick`, and auto-checkpoint is skipped to avoid writing snapshots of past state.
+
+**Materialization cache:** Previously-visited ticks are cached as content-addressed blobs via `@git-stunts/git-cas` (requires Node >= 22), enabling near-instant restoration. The cache is keyed by `(ceiling, frontier)` so it invalidates automatically when new patches arrive. Loose blobs are subject to Git GC (default prune expiry ~2 weeks, configurable) unless pinned to a vault.
+
+```bash
+# Purge the persistent seek cache
+git warp seek --clear-cache
+
+# Bypass cache for a single invocation (enables full provenance access)
+git warp seek --no-persistent-cache --tick 5
+```
+
+> **Note:** When state is restored from cache, provenance queries (`patchesFor`, `materializeSlice`) are unavailable because the provenance index isn't populated. Use `--no-persistent-cache` if you need provenance data.
 
 **Programmatic API:**
 

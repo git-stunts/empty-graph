@@ -14,7 +14,7 @@ import IndexError from './IndexError.js';
  * @property {string} shardPath - Path to the corrupted shard file
  * @property {string} oid - Object ID associated with the shard
  * @property {string} reason - Reason for corruption (e.g., 'invalid_checksum', 'invalid_version', 'parse_error')
- * @property {Object} context - Serializable context object for debugging
+ * @property {Record<string, *>} context - Serializable context object for debugging
  *
  * @example
  * if (!validateChecksum(data)) {
@@ -30,11 +30,7 @@ export default class ShardCorruptionError extends IndexError {
    * Creates a new ShardCorruptionError.
    *
    * @param {string} message - Human-readable error message
-   * @param {Object} [options={}] - Error options
-   * @param {string} [options.shardPath] - Path to the corrupted shard file
-   * @param {string} [options.oid] - Object ID associated with the shard
-   * @param {string} [options.reason] - Reason for corruption (e.g., 'invalid_checksum', 'invalid_version', 'parse_error')
-   * @param {Object} [options.context={}] - Additional context for debugging
+   * @param {{ shardPath?: string, oid?: string, reason?: string, context?: Record<string, *> }} [options={}] - Error options
    */
   constructor(message, options = {}) {
     const context = {

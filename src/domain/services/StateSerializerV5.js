@@ -1,4 +1,5 @@
 import defaultCodec from '../utils/defaultCodec.js';
+import defaultCrypto from '../utils/defaultCrypto.js';
 import { orsetContains, orsetElements } from '../crdt/ORSet.js';
 import { decodeEdgeKey, decodePropKey } from './KeyCodec.js';
 
@@ -75,7 +76,7 @@ export function propVisibleV5(state, propKey) {
  * @param {import('./JoinReducer.js').WarpStateV5} state
  * @param {Object} [options]
  * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for serialization
- * @returns {Buffer}
+ * @returns {Buffer|Uint8Array}
  */
 export function serializeStateV5(state, { codec } = {}) {
   const c = codec || defaultCodec;
@@ -122,13 +123,14 @@ export function serializeStateV5(state, { codec } = {}) {
  * Computes SHA-256 hash of canonical state bytes.
  * @param {import('./JoinReducer.js').WarpStateV5} state
  * @param {Object} [options] - Options
- * @param {import('../../ports/CryptoPort.js').default} options.crypto - CryptoPort instance
+ * @param {import('../../ports/CryptoPort.js').default} [options.crypto] - CryptoPort instance
  * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for serialization
- * @returns {Promise<string|null>} Hex-encoded SHA-256 hash, or null if no crypto
+ * @returns {Promise<string>} Hex-encoded SHA-256 hash
  */
-export async function computeStateHashV5(state, { crypto, codec } = {}) {
+export async function computeStateHashV5(state, { crypto, codec } = /** @type {{crypto?: import('../../ports/CryptoPort.js').default, codec?: import('../../ports/CodecPort.js').default}} */ ({})) {
+  const c = crypto || defaultCrypto;
   const serialized = serializeStateV5(state, { codec });
-  return crypto ? await crypto.hash('sha256', serialized) : null;
+  return await c.hash('sha256', serialized);
 }
 
 /**
@@ -141,7 +143,7 @@ export async function computeStateHashV5(state, { crypto, codec } = {}) {
  */
 export function deserializeStateV5(buffer, { codec } = {}) {
   const c = codec || defaultCodec;
-  return c.decode(buffer);
+  return /** @type {{nodes: string[], edges: Array<{from: string, to: string, label: string}>, props: Array<{node: string, key: string, value: *}>}} */ (c.decode(buffer));
 }
 
 // ============================================================================

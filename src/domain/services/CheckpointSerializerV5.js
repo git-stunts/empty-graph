@@ -37,9 +37,9 @@ import { createEmptyStateV5 } from './JoinReducer.js';
  * @param {import('./JoinReducer.js').WarpStateV5} state
  * @param {Object} [options]
  * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for serialization
- * @returns {Buffer} CBOR-encoded full state
+ * @returns {Buffer|Uint8Array} CBOR-encoded full state
  */
-export function serializeFullStateV5(state, { codec } = {}) {
+export function serializeFullStateV5(state, { codec } = /** @type {*} */ ({})) { // TODO(ts-cleanup): needs options type
   const c = codec || defaultCodec;
   // Serialize ORSets using existing serialization
   const nodeAliveObj = orsetSerialize(state.nodeAlive);
@@ -84,20 +84,20 @@ export function serializeFullStateV5(state, { codec } = {}) {
 /**
  * Deserializes full V5 state. Used for resume.
  *
- * @param {Buffer} buffer - CBOR-encoded full state
+ * @param {Buffer|Uint8Array} buffer - CBOR-encoded full state
  * @param {Object} [options]
  * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for deserialization
  * @returns {import('./JoinReducer.js').WarpStateV5}
  */
 // eslint-disable-next-line complexity
-export function deserializeFullStateV5(buffer, { codec: codecOpt } = {}) {
+export function deserializeFullStateV5(buffer, { codec: codecOpt } = /** @type {*} */ ({})) { // TODO(ts-cleanup): needs options type
   const codec = codecOpt || defaultCodec;
   // Handle null/undefined buffer before attempting decode
   if (buffer === null || buffer === undefined) {
     return createEmptyStateV5();
   }
 
-  const obj = codec.decode(buffer);
+  const obj = /** @type {Record<string, *>} */ (codec.decode(buffer));
 
   // Handle null/undefined decoded result: return empty state
   if (obj === null || obj === undefined) {
@@ -117,7 +117,7 @@ export function deserializeFullStateV5(buffer, { codec: codecOpt } = {}) {
     edgeAlive: orsetDeserialize(obj.edgeAlive || {}),
     prop: deserializeProps(obj.prop),
     observedFrontier: vvDeserialize(obj.observedFrontier || {}),
-    edgeBirthEvent: deserializeEdgeBirthEvent(obj),
+    edgeBirthEvent: /** @type {Map<string, import('../utils/EventId.js').EventId>} */ (deserializeEdgeBirthEvent(obj)),
   };
 }
 
@@ -170,9 +170,9 @@ export function computeAppliedVV(state) {
  * @param {Map<string, number>} vv - Version vector (Map<writerId, counter>)
  * @param {Object} [options]
  * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for serialization
- * @returns {Buffer} CBOR-encoded version vector
+ * @returns {Buffer|Uint8Array} CBOR-encoded version vector
  */
-export function serializeAppliedVV(vv, { codec } = {}) {
+export function serializeAppliedVV(vv, { codec } = /** @type {*} */ ({})) { // TODO(ts-cleanup): needs options type
   const c = codec || defaultCodec;
   const obj = vvSerialize(vv);
   return c.encode(obj);
@@ -181,14 +181,14 @@ export function serializeAppliedVV(vv, { codec } = {}) {
 /**
  * Deserializes appliedVV from CBOR format.
  *
- * @param {Buffer} buffer - CBOR-encoded version vector
+ * @param {Buffer|Uint8Array} buffer - CBOR-encoded version vector
  * @param {Object} [options]
  * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for deserialization
  * @returns {Map<string, number>} Version vector
  */
-export function deserializeAppliedVV(buffer, { codec } = {}) {
+export function deserializeAppliedVV(buffer, { codec } = /** @type {*} */ ({})) { // TODO(ts-cleanup): needs options type
   const c = codec || defaultCodec;
-  const obj = c.decode(buffer);
+  const obj = /** @type {{ [x: string]: number }} */ (c.decode(buffer));
   return vvDeserialize(obj);
 }
 
@@ -198,8 +198,8 @@ export function deserializeAppliedVV(buffer, { codec } = {}) {
 
 /**
  * Deserializes the props array from checkpoint format.
- * @param {Array} propArray - Array of [key, registerObj] pairs
- * @returns {Map<string, import('../crdt/LWW.js').LWWRegister>}
+ * @param {Array<*>} propArray - Array of [key, registerObj] pairs
+ * @returns {Map<string, import('../crdt/LWW.js').LWWRegister<*>>}
  */
 function deserializeProps(propArray) {
   const prop = new Map();
@@ -213,10 +213,11 @@ function deserializeProps(propArray) {
 
 /**
  * Deserializes edge birth event data, supporting both legacy and current formats.
- * @param {Object} obj - The decoded checkpoint object
- * @returns {Map<string, Object>}
+ * @param {Record<string, *>} obj - The decoded checkpoint object
+ * @returns {Map<string, import('../utils/EventId.js').EventId>}
  */
 function deserializeEdgeBirthEvent(obj) {
+  /** @type {Map<string, import('../utils/EventId.js').EventId>} */
   const edgeBirthEvent = new Map();
   const birthData = obj.edgeBirthEvent || obj.edgeBirthLamport;
   if (birthData && Array.isArray(birthData)) {
@@ -239,8 +240,8 @@ function deserializeEdgeBirthEvent(obj) {
  * Serializes an LWW register for CBOR encoding.
  * EventId is serialized as a plain object with sorted keys.
  *
- * @param {import('../crdt/LWW.js').LWWRegister} register
- * @returns {Object}
+ * @param {import('../crdt/LWW.js').LWWRegister<*>} register
+ * @returns {{ eventId: { lamport: number, opIndex: number, patchSha: string, writerId: string }, value: * } | null}
  */
 function serializeLWWRegister(register) {
   if (!register) {
@@ -261,8 +262,8 @@ function serializeLWWRegister(register) {
 /**
  * Deserializes an LWW register from CBOR.
  *
- * @param {Object} obj
- * @returns {import('../crdt/LWW.js').LWWRegister}
+ * @param {{ eventId: { lamport: number, writerId: string, patchSha: string, opIndex: number }, value: * } | null} obj
+ * @returns {import('../crdt/LWW.js').LWWRegister<*> | null}
  */
 function deserializeLWWRegister(obj) {
   if (!obj) {

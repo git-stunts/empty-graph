@@ -86,8 +86,8 @@ function compareProps(a, b) {
 
 /**
  * Checks if two arrays are deeply equal.
- * @param {Array} a
- * @param {Array} b
+ * @param {Array<*>} a
+ * @param {Array<*>} b
  * @returns {boolean}
  */
 function arraysEqual(a, b) {
@@ -104,8 +104,8 @@ function arraysEqual(a, b) {
 
 /**
  * Checks if two objects are deeply equal.
- * @param {Object} a
- * @param {Object} b
+ * @param {Record<string, *>} a
+ * @param {Record<string, *>} b
  * @returns {boolean}
  */
 function objectsEqual(a, b) {
@@ -155,9 +155,9 @@ function deepEqual(a, b) {
 
 /**
  * Computes set difference: elements in `after` not in `before`.
- * @param {Set} before
- * @param {Set} after
- * @returns {Array}
+ * @param {Set<string>} before
+ * @param {Set<string>} after
+ * @returns {Array<string>}
  */
 function setAdded(before, after) {
   const result = [];

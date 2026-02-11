@@ -12,9 +12,13 @@ const SHA1 = '1111111111111111111111111111111111111111';
 const POID1 = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 
 describe('WarpGraph.fork crypto/codec propagation', () => {
+  /** @type {any} */
   let persistence;
+  /** @type {any} */
   let mockCrypto;
+  /** @type {any} */
   let mockCodec;
+  /** @type {any} */
   let graph;
 
   beforeEach(async () => {
@@ -23,8 +27,8 @@ describe('WarpGraph.fork crypto/codec propagation', () => {
       digest: async () => 'mockhash',
     };
     mockCodec = {
-      encode: (obj) => Buffer.from(JSON.stringify(obj)),
-      decode: (buf) => JSON.parse(buf.toString()),
+      encode: (/** @type {any} */ obj) => Buffer.from(JSON.stringify(obj)),
+      decode: (/** @type {any} */ buf) => JSON.parse(buf.toString()),
     };
 
     graph = await WarpGraph.open({
@@ -47,14 +51,14 @@ describe('WarpGraph.fork crypto/codec propagation', () => {
       patchOid: POID1,
     });
 
-    persistence.listRefs.mockImplementation(async (prefix) => {
+    persistence.listRefs.mockImplementation(async (/** @type {any} */ prefix) => {
       if (prefix === 'refs/warp/test-graph/writers/') {
         return ['refs/warp/test-graph/writers/alice'];
       }
       return [];
     });
     persistence.nodeExists.mockResolvedValue(true);
-    persistence.readRef.mockImplementation(async (ref) => {
+    persistence.readRef.mockImplementation(async (/** @type {any} */ ref) => {
       if (ref === 'refs/warp/test-graph/writers/alice') {
         return SHA1;
       }
@@ -82,14 +86,14 @@ describe('WarpGraph.fork crypto/codec propagation', () => {
       patchOid: POID1,
     });
 
-    persistence.listRefs.mockImplementation(async (prefix) => {
+    persistence.listRefs.mockImplementation(async (/** @type {any} */ prefix) => {
       if (prefix === 'refs/warp/test-graph/writers/') {
         return ['refs/warp/test-graph/writers/alice'];
       }
       return [];
     });
     persistence.nodeExists.mockResolvedValue(true);
-    persistence.readRef.mockImplementation(async (ref) => {
+    persistence.readRef.mockImplementation(async (/** @type {any} */ ref) => {
       if (ref === 'refs/warp/test-graph/writers/alice') {
         return SHA1;
       }
@@ -109,7 +113,7 @@ describe('WarpGraph.fork crypto/codec propagation', () => {
   });
 
   it('forked graph without crypto/codec uses parent defaults', async () => {
-    // Create a graph without explicit crypto (should be undefined)
+    // Create a graph without explicit crypto (uses defaultCrypto)
     const plainGraph = await WarpGraph.open({
       persistence,
       graphName: 'plain-graph',
@@ -124,14 +128,14 @@ describe('WarpGraph.fork crypto/codec propagation', () => {
       patchOid: POID1,
     });
 
-    persistence.listRefs.mockImplementation(async (prefix) => {
+    persistence.listRefs.mockImplementation(async (/** @type {any} */ prefix) => {
       if (prefix === 'refs/warp/plain-graph/writers/') {
         return ['refs/warp/plain-graph/writers/alice'];
       }
       return [];
     });
     persistence.nodeExists.mockResolvedValue(true);
-    persistence.readRef.mockImplementation(async (ref) => {
+    persistence.readRef.mockImplementation(async (/** @type {any} */ ref) => {
       if (ref === 'refs/warp/plain-graph/writers/alice') {
         return SHA1;
       }
@@ -149,7 +153,7 @@ describe('WarpGraph.fork crypto/codec propagation', () => {
     expect(fork).toBeInstanceOf(WarpGraph);
     // Both should share the same default codec
     expect(fork._codec).toBe(plainGraph._codec);
-    // Both should have undefined crypto (no crypto port injected)
+    // Both should share the same default crypto
     expect(fork._crypto).toBe(plainGraph._crypto);
   });
 });

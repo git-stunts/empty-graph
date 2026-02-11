@@ -10,7 +10,7 @@
 export default class TreePort {
   /**
    * Creates a Git tree from mktree-formatted entries.
-   * @param {string[]} entries - Lines in git mktree format (e.g., "100644 blob <oid>\t<path>")
+   * @param {string[]} _entries - Lines in git mktree format (e.g., "100644 blob <oid>\t<path>")
    * @returns {Promise<string>} The Git OID of the created tree
    * @throws {Error} If not implemented by a concrete adapter
    */
@@ -20,7 +20,7 @@ export default class TreePort {
 
   /**
    * Reads a tree and returns a map of path to content.
-   * @param {string} treeOid - The tree OID to read
+   * @param {string} _treeOid - The tree OID to read
    * @returns {Promise<Record<string, Buffer>>} Map of file path to blob content
    * @throws {Error} If not implemented by a concrete adapter
    */
@@ -31,7 +31,7 @@ export default class TreePort {
   /**
    * Reads a tree and returns a map of path to blob OID.
    * Useful for lazy-loading shards without reading all blob contents.
-   * @param {string} treeOid - The tree OID to read
+   * @param {string} _treeOid - The tree OID to read
    * @returns {Promise<Record<string, string>>} Map of file path to blob OID
    * @throws {Error} If not implemented by a concrete adapter
    */

@@ -2,9 +2,9 @@ import CryptoPort from '../../ports/CryptoPort.js';
 
 /**
  * Map of common algorithm names to Web Crypto API algorithm identifiers.
- * @const {Object<string, string>}
+ * @const {Record<string, string>}
  */
-const ALGO_MAP = {
+const ALGO_MAP = /** @type {Record<string, string>} */ ({
   'sha-1': 'SHA-1',
   'sha1': 'SHA-1',
   'sha-256': 'SHA-256',
@@ -13,7 +13,7 @@ const ALGO_MAP = {
   'sha384': 'SHA-384',
   'sha-512': 'SHA-512',
   'sha512': 'SHA-512',
-};
+});
 
 /**
  * Converts a common algorithm name to the Web Crypto API identifier.
@@ -38,8 +38,9 @@ function toWebCryptoAlgo(algorithm) {
 function toUint8Array(data) {
   if (data instanceof Uint8Array) { return data; }
   if (typeof data === 'string') { return new TextEncoder().encode(data); }
-  if (typeof Buffer !== 'undefined' && Buffer.isBuffer(data)) {
-    return new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+  if (typeof Buffer !== 'undefined' && Buffer.isBuffer(/** @type {*} */ (data))) { // TODO(ts-cleanup): narrow port type
+    const buf = /** @type {Buffer} */ (/** @type {*} */ (data)); // TODO(ts-cleanup): narrow port type
+    return new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
   }
   throw new Error('WebCryptoAdapter: data must be string, Buffer, or Uint8Array');
 }
@@ -59,7 +60,7 @@ function bufToHex(buf) {
  * Web Crypto API adapter implementing CryptoPort.
  *
  * Uses the standard Web Crypto API (globalThis.crypto.subtle) which is
- * available in browsers, Deno, Bun, and Node.js 20+.
+ * available in browsers, Deno, Bun, and Node.js 22+.
  *
  * All hash and HMAC operations are async because the Web Crypto API
  * is inherently promise-based.
@@ -77,26 +78,35 @@ export default class WebCryptoAdapter extends CryptoPort {
     this._subtle = subtle || globalThis.crypto.subtle;
   }
 
-  /** @inheritdoc */
+  /**
+   * @param {string} algorithm
+   * @param {string|Buffer|Uint8Array} data
+   * @returns {Promise<string>}
+   */
   async hash(algorithm, data) {
     const digest = await this._subtle.digest(
       toWebCryptoAlgo(algorithm),
-      toUint8Array(data),
+      /** @type {BufferSource} */ (toUint8Array(data)),
     );
     return bufToHex(digest);
   }
 
-  /** @inheritdoc */
+  /**
+   * @param {string} algorithm
+   * @param {string|Buffer|Uint8Array} key
+   * @param {string|Buffer|Uint8Array} data
+   * @returns {Promise<Uint8Array>}
+   */
   async hmac(algorithm, key, data) {
     const keyBytes = toUint8Array(key);
     const cryptoKey = await this._subtle.importKey(
       'raw',
-      keyBytes,
+      /** @type {BufferSource} */ (keyBytes),
       { name: 'HMAC', hash: toWebCryptoAlgo(algorithm) },
       false,
       ['sign'],
     );
-    const signature = await this._subtle.sign('HMAC', cryptoKey, toUint8Array(data));
+    const signature = await this._subtle.sign('HMAC', cryptoKey, /** @type {BufferSource} */ (toUint8Array(data)));
     return new Uint8Array(signature);
   }
 

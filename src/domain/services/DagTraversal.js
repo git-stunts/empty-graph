@@ -43,7 +43,7 @@ export default class DagTraversal {
    * @param {import('./BitmapIndexReader.js').default} options.indexReader - Index reader for O(1) lookups
    * @param {import('../../ports/LoggerPort.js').default} [options.logger] - Logger instance
    */
-  constructor({ indexReader, logger = nullLogger } = {}) {
+  constructor(/** @type {{ indexReader: import('./BitmapIndexReader.js').default, logger?: import('../../ports/LoggerPort.js').default }} */ { indexReader, logger = nullLogger } = /** @type {*} */ ({})) { // TODO(ts-cleanup): needs options type
     if (!indexReader) {
       throw new Error('DagTraversal requires an indexReader');
     }
@@ -89,6 +89,7 @@ export default class DagTraversal {
     signal,
   }) {
     const visited = new Set();
+    /** @type {TraversalNode[]} */
     const queue = [{ sha: start, depth: 0, parent: null }];
     let nodesYielded = 0;
 
@@ -99,7 +100,7 @@ export default class DagTraversal {
         checkAborted(signal, 'bfs');
       }
 
-      const current = queue.shift();
+      const current = /** @type {TraversalNode} */ (queue.shift());
 
       if (visited.has(current.sha)) { continue; }
       if (current.depth > maxDepth) { continue; }
@@ -142,6 +143,7 @@ export default class DagTraversal {
     signal,
   }) {
     const visited = new Set();
+    /** @type {TraversalNode[]} */
     const stack = [{ sha: start, depth: 0, parent: null }];
     let nodesYielded = 0;
 
@@ -152,7 +154,7 @@ export default class DagTraversal {
         checkAborted(signal, 'dfs');
       }
 
-      const current = stack.pop();
+      const current = /** @type {TraversalNode} */ (stack.pop());
 
       if (visited.has(current.sha)) { continue; }
       if (current.depth > maxDepth) { continue; }

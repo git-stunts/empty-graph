@@ -7,7 +7,7 @@
 export default class CodecPort {
   /**
    * Encodes data to binary format.
-   * @param {unknown} data - Data to encode
+   * @param {unknown} _data - Data to encode
    * @returns {Buffer|Uint8Array} Encoded bytes
    */
   encode(_data) {
@@ -16,7 +16,7 @@ export default class CodecPort {
 
   /**
    * Decodes binary data back to a JavaScript value.
-   * @param {Buffer|Uint8Array} bytes - Encoded bytes to decode
+   * @param {Buffer|Uint8Array} _bytes - Encoded bytes to decode
    * @returns {unknown} Decoded value
    */
   decode(_bytes) {

@@ -60,10 +60,11 @@ function unwrapValue(value) {
  *
  * @param {import('./JoinReducer.js').WarpStateV5} state - Current state
  * @param {string} nodeId - Node ID to extract
- * @returns {{ id: string, exists: boolean, props: Object<string, *> }}
+ * @returns {{ id: string, exists: boolean, props: Record<string, *> }}
  */
 function extractNodeSnapshot(state, nodeId) {
   const exists = orsetContains(state.nodeAlive, nodeId);
+  /** @type {Record<string, *>} */
   const props = {};
 
   if (exists) {
@@ -108,7 +109,7 @@ export class TemporalQuery {
    * @param {string} nodeId - The node ID to evaluate
    * @param {Function} predicate - Predicate receiving node snapshot
    *   `{ id, exists, props }`. Should return boolean.
-   * @param {{ since?: number }} [options={}] - Options
+   * @param {Object} [options={}] - Options
    * @param {number} [options.since=0] - Minimum Lamport tick (inclusive).
    *   Only patches with lamport >= since are considered.
    * @returns {Promise<boolean>} True if predicate held at every tick
@@ -161,7 +162,7 @@ export class TemporalQuery {
    * @param {string} nodeId - The node ID to evaluate
    * @param {Function} predicate - Predicate receiving node snapshot
    *   `{ id, exists, props }`. Should return boolean.
-   * @param {{ since?: number }} [options={}] - Options
+   * @param {Object} [options={}] - Options
    * @param {number} [options.since=0] - Minimum Lamport tick (inclusive).
    *   Only patches with lamport >= since are considered.
    * @returns {Promise<boolean>} True if predicate held at any tick
