@@ -17,7 +17,26 @@ import { formatOpSummary } from './opSummary.js';
 
 /**
  * @typedef {{ ticks: number[], tipSha?: string, tickShas?: Record<number, string> }} WriterInfo
- * @typedef {{ graph: string, tick: number, maxTick: number, ticks: number[], nodes: number, edges: number, patchCount: number, perWriter: Map<string, WriterInfo> | Record<string, WriterInfo>, diff?: { nodes?: number, edges?: number }, tickReceipt?: Record<string, any>, structuralDiff?: import('../../../domain/services/StateDiff.js').StateDiffResult | null, diffBaseline?: string, baselineTick?: number | null, truncated?: boolean, totalChanges?: number, shownChanges?: number }} SeekPayload
+ */
+
+/**
+ * @typedef {Object} SeekPayload
+ * @property {string} graph
+ * @property {number} tick
+ * @property {number} maxTick
+ * @property {number[]} ticks
+ * @property {number} nodes
+ * @property {number} edges
+ * @property {number} patchCount
+ * @property {Map<string, WriterInfo> | Record<string, WriterInfo>} perWriter
+ * @property {{ nodes?: number, edges?: number }} [diff]
+ * @property {Record<string, any>} [tickReceipt]
+ * @property {import('../../../domain/services/StateDiff.js').StateDiffResult | null} [structuralDiff]
+ * @property {string} [diffBaseline]
+ * @property {number | null} [baselineTick]
+ * @property {boolean} [truncated]
+ * @property {number} [totalChanges]
+ * @property {number} [shownChanges]
  */
 
 /** Maximum number of tick columns shown in the windowed view. */
