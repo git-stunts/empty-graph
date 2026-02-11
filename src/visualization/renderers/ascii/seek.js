@@ -333,13 +333,6 @@ function buildSeekBodyLines(payload) {
 }
 
 /**
- * Builds structural diff lines for the seek dashboard.
- *
- * @param {SeekPayload} payload - Seek payload containing structuralDiff
- * @param {number} maxLines - Maximum number of change lines to show
- * @returns {string[]} Lines for the structural diff section
- */
-/**
  * Builds a truncation hint line when entries exceed the display or data limit.
  * @param {{totalEntries: number, shown: number, maxLines: number, truncated?: boolean, totalChanges?: number, shownChanges?: number}} opts
  * @returns {string|null}
