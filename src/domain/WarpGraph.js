@@ -2817,10 +2817,13 @@ export default class WarpGraph {
    *   Cloned state, or null if no state has been materialized yet.
    */
   async getStateSnapshot() {
-    if (!this._cachedState) {
+    if (!this._cachedState && !this._autoMaterialize) {
       return null;
     }
     await this._ensureFreshState();
+    if (!this._cachedState) {
+      return null;
+    }
     return cloneStateV5(/** @type {import('./services/JoinReducer.js').WarpStateV5} */ (this._cachedState));
   }
 

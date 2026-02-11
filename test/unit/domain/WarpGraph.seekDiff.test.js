@@ -103,6 +103,24 @@ describe('WarpGraph.getStateSnapshot()', () => {
     expect(snap).toBeNull();
   });
 
+  it('auto-materializes when autoMaterialize is enabled and no cached state', async () => {
+    setupPersistence(persistence, 'alice', [
+      { lamport: 1, ops: [{ type: 'NodeAdd', node: 'n1', dot: { writer: 'alice', counter: 1 } }] },
+    ]);
+
+    const graph = await WarpGraph.open({
+      persistence,
+      graphName: 'test',
+      writerId: 'w1',
+      autoMaterialize: true,
+    });
+
+    // No explicit materialize() call — getStateSnapshot should trigger it
+    const snap = await graph.getStateSnapshot();
+    expect(snap).not.toBeNull();
+    expect(/** @type {*} */ (snap).nodeAlive).toBeDefined();
+  });
+
   it('returns a defensive copy of materialized state', async () => {
     setupPersistence(persistence, 'alice', [
       { lamport: 1, ops: [{ type: 'NodeAdd', node: 'n1', dot: { writer: 'alice', counter: 1 } }] },

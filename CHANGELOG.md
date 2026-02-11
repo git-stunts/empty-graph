@@ -13,7 +13,7 @@ Shows *which* nodes/edges were added/removed and *which* properties changed (wit
 
 - **`--diff` flag** on `git warp seek`: Computes a structural diff between the previous cursor position and the new one. First seek uses baseline `"empty"` (everything appears as an addition); subsequent seeks use the previous cursor tick as baseline.
 - **`--diff-limit=N` flag** on `git warp seek`: Caps the number of change entries in the structural diff (default 2000, minimum 1). When truncated, the payload includes `truncated: true`, `totalChanges`, and `shownChanges` metadata.
-- **`WarpGraph.getStateSnapshot()`**: Returns a defensive copy of the current materialized `WarpStateV5` via `cloneStateV5()`. Returns null when no state is materialized. Prevents aliasing bugs when callers need to hold a reference across re-materializations.
+- **`WarpGraph.getStateSnapshot()`**: Returns a defensive copy of the current materialized `WarpStateV5` via `cloneStateV5()`. Returns null when no state is materialized (or auto-materializes when `autoMaterialize` is enabled). Prevents aliasing bugs when callers need to hold a reference across re-materializations.
 - **ASCII structural diff section**: Colored `+` (green) / `-` (red) / `~` (yellow) lines in a `Changes (baseline: ...)` section, rendered in both plain text and `--view` (boxen) modes. Property changes show `old -> new` values.
 - **JSON structural diff fields**: `structuralDiff`, `diffBaseline`, `baselineTick`, `truncated`, `totalChanges`, `shownChanges` added to the seek payload when `--diff` is active.
 - **`formatStructuralDiff()`** export from `src/visualization/renderers/ascii/seek.js` for plain-text rendering.
