@@ -16,9 +16,9 @@ describe('InMemoryGraphAdapter integration smoke test', () => {
     patch.setProperty('user:alice', 'name', 'Alice');
     await patch.commit();
 
+    /** @type {any} */
     const state = await graph.materialize();
-    const nodes = state.nodeAlive;
-    expect(nodes.entries.has('user:alice')).toBe(true);
+    expect(state.nodeAlive.entries.has('user:alice')).toBe(true);
   });
 
   it('multi-writer convergence works with InMemoryAdapter', async () => {
@@ -45,6 +45,7 @@ describe('InMemoryGraphAdapter integration smoke test', () => {
     await patchB.commit();
 
     // Both writers' patches should be visible after materialization
+    /** @type {any} */
     const state = await graphA.materialize();
     expect(state.nodeAlive.entries.has('node:a')).toBe(true);
     expect(state.nodeAlive.entries.has('node:b')).toBe(true);
