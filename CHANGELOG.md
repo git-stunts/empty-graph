@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [10.7.0] — 2026-02-11 — MEM-ADAPTER: In-Memory Persistence
+
+Adds `InMemoryGraphAdapter`, a zero-I/O implementation of `GraphPersistencePort` for fast tests.
+
+### Added
+
+- **`InMemoryGraphAdapter`** (`src/infrastructure/adapters/InMemoryGraphAdapter.js`): Full in-memory implementation of all five ports (Commit, Blob, Tree, Ref, Config). Uses Git's SHA-1 object format for content-addressable hashing. Accepts optional `author` and `clock` injection for deterministic tests.
+- **`adapterValidation.js`** (`src/infrastructure/adapters/adapterValidation.js`): Extracted shared validation functions (`validateOid`, `validateRef`, `validateLimit`, `validateConfigKey`) used by both adapters.
+- **Adapter conformance suite** (`test/unit/infrastructure/adapters/AdapterConformance.js`): ~25 shared behavioral tests that run against any `GraphPersistencePort` implementation, ensuring parity between Git and in-memory adapters.
+- **`createInMemoryRepo()`** (`test/helpers/warpGraphTestUtils.js`): Test factory for instant in-memory adapter setup — no temp dirs, no git subprocesses.
+
+### Changed
+
+- **`GitGraphAdapter`**: Validation methods now delegate to shared `adapterValidation.js` functions. No behavioral change.
+
 ## [10.6.1] — 2026-02-11 — Code Review Fixups
 
 Addresses code review feedback from PR #23 across SEEKDIFF and SHIELD features.
