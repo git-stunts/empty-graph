@@ -8,11 +8,6 @@ if [ -z "$ROOT" ]; then
 fi
 cd "$ROOT"
 
-if ! command -v docker >/dev/null 2>&1; then
-  echo "pre-push: docker is required to run git-warp CLI bats tests" >&2
-  exit 1
-fi
-
 echo "Running pre-push link check..."
 if command -v lychee >/dev/null 2>&1; then
   lychee --config .lychee.toml '**/*.md'
@@ -32,12 +27,7 @@ wait $LINT_PID || { echo "Lint failed"; exit 1; }
 wait $TC_PID || { echo "Typecheck failed"; exit 1; }
 wait $POLICY_PID || { echo "TS policy check failed"; exit 1; }
 
-# Build Docker image once, reuse for tests + benchmarks + BATS
-echo "Building Docker test image..."
-docker compose build test
-
 echo "Running pre-push unit tests..."
-docker compose run --no-build --rm test npm run test:local
-echo "Running pre-push benchmarks..."
-docker compose run --no-build --rm test npm run benchmark:local
-# BATS E2E tests run in CI only (too slow for pre-push)
+npm run test:local
+
+# Docker builds, benchmarks, and BATS E2E tests run in CI only
