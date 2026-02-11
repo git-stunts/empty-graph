@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [10.6.0] — 2026-02-11 — SHIELD: Hardened Sync Auth
+
+Adds HMAC-SHA256 request signing with replay protection to the HTTP sync protocol. Gated by an `auth` options object — when absent, behavior is unchanged (full backward compatibility).
+
+### Added
+
+- **`SyncAuthService`** (`src/domain/services/SyncAuthService.js`): Core auth service with canonical payload construction, HMAC-SHA256 signing, verification with replay protection (nonce LRU cache), clock skew validation, key-id based key selection, and structured metrics.
+- **`signSyncRequest()`** and **`canonicalizePath()`**: Exported helpers for client-side request signing and path canonicalization.
+- **`serve({ auth })`**: Server-side auth configuration accepting `{ keys: Record<string, string>, mode: 'enforce' | 'log-only' }`. Creates a `SyncAuthService` instance internally.
+- **`syncWith(url, { auth })`**: Client-side auth credentials accepting `{ secret: string, keyId?: string }`. Signs outgoing requests with HMAC-SHA256.
+- **Auth headers**: `x-warp-sig-version`, `x-warp-key-id`, `x-warp-signature`, `x-warp-timestamp`, `x-warp-nonce` — 5 headers per signed request.
+- **Canonical signed payload**: `warp-v1|KEY_ID|METHOD|PATH|TIMESTAMP|NONCE|CONTENT_TYPE|BODY_SHA256`.
+- **Enforcement modes**: `enforce` (reject on failure) and `log-only` (warn but allow through) for gradual rollout.
+- **Key-id based key selection**: Server accepts `keys: Record<string, string>` mapping key-id to secret, enabling zero-downtime key rotation and multi-tenant setups.
+- **Auth metrics**: `authFailCount`, `replayRejectCount`, `nonceEvictions`, `clockSkewRejects`, `malformedRejects`, `logOnlyPassthroughs` via `getMetrics()`.
+- **TypeScript types**: `SyncAuthServerOptions`, `SyncAuthClientOptions` interfaces in `index.d.ts`.
+- **`SECURITY.md`**: Sync authentication section with threat model, restart semantics, key rotation guide, and configuration examples.
+- **Unit tests**: `SyncAuthService.test.js` (42 tests) — canonical payload, path canonicalization, signing, verification reject/happy paths, metrics, constructor validation.
+- **Integration tests**: `HttpSyncServer.auth.test.js` (15 tests) — enforce mode, log-only mode, backward compatibility, body-size ordering.
+- **E2E tests**: `WarpGraph.syncAuth.test.js` (8 tests) — real HTTP with NodeHttpAdapter covering enforce, log-only, no-auth, wrong-secret, wrong-key-id, multi-key, and replay safety.
+
+### Changed
+
+- **`HttpSyncServer`**: Extracted `checkBodySize()` from `parseBody()` for DoS guard ordering (413 before auth). Added `_checkAuth()` private method and `initAuth()` factory for auth initialization.
+- **`WarpGraph.syncWith()`**: Extracted `buildSyncAuthHeaders()` helper to stay within ESLint `max-lines-per-function` limit. Body string computed once and reused for both signing and `fetch()`.
+- **M1.T1.SHIELD** marked `DONE` in `ROADMAP.md`.
+
 ## [10.5.0] — 2026-02-10 — SEEKDIFF: Structural Seek Diff
 
 Shows *which* nodes/edges were added/removed and *which* properties changed (with old/new values) when stepping between ticks during seek exploration. Uses the existing `StateDiff.diffStates()` engine for deterministic, sorted output.

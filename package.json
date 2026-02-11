@@ -1,6 +1,6 @@
 {
   "name": "@git-stunts/git-warp",
-  "version": "10.5.0",
+  "version": "10.6.0",
   "description": "Deterministic WARP graph over Git: graph-native storage, traversal, and tooling.",
   "type": "module",
   "license": "Apache-2.0",
@@ -74,7 +74,6 @@
     "demo:bench-streaming": "cd examples && docker compose up -d && docker compose exec demo node /app/examples/streaming-benchmark.js",
     "demo:bench-traversal": "cd examples && docker compose up -d && docker compose exec demo node /app/examples/traversal-benchmark.js",
     "demo:down": "cd examples && docker compose down -v",
-    "roadmap": "node scripts/roadmap.js",
     "setup:hooks": "node scripts/setup-hooks.js",
     "prepare": "patch-package && node scripts/setup-hooks.js",
     "prepack": "npm run lint && npm run test:local",

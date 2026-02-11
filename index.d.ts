@@ -1413,6 +1413,22 @@ export interface ApplySyncResult {
   applied: number;
 }
 
+/**
+ * Server-side auth configuration for serve().
+ */
+export interface SyncAuthServerOptions {
+  keys: Record<string, string>;
+  mode?: 'enforce' | 'log-only';
+}
+
+/**
+ * Client-side auth credentials for syncWith().
+ */
+export interface SyncAuthClientOptions {
+  secret: string;
+  keyId?: string;
+}
+
 // ============================================================================
 // Status snapshot
 // ============================================================================
@@ -1621,6 +1637,7 @@ export default class WarpGraph {
     path?: string;
     maxRequestBytes?: number;
     httpPort: HttpServerPort;
+    auth?: SyncAuthServerOptions;
   }): Promise<{ close(): Promise<void>; url: string }>;
 
   /**
@@ -1640,6 +1657,7 @@ export default class WarpGraph {
       status?: number;
       error?: Error;
     }) => void;
+    auth?: SyncAuthClientOptions;
   }): Promise<{ applied: number; attempts: number }>;
 
   /**

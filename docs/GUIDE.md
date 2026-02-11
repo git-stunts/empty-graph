@@ -1534,9 +1534,14 @@ const { close, url } = await graph.serve({
   host: '127.0.0.1',
   path: '/sync',
   maxRequestBytes: 4 * 1024 * 1024,
+  auth: {                          // optional HMAC-SHA256 auth
+    keys: { default: 'shared-secret' },
+    mode: 'enforce',               // or 'log-only'
+  },
 });
 
-// Peers sync with: await peerGraph.syncWith(url);
+// Peers sync with:
+// await peerGraph.syncWith(url, { auth: { secret: 'shared-secret', keyId: 'default' } });
 
 await close(); // shut down
 ```
