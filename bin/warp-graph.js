@@ -31,7 +31,8 @@ import { renderHistoryView, summarizeOps } from '../src/visualization/renderers/
 import { renderPathView } from '../src/visualization/renderers/ascii/path.js';
 import { renderMaterializeView } from '../src/visualization/renderers/ascii/materialize.js';
 import { parseCursorBlob } from '../src/domain/utils/parseCursorBlob.js';
-import { renderSeekView } from '../src/visualization/renderers/ascii/seek.js';
+import { diffStates } from '../src/domain/services/StateDiff.js';
+import { renderSeekView, formatStructuralDiff } from '../src/visualization/renderers/ascii/seek.js';
 import { renderGraphView } from '../src/visualization/renderers/ascii/graph.js';
 import { renderSvg } from '../src/visualization/renderers/svg/index.js';
 import { layoutGraph, queryResultToGraphData, pathResultToGraphData } from '../src/visualization/layouts/index.js';
@@ -63,6 +64,7 @@ import { layoutGraph, queryResultToGraphData, pathResultToGraphData } from '../s
  * @property {() => Promise<Map<string, any>>} getFrontier
  * @property {() => {totalTombstones: number, tombstoneRatio: number}} getGCMetrics
  * @property {() => Promise<number>} getPropertyCount
+ * @property {() => Promise<import('../src/domain/services/JoinReducer.js').WarpStateV5 | null>} getStateSnapshot
  * @property {() => Promise<{ticks: number[], maxTick: number, perWriter: Map<string, WriterTickInfo>}>} discoverTicks
  * @property {(sha: string) => Promise<{ops?: any[]}>} loadPatchBySha
  * @property {(cache: any) => void} setSeekCache
@@ -113,6 +115,8 @@ import { layoutGraph, queryResultToGraphData, pathResultToGraphData } from '../s
  * @property {string|null} tickValue
  * @property {string|null} name
  * @property {boolean} noPersistentCache
+ * @property {boolean} diff
+ * @property {number} diffLimit
  */
 
 const EXIT_CODES = {
@@ -171,6 +175,8 @@ Seek options:
   --load <name>         Restore a saved cursor
   --list                List all saved cursors
   --drop <name>         Delete a saved cursor
+  --diff                Show structural diff (added/removed nodes, edges, props)
+  --diff-limit <N>      Max diff entries (default 2000)
 `;
 
 /**
@@ -1953,7 +1959,62 @@ function handleSeekBooleanFlag(arg, spec) {
     spec.action = 'clear-cache';
   } else if (arg === '--no-persistent-cache') {
     spec.noPersistentCache = true;
+  } else if (arg === '--diff') {
+    spec.diff = true;
   }
+}
+
+/**
+ * Parses --diff-limit / --diff-limit=N into the seek spec.
+ * @param {string} arg
+ * @param {string[]} args
+ * @param {number} i
+ * @param {SeekSpec} spec
+ */
+function handleDiffLimitFlag(arg, args, i, spec) {
+  let raw;
+  if (arg.startsWith('--diff-limit=')) {
+    raw = arg.slice('--diff-limit='.length);
+  } else {
+    raw = args[i + 1];
+    if (raw === undefined) {
+      throw usageError('Missing value for --diff-limit');
+    }
+  }
+  const n = Number(raw);
+  if (!Number.isFinite(n) || !Number.isInteger(n) || n < 1) {
+    throw usageError(`Invalid --diff-limit value: ${raw}. Must be a positive integer.`);
+  }
+  spec.diffLimit = n;
+}
+
+/**
+ * Parses a named action flag (--save, --load, --drop) with its value.
+ * @param {string} flagName - e.g. 'save'
+ * @param {string} arg - Current arg token
+ * @param {string[]} args - All args
+ * @param {number} i - Current index
+ * @param {SeekSpec} spec
+ * @returns {number} Number of extra args consumed (0 or 1)
+ */
+function parseSeekNamedAction(flagName, arg, args, i, spec) {
+  if (spec.action !== 'status') {
+    throw usageError(`--${flagName} cannot be combined with other seek flags`);
+  }
+  spec.action = flagName;
+  if (arg === `--${flagName}`) {
+    const val = args[i + 1];
+    if (val === undefined || val.startsWith('-')) {
+      throw usageError(`Missing name for --${flagName}`);
+    }
+    spec.name = val;
+    return 1;
+  }
+  spec.name = arg.slice(`--${flagName}=`.length);
+  if (!spec.name) {
+    throw usageError(`Missing name for --${flagName}`);
+  }
+  return 0;
 }
 
 /**
@@ -1968,7 +2029,10 @@ function parseSeekArgs(args) {
     tickValue: null,
     name: null,
     noPersistentCache: false,
+    diff: false,
+    diffLimit: 2000,
   };
+  let diffLimitProvided = false;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -1995,76 +2059,37 @@ function parseSeekArgs(args) {
         throw usageError('--latest cannot be combined with other seek flags');
       }
       spec.action = 'latest';
-    } else if (arg === '--save') {
-      if (spec.action !== 'status') {
-        throw usageError('--save cannot be combined with other seek flags');
-      }
-      spec.action = 'save';
-      const val = args[i + 1];
-      if (val === undefined || val.startsWith('-')) {
-        throw usageError('Missing name for --save');
-      }
-      spec.name = val;
-      i += 1;
-    } else if (arg.startsWith('--save=')) {
-      if (spec.action !== 'status') {
-        throw usageError('--save cannot be combined with other seek flags');
-      }
-      spec.action = 'save';
-      spec.name = arg.slice('--save='.length);
-      if (!spec.name) {
-        throw usageError('Missing name for --save');
-      }
-    } else if (arg === '--load') {
-      if (spec.action !== 'status') {
-        throw usageError('--load cannot be combined with other seek flags');
-      }
-      spec.action = 'load';
-      const val = args[i + 1];
-      if (val === undefined || val.startsWith('-')) {
-        throw usageError('Missing name for --load');
-      }
-      spec.name = val;
-      i += 1;
-    } else if (arg.startsWith('--load=')) {
-      if (spec.action !== 'status') {
-        throw usageError('--load cannot be combined with other seek flags');
-      }
-      spec.action = 'load';
-      spec.name = arg.slice('--load='.length);
-      if (!spec.name) {
-        throw usageError('Missing name for --load');
-      }
+    } else if (arg === '--save' || arg.startsWith('--save=')) {
+      i += parseSeekNamedAction('save', arg, args, i, spec);
+    } else if (arg === '--load' || arg.startsWith('--load=')) {
+      i += parseSeekNamedAction('load', arg, args, i, spec);
     } else if (arg === '--list') {
       if (spec.action !== 'status') {
         throw usageError('--list cannot be combined with other seek flags');
       }
       spec.action = 'list';
-    } else if (arg === '--drop') {
-      if (spec.action !== 'status') {
-        throw usageError('--drop cannot be combined with other seek flags');
-      }
-      spec.action = 'drop';
-      const val = args[i + 1];
-      if (val === undefined || val.startsWith('-')) {
-        throw usageError('Missing name for --drop');
-      }
-      spec.name = val;
-      i += 1;
-    } else if (arg.startsWith('--drop=')) {
-      if (spec.action !== 'status') {
-        throw usageError('--drop cannot be combined with other seek flags');
-      }
-      spec.action = 'drop';
-      spec.name = arg.slice('--drop='.length);
-      if (!spec.name) {
-        throw usageError('Missing name for --drop');
-      }
-    } else if (arg === '--clear-cache' || arg === '--no-persistent-cache') {
+    } else if (arg === '--drop' || arg.startsWith('--drop=')) {
+      i += parseSeekNamedAction('drop', arg, args, i, spec);
+    } else if (arg === '--clear-cache' || arg === '--no-persistent-cache' || arg === '--diff') {
       handleSeekBooleanFlag(arg, spec);
+    } else if (arg === '--diff-limit' || arg.startsWith('--diff-limit=')) {
+      handleDiffLimitFlag(arg, args, i, spec);
+      diffLimitProvided = true;
+      if (arg === '--diff-limit') {
+        i += 1;
+      }
     } else if (arg.startsWith('-')) {
       throw usageError(`Unknown seek option: ${arg}`);
     }
+  }
+
+  // --diff is only meaningful for actions that navigate to a tick
+  const DIFF_ACTIONS = new Set(['tick', 'latest', 'load']);
+  if (spec.diff && !DIFF_ACTIONS.has(spec.action)) {
+    throw usageError(`--diff cannot be used with --${spec.action}`);
+  }
+  if (diffLimitProvided && !spec.diff) {
+    throw usageError('--diff-limit requires --diff');
   }
 
   return spec;
@@ -2189,8 +2214,16 @@ async function handleSeek({ options, args }) {
     };
   }
   if (seekSpec.action === 'latest') {
+    const prevTick = activeCursor ? activeCursor.tick : null;
+    let sdResult = null;
+    if (seekSpec.diff) {
+      sdResult = await computeStructuralDiff({ graph, prevTick, currentTick: maxTick, diffLimit: seekSpec.diffLimit });
+    }
     await clearActiveCursor(persistence, graphName);
-    await graph.materialize();
+    // When --diff already materialized at maxTick, skip redundant re-materialize
+    if (!sdResult) {
+      await graph.materialize({ ceiling: maxTick });
+    }
     const nodes = await graph.getNodes();
     const edges = await graph.getEdges();
     const diff = computeSeekStateDiff(activeCursor, { nodes: nodes.length, edges: edges.length }, frontierHash);
@@ -2209,6 +2242,7 @@ async function handleSeek({ options, args }) {
         diff,
         tickReceipt,
         cursor: { active: false },
+        ...sdResult,
       },
       exitCode: EXIT_CODES.OK,
     };
@@ -2234,7 +2268,15 @@ async function handleSeek({ options, args }) {
     if (!saved) {
       throw notFoundError(`Saved cursor not found: ${loadName}`);
     }
-    await graph.materialize({ ceiling: saved.tick });
+    const prevTick = activeCursor ? activeCursor.tick : null;
+    let sdResult = null;
+    if (seekSpec.diff) {
+      sdResult = await computeStructuralDiff({ graph, prevTick, currentTick: saved.tick, diffLimit: seekSpec.diffLimit });
+    }
+    // When --diff already materialized at saved.tick, skip redundant call
+    if (!sdResult) {
+      await graph.materialize({ ceiling: saved.tick });
+    }
     const nodes = await graph.getNodes();
     const edges = await graph.getEdges();
     await writeActiveCursor(persistence, graphName, { tick: saved.tick, mode: saved.mode ?? 'lamport', nodes: nodes.length, edges: edges.length, frontierHash });
@@ -2255,6 +2297,7 @@ async function handleSeek({ options, args }) {
         diff,
         tickReceipt,
         cursor: { active: true, mode: saved.mode, tick: saved.tick, maxTick, name: seekSpec.name },
+        ...sdResult,
       },
       exitCode: EXIT_CODES.OK,
     };
@@ -2262,7 +2305,14 @@ async function handleSeek({ options, args }) {
   if (seekSpec.action === 'tick') {
     const currentTick = activeCursor ? activeCursor.tick : null;
     const resolvedTick = resolveTickValue(/** @type {string} */ (seekSpec.tickValue), currentTick, ticks, maxTick);
-    await graph.materialize({ ceiling: resolvedTick });
+    let sdResult = null;
+    if (seekSpec.diff) {
+      sdResult = await computeStructuralDiff({ graph, prevTick: currentTick, currentTick: resolvedTick, diffLimit: seekSpec.diffLimit });
+    }
+    // When --diff already materialized at resolvedTick, skip redundant call
+    if (!sdResult) {
+      await graph.materialize({ ceiling: resolvedTick });
+    }
     const nodes = await graph.getNodes();
     const edges = await graph.getEdges();
     await writeActiveCursor(persistence, graphName, { tick: resolvedTick, mode: 'lamport', nodes: nodes.length, edges: edges.length, frontierHash });
@@ -2282,12 +2332,22 @@ async function handleSeek({ options, args }) {
         diff,
         tickReceipt,
         cursor: { active: true, mode: 'lamport', tick: resolvedTick, maxTick, name: 'active' },
+        ...sdResult,
       },
       exitCode: EXIT_CODES.OK,
     };
   }
 
   // status (bare seek)
+  return await handleSeekStatus({ graph, graphName, persistence, activeCursor, ticks, maxTick, perWriter, frontierHash });
+}
+
+/**
+ * Handles the `status` sub-action of `seek` (bare seek with no action flag).
+ * @param {{graph: WarpGraphInstance, graphName: string, persistence: Persistence, activeCursor: CursorBlob|null, ticks: number[], maxTick: number, perWriter: Map<string, WriterTickInfo>, frontierHash: string}} params
+ * @returns {Promise<{payload: *, exitCode: number}>}
+ */
+async function handleSeekStatus({ graph, graphName, persistence, activeCursor, ticks, maxTick, perWriter, frontierHash }) {
   if (activeCursor) {
     await graph.materialize({ ceiling: activeCursor.tick });
     const nodes = await graph.getNodes();
@@ -2469,6 +2529,79 @@ async function buildTickReceipt({ tick, perWriter, graph }) {
 }
 
 /**
+ * Computes a structural diff between the state at a previous tick and
+ * the state at the current tick.
+ *
+ * Materializes the baseline tick first, snapshots the state, then
+ * materializes the target tick and calls diffStates() between the two.
+ * Applies diffLimit truncation when the total change count exceeds the cap.
+ *
+ * @param {{graph: WarpGraphInstance, prevTick: number|null, currentTick: number, diffLimit: number}} params
+ * @returns {Promise<{structuralDiff: *, diffBaseline: string, baselineTick: number|null, truncated: boolean, totalChanges: number, shownChanges: number}>}
+ */
+async function computeStructuralDiff({ graph, prevTick, currentTick, diffLimit }) {
+  let beforeState = null;
+  let diffBaseline = 'empty';
+  let baselineTick = null;
+
+  // Short-circuit: same tick produces an empty diff
+  if (prevTick !== null && prevTick === currentTick) {
+    const empty = { nodes: { added: [], removed: [] }, edges: { added: [], removed: [] }, props: { set: [], removed: [] } };
+    return { structuralDiff: empty, diffBaseline: 'tick', baselineTick: prevTick, truncated: false, totalChanges: 0, shownChanges: 0 };
+  }
+
+  if (prevTick !== null && prevTick > 0) {
+    await graph.materialize({ ceiling: prevTick });
+    beforeState = await graph.getStateSnapshot();
+    diffBaseline = 'tick';
+    baselineTick = prevTick;
+  }
+
+  await graph.materialize({ ceiling: currentTick });
+  const afterState = /** @type {*} */ (await graph.getStateSnapshot()); // TODO(ts-cleanup): narrow WarpStateV5
+  const diff = diffStates(beforeState, afterState);
+
+  return applyDiffLimit(diff, diffBaseline, baselineTick, diffLimit);
+}
+
+/**
+ * Applies truncation limits to a structural diff result.
+ *
+ * @param {*} diff
+ * @param {string} diffBaseline
+ * @param {number|null} baselineTick
+ * @param {number} diffLimit
+ * @returns {{structuralDiff: *, diffBaseline: string, baselineTick: number|null, truncated: boolean, totalChanges: number, shownChanges: number}}
+ */
+function applyDiffLimit(diff, diffBaseline, baselineTick, diffLimit) {
+  const totalChanges =
+    diff.nodes.added.length + diff.nodes.removed.length +
+    diff.edges.added.length + diff.edges.removed.length +
+    diff.props.set.length + diff.props.removed.length;
+
+  if (totalChanges <= diffLimit) {
+    return { structuralDiff: diff, diffBaseline, baselineTick, truncated: false, totalChanges, shownChanges: totalChanges };
+  }
+
+  // Truncate sequentially (nodes → edges → props), keeping sort order within each category
+  let remaining = diffLimit;
+  const cap = (/** @type {any[]} */ arr) => {
+    const take = Math.min(arr.length, remaining);
+    remaining -= take;
+    return arr.slice(0, take);
+  };
+
+  const capped = {
+    nodes: { added: cap(diff.nodes.added), removed: cap(diff.nodes.removed) },
+    edges: { added: cap(diff.edges.added), removed: cap(diff.edges.removed) },
+    props: { set: cap(diff.props.set), removed: cap(diff.props.removed) },
+  };
+
+  const shownChanges = diffLimit - remaining;
+  return { structuralDiff: capped, diffBaseline, baselineTick, truncated: true, totalChanges, shownChanges };
+}
+
+/**
  * Renders a seek command payload as a human-readable string for terminal output.
  *
  * Handles all seek actions: list, drop, save, latest, load, tick, and status.
@@ -2567,26 +2700,29 @@ function renderSeek(payload) {
 
   if (payload.action === 'latest') {
     const { nodesStr, edgesStr } = buildStateStrings();
-    return appendReceiptSummary(
+    const base = appendReceiptSummary(
       `${payload.graph}: returned to present (tick ${payload.maxTick}, ${nodesStr}, ${edgesStr})`,
     );
+    return base + formatStructuralDiff(payload);
   }
 
   if (payload.action === 'load') {
     const { nodesStr, edgesStr } = buildStateStrings();
-    return appendReceiptSummary(
+    const base = appendReceiptSummary(
       `${payload.graph}: loaded cursor "${payload.name}" at tick ${payload.tick} of ${payload.maxTick} (${nodesStr}, ${edgesStr})`,
     );
+    return base + formatStructuralDiff(payload);
   }
 
   if (payload.action === 'tick') {
     const { nodesStr, edgesStr, patchesStr } = buildStateStrings();
-    return appendReceiptSummary(
+    const base = appendReceiptSummary(
       `${payload.graph}: tick ${payload.tick} of ${payload.maxTick} (${nodesStr}, ${edgesStr}, ${patchesStr})`,
     );
+    return base + formatStructuralDiff(payload);
   }
 
-  // status
+  // status (structuralDiff is never populated here; no formatStructuralDiff call)
   if (payload.cursor && payload.cursor.active) {
     const { nodesStr, edgesStr, patchesStr } = buildStateStrings();
     return appendReceiptSummary(

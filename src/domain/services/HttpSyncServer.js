@@ -8,6 +8,8 @@
  * @module domain/services/HttpSyncServer
  */
 
+import SyncAuthService from './SyncAuthService.js';
+
 const DEFAULT_MAX_REQUEST_BYTES = 4 * 1024 * 1024;
 
 /**
@@ -140,18 +142,28 @@ function validateRoute(request, expectedPath, defaultHost) {
 }
 
 /**
- * Parses and validates the request body as a sync request.
+ * Checks if the request body exceeds the maximum allowed size.
  *
  * @param {Buffer|undefined} body
  * @param {number} maxBytes
+ * @returns {{ status: number, headers: Object, body: string }|null} Error response or null if within limits
+ * @private
+ */
+function checkBodySize(body, maxBytes) {
+  if (body && body.length > maxBytes) {
+    return errorResponse(413, 'Request too large');
+  }
+  return null;
+}
+
+/**
+ * Parses and validates the request body as a sync request.
+ *
+ * @param {Buffer|undefined} body
  * @returns {{ error: { status: number, headers: Object, body: string }, parsed: null } | { error: null, parsed: Object }}
  * @private
  */
-function parseBody(body, maxBytes) {
-  if (body && body.length > maxBytes) {
-    return { error: errorResponse(413, 'Request too large'), parsed: null };
-  }
-
+function parseBody(body) {
   const bodyStr = body ? body.toString('utf-8') : '';
 
   let parsed;
@@ -168,6 +180,25 @@ function parseBody(body, maxBytes) {
   return { error: null, parsed };
 }
 
+/**
+ * Initializes auth service from config if present.
+ *
+ * @param {{ keys: Record<string, string>, mode?: 'enforce'|'log-only', crypto?: *, logger?: *, wallClockMs?: () => number }|undefined} auth
+ * @returns {{ auth: SyncAuthService|null, authMode: string|null }}
+ * @private
+ */
+function initAuth(auth) {
+  if (auth && auth.keys) {
+    const VALID_MODES = new Set(['enforce', 'log-only']);
+    const mode = auth.mode || 'enforce';
+    if (!VALID_MODES.has(mode)) {
+      throw new Error(`Invalid auth.mode: '${mode}'. Must be 'enforce' or 'log-only'.`);
+    }
+    return { auth: new SyncAuthService(auth), authMode: mode };
+  }
+  return { auth: null, authMode: null };
+}
+
 export default class HttpSyncServer {
   /**
    * @param {Object} options
@@ -176,14 +207,18 @@ export default class HttpSyncServer {
    * @param {string} [options.path='/sync'] - URL path to handle sync requests on
    * @param {string} [options.host='127.0.0.1'] - Host to bind
    * @param {number} [options.maxRequestBytes=4194304] - Maximum request body size in bytes
+   * @param {{ keys: Record<string, string>, mode?: 'enforce'|'log-only', crypto?: import('../../ports/CryptoPort.js').default, logger?: import('../../ports/LoggerPort.js').default, wallClockMs?: () => number }} [options.auth] - Auth configuration
    */
-  constructor({ httpPort, graph, path = '/sync', host = '127.0.0.1', maxRequestBytes = DEFAULT_MAX_REQUEST_BYTES } = /** @type {*} */ ({})) { // TODO(ts-cleanup): needs options type
+  constructor({ httpPort, graph, path = '/sync', host = '127.0.0.1', maxRequestBytes = DEFAULT_MAX_REQUEST_BYTES, auth } = /** @type {*} */ ({})) { // TODO(ts-cleanup): needs options type
     this._httpPort = httpPort;
     this._graph = graph;
     this._path = path && path.startsWith('/') ? path : `/${path || 'sync'}`;
     this._host = host;
     this._maxRequestBytes = maxRequestBytes;
     this._server = null;
+    const authInit = initAuth(auth);
+    this._auth = authInit.auth;
+    this._authMode = authInit.authMode;
   }
 
   /**
@@ -193,6 +228,29 @@ export default class HttpSyncServer {
    * @returns {Promise<{ status: number, headers: Object, body: string }>}
    * @private
    */
+  /**
+   * Runs auth verification if configured. Returns an error response to
+   * send, or null if the request should proceed.
+   *
+   * @param {*} request
+   * @returns {Promise<{ status: number, headers: Object, body: string }|null>}
+   * @private
+   */
+  async _checkAuth(request) {
+    if (!this._auth) {
+      return null;
+    }
+    const result = await this._auth.verify(request);
+    if (!result.ok) {
+      if (this._authMode === 'enforce') {
+        return errorResponse(result.status, result.reason);
+      }
+      this._auth.recordLogOnlyPassthrough();
+    }
+    return null;
+  }
+
+  /** @param {{ method: string, url: string, headers: { [x: string]: string }, body: Buffer|undefined }} request */
   async _handleRequest(request) {
     const contentTypeError = checkContentType(request.headers);
     if (contentTypeError) {
@@ -204,7 +262,17 @@ export default class HttpSyncServer {
       return routeError;
     }
 
-    const { error, parsed } = parseBody(request.body, this._maxRequestBytes);
+    const sizeError = checkBodySize(request.body, this._maxRequestBytes);
+    if (sizeError) {
+      return sizeError;
+    }
+
+    const authError = await this._checkAuth(request);
+    if (authError) {
+      return authError;
+    }
+
+    const { error, parsed } = parseBody(request.body);
     if (error) {
       return error;
     }

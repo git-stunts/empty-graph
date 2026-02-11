@@ -102,8 +102,8 @@ describe('NodeHttpAdapter error paths', () => {
       expect(text).toBe('Payload Too Large');
     } catch (/** @type {any} */ err) {
       // On some platforms / timing, the server resets the connection
-      // before fetch can read the response.
-      expect(err.cause?.code ?? err.code).toBe('ECONNRESET');
+      // before fetch can read the response. macOS may yield EPIPE instead.
+      expect(['ECONNRESET', 'EPIPE']).toContain(err.cause?.code ?? err.code);
     }
   });
 

@@ -5,6 +5,72 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [10.6.1] — 2026-02-11 — Code Review Fixups
+
+Addresses code review feedback from PR #23 across SEEKDIFF and SHIELD features.
+
+### Fixed
+
+- **`SyncAuthService.verify()`**: Nonce is now reserved *after* signature verification, preventing valid nonces from being consumed by requests with invalid signatures.
+- **`HttpSyncServer.initAuth()`**: Validates `auth.mode` against allowed values (`'enforce'`, `'log-only'`), throwing on invalid strings instead of silently accepting them.
+- **`parseSeekArgs()`**: `--diff-limit` without `--diff` now throws a clear usage error instead of being silently ignored.
+- **`handleDiffLimitFlag()`**: Uses `Number()` instead of `parseInt()` to reject float values like `"1.5"` that were previously silently truncated to integers.
+- **`buildTruncationHint()`**: Clamps remaining-change counts to non-negative values, preventing display of negative counts with pathological inputs.
+- **`applyDiffLimit()`**: Comment corrected from "proportionally" to "sequentially" to match the actual greedy truncation behavior.
+
+## [10.6.0] — 2026-02-11 — SHIELD: Hardened Sync Auth
+
+Adds HMAC-SHA256 request signing with replay protection to the HTTP sync protocol. Gated by an `auth` options object — when absent, behavior is unchanged (full backward compatibility).
+
+### Added
+
+- **`SyncAuthService`** (`src/domain/services/SyncAuthService.js`): Core auth service with canonical payload construction, HMAC-SHA256 signing, verification with replay protection (nonce LRU cache), clock skew validation, key-id based key selection, and structured metrics.
+- **`signSyncRequest()`** and **`canonicalizePath()`**: Exported helpers for client-side request signing and path canonicalization.
+- **`serve({ auth })`**: Server-side auth configuration accepting `{ keys: Record<string, string>, mode: 'enforce' | 'log-only' }`. Creates a `SyncAuthService` instance internally.
+- **`syncWith(url, { auth })`**: Client-side auth credentials accepting `{ secret: string, keyId?: string }`. Signs outgoing requests with HMAC-SHA256.
+- **Auth headers**: `x-warp-sig-version`, `x-warp-key-id`, `x-warp-signature`, `x-warp-timestamp`, `x-warp-nonce` — 5 headers per signed request.
+- **Canonical signed payload**: `warp-v1|KEY_ID|METHOD|PATH|TIMESTAMP|NONCE|CONTENT_TYPE|BODY_SHA256`.
+- **Enforcement modes**: `enforce` (reject on failure) and `log-only` (warn but allow through) for gradual rollout.
+- **Key-id based key selection**: Server accepts `keys: Record<string, string>` mapping key-id to secret, enabling zero-downtime key rotation and multi-tenant setups.
+- **Auth metrics**: `authFailCount`, `replayRejectCount`, `nonceEvictions`, `clockSkewRejects`, `malformedRejects`, `logOnlyPassthroughs` via `getMetrics()`.
+- **TypeScript types**: `SyncAuthServerOptions`, `SyncAuthClientOptions` interfaces in `index.d.ts`.
+- **`SECURITY.md`**: Sync authentication section with threat model, restart semantics, key rotation guide, and configuration examples.
+- **Unit tests**: `SyncAuthService.test.js` (42 tests) — canonical payload, path canonicalization, signing, verification reject/happy paths, metrics, constructor validation.
+- **Integration tests**: `HttpSyncServer.auth.test.js` (15 tests) — enforce mode, log-only mode, backward compatibility, body-size ordering.
+- **E2E tests**: `WarpGraph.syncAuth.test.js` (8 tests) — real HTTP with NodeHttpAdapter covering enforce, log-only, no-auth, wrong-secret, wrong-key-id, multi-key, and replay safety.
+
+### Changed
+
+- **`HttpSyncServer`**: Extracted `checkBodySize()` from `parseBody()` for DoS guard ordering (413 before auth). Added `_checkAuth()` private method and `initAuth()` factory for auth initialization.
+- **`WarpGraph.syncWith()`**: Extracted `buildSyncAuthHeaders()` helper to stay within ESLint `max-lines-per-function` limit. Body string computed once and reused for both signing and `fetch()`.
+- **M1.T1.SHIELD** marked `DONE` in `ROADMAP.md`.
+
+## [10.5.0] — 2026-02-10 — SEEKDIFF: Structural Seek Diff
+
+Shows *which* nodes/edges were added/removed and *which* properties changed (with old/new values) when stepping between ticks during seek exploration. Uses the existing `StateDiff.diffStates()` engine for deterministic, sorted output.
+
+### Added
+
+- **`--diff` flag** on `git warp seek`: Computes a structural diff between the previous cursor position and the new one. First seek uses baseline `"empty"` (everything appears as an addition); subsequent seeks use the previous cursor tick as baseline.
+- **`--diff-limit=N` flag** on `git warp seek`: Caps the number of change entries in the structural diff (default 2000, minimum 1). When truncated, the payload includes `truncated: true`, `totalChanges`, and `shownChanges` metadata.
+- **`WarpGraph.getStateSnapshot()`**: Returns a defensive copy of the current materialized `WarpStateV5` via `cloneStateV5()`. Returns null when no state is materialized (or auto-materializes when `autoMaterialize` is enabled). Prevents aliasing bugs when callers need to hold a reference across re-materializations.
+- **ASCII structural diff section**: Colored `+` (green) / `-` (red) / `~` (yellow) lines in a `Changes (baseline: ...)` section, rendered in both plain text and `--view` (boxen) modes. Property changes show `old -> new` values.
+- **JSON structural diff fields**: `structuralDiff`, `diffBaseline`, `baselineTick`, `truncated`, `totalChanges`, `shownChanges` added to the seek payload when `--diff` is active.
+- **`formatStructuralDiff()`** export from `src/visualization/renderers/ascii/seek.js` for plain-text rendering.
+- **SEEKDIFF milestone** (v10.5.0) added to `ROADMAP.md` and `scripts/roadmap.js` with 4 tasks (all closed).
+- **Unit tests**: `WarpGraph.seekDiff.test.js` (8 tests) — state snapshot identity, defensive copy, forward/backward diff, first seek, same-tick no-op, property changes.
+- **ASCII renderer tests**: 10 new tests — structural diff with tick/empty baselines, truncation message, null diff backward compat, removal entries, combined truncation, latest/load action payloads.
+- **BATS E2E tests**: 9 new tests — `--diff --json` first seek, forward/backward structural diff, ASCII `Changes` section, `--latest --diff`, `--diff-limit` validation (=0, =-1, missing value), `--diff --save` rejection.
+
+### Changed
+
+- **`parseSeekArgs()`**: Extracted `parseSeekNamedAction()` helper for `--save`/`--load`/`--drop` parsing, reducing cyclomatic complexity. Now rejects `--diff` on non-navigating actions (`--save`, `--drop`, `--list`, `--clear-cache`, bare `status`).
+- **`handleSeek()`**: Extracted `handleSeekStatus()` to stay within ESLint `max-lines-per-function` limit. `--diff` skips redundant re-materialization when `computeStructuralDiff` already materialized the target tick.
+- **`computeStructuralDiff()`**: Short-circuits with an empty diff when `prevTick === currentTick`.
+- **`buildSeekBodyLines()`**: Extracted `buildFooterLines()` for state summary + receipt + structural diff rendering.
+- **`buildStructuralDiffLines()`**: Shows combined truncation message when both display-level (20 lines) and data-level (`--diff-limit`) truncation are active.
+- **`--diff`/`--diff-limit`** added to `git warp --help` seek options.
+
 ## [10.4.2] — 2026-02-10 — TS policy enforcement (B3)
 
 ### Added

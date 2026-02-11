@@ -1413,6 +1413,22 @@ export interface ApplySyncResult {
   applied: number;
 }
 
+/**
+ * Server-side auth configuration for serve().
+ */
+export interface SyncAuthServerOptions {
+  keys: Record<string, string>;
+  mode?: 'enforce' | 'log-only';
+}
+
+/**
+ * Client-side auth credentials for syncWith().
+ */
+export interface SyncAuthClientOptions {
+  secret: string;
+  keyId?: string;
+}
+
 // ============================================================================
 // Status snapshot
 // ============================================================================
@@ -1527,6 +1543,12 @@ export default class WarpGraph {
   getPropertyCount(): Promise<number>;
 
   /**
+   * Returns a defensive copy of the current materialized state,
+   * or null if no state has been materialized yet.
+   */
+  getStateSnapshot(): Promise<WarpStateV5 | null>;
+
+  /**
    * Gets all properties for an edge from the materialized state.
    * Returns null if the edge does not exist or is tombstoned.
    */
@@ -1615,6 +1637,7 @@ export default class WarpGraph {
     path?: string;
     maxRequestBytes?: number;
     httpPort: HttpServerPort;
+    auth?: SyncAuthServerOptions;
   }): Promise<{ close(): Promise<void>; url: string }>;
 
   /**
@@ -1634,6 +1657,7 @@ export default class WarpGraph {
       status?: number;
       error?: Error;
     }) => void;
+    auth?: SyncAuthClientOptions;
   }): Promise<{ applied: number; attempts: number }>;
 
   /**

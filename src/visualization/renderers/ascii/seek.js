@@ -17,7 +17,26 @@ import { formatOpSummary } from './opSummary.js';
 
 /**
  * @typedef {{ ticks: number[], tipSha?: string, tickShas?: Record<number, string> }} WriterInfo
- * @typedef {{ graph: string, tick: number, maxTick: number, ticks: number[], nodes: number, edges: number, patchCount: number, perWriter: Map<string, WriterInfo> | Record<string, WriterInfo>, diff?: { nodes?: number, edges?: number }, tickReceipt?: Record<string, any> }} SeekPayload
+ */
+
+/**
+ * @typedef {Object} SeekPayload
+ * @property {string} graph
+ * @property {number} tick
+ * @property {number} maxTick
+ * @property {number[]} ticks
+ * @property {number} nodes
+ * @property {number} edges
+ * @property {number} patchCount
+ * @property {Map<string, WriterInfo> | Record<string, WriterInfo>} perWriter
+ * @property {{ nodes?: number, edges?: number }} [diff]
+ * @property {Record<string, any>} [tickReceipt]
+ * @property {import('../../../domain/services/StateDiff.js').StateDiffResult | null} [structuralDiff]
+ * @property {string} [diffBaseline]
+ * @property {number | null} [baselineTick]
+ * @property {boolean} [truncated]
+ * @property {number} [totalChanges]
+ * @property {number} [shownChanges]
  */
 
 /** Maximum number of tick columns shown in the windowed view. */
@@ -265,14 +284,45 @@ function buildTickPoints(ticks, tick) {
   return { allPoints, currentIdx };
 }
 
+// ============================================================================
+// Structural Diff
+// ============================================================================
+
+/** Maximum structural diff lines shown in ASCII view. */
+const MAX_DIFF_LINES = 20;
+
 /**
- * Builds the body lines for the seek dashboard.
- *
- * @param {SeekPayload} payload - Seek payload from the CLI handler
- * @returns {string[]} Lines for the box body
+ * Builds the state summary, receipt, and structural diff footer lines.
+ * @param {SeekPayload} payload
+ * @returns {string[]}
  */
+function buildFooterLines(payload) {
+  const { tick, nodes, edges, patchCount, diff, tickReceipt } = payload;
+  const lines = [];
+  lines.push('');
+  const nodesStr = `${nodes} ${pluralize(nodes, 'node', 'nodes')}${formatDelta(diff?.nodes ?? 0)}`;
+  const edgesStr = `${edges} ${pluralize(edges, 'edge', 'edges')}${formatDelta(diff?.edges ?? 0)}`;
+  lines.push(`  ${colors.bold('State:')} ${nodesStr}, ${edgesStr}, ${patchCount} ${pluralize(patchCount, 'patch', 'patches')}`);
+
+  const receiptLines = buildReceiptLines(tickReceipt);
+  if (receiptLines.length > 0) {
+    lines.push('');
+    lines.push(`  ${colors.bold(`Tick ${tick}:`)}`);
+    lines.push(...receiptLines);
+  }
+
+  const sdLines = buildStructuralDiffLines(payload, MAX_DIFF_LINES);
+  if (sdLines.length > 0) {
+    lines.push('');
+    lines.push(...sdLines);
+  }
+  lines.push('');
+  return lines;
+}
+
+/** @param {SeekPayload} payload @returns {string[]} */
 function buildSeekBodyLines(payload) {
-  const { graph, tick, maxTick, ticks, nodes, edges, patchCount, perWriter, diff, tickReceipt } = payload;
+  const { graph, tick, maxTick, ticks, perWriter } = payload;
   const lines = [];
 
   lines.push('');
@@ -285,11 +335,8 @@ function buildSeekBodyLines(payload) {
   } else {
     const { allPoints, currentIdx } = buildTickPoints(ticks, tick);
     const win = computeWindow(allPoints, currentIdx);
-
-    // Column headers with relative offsets
     lines.push(buildHeaderRow(win));
 
-    // Per-writer swimlanes
     /** @type {Array<[string, WriterInfo]>} */
     const writerEntries = perWriter instanceof Map
       ? [...perWriter.entries()]
@@ -300,29 +347,132 @@ function buildSeekBodyLines(payload) {
     }
   }
 
-  lines.push('');
-  const edgeLabel = pluralize(edges, 'edge', 'edges');
-  const nodeLabel = pluralize(nodes, 'node', 'nodes');
-  const patchLabel = pluralize(patchCount, 'patch', 'patches');
+  lines.push(...buildFooterLines(payload));
+  return lines;
+}
 
-  const nodesStr = `${nodes} ${nodeLabel}${formatDelta(diff?.nodes ?? 0)}`;
-  const edgesStr = `${edges} ${edgeLabel}${formatDelta(diff?.edges ?? 0)}`;
-  lines.push(`  ${colors.bold('State:')} ${nodesStr}, ${edgesStr}, ${patchCount} ${patchLabel}`);
-
-  const receiptLines = buildReceiptLines(tickReceipt);
-  if (receiptLines.length > 0) {
-    lines.push('');
-    lines.push(`  ${colors.bold(`Tick ${tick}:`)}`);
-    lines.push(...receiptLines);
+/**
+ * Builds a truncation hint line when entries exceed the display or data limit.
+ * @param {{totalEntries: number, shown: number, maxLines: number, truncated?: boolean, totalChanges?: number, shownChanges?: number}} opts
+ * @returns {string|null}
+ */
+function buildTruncationHint(opts) {
+  const { totalEntries, shown, maxLines, truncated, totalChanges, shownChanges } = opts;
+  if (totalEntries > maxLines && truncated) {
+    const remaining = Math.max(0, (totalChanges || 0) - shown);
+    return `... and ${remaining} more changes (${totalChanges} total, use --diff-limit to increase)`;
   }
-  lines.push('');
+  if (totalEntries > maxLines) {
+    return `... and ${Math.max(0, totalEntries - maxLines)} more changes`;
+  }
+  if (truncated) {
+    return `... and ${Math.max(0, (totalChanges || 0) - (shownChanges || 0))} more changes (use --diff-limit to increase)`;
+  }
+  return null;
+}
+
+/**
+ * @param {SeekPayload} payload
+ * @param {number} maxLines
+ * @returns {string[]}
+ */
+function buildStructuralDiffLines(payload, maxLines) {
+  const { structuralDiff, diffBaseline, baselineTick, truncated, totalChanges, shownChanges } = payload;
+  if (!structuralDiff) {
+    return [];
+  }
+
+  const lines = [];
+  const baselineLabel = diffBaseline === 'tick'
+    ? `baseline: tick ${baselineTick}`
+    : 'baseline: empty';
+
+  lines.push(`  ${colors.bold(`Changes (${baselineLabel}):`)}`);
+
+  let shown = 0;
+  const entries = collectDiffEntries(structuralDiff);
+
+  for (const entry of entries) {
+    if (shown >= maxLines) {
+      break;
+    }
+    lines.push(`    ${entry}`);
+    shown++;
+  }
+
+  const hint = buildTruncationHint({ totalEntries: entries.length, shown, maxLines, truncated, totalChanges, shownChanges });
+  if (hint) {
+    lines.push(`    ${colors.muted(hint)}`);
+  }
 
   return lines;
+}
+
+/**
+ * Collects formatted diff entries from a structural diff result.
+ *
+ * @param {import('../../../domain/services/StateDiff.js').StateDiffResult} diff
+ * @returns {string[]} Formatted entries with +/-/~ prefixes
+ */
+function collectDiffEntries(diff) {
+  const entries = [];
+
+  for (const nodeId of diff.nodes.added) {
+    entries.push(colors.success(`+ node ${nodeId}`));
+  }
+  for (const nodeId of diff.nodes.removed) {
+    entries.push(colors.error(`- node ${nodeId}`));
+  }
+  for (const edge of diff.edges.added) {
+    entries.push(colors.success(`+ edge ${edge.from} -[${edge.label}]-> ${edge.to}`));
+  }
+  for (const edge of diff.edges.removed) {
+    entries.push(colors.error(`- edge ${edge.from} -[${edge.label}]-> ${edge.to}`));
+  }
+  for (const prop of diff.props.set) {
+    const old = prop.oldValue !== undefined ? formatPropValue(prop.oldValue) : null;
+    const arrow = old !== null ? `${old} -> ${formatPropValue(prop.newValue)}` : formatPropValue(prop.newValue);
+    entries.push(colors.warning(`~ ${prop.nodeId}.${prop.propKey}: ${arrow}`));
+  }
+  for (const prop of diff.props.removed) {
+    entries.push(colors.error(`- ${prop.nodeId}.${prop.propKey}: ${formatPropValue(prop.oldValue)}`));
+  }
+
+  return entries;
+}
+
+/**
+ * Formats a property value for display (truncated if too long).
+ * @param {*} value
+ * @returns {string}
+ */
+function formatPropValue(value) {
+  if (value === undefined) {
+    return 'undefined';
+  }
+  const s = typeof value === 'string' ? `"${value}"` : String(value);
+  return s.length > 40 ? `${s.slice(0, 37)}...` : s;
 }
 
 // ============================================================================
 // Public API
 // ============================================================================
+
+/**
+ * Formats a structural diff as a plain-text string (no boxen).
+ *
+ * Used by the non-view renderSeek() path in the CLI.
+ *
+ * @param {SeekPayload} payload - Seek payload containing structuralDiff
+ * @returns {string} Formatted diff section, or empty string if no diff
+ */
+export function formatStructuralDiff(payload) {
+  const lines = buildStructuralDiffLines(payload, MAX_DIFF_LINES);
+  if (lines.length === 0) {
+    return '';
+  }
+  return `${lines.join('\n')}\n`;
+}
 
 /**
  * Renders the seek view dashboard inside a double-bordered box.

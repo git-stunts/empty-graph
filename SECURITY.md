@@ -25,6 +25,94 @@ The `GitGraphAdapter` validates all ref arguments to prevent injection attacks:
 - **Bitmap Indexing**: Sharded Roaring Bitmap indexes enable O(1) lookups without loading entire graphs
 - **Delimiter Safety**: Uses ASCII Record Separator (`\x1E`) to prevent message collision
 
-## 🐞 Reporting a Vulnerability
+## Sync Authentication (SHIELD)
+
+### Overview
+
+The HTTP sync protocol supports optional HMAC-SHA256 request signing with replay protection. When enabled, every sync request must carry a valid signature computed over a canonical payload that includes the request body, timestamp, and a unique nonce.
+
+### Threat Model
+
+**Protected against:**
+- Unauthorized sync requests from unknown peers
+- Replay attacks (nonce-based, with 5-minute TTL window)
+- Request body tampering (HMAC covers body SHA-256)
+- Timing attacks on signature comparison (`timingSafeEqual`)
+
+**Not protected against:**
+- Compromised shared secrets (rotate keys immediately if leaked)
+- Denial-of-service (body size limits provide basic protection, but no rate limiting)
+- Man-in-the-middle without TLS (use HTTPS in production)
+
+### Authentication Flow
+
+1. Client computes SHA-256 of request body
+2. Client builds canonical payload: `warp-v1|KEY_ID|METHOD|PATH|TIMESTAMP|NONCE|CONTENT_TYPE|BODY_SHA256`
+3. Client computes HMAC-SHA256 of canonical payload using shared secret
+4. Client sends 5 auth headers: `x-warp-sig-version`, `x-warp-key-id`, `x-warp-timestamp`, `x-warp-nonce`, `x-warp-signature`
+5. Server validates header formats (cheap checks first)
+6. Server checks clock skew (default: 5 minutes)
+7. Server reserves nonce atomically (prevents replay)
+8. Server resolves key by key-id
+9. Server recomputes HMAC and compares with constant-time equality
+
+### Enforcement Modes
+
+- **`enforce`** (default): Rejects requests that fail authentication with appropriate HTTP status codes (400/401/403). No request details leak in error responses.
+- **`log-only`**: Logs authentication failures but allows requests through. Use during rollout to identify issues before enforcing.
+
+### Error Response Hygiene
+
+External error responses use coarse status codes and generic reason strings:
+- `400` — Malformed headers (version, timestamp, nonce, signature format)
+- `401` — Missing auth headers, unknown key-id, invalid signature
+- `403` — Expired timestamp, replayed nonce
+
+Detailed diagnostics (exact failure reason, key-id, peer info) are sent to the structured logger only.
+
+### Nonce Cache and Restart Semantics
+
+The nonce cache is an in-memory LRU (default capacity: 100,000 entries). On server restart, the cache is empty. This means:
+- Nonces from before the restart can be replayed within the 5-minute clock skew window
+- This is an accepted trade-off for simplicity; persistent nonce storage is not implemented in v1
+- For higher security, keep the clock skew window small and use TLS
+
+### Key Rotation
+
+Key management uses a key-id system for zero-downtime rotation:
+
+1. Add the new key-id and secret to the server's `keys` map
+2. Deploy the server
+3. Update clients to use the new key-id
+4. Remove the old key-id from the server's `keys` map
+5. Deploy again
+
+Multiple key-ids can coexist indefinitely.
+
+### Configuration
+
+**Server (`serve()`):**
+```js
+await graph.serve({
+  port: 3000,
+  httpPort: new NodeHttpAdapter(),
+  auth: {
+    keys: { default: 'your-shared-secret' },
+    mode: 'enforce', // or 'log-only'
+  },
+});
+```
+
+**Client (`syncWith()`):**
+```js
+await graph.syncWith('http://peer:3000', {
+  auth: {
+    secret: 'your-shared-secret',
+    keyId: 'default',
+  },
+});
+```
+
+## Reporting a Vulnerability
 
 If you discover a security vulnerability, please send an e-mail to [james@flyingrobots.dev](mailto:james@flyingrobots.dev).

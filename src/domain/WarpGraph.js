@@ -49,6 +49,7 @@ import OperationAbortedError from './errors/OperationAbortedError.js';
 import { compareEventIds } from './utils/EventId.js';
 import { TemporalQuery } from './services/TemporalQuery.js';
 import HttpSyncServer from './services/HttpSyncServer.js';
+import { signSyncRequest, canonicalizePath } from './services/SyncAuthService.js';
 import { buildSeekCacheKey } from './utils/seekCacheKey.js';
 import defaultClock from './utils/defaultClock.js';
 
@@ -75,6 +76,35 @@ function normalizeSyncPath(path) {
     return '/sync';
   }
   return path.startsWith('/') ? path : `/${path}`;
+}
+
+/**
+ * Builds auth headers for an outgoing sync request if auth is configured.
+ *
+ * @param {Object} params
+ * @param {{ secret: string, keyId?: string }|undefined} params.auth
+ * @param {string} params.bodyStr - Serialized request body
+ * @param {URL} params.targetUrl
+ * @param {import('../ports/CryptoPort.js').default} params.crypto
+ * @returns {Promise<Record<string, string>>}
+ * @private
+ */
+async function buildSyncAuthHeaders({ auth, bodyStr, targetUrl, crypto }) {
+  if (!auth || !auth.secret) {
+    return {};
+  }
+  const bodyBuf = new TextEncoder().encode(bodyStr);
+  return await signSyncRequest(
+    {
+      method: 'POST',
+      path: canonicalizePath(targetUrl.pathname + (targetUrl.search || '')),
+      contentType: 'application/json',
+      body: bodyBuf,
+      secret: auth.secret,
+      keyId: auth.keyId || 'default',
+    },
+    { crypto },
+  );
 }
 
 const DEFAULT_ADJACENCY_CACHE_SIZE = 3;
@@ -2141,18 +2171,15 @@ export default class WarpGraph {
    * @param {string|WarpGraph} remote - URL or peer graph instance
    * @param {Object} [options]
    * @param {string} [options.path='/sync'] - Sync path (HTTP mode)
-   * @param {number} [options.retries=3] - Retry count for retryable failures
+   * @param {number} [options.retries=3] - Retry count
    * @param {number} [options.baseDelayMs=250] - Base backoff delay
    * @param {number} [options.maxDelayMs=2000] - Max backoff delay
-   * @param {number} [options.timeoutMs=10000] - Request timeout (HTTP mode)
-   * @param {AbortSignal} [options.signal] - Optional abort signal to cancel sync
+   * @param {number} [options.timeoutMs=10000] - Request timeout
+   * @param {AbortSignal} [options.signal] - Abort signal
    * @param {(event: {type: string, attempt: number, durationMs?: number, status?: number, error?: Error}) => void} [options.onStatus]
-   * @param {boolean} [options.materialize=false] - If true, auto-materialize after sync and include state in result
+   * @param {boolean} [options.materialize=false] - Auto-materialize after sync
+   * @param {{ secret: string, keyId?: string }} [options.auth] - Client auth credentials
    * @returns {Promise<{applied: number, attempts: number, state?: import('./services/JoinReducer.js').WarpStateV5}>}
-   * @throws {SyncError} If remote URL is invalid (code: `E_SYNC_REMOTE_URL`)
-   * @throws {SyncError} If remote returns error or invalid response (code: `E_SYNC_REMOTE`, `E_SYNC_PROTOCOL`)
-   * @throws {SyncError} If request times out (code: `E_SYNC_TIMEOUT`)
-   * @throws {OperationAbortedError} If abort signal fires
    */
   async syncWith(remote, options = {}) {
     const t0 = this._clock.now();
@@ -2165,6 +2192,7 @@ export default class WarpGraph {
       signal,
       onStatus,
       materialize: materializeAfterSync = false,
+      auth,
     } = options;
 
     const hasPathOverride = Object.prototype.hasOwnProperty.call(options, 'path');
@@ -2196,14 +2224,12 @@ export default class WarpGraph {
       }
       targetUrl.hash = '';
     }
-
     let attempt = 0;
     const emit = (/** @type {string} */ type, /** @type {Record<string, any>} */ payload = {}) => {
       if (typeof onStatus === 'function') {
         onStatus(/** @type {any} */ ({ type, attempt, ...payload })); // TODO(ts-cleanup): type sync protocol
       }
     };
-
     const shouldRetry = (/** @type {any} */ err) => { // TODO(ts-cleanup): type error
       if (isDirectPeer) { return false; }
       if (err instanceof SyncError) {
@@ -2211,16 +2237,13 @@ export default class WarpGraph {
       }
       return err instanceof TimeoutError;
     };
-
     const executeAttempt = async () => {
       checkAborted(signal, 'syncWith');
       attempt += 1;
       const attemptStart = Date.now();
       emit('connecting');
-
       const request = await this.createSyncRequest();
       emit('requestBuilt');
-
       let response;
       if (isDirectPeer) {
         emit('requestSent');
@@ -2228,6 +2251,10 @@ export default class WarpGraph {
         emit('responseReceived');
       } else {
         emit('requestSent');
+        const bodyStr = JSON.stringify(request);
+        const authHeaders = await buildSyncAuthHeaders({
+          auth, bodyStr, targetUrl: /** @type {URL} */ (targetUrl), crypto: this._crypto,
+        });
         let res;
         try {
           res = await timeout(timeoutMs, (timeoutSignal) => {
@@ -2239,8 +2266,9 @@ export default class WarpGraph {
               headers: {
                 'content-type': 'application/json',
                 'accept': 'application/json',
+                ...authHeaders,
               },
-              body: JSON.stringify(request),
+              body: bodyStr,
               signal: combinedSignal,
             });
           });
@@ -2363,11 +2391,12 @@ export default class WarpGraph {
    * @param {string} [options.path='/sync'] - Path to handle sync requests
    * @param {number} [options.maxRequestBytes=4194304] - Max request size in bytes
    * @param {import('../ports/HttpServerPort.js').default} options.httpPort - HTTP server adapter (required)
+   * @param {{ keys: Record<string, string>, mode?: 'enforce'|'log-only' }} [options.auth] - Auth configuration
    * @returns {Promise<{close: () => Promise<void>, url: string}>} Server handle
    * @throws {Error} If port is not a number
    * @throws {Error} If httpPort adapter is not provided
    */
-  async serve({ port, host = '127.0.0.1', path = '/sync', maxRequestBytes = DEFAULT_SYNC_SERVER_MAX_BYTES, httpPort } = /** @type {any} */ ({})) { // TODO(ts-cleanup): needs options type
+  async serve({ port, host = '127.0.0.1', path = '/sync', maxRequestBytes = DEFAULT_SYNC_SERVER_MAX_BYTES, httpPort, auth } = /** @type {any} */ ({})) { // TODO(ts-cleanup): needs options type
     if (typeof port !== 'number') {
       throw new Error('serve() requires a numeric port');
     }
@@ -2375,12 +2404,17 @@ export default class WarpGraph {
       throw new Error('serve() requires an httpPort adapter');
     }
 
+    const authConfig = auth
+      ? { ...auth, crypto: this._crypto, logger: this._logger || undefined }
+      : undefined;
+
     const httpServer = new HttpSyncServer({
       httpPort,
       graph: this,
       path,
       host,
       maxRequestBytes,
+      auth: authConfig,
     });
 
     return await httpServer.listen(port);
@@ -2802,6 +2836,29 @@ export default class WarpGraph {
     }
 
     return neighbors;
+  }
+
+  /**
+   * Returns a defensive copy of the current materialized state.
+   *
+   * The returned object is a shallow clone: top-level ORSet, LWW, and
+   * VersionVector instances are copied so that mutations by the caller
+   * cannot corrupt the internal cache.
+   *
+   * **Requires a cached state.** Call materialize() first if not already cached.
+   *
+   * @returns {Promise<import('./services/JoinReducer.js').WarpStateV5 | null>}
+   *   Cloned state, or null if no state has been materialized yet.
+   */
+  async getStateSnapshot() {
+    if (!this._cachedState && !this._autoMaterialize) {
+      return null;
+    }
+    await this._ensureFreshState();
+    if (!this._cachedState) {
+      return null;
+    }
+    return cloneStateV5(/** @type {import('./services/JoinReducer.js').WarpStateV5} */ (this._cachedState));
   }
 
   /**
