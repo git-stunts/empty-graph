@@ -1527,6 +1527,12 @@ export default class WarpGraph {
   getPropertyCount(): Promise<number>;
 
   /**
+   * Returns a defensive copy of the current materialized state,
+   * or null if no state has been materialized yet.
+   */
+  getStateSnapshot(): Promise<WarpStateV5 | null>;
+
+  /**
    * Gets all properties for an edge from the materialized state.
    * Returns null if the edge does not exist or is tombstoned.
    */

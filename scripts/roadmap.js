@@ -33,6 +33,7 @@ const MILESTONES = [
   { code: 'EC', name: 'ECHO', version: 'v9.0.0' },
   { code: 'BK', name: 'BULKHEAD', version: 'v10.0.0' },
   { code: 'RC', name: 'RECALL', version: 'v10.4.0' },
+  { code: 'SD', name: 'SEEKDIFF', version: 'v10.5.0' },
 ];
 
 // ── Helpers ──────────────────────────────────────────────────────────────────

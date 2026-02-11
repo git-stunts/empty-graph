@@ -1,8 +1,8 @@
 # Roadmap
 
 > Execution plan for `@git-stunts/git-warp` from v7.1.0 onward.
-> Current release: v10.1.1. All milestones through BULKHEAD complete.
-> Main branch: v10.0.0 (BULKHEAD). Release branch: v10.1.1 (async CryptoPort + multi-runtime adapters).
+> Current release: v10.5.0. All milestones through SEEKDIFF complete.
+> Main branch: v10.5.0 (SEEKDIFF).
 
 ## How to Read This Document
 
@@ -221,6 +221,26 @@ Caches `WarpStateV5` at each visited ceiling tick as content-addressed blobs via
 - Provenance queries (`patchesFor`, `materializeSlice`) throw `E_PROVENANCE_DEGRADED` when state was restored from cache; re-seek with `--no-persistent-cache` to get full provenance.
 - `WarpGraph.open()` accepts optional `seekCache` port for persistent seek cache injection.
 
+### v10.5.0 — SEEKDIFF
+
+**Structural Seek Diff**
+
+Shows *which* nodes/edges were added/removed and *which* properties changed (with old/new values) when stepping between ticks. Uses the existing `StateDiff.diffStates()` engine. Adds `--diff` and `--diff-limit` CLI flags.
+
+**Features (recommended order):**
+- SD/CORE — `getStateSnapshot()` on WarpGraph (defensive copy of materialized state)
+- SD/CLI — `--diff` and `--diff-limit=N` flag parsing, `computeStructuralDiff()` helper, handleSeek wiring
+- SD/RENDER — ASCII structural diff section (`buildStructuralDiffSection()`), plain text integration
+- SD/TYPE — TypeScript definition updates
+- SD/TEST — Unit tests (seekDiff orchestration, ASCII renderer, BATS E2E)
+
+**User-Facing Changes:**
+- `git warp seek --tick N --diff` shows structural changes between previous and current tick.
+- `git warp seek --tick N --diff --json` includes `structuralDiff`, `diffBaseline`, `baselineTick` in JSON output.
+- `git warp seek --tick N --diff --diff-limit=100` truncates output to 100 changes.
+- First seek with `--diff` uses baseline `"empty"` (all additions). Subsequent seeks use baseline `"tick"` (previous cursor position).
+- ASCII view shows colored `+`/`-`/`~` lines in a `Changes (baseline: ...)` section.
+
 ---
 
 ## Milestone Summary
@@ -238,6 +258,7 @@ Caches `WarpStateV5` at each visited ceiling tick as content-addressed blobs via
 | 9 | **ECHO** | v9.0.0 | Observer Geometry | Complete |
 | 10 | **BULKHEAD** | v10.0.0 | Hexagonal Purity & Structural Integrity | Complete |
 | 11 | **RECALL** | v10.4.0 | Seek Materialization Cache | Complete |
+| 12 | **SEEKDIFF** | v10.5.0 | Structural Seek Diff | Complete |
 
 ---
 
@@ -257,6 +278,8 @@ LIGHTHOUSE ────────────────→ HOLOGRAM ──�
 BULKHEAD (independent)
 
 RECALL (independent — uses git-cas + BULKHEAD ports)
+
+SEEKDIFF (independent — uses RECALL seek infrastructure)
 ```
 
 - GROUNDSKEEPER depends on AUTOPILOT (auto-materialize foundation).
@@ -266,6 +289,7 @@ RECALL (independent — uses git-cas + BULKHEAD ports)
 - ECHO depends on HOLOGRAM (provenance payloads).
 - WEIGHTED, COMPASS, HANDSHAKE can proceed independently.
 - RECALL can proceed independently (uses BULKHEAD ports but no hard dependency).
+- SEEKDIFF can proceed independently (uses RECALL seek infrastructure).
 
 ---
 
@@ -369,6 +393,12 @@ RECALL           (v10.4.0)  █████████████████�
   ■ RC/PROV/1           →  RC/TEST/1
   ■ RC/TEST/1         
   ■ RC/WIRE/1           →  RC/PROV/1, RC/TEST/1
+
+SEEKDIFF         (v10.5.0)  ████████████████████  100%  (4/4)
+  ■ SD/CLI/1            →  SD/RENDER/1
+  ■ SD/CORE/1           →  SD/CLI/1
+  ■ SD/RENDER/1         →  SD/TEST/1
+  ■ SD/TEST/1         
 
 Cross-Milestone Dependencies:
   AP/CKPT/2           →  LH/STATUS/1 (LIGHTHOUSE)
@@ -2533,6 +2563,64 @@ The architecture claims hexagonal design but has significant boundary violations
 - **Blocked by:** RC/WIRE/1, RC/PROV/1
 - **Blocking:** None
 
+### SEEKDIFF — Task Details
+
+#### SD/CORE/1 — getStateSnapshot() on WarpGraph
+
+- **Status:** `CLOSED`
+- **User Story:** As a developer, I want to snapshot the materialized state for diffing without aliasing bugs.
+- **Requirements:**
+  - Add `getStateSnapshot()` to WarpGraph returning `cloneStateV5()` of `_cachedState`.
+  - Returns null when no state is materialized.
+  - Add type to `index.d.ts`.
+- **Estimated Hours:** 1
+- **Estimated LOC:** ~20 prod + ~60 test
+- **Blocked by:** None
+- **Blocking:** SD/CLI/1
+
+#### SD/CLI/1 — CLI --diff flags + computeStructuralDiff + wiring
+
+- **Status:** `CLOSED`
+- **User Story:** As a CLI user, I want `--diff` to show what actually changed when seeking.
+- **Requirements:**
+  - Parse `--diff` and `--diff-limit=N` in `parseSeekArgs()`.
+  - `computeStructuralDiff()` helper: materialize prev tick, snapshot, materialize current tick, call `diffStates()`.
+  - `applyDiffLimit()`: truncation with `totalChanges`/`shownChanges` metadata.
+  - Wire into `tick`, `latest`, and `load` action handlers.
+- **Estimated Hours:** 4
+- **Estimated LOC:** ~120 prod
+- **Blocked by:** SD/CORE/1
+- **Blocking:** SD/RENDER/1
+
+#### SD/RENDER/1 — ASCII structural diff renderer
+
+- **Status:** `CLOSED`
+- **User Story:** As a CLI user, I want colored diff output showing adds/removes/changes.
+- **Requirements:**
+  - `buildStructuralDiffLines()` in `src/visualization/renderers/ascii/seek.js`.
+  - Colored `+` (green), `-` (red), `~` (yellow) lines.
+  - Header: `Changes (baseline: empty):` or `Changes (baseline: tick N):`.
+  - Truncation message when exceeding limits.
+  - `formatStructuralDiff()` export for plain text path.
+  - Integration into both `renderSeekView()` (boxen) and `renderSeek()` (plain text).
+- **Estimated Hours:** 3
+- **Estimated LOC:** ~120 prod + ~80 test
+- **Blocked by:** SD/CLI/1
+- **Blocking:** None
+
+#### SD/TEST/1 — Unit and E2E tests
+
+- **Status:** `CLOSED`
+- **User Story:** As a developer, I want comprehensive tests for the structural diff feature.
+- **Requirements:**
+  - `test/unit/domain/WarpGraph.seekDiff.test.js`: forward/backward steps, first seek, same-tick no-op, property changes, state identity.
+  - ASCII renderer tests: structural diff rendering, truncation, empty/null diff, removals.
+  - BATS E2E tests: `--diff --json` first seek, forward/backward structural diff, ASCII Changes section.
+- **Estimated Hours:** 5
+- **Estimated LOC:** ~350 test
+- **Blocked by:** SD/RENDER/1
+- **Blocking:** None
+
 ---
 
 ## Non-Goals
@@ -2561,7 +2649,8 @@ Things this project should not try to become:
 | ECHO | 3 | 3 | 17 | ~820 |
 | BULKHEAD | 5 | 15 | 49 | ~2,580 |
 | RECALL | 6 | 6 | 12 | ~840 |
-| **Total** | **46** | **73** | **242** | **~12,350** |
+| SEEKDIFF | 4 | 4 | 13 | ~750 |
+| **Total** | **50** | **77** | **255** | **~13,100** |
 
 ---
 

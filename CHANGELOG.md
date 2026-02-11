@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [10.5.0] — 2026-02-10 — SEEKDIFF: Structural Seek Diff
+
+Shows *which* nodes/edges were added/removed and *which* properties changed (with old/new values) when stepping between ticks during seek exploration. Uses the existing `StateDiff.diffStates()` engine for deterministic, sorted output.
+
+### Added
+
+- **`--diff` flag** on `git warp seek`: Computes a structural diff between the previous cursor position and the new one. First seek uses baseline `"empty"` (everything appears as an addition); subsequent seeks use the previous cursor tick as baseline.
+- **`--diff-limit=N` flag** on `git warp seek`: Caps the number of change entries in the structural diff (default 2000). When truncated, the payload includes `truncated: true`, `totalChanges`, and `shownChanges` metadata.
+- **`WarpGraph.getStateSnapshot()`**: Returns a defensive copy of the current materialized `WarpStateV5` via `cloneStateV5()`. Returns null when no state is materialized. Prevents aliasing bugs when callers need to hold a reference across re-materializations.
+- **ASCII structural diff section**: Colored `+` (green) / `-` (red) / `~` (yellow) lines in a `Changes (baseline: ...)` section, rendered in both plain text and `--view` (boxen) modes. Property changes show `old -> new` values.
+- **JSON structural diff fields**: `structuralDiff`, `diffBaseline`, `baselineTick`, `truncated`, `totalChanges`, `shownChanges` added to the seek payload when `--diff` is active.
+- **`formatStructuralDiff()`** export from `src/visualization/renderers/ascii/seek.js` for plain-text rendering.
+- **SEEKDIFF milestone** (v10.5.0) added to `ROADMAP.md` and `scripts/roadmap.js` with 4 tasks (all closed).
+- **Unit tests**: `WarpGraph.seekDiff.test.js` (8 tests) — state snapshot identity, defensive copy, forward/backward diff, first seek, same-tick no-op, property changes.
+- **ASCII renderer tests**: 7 new tests — structural diff with tick/empty baselines, truncation message, null diff backward compat, removal entries.
+- **BATS E2E tests**: 4 new tests — `--diff --json` first seek, forward/backward structural diff, ASCII `Changes` section.
+
+### Changed
+
+- **`parseSeekArgs()`**: Extracted `parseSeekNamedAction()` helper for `--save`/`--load`/`--drop` parsing, reducing cyclomatic complexity.
+- **`handleSeek()`**: Extracted `handleSeekStatus()` to stay within ESLint `max-lines-per-function` limit.
+- **`buildSeekBodyLines()`**: Extracted `buildFooterLines()` for state summary + receipt + structural diff rendering.
+
 ## [10.4.2] — 2026-02-10 — TS policy enforcement (B3)
 
 ### Added

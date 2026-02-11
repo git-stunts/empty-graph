@@ -259,3 +259,63 @@ assert data["maxTick"] == 3, f"expected maxTick=3 after append, got {data['maxTi
 assert data["diff"] is None, f"expected diff=null due to frontier change, got {data['diff']}"
 PY
 }
+
+@test "seek --diff --json first seek shows empty baseline with all additions" {
+  run git warp --repo "${TEST_REPO}" --graph demo --json seek --tick 1 --diff
+  assert_success
+
+  JSON="$output" python3 - <<'PY'
+import json, os
+data = json.loads(os.environ["JSON"])
+assert data["diffBaseline"] == "empty", f"expected diffBaseline='empty', got {data['diffBaseline']}"
+assert data["baselineTick"] is None, f"expected baselineTick=null, got {data['baselineTick']}"
+sd = data["structuralDiff"]
+assert len(sd["nodes"]["added"]) == 3, f"expected 3 added nodes, got {len(sd['nodes']['added'])}"
+assert len(sd["nodes"]["removed"]) == 0, f"expected 0 removed nodes, got {len(sd['nodes']['removed'])}"
+assert data["truncated"] is False, f"expected truncated=false, got {data['truncated']}"
+PY
+}
+
+@test "seek --tick=+1 --diff --json shows forward structural diff" {
+  run git warp --repo "${TEST_REPO}" --graph demo --json seek --tick 1
+  assert_success
+
+  run git warp --repo "${TEST_REPO}" --graph demo --json seek --tick=+1 --diff
+  assert_success
+
+  JSON="$output" python3 - <<'PY'
+import json, os
+data = json.loads(os.environ["JSON"])
+assert data["tick"] == 2, f"expected tick=2, got {data['tick']}"
+assert data["diffBaseline"] == "tick", f"expected diffBaseline='tick', got {data['diffBaseline']}"
+assert data["baselineTick"] == 1, f"expected baselineTick=1, got {data['baselineTick']}"
+sd = data["structuralDiff"]
+assert len(sd["edges"]["added"]) == 2, f"expected 2 added edges, got {len(sd['edges']['added'])}"
+assert len(sd["nodes"]["added"]) == 0, f"expected 0 added nodes, got {len(sd['nodes']['added'])}"
+PY
+}
+
+@test "seek --tick=-1 --diff --json shows backward structural diff" {
+  run git warp --repo "${TEST_REPO}" --graph demo --json seek --tick 2
+  assert_success
+
+  run git warp --repo "${TEST_REPO}" --graph demo --json seek --tick=-1 --diff
+  assert_success
+
+  JSON="$output" python3 - <<'PY'
+import json, os
+data = json.loads(os.environ["JSON"])
+assert data["tick"] == 1, f"expected tick=1, got {data['tick']}"
+assert data["diffBaseline"] == "tick", f"expected diffBaseline='tick', got {data['diffBaseline']}"
+assert data["baselineTick"] == 2, f"expected baselineTick=2, got {data['baselineTick']}"
+sd = data["structuralDiff"]
+assert len(sd["edges"]["removed"]) == 2, f"expected 2 removed edges, got {len(sd['edges']['removed'])}"
+PY
+}
+
+@test "seek --diff ASCII output contains Changes section" {
+  run git warp --repo "${TEST_REPO}" --graph demo seek --tick 1 --diff
+  assert_success
+  echo "$output" | grep -q "Changes (baseline: empty):"
+  echo "$output" | grep -q "+ node"
+}

@@ -2805,6 +2805,26 @@ export default class WarpGraph {
   }
 
   /**
+   * Returns a defensive copy of the current materialized state.
+   *
+   * The returned object is a shallow clone: top-level ORSet, LWW, and
+   * VersionVector instances are copied so that mutations by the caller
+   * cannot corrupt the internal cache.
+   *
+   * **Requires a cached state.** Call materialize() first if not already cached.
+   *
+   * @returns {Promise<import('./services/JoinReducer.js').WarpStateV5 | null>}
+   *   Cloned state, or null if no state has been materialized yet.
+   */
+  async getStateSnapshot() {
+    if (!this._cachedState) {
+      return null;
+    }
+    await this._ensureFreshState();
+    return cloneStateV5(/** @type {import('./services/JoinReducer.js').WarpStateV5} */ (this._cachedState));
+  }
+
+  /**
    * Gets all visible nodes in the materialized state.
    *
    * **Requires a cached state.** Call materialize() first if not already cached.

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { renderSeekView } from '../../../src/visualization/renderers/ascii/seek.js';
+import { renderSeekView, formatStructuralDiff } from '../../../src/visualization/renderers/ascii/seek.js';
 import { stripAnsi } from '../../../src/visualization/utils/ansi.js';
 
 describe('renderSeekView', () => {
@@ -323,5 +323,158 @@ describe('renderSeekView', () => {
 
     // The current tick 7 should appear as [7] in the header
     expect(output).toContain('[7]');
+  });
+
+  it('renders structural diff section with baseline header', () => {
+    const payload = {
+      graph: 'difftest',
+      tick: 2,
+      maxTick: 3,
+      ticks: [1, 2, 3],
+      nodes: 5,
+      edges: 2,
+      patchCount: 3,
+      perWriter: { alice: { ticks: [1, 2, 3] } },
+      structuralDiff: {
+        nodes: { added: ['user:dave'], removed: [] },
+        edges: { added: [{ from: 'user:alice', to: 'user:dave', label: 'follows' }], removed: [] },
+        props: { set: [{ key: 'k', nodeId: 'user:dave', propKey: 'role', oldValue: undefined, newValue: 'admin' }], removed: [] },
+      },
+      diffBaseline: 'tick',
+      baselineTick: 1,
+      truncated: false,
+      totalChanges: 3,
+      shownChanges: 3,
+    };
+
+    const output = stripAnsi(renderSeekView(payload));
+    expect(output).toContain('Changes (baseline: tick 1):');
+    expect(output).toContain('+ node user:dave');
+    expect(output).toContain('+ edge user:alice -[follows]-> user:dave');
+    expect(output).toContain('~ user:dave.role:');
+  });
+
+  it('renders structural diff with empty baseline', () => {
+    const payload = {
+      graph: 'first',
+      tick: 1,
+      maxTick: 1,
+      ticks: [1],
+      nodes: 2,
+      edges: 0,
+      patchCount: 1,
+      perWriter: { alice: { ticks: [1] } },
+      structuralDiff: {
+        nodes: { added: ['n1', 'n2'], removed: [] },
+        edges: { added: [], removed: [] },
+        props: { set: [], removed: [] },
+      },
+      diffBaseline: 'empty',
+      baselineTick: null,
+      truncated: false,
+      totalChanges: 2,
+      shownChanges: 2,
+    };
+
+    const output = stripAnsi(renderSeekView(payload));
+    expect(output).toContain('Changes (baseline: empty):');
+    expect(output).toContain('+ node n1');
+    expect(output).toContain('+ node n2');
+  });
+
+  it('renders truncation message when structural diff is truncated', () => {
+    const payload = {
+      graph: 'trunc',
+      tick: 2,
+      maxTick: 2,
+      ticks: [1, 2],
+      nodes: 100,
+      edges: 50,
+      patchCount: 5,
+      perWriter: { alice: { ticks: [1, 2] } },
+      structuralDiff: {
+        nodes: { added: ['n1', 'n2', 'n3'], removed: [] },
+        edges: { added: [], removed: [] },
+        props: { set: [], removed: [] },
+      },
+      diffBaseline: 'tick',
+      baselineTick: 1,
+      truncated: true,
+      totalChanges: 500,
+      shownChanges: 3,
+    };
+
+    const output = stripAnsi(renderSeekView(payload));
+    expect(output).toContain('... and 497 more changes (use --diff-limit to increase)');
+  });
+
+  it('omits structural diff section when structuralDiff is null', () => {
+    const payload = {
+      graph: 'nodiff',
+      tick: 1,
+      maxTick: 1,
+      ticks: [1],
+      nodes: 3,
+      edges: 0,
+      patchCount: 1,
+      perWriter: { alice: { ticks: [1] } },
+    };
+
+    const output = stripAnsi(renderSeekView(payload));
+    expect(output).not.toContain('Changes');
+  });
+
+  it('renders removal entries with - prefix', () => {
+    const payload = {
+      graph: 'removals',
+      tick: 1,
+      maxTick: 2,
+      ticks: [1, 2],
+      nodes: 1,
+      edges: 0,
+      patchCount: 2,
+      perWriter: { alice: { ticks: [1, 2] } },
+      structuralDiff: {
+        nodes: { added: [], removed: ['user:gone'] },
+        edges: { added: [], removed: [{ from: 'a', to: 'b', label: 'link' }] },
+        props: { set: [], removed: [{ key: 'k', nodeId: 'user:gone', propKey: 'role', oldValue: 'admin' }] },
+      },
+      diffBaseline: 'tick',
+      baselineTick: 2,
+      truncated: false,
+      totalChanges: 3,
+      shownChanges: 3,
+    };
+
+    const output = stripAnsi(renderSeekView(payload));
+    expect(output).toContain('- node user:gone');
+    expect(output).toContain('- edge a -[link]-> b');
+    expect(output).toContain('- user:gone.role:');
+  });
+});
+
+describe('formatStructuralDiff', () => {
+  it('returns empty string when no structuralDiff', () => {
+    expect(formatStructuralDiff({})).toBe('');
+    expect(formatStructuralDiff({ structuralDiff: null })).toBe('');
+  });
+
+  it('formats structural diff as plain text', () => {
+    const payload = {
+      structuralDiff: {
+        nodes: { added: ['n1'], removed: [] },
+        edges: { added: [], removed: [] },
+        props: { set: [], removed: [] },
+      },
+      diffBaseline: 'empty',
+      baselineTick: null,
+      truncated: false,
+      totalChanges: 1,
+      shownChanges: 1,
+    };
+
+    const output = stripAnsi(formatStructuralDiff(payload));
+    expect(output).toContain('Changes (baseline: empty):');
+    expect(output).toContain('+ node n1');
   });
 });
