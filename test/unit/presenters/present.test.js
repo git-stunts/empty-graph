@@ -118,6 +118,12 @@ describe('shouldStripColor', () => {
     expect(shouldStripColor()).toBe(false);
   });
 
+  it('FORCE_COLOR overrides NO_COLOR', () => {
+    process.env.FORCE_COLOR = '1';
+    process.env.NO_COLOR = '';
+    expect(shouldStripColor()).toBe(false);
+  });
+
   it('strips when NO_COLOR is set', () => {
     process.env.NO_COLOR = '';
     expect(shouldStripColor()).toBe(true);

@@ -34,7 +34,7 @@ import {
 /**
  * Determines whether ANSI color codes should be stripped from output.
  *
- * Respects (in order): FORCE_COLOR=0, NO_COLOR, !isTTY, CI.
+ * Precedence: FORCE_COLOR=0 (strip) > FORCE_COLOR!='' (keep) > NO_COLOR > !isTTY > CI.
  * @returns {boolean}
  */
 export function shouldStripColor() {
