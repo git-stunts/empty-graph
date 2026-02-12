@@ -10,6 +10,28 @@ import WarpGraph from '../../../src/domain/WarpGraph.js';
 import InMemoryGraphAdapter from '../../../src/infrastructure/adapters/InMemoryGraphAdapter.js';
 
 describe('WarpGraph — audit mode', () => {
+  it('rejects audit: "yes" (non-boolean truthy)', async () => {
+    await expect(
+      WarpGraph.open({
+        persistence: new InMemoryGraphAdapter(),
+        graphName: 'events',
+        writerId: 'alice',
+        audit: /** @type {any} */ ('yes'),
+      }),
+    ).rejects.toThrow('audit must be a boolean');
+  });
+
+  it('rejects audit: 1 (number)', async () => {
+    await expect(
+      WarpGraph.open({
+        persistence: new InMemoryGraphAdapter(),
+        graphName: 'events',
+        writerId: 'alice',
+        audit: /** @type {any} */ (1),
+      }),
+    ).rejects.toThrow('audit must be a boolean');
+  });
+
   it('audit: false (default) → no audit commits', async () => {
     const persistence = new InMemoryGraphAdapter();
     const graph = await WarpGraph.open({

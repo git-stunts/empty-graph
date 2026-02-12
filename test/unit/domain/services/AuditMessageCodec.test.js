@@ -63,6 +63,51 @@ describe('AuditMessageCodec', () => {
     expect(() => decodeAuditMessage(raw)).toThrow('eg-data-commit');
   });
 
+  it('decode rejects invalid dataCommit OID format', () => {
+    const raw = [
+      'warp:audit',
+      '',
+      'eg-data-commit: not-a-sha',
+      'eg-graph: events',
+      'eg-kind: audit',
+      'eg-ops-digest: ' + '0'.repeat(64),
+      'eg-schema: 1',
+      'eg-writer: alice',
+    ].join('\n');
+
+    expect(() => decodeAuditMessage(raw)).toThrow();
+  });
+
+  it('decode rejects invalid opsDigest format', () => {
+    const raw = [
+      'warp:audit',
+      '',
+      'eg-data-commit: ' + 'a'.repeat(40),
+      'eg-graph: events',
+      'eg-kind: audit',
+      'eg-ops-digest: tooshort',
+      'eg-schema: 1',
+      'eg-writer: alice',
+    ].join('\n');
+
+    expect(() => decodeAuditMessage(raw)).toThrow();
+  });
+
+  it('decode rejects non-integer schema', () => {
+    const raw = [
+      'warp:audit',
+      '',
+      'eg-data-commit: ' + 'a'.repeat(40),
+      'eg-graph: events',
+      'eg-kind: audit',
+      'eg-ops-digest: ' + '0'.repeat(64),
+      'eg-schema: 1.5',
+      'eg-writer: alice',
+    ].join('\n');
+
+    expect(() => decodeAuditMessage(raw)).toThrow();
+  });
+
   it('unknown eg-schema version throws', () => {
     const raw = [
       'warp:audit',

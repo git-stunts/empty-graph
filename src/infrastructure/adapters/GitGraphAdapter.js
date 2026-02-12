@@ -535,7 +535,8 @@ export default class GitGraphAdapter extends GraphPersistencePort {
     if (expectedOid) {
       this._validateOid(expectedOid);
     }
-    await this._executeWithRetry({
+    // Direct call — CAS failures are semantically expected and must NOT be retried.
+    await this.plumbing.execute({
       args: ['update-ref', ref, newOid, oldArg],
     });
   }

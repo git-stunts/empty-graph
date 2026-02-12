@@ -1697,7 +1697,7 @@ refs/warp/<graphName>/audit/<writerId>   ← CAS-updated ref
               └── receipt.cbor   ← CBOR-encoded receipt record
 ```
 
-The commit message uses the standard trailer format with 6 trailers: `data-commit`, `graph`, `kind`, `ops-digest`, `schema`, `writer`.
+The commit message uses the standard trailer format with 6 trailers: `eg-data-commit`, `eg-graph`, `eg-kind`, `eg-ops-digest`, `eg-schema`, `eg-writer` (all in lexicographic order).
 
 #### Chain Integrity
 

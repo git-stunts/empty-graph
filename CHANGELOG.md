@@ -35,6 +35,19 @@ Implements tamper-evident, chained audit receipts per the spec in `docs/specs/AU
 - **`GraphPersistencePort.test.js`**: Added `compareAndSwapRef` to expected method list.
 - **M3.T1.SHADOW-LEDGER** marked `DONE` in `ROADMAP.md`.
 
+### Fixed
+
+- **`WarpGraph.open()` audit validation**: Non-boolean truthy values (e.g. `'yes'`, `1`) now throw `'audit must be a boolean'`, matching existing `autoMaterialize` validation pattern.
+- **`AuditReceiptService._commitInner()` cross-writer guard**: Rejects `TickReceipt` where `writer` does not match the service's `writerId`, preventing cross-writer attribution in the audit chain.
+- **`GitGraphAdapter.compareAndSwapRef()`**: No longer retries on CAS mismatch — calls `plumbing.execute()` directly instead of `_executeWithRetry()`, since CAS failures are semantically expected.
+- **`decodeAuditMessage()` hardened validation**: Decoder now validates graph name, writer ID, dataCommit OID format, opsDigest SHA-256 format, and schema as strict integer (rejects `1.5`), matching encoder strictness.
+- **`AuditReceiptService.init()` cold-start logging**: Now logs `AUDIT_INIT_READ_FAILED` warning before falling back to genesis, giving operators visibility into unexpected cold starts.
+- **`AuditReceiptService` dead write removed**: Removed unused `_tickCounter` field that was written but never read.
+- **`WarpMessageCodec` JSDoc**: Updated from "three types" to "four types" and added `AuditMessageCodec` to the sub-module list.
+- **`RefLayout` JSDoc**: Added `refs/warp/<graph>/audit/<writer_id>` to the module-level ref layout documentation.
+- **`docs/GUIDE.md` trailer names**: Corrected trailer key names to include `eg-` prefix (e.g. `eg-data-commit` not `data-commit`).
+- **`computeOpsDigest()` TextEncoder**: Hoisted to module-level constant to avoid per-call allocation.
+
 ## [10.8.0] — 2026-02-11 — PRESENTER: Output Contracts
 
 Extracts CLI rendering into `bin/presenters/`, adds NDJSON output and color control. Net reduction of ~460 LOC in `bin/warp-graph.js`.

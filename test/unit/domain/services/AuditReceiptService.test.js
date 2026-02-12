@@ -544,6 +544,40 @@ describe('AuditReceiptService — Error resilience', () => {
 // Integration with TickReceipt
 // ============================================================================
 
+describe('AuditReceiptService — cross-writer guard', () => {
+  it('rejects tickReceipt with mismatched writer', async () => {
+    const persistence = new InMemoryGraphAdapter();
+    const logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), child: vi.fn(() => logger) };
+    const service = new AuditReceiptService({
+      persistence,
+      graphName: 'events',
+      writerId: 'alice',
+      codec: defaultCodec,
+      crypto: testCrypto,
+      logger,
+    });
+    await service.init();
+
+    const receipt = Object.freeze({
+      patchSha: 'a'.repeat(40),
+      writer: 'eve', // ← wrong writer
+      lamport: 1,
+      ops: Object.freeze([
+        Object.freeze(/** @type {const} */ ({ op: 'NodeAdd', target: 'x', result: 'applied' })),
+      ]),
+    });
+
+    // Should reject or log and skip — must not attribute eve's ops to alice's audit chain
+    const sha = await service.commit(receipt);
+    // commit() should return null (skipped) since the writer doesn't match
+    expect(sha).toBeNull();
+
+    // Audit ref should NOT have been set
+    const ref = await persistence.readRef('refs/warp/events/audit/alice');
+    expect(ref).toBeNull();
+  });
+});
+
 describe('AuditReceiptService — TickReceipt integration', () => {
   it('ops with reason field → correct canonical key order', () => {
     const ops = /** @type {const} */ ([

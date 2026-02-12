@@ -60,6 +60,9 @@ export function canonicalOpsJson(ops) {
   return JSON.stringify(ops, sortedReplacer);
 }
 
+/** @type {TextEncoder} */
+const textEncoder = new TextEncoder();
+
 /**
  * Computes the domain-separated SHA-256 opsDigest per spec Section 5.3.
  *
@@ -69,8 +72,8 @@ export function canonicalOpsJson(ops) {
  */
 export async function computeOpsDigest(ops, crypto) {
   const json = canonicalOpsJson(ops);
-  const prefix = new TextEncoder().encode(OPS_DIGEST_PREFIX);
-  const payload = new TextEncoder().encode(json);
+  const prefix = textEncoder.encode(OPS_DIGEST_PREFIX);
+  const payload = textEncoder.encode(json);
   const combined = new Uint8Array(prefix.length + payload.length);
   combined.set(prefix);
   combined.set(payload, prefix.length);
@@ -232,9 +235,6 @@ export class AuditReceiptService {
     /** @type {boolean} If true, currently retrying — prevents recursive retry */
     this._retrying = false;
 
-    /** @type {number} Lamport counter for tick numbering */
-    this._tickCounter = 0;
-
     // Stats
     this._committed = 0;
     this._skipped = 0;
@@ -256,7 +256,12 @@ export class AuditReceiptService {
         // Use 0 and let the first commit set it from the lamport clock.
       }
     } catch {
-      // If we can't read the ref, start fresh
+      // Log so operators see unexpected cold starts, then start fresh
+      this._logger?.warn('[warp:audit]', {
+        code: 'AUDIT_INIT_READ_FAILED',
+        writerId: this._writerId,
+        ref: this._auditRef,
+      });
       this._prevAuditCommit = null;
       this._expectedOldRef = null;
     }
@@ -318,14 +323,24 @@ export class AuditReceiptService {
   async _commitInner(tickReceipt) {
     const { patchSha, writer, lamport, ops } = tickReceipt;
 
+    // Guard: reject cross-writer attribution
+    if (writer !== this._writerId) {
+      this._logger?.warn('[warp:audit]', {
+        code: 'AUDIT_WRITER_MISMATCH',
+        expected: this._writerId,
+        actual: writer,
+        patchSha,
+      });
+      throw new Error(
+        `Audit writer mismatch: expected '${this._writerId}', got '${writer}'`,
+      );
+    }
+
     // Compute opsDigest
     const opsDigest = await computeOpsDigest(ops, this._crypto);
 
     // Timestamp
     const timestamp = Date.now();
-
-    // Tick numbering: use lamport clock from the patch
-    this._tickCounter = lamport;
 
     // Determine prevAuditCommit
     const oidLen = patchSha.length;

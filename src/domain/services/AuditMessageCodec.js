@@ -89,27 +89,36 @@ export function decodeAuditMessage(message) {
   if (!graph) {
     throw new Error('Invalid audit message: missing required trailer eg-graph');
   }
+  validateGraphName(graph);
 
   const writer = trailers[TRAILER_KEYS.writer];
   if (!writer) {
     throw new Error('Invalid audit message: missing required trailer eg-writer');
   }
+  validateWriterId(writer);
 
   const dataCommit = trailers[TRAILER_KEYS.dataCommit];
   if (!dataCommit) {
     throw new Error('Invalid audit message: missing required trailer eg-data-commit');
   }
+  validateOid(dataCommit, 'dataCommit');
 
   const opsDigest = trailers[TRAILER_KEYS.opsDigest];
   if (!opsDigest) {
     throw new Error('Invalid audit message: missing required trailer eg-ops-digest');
   }
+  validateSha256(opsDigest, 'opsDigest');
 
   const schemaStr = trailers[TRAILER_KEYS.schema];
   if (!schemaStr) {
     throw new Error('Invalid audit message: missing required trailer eg-schema');
   }
-  const schema = parseInt(schemaStr, 10);
+  if (!/^\d+$/.test(schemaStr)) {
+    throw new Error(
+      `Invalid audit message: eg-schema must be a positive integer, got '${schemaStr}'`,
+    );
+  }
+  const schema = Number(schemaStr);
   if (!Number.isInteger(schema) || schema < 1) {
     throw new Error(`Invalid audit message: eg-schema must be a positive integer, got '${schemaStr}'`);
   }

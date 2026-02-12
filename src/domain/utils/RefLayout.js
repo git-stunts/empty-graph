@@ -10,6 +10,7 @@
  * - refs/warp/<graph>/coverage/head
  * - refs/warp/<graph>/cursor/active
  * - refs/warp/<graph>/cursor/saved/<name>
+ * - refs/warp/<graph>/audit/<writer_id>
  *
  * @module domain/utils/RefLayout
  */

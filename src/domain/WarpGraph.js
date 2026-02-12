@@ -337,6 +337,11 @@ export default class WarpGraph {
       throw new Error('autoMaterialize must be a boolean');
     }
 
+    // Validate audit
+    if (audit !== undefined && typeof audit !== 'boolean') {
+      throw new Error('audit must be a boolean');
+    }
+
     // Validate onDeleteWithData
     if (onDeleteWithData !== undefined) {
       const valid = ['reject', 'cascade', 'warn'];
