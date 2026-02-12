@@ -2,9 +2,13 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { present, shouldStripColor } from '../../../bin/presenters/index.js';
 
 describe('present', () => {
+  /** @type {string[]} */
   let stdoutChunks;
+  /** @type {string[]} */
   let stderrChunks;
+  /** @type {typeof process.stdout.write} */
   let originalWrite;
+  /** @type {typeof process.stderr.write} */
   let originalErrWrite;
 
   beforeEach(() => {
@@ -12,8 +16,8 @@ describe('present', () => {
     stderrChunks = [];
     originalWrite = process.stdout.write;
     originalErrWrite = process.stderr.write;
-    process.stdout.write = (chunk) => { stdoutChunks.push(chunk); return true; };
-    process.stderr.write = (chunk) => { stderrChunks.push(chunk); return true; };
+    process.stdout.write = /** @type {*} */ ((/** @type {string} */ chunk) => { stdoutChunks.push(chunk); return true; });
+    process.stderr.write = /** @type {*} */ ((/** @type {string} */ chunk) => { stderrChunks.push(chunk); return true; });
   });
 
   afterEach(() => {
@@ -75,6 +79,7 @@ describe('present', () => {
 });
 
 describe('shouldStripColor', () => {
+  /** @type {Record<string, string|undefined>} */
   const envBackup = {};
 
   beforeEach(() => {

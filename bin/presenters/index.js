@@ -58,8 +58,8 @@ export function shouldStripColor() {
 
 // ── Text renderer map ────────────────────────────────────────────────────────
 
-/** @type {Map<string, (payload: *) => string>} */
-const TEXT_RENDERERS = new Map([
+/** @type {Map<string, function(*): string>} */
+const TEXT_RENDERERS = new Map(/** @type {[string, function(*): string][]} */ ([
   ['info', renderInfo],
   ['query', renderQuery],
   ['path', renderPath],
@@ -68,17 +68,17 @@ const TEXT_RENDERERS = new Map([
   ['materialize', renderMaterialize],
   ['seek', renderSeek],
   ['install-hooks', renderInstallHooks],
-]);
+]));
 
-/** @type {Map<string, (payload: *) => string>} */
-const VIEW_RENDERERS = new Map([
+/** @type {Map<string, function(*): string>} */
+const VIEW_RENDERERS = new Map(/** @type {[string, function(*): string][]} */ ([
   ['info', renderInfoView],
   ['check', renderCheckView],
   ['history', renderHistoryView],
   ['path', renderPathView],
   ['materialize', renderMaterializeView],
   ['seek', renderSeekView],
-]);
+]));
 
 // ── HTML export ──────────────────────────────────────────────────────────────
 
