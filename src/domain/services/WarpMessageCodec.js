@@ -20,6 +20,7 @@
 export { encodePatchMessage, decodePatchMessage } from './PatchMessageCodec.js';
 export { encodeCheckpointMessage, decodeCheckpointMessage } from './CheckpointMessageCodec.js';
 export { encodeAnchorMessage, decodeAnchorMessage } from './AnchorMessageCodec.js';
+export { encodeAuditMessage, decodeAuditMessage } from './AuditMessageCodec.js';
 export {
   detectSchemaVersion,
   detectMessageKind,

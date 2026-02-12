@@ -257,7 +257,7 @@ Create `docs/specs/AUDIT_RECEIPT.md` with:
 
 ### M3.T1.SHADOW-LEDGER (S-Tier)
 
-- **Status:** `OPEN`
+- **Status:** `DONE`
 
 **User Story:** As an auditor, I need tamper-evident receipts stored immutably and linked to data commits.
 
