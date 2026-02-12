@@ -194,7 +194,7 @@ function presentView(payload, command, view) {
 
   // query is special: uses pre-rendered _renderedAscii
   if (command === 'query') {
-    writeText(`${payload._renderedAscii}\n`, strip);
+    writeText(`${payload._renderedAscii ?? ''}\n`, strip);
     return;
   }
 

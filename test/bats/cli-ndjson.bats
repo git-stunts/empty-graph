@@ -60,8 +60,8 @@ teardown() {
   # stdout should be single-line JSON with error key
   local line_count
   line_count=$(echo "$output" | wc -l | tr -d ' ')
-  [ "$line_count" -le 2 ]
-  echo "$output" | head -1 | node -e "
+  [ "$line_count" -eq 1 ]
+  echo "$output" | node -e "
     const obj = JSON.parse(require('fs').readFileSync(0,'utf8'));
     if (!obj.error) { console.error('Missing error key'); process.exit(1); }
   "

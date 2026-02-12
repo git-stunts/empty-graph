@@ -91,6 +91,7 @@ import { renderError } from './presenters/text.js';
  * @typedef {Object} CliOptions
  * @property {string} repo
  * @property {boolean} json
+ * @property {boolean} ndjson
  * @property {string|null} view
  * @property {string|null} graph
  * @property {string} writer

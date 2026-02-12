@@ -1,4 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { present, shouldStripColor } from '../../../bin/presenters/index.js';
 
 describe('present', () => {
@@ -71,6 +74,12 @@ describe('present', () => {
     expect(stderrChunks.join('')).toContain('Error: fail');
   });
 
+  it('view query with missing _renderedAscii does not crash', () => {
+    present({ graph: 'g', nodes: [] }, { format: 'text', command: 'query', view: 'ascii' });
+    const output = stdoutChunks.join('');
+    expect(output).not.toContain('undefined');
+  });
+
   it('falls back to JSON for unknown text commands', () => {
     present({ custom: 'data' }, { format: 'text', command: 'unknown-cmd', view: null });
     const output = stdoutChunks.join('');
@@ -114,8 +123,23 @@ describe('shouldStripColor', () => {
     expect(shouldStripColor()).toBe(true);
   });
 
-  it('strips when CI is set', () => {
+  it('strips when CI is set (with TTY)', () => {
+    Object.defineProperty(process.stdout, 'isTTY', { value: true, configurable: true });
     process.env.CI = 'true';
     expect(shouldStripColor()).toBe(true);
+    Object.defineProperty(process.stdout, 'isTTY', { value: undefined, configurable: true });
+  });
+
+  it('strips when stdout is not a TTY', () => {
+    Object.defineProperty(process.stdout, 'isTTY', { value: undefined, configurable: true });
+    expect(shouldStripColor()).toBe(true);
+  });
+});
+
+describe('package.json files array', () => {
+  it('includes bin/presenters so npm publish works', () => {
+    const __dirname = dirname(fileURLToPath(import.meta.url));
+    const pkg = JSON.parse(readFileSync(resolve(__dirname, '../../../package.json'), 'utf8'));
+    expect(pkg.files).toContain('bin/presenters');
   });
 });

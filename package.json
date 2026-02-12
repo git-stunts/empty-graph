@@ -42,6 +42,7 @@
   },
   "files": [
     "bin/warp-graph.js",
+    "bin/presenters",
     "bin/git-warp",
     "src",
     "index.js",

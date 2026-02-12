@@ -22,6 +22,9 @@ Extracts CLI rendering into `bin/presenters/`, adds NDJSON output and color cont
 ### Fixed
 
 - **`--json` output sanitized**: Internal `_renderedSvg` and `_renderedAscii` keys are now stripped from JSON output. Previously these rendering artifacts leaked into `--json` payloads.
+- **`package.json` files array**: Added `bin/presenters` so npm-published tarball includes the presenter modules (would have caused `MODULE_NOT_FOUND` at runtime).
+- **`--view query` null guard**: `_renderedAscii` now uses `?? ''` fallback to prevent `"undefined"` in output when pre-rendered ASCII is missing.
+- **`CliOptions` typedef**: Added missing `ndjson` property to JSDoc typedef.
 
 ### Changed
 
