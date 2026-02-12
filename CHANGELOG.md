@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [10.10.0] — 2026-02-12 — VERIFY-AUDIT: Chain Verification
+
+Implements cryptographic verification of audit receipt chains (M4.T1). Walks chains backward from tip to genesis, validating receipt schema, chain linking, Git parent consistency, tick monotonicity, trailer-CBOR consistency, OID format, and tree structure.
+
+### Added
+
+- **`AuditVerifierService`** (`src/domain/services/AuditVerifierService.js`): Domain service with `verifyChain()` and `verifyAll()` methods. Supports `--since` partial verification and ref-race detection.
+- **`getCommitTree(sha)`** on `CommitPort` / `GraphPersistencePort`: Returns the tree OID for a given commit. Implemented in `GitGraphAdapter` (via `git rev-parse`) and `InMemoryGraphAdapter`.
+- **`buildAuditPrefix()`** in `RefLayout`: Lists all audit writer refs under a graph.
+- **`verify-audit` CLI command**: `git warp verify-audit [--writer <id>] [--since <commit>]`. Supports `--json` and `--ndjson` output. Exit code 3 on invalid chains.
+- **Text presenter** for verify-audit: colored status, per-chain detail, trust warnings.
+- **31 unit tests** in `AuditVerifierService.test.js` — valid chains, partial verification, broken chain detection, data mismatch, OID format validation, schema validation, warnings, multi-writer aggregation.
+- **6 BATS CLI tests** in `cli-verify-audit.bats` — JSON/human output, writer filter, partial verify, tamper detection, no-audit-refs success.
+- **Benchmark** in `AuditVerifierService.bench.js` — 1000-receipt chain verification (<5s target).
+
 ## [10.9.0] — 2026-02-12 — SHADOW-LEDGER: Audit Receipts
 
 Implements tamper-evident, chained audit receipts per the spec in `docs/specs/AUDIT_RECEIPT.md`. When `audit: true` is passed to `WarpGraph.open()`, each data commit produces a corresponding audit commit recording per-operation outcomes. Audit commits form an independent chain per (graphName, writerId) pair, linked via `prevAuditCommit` and Git commit parents.

@@ -31,6 +31,8 @@ import { diffStates } from '../src/domain/services/StateDiff.js';
 import { renderGraphView } from '../src/visualization/renderers/ascii/graph.js';
 import { renderSvg } from '../src/visualization/renderers/svg/index.js';
 import { layoutGraph, queryResultToGraphData, pathResultToGraphData } from '../src/visualization/layouts/index.js';
+import { AuditVerifierService } from '../src/domain/services/AuditVerifierService.js';
+import defaultCodec from '../src/domain/utils/defaultCodec.js';
 import { present } from './presenters/index.js';
 import { stableStringify, compactStringify } from './presenters/json.js';
 import { renderError } from './presenters/text.js';
@@ -134,6 +136,7 @@ Commands:
   path             Find a logical path between two nodes
   history          Show writer history
   check            Report graph health/GC status
+  verify-audit     Verify audit receipt chain integrity
   materialize      Materialize and checkpoint all graphs
   seek             Time-travel: step through graph history by Lamport tick
   view             Interactive TUI graph browser (requires @git-stunts/git-warp-tui)
@@ -167,6 +170,10 @@ Path options:
 
 History options:
   --node <id>           Filter patches touching node id
+
+Verify-audit options:
+  --writer <id>         Verify a single writer's chain (default: all)
+  --since <commit>      Verify from tip down to this commit (inclusive)
 
 Seek options:
   --tick <N|+N|-N>      Jump to tick N, or step forward/backward
@@ -272,7 +279,7 @@ function consumeBaseArg({ argv, index, options, optionDefs, positionals }) {
   if (arg === '--view') {
     // Valid view modes: ascii, browser, svg:FILE, html:FILE
     // Don't consume known commands as modes
-    const KNOWN_COMMANDS = ['info', 'query', 'path', 'history', 'check', 'materialize', 'seek', 'install-hooks'];
+    const KNOWN_COMMANDS = ['info', 'query', 'path', 'history', 'check', 'materialize', 'seek', 'verify-audit', 'install-hooks'];
     const nextArg = argv[index + 1];
     const isViewMode = nextArg &&
       !nextArg.startsWith('-') &&
@@ -2335,6 +2342,60 @@ async function handleView({ options, args }) {
   return { payload: undefined, exitCode: 0 };
 }
 
+/**
+ * @param {{options: CliOptions, args: string[]}} params
+ * @returns {Promise<{payload: *, exitCode: number}>}
+ */
+async function handleVerifyAudit({ options, args }) {
+  const { persistence } = await createPersistence(options.repo);
+  const graphName = await resolveGraphName(persistence, options.graph);
+  const verifier = new AuditVerifierService({
+    persistence: /** @type {*} */ (persistence), // TODO(ts-cleanup): narrow port type
+    codec: defaultCodec,
+  });
+
+  /** @type {string|undefined} */
+  let since;
+  /** @type {string|undefined} */
+  let writerFilter;
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--since' && args[i + 1]) {
+      since = args[i + 1];
+      i++;
+    } else if (args[i] === '--writer' && args[i + 1]) {
+      writerFilter = args[i + 1];
+      i++;
+    }
+  }
+
+  /** @type {*} */ // TODO(ts-cleanup): type verify-audit payload
+  let payload;
+  if (writerFilter) {
+    const chain = await verifier.verifyChain(graphName, writerFilter, { since });
+    const invalid = chain.status !== 'VALID' && chain.status !== 'PARTIAL' ? 1 : 0;
+    payload = {
+      graph: graphName,
+      verifiedAt: new Date().toISOString(),
+      summary: {
+        total: 1,
+        valid: chain.status === 'VALID' ? 1 : 0,
+        partial: chain.status === 'PARTIAL' ? 1 : 0,
+        invalid,
+      },
+      chains: [chain],
+      trustWarning: null,
+    };
+  } else {
+    payload = await verifier.verifyAll(graphName, { since });
+  }
+
+  const hasInvalid = payload.summary.invalid > 0;
+  return {
+    payload,
+    exitCode: hasInvalid ? EXIT_CODES.INTERNAL : EXIT_CODES.OK,
+  };
+}
+
 /** @type {Map<string, Function>} */
 const COMMANDS = new Map(/** @type {[string, Function][]} */ ([
   ['info', handleInfo],
@@ -2344,6 +2405,7 @@ const COMMANDS = new Map(/** @type {[string, Function][]} */ ([
   ['check', handleCheck],
   ['materialize', handleMaterialize],
   ['seek', handleSeek],
+  ['verify-audit', handleVerifyAudit],
   ['view', handleView],
   ['install-hooks', handleInstallHooks],
 ]));
