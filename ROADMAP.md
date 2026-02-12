@@ -223,7 +223,7 @@ All 12 milestones (77 tasks, ~255 human hours, ~13,100 LOC) have been implemente
 
 ### M3.T0.SPEC — Hard Gate (S-Tier)
 
-- **Status:** `OPEN`
+- **Status:** `DONE`
 
 **User Story:** As an architect, I need deterministic receipt spec with zero ambiguity.
 
