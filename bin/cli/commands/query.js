@@ -1,76 +1,49 @@
 import { renderGraphView } from '../../../src/visualization/renderers/ascii/graph.js';
 import { renderSvg } from '../../../src/visualization/renderers/svg/index.js';
 import { layoutGraph, queryResultToGraphData } from '../../../src/visualization/layouts/index.js';
-import { EXIT_CODES, usageError, readOptionValue } from '../infrastructure.js';
+import { EXIT_CODES, usageError, parseCommandArgs } from '../infrastructure.js';
 import { openGraph, applyCursorCeiling, emitCursorWarning } from '../shared.js';
+import { querySchema } from '../schemas.js';
 
 /** @typedef {import('../types.js').CliOptions} CliOptions */
 
-/** @param {string[]} args */
-function parseQueryArgs(args) {
-  const spec = {
-    match: null,
-    select: null,
-    steps: [],
-  };
-
-  for (let i = 0; i < args.length; i += 1) {
-    const result = consumeQueryArg(args, i, spec);
-    if (!result) {
-      throw usageError(`Unknown query option: ${args[i]}`);
-    }
-    i += result.consumed;
-  }
-
-  return spec;
-}
+const QUERY_OPTIONS = {
+  match: { type: 'string' },
+  'where-prop': { type: 'string', multiple: true },
+  select: { type: 'string' },
+};
 
 /**
+ * Extracts --outgoing/--incoming traversal steps from args, returning
+ * remaining args for standard parseArgs processing.
+ *
+ * These flags have optional-value semantics: --outgoing [label].
+ * The label is consumed only if the next arg is not a flag.
+ *
  * @param {string[]} args
- * @param {number} index
- * @param {{match: string|null, select: string[]|null, steps: Array<{type: string, label?: string, key?: string, value?: string}>}} spec
+ * @returns {{steps: Array<{type: string, label?: string}>, remaining: string[]}}
  */
-function consumeQueryArg(args, index, spec) {
-  const stepResult = readTraversalStep(args, index);
-  if (stepResult) {
-    spec.steps.push(stepResult.step);
-    return stepResult;
+function extractTraversalSteps(args) {
+  /** @type {Array<{type: string, label?: string}>} */
+  const steps = [];
+  /** @type {string[]} */
+  const remaining = [];
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === '--outgoing' || arg === '--incoming') {
+      const next = args[i + 1];
+      const label = next && !next.startsWith('-') ? next : undefined;
+      steps.push({ type: arg.slice(2), label });
+      if (label) {
+        i += 1;
+      }
+    } else {
+      remaining.push(arg);
+    }
   }
 
-  const matchResult = readOptionValue({
-    args,
-    index,
-    flag: '--match',
-    allowEmpty: true,
-  });
-  if (matchResult) {
-    spec.match = matchResult.value;
-    return matchResult;
-  }
-
-  const whereResult = readOptionValue({
-    args,
-    index,
-    flag: '--where-prop',
-    allowEmpty: false,
-  });
-  if (whereResult) {
-    spec.steps.push(parseWhereProp(whereResult.value));
-    return whereResult;
-  }
-
-  const selectResult = readOptionValue({
-    args,
-    index,
-    flag: '--select',
-    allowEmpty: true,
-  });
-  if (selectResult) {
-    spec.select = parseSelectFields(selectResult.value);
-    return selectResult;
-  }
-
-  return null;
+  return { steps, remaining };
 }
 
 /** @param {string} value */
@@ -90,19 +63,25 @@ function parseSelectFields(value) {
   return value.split(',').map((field) => field.trim()).filter(Boolean);
 }
 
-/**
- * @param {string[]} args
- * @param {number} index
- */
-function readTraversalStep(args, index) {
-  const arg = args[index];
-  if (arg !== '--outgoing' && arg !== '--incoming') {
-    return null;
-  }
-  const next = args[index + 1];
-  const label = next && !next.startsWith('-') ? next : undefined;
-  const consumed = label ? 1 : 0;
-  return { step: { type: arg.slice(2), label }, consumed };
+/** @param {string[]} args */
+function parseQueryArgs(args) {
+  // Extract traversal steps first (optional-value semantics)
+  const { steps, remaining } = extractTraversalSteps(args);
+
+  // Parse remaining flags with parseArgs + Zod
+  const { values } = parseCommandArgs(remaining, QUERY_OPTIONS, querySchema);
+
+  // Convert --where-prop values to steps
+  const allSteps = [
+    ...steps,
+    ...values.whereProp.map((/** @type {string} */ wp) => parseWhereProp(wp)),
+  ];
+
+  return {
+    match: values.match,
+    select: values.select !== undefined ? parseSelectFields(values.select) : null,
+    steps: allSteps,
+  };
 }
 
 /**

@@ -1,40 +1,18 @@
 import { summarizeOps } from '../../../src/visualization/renderers/ascii/history.js';
-import { EXIT_CODES, usageError, notFoundError } from '../infrastructure.js';
+import { EXIT_CODES, notFoundError, parseCommandArgs } from '../infrastructure.js';
+import { historySchema } from '../schemas.js';
 import { openGraph, applyCursorCeiling, emitCursorWarning } from '../shared.js';
 
 /** @typedef {import('../types.js').CliOptions} CliOptions */
 
+const HISTORY_OPTIONS = {
+  node: { type: 'string' },
+};
+
 /** @param {string[]} args */
 function parseHistoryArgs(args) {
-  /** @type {{node: string|null}} */
-  const options = { node: null };
-
-  for (let i = 0; i < args.length; i += 1) {
-    const arg = args[i];
-
-    if (arg === '--node') {
-      const value = args[i + 1];
-      if (!value) {
-        throw usageError('Missing value for --node');
-      }
-      options.node = value;
-      i += 1;
-      continue;
-    }
-
-    if (arg.startsWith('--node=')) {
-      options.node = arg.slice('--node='.length);
-      continue;
-    }
-
-    if (arg.startsWith('-')) {
-      throw usageError(`Unknown history option: ${arg}`);
-    }
-
-    throw usageError(`Unexpected history argument: ${arg}`);
-  }
-
-  return options;
+  const { values } = parseCommandArgs(args, HISTORY_OPTIONS, historySchema);
+  return { node: values.node ?? null };
 }
 
 /**

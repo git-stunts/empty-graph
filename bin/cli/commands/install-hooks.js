@@ -1,22 +1,20 @@
 import fs from 'node:fs';
 import process from 'node:process';
 import { classifyExistingHook } from '../../../src/domain/services/HookInstaller.js';
-import { EXIT_CODES, usageError } from '../infrastructure.js';
+import { EXIT_CODES, usageError, parseCommandArgs } from '../infrastructure.js';
+import { installHooksSchema } from '../schemas.js';
 import { createHookInstaller, isInteractive, promptUser } from '../shared.js';
 
 /** @typedef {import('../types.js').CliOptions} CliOptions */
 
+const INSTALL_HOOKS_OPTIONS = {
+  force: { type: 'boolean', default: false },
+};
+
 /** @param {string[]} args */
 function parseInstallHooksArgs(args) {
-  const options = { force: false };
-  for (const arg of args) {
-    if (arg === '--force') {
-      options.force = true;
-    } else if (arg.startsWith('-')) {
-      throw usageError(`Unknown install-hooks option: ${arg}`);
-    }
-  }
-  return options;
+  const { values } = parseCommandArgs(args, INSTALL_HOOKS_OPTIONS, installHooksSchema);
+  return values;
 }
 
 /**

@@ -1,7 +1,13 @@
 import process from 'node:process';
-import { usageError } from '../infrastructure.js';
+import { parseCommandArgs, usageError } from '../infrastructure.js';
+import { viewSchema } from '../schemas.js';
 
 /** @typedef {import('../types.js').CliOptions} CliOptions */
+
+const VIEW_OPTIONS = {
+  list: { type: 'boolean', default: false },
+  log: { type: 'boolean', default: false },
+};
 
 /**
  * @param {{options: CliOptions, args: string[]}} params
@@ -12,9 +18,8 @@ export default async function handleView({ options, args }) {
     throw usageError('view command requires an interactive terminal (TTY)');
   }
 
-  const viewMode = (args[0] === '--list' || args[0] === 'list') ? 'list'
-    : (args[0] === '--log' || args[0] === 'log') ? 'log'
-      : 'list';
+  const { values, positionals } = parseCommandArgs(args, VIEW_OPTIONS, viewSchema, { allowPositionals: true });
+  const viewMode = values.log || positionals[0] === 'log' ? 'log' : 'list';
 
   try {
     // @ts-expect-error — optional peer dependency, may not be installed

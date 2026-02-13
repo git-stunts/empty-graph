@@ -1,38 +1,20 @@
 import { AuditVerifierService } from '../../../src/domain/services/AuditVerifierService.js';
 import defaultCodec from '../../../src/domain/utils/defaultCodec.js';
-import { EXIT_CODES, usageError } from '../infrastructure.js';
+import { EXIT_CODES, parseCommandArgs } from '../infrastructure.js';
+import { verifyAuditSchema } from '../schemas.js';
 import { createPersistence, resolveGraphName } from '../shared.js';
 
 /** @typedef {import('../types.js').CliOptions} CliOptions */
 
+const VERIFY_AUDIT_OPTIONS = {
+  since: { type: 'string' },
+  writer: { type: 'string' },
+};
+
 /** @param {string[]} args */
 export function parseVerifyAuditArgs(args) {
-  /** @type {string|undefined} */
-  let since;
-  /** @type {string|undefined} */
-  let writerFilter;
-
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--since') {
-      if (args[i + 1] === undefined) {
-        throw usageError('Missing value for --since');
-      }
-      since = args[i + 1];
-      i++;
-    } else if (args[i] === '--writer') {
-      if (args[i + 1] === undefined) {
-        throw usageError('Missing value for --writer');
-      }
-      writerFilter = args[i + 1];
-      i++;
-    } else if (args[i].startsWith('-')) {
-      throw usageError(`Unknown verify-audit option: ${args[i]}`);
-    } else {
-      throw usageError(`Unexpected verify-audit argument: ${args[i]}`);
-    }
-  }
-
-  return { since, writerFilter };
+  const { values } = parseCommandArgs(args, VERIFY_AUDIT_OPTIONS, verifyAuditSchema);
+  return { since: values.since, writerFilter: values.writer };
 }
 
 /**

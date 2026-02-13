@@ -271,44 +271,35 @@ export function parseArgs(argv) {
 }
 
 /**
- * @param {{args: string[], index: number, flag: string, shortFlag?: string, allowEmpty?: boolean}} params
+ * Parses command-level args using node:util.parseArgs + Zod validation.
+ *
+ * @param {string[]} args - Command-specific args (after command name)
+ * @param {Object} config - parseArgs options config
+ * @param {import('zod').ZodType} schema - Zod schema to validate/transform parsed values
+ * @param {Object} [opts]
+ * @param {boolean} [opts.allowPositionals=false] - Whether to allow positional arguments
+ * @returns {{values: *, positionals: string[]}}
  */
-export function readOptionValue({ args, index, flag, shortFlag, allowEmpty = false }) {
-  const arg = args[index];
-  if (matchesOptionFlag(arg, flag, shortFlag)) {
-    return readNextOptionValue({ args, index, flag, allowEmpty });
+export function parseCommandArgs(args, config, schema, { allowPositionals = false } = {}) {
+  /** @type {*} */
+  let parsed;
+  try {
+    parsed = nodeParseArgs({
+      args,
+      options: /** @type {*} */ (config),
+      strict: true,
+      allowPositionals,
+    });
+  } catch (/** @type {*} */ err) {
+    throw usageError(err.message);
   }
 
-  if (arg.startsWith(`${flag}=`)) {
-    return readInlineOptionValue({ arg, flag, allowEmpty });
+  const result = schema.safeParse(parsed.values);
+  if (!result.success) {
+    const msg = result.error.issues.map((/** @type {*} */ issue) => issue.message).join('; ');
+    throw usageError(msg);
   }
 
-  return null;
+  return { values: result.data, positionals: parsed.positionals || [] };
 }
 
-/**
- * @param {string} arg
- * @param {string} flag
- * @param {string} [shortFlag]
- */
-function matchesOptionFlag(arg, flag, shortFlag) {
-  return arg === flag || (shortFlag && arg === shortFlag);
-}
-
-/** @param {{args: string[], index: number, flag: string, allowEmpty?: boolean}} params */
-function readNextOptionValue({ args, index, flag, allowEmpty }) {
-  const value = args[index + 1];
-  if (value === undefined || (!allowEmpty && value === '')) {
-    throw usageError(`Missing value for ${flag}`);
-  }
-  return { value, consumed: 1 };
-}
-
-/** @param {{arg: string, flag: string, allowEmpty?: boolean}} params */
-function readInlineOptionValue({ arg, flag, allowEmpty }) {
-  const value = arg.slice(flag.length + 1);
-  if (!allowEmpty && value === '') {
-    throw usageError(`Missing value for ${flag}`);
-  }
-  return { value, consumed: 0 };
-}

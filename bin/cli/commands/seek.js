@@ -7,7 +7,8 @@ import {
 } from '../../../src/domain/utils/RefLayout.js';
 import { parseCursorBlob } from '../../../src/domain/utils/parseCursorBlob.js';
 import { stableStringify } from '../../presenters/json.js';
-import { EXIT_CODES, usageError, notFoundError } from '../infrastructure.js';
+import { EXIT_CODES, usageError, notFoundError, parseCommandArgs } from '../infrastructure.js';
+import { seekSchema } from '../schemas.js';
 import { openGraph, readActiveCursor, writeActiveCursor, wireSeekCache } from '../shared.js';
 
 /** @typedef {import('../types.js').CliOptions} CliOptions */
@@ -115,149 +116,26 @@ async function listSavedCursors(persistence, graphName) {
 // Seek Arg Parser
 // ============================================================================
 
-/**
- * @param {string} arg
- * @param {SeekSpec} spec
- */
-function handleSeekBooleanFlag(arg, spec) {
-  if (arg === '--clear-cache') {
-    if (spec.action !== 'status') {
-      throw usageError('--clear-cache cannot be combined with other seek flags');
-    }
-    spec.action = 'clear-cache';
-  } else if (arg === '--no-persistent-cache') {
-    spec.noPersistentCache = true;
-  } else if (arg === '--diff') {
-    spec.diff = true;
-  }
-}
-
-/**
- * @param {string} arg
- * @param {string[]} args
- * @param {number} i
- * @param {SeekSpec} spec
- */
-function handleDiffLimitFlag(arg, args, i, spec) {
-  let raw;
-  if (arg.startsWith('--diff-limit=')) {
-    raw = arg.slice('--diff-limit='.length);
-  } else {
-    raw = args[i + 1];
-    if (raw === undefined) {
-      throw usageError('Missing value for --diff-limit');
-    }
-  }
-  const n = Number(raw);
-  if (!Number.isFinite(n) || !Number.isInteger(n) || n < 1) {
-    throw usageError(`Invalid --diff-limit value: ${raw}. Must be a positive integer.`);
-  }
-  spec.diffLimit = n;
-}
-
-/**
- * @param {string} flagName
- * @param {string} arg
- * @param {string[]} args
- * @param {number} i
- * @param {SeekSpec} spec
- * @returns {number}
- */
-function parseSeekNamedAction(flagName, arg, args, i, spec) {
-  if (spec.action !== 'status') {
-    throw usageError(`--${flagName} cannot be combined with other seek flags`);
-  }
-  spec.action = flagName;
-  if (arg === `--${flagName}`) {
-    const val = args[i + 1];
-    if (val === undefined || val.startsWith('-')) {
-      throw usageError(`Missing name for --${flagName}`);
-    }
-    spec.name = val;
-    return 1;
-  }
-  spec.name = arg.slice(`--${flagName}=`.length);
-  if (!spec.name) {
-    throw usageError(`Missing name for --${flagName}`);
-  }
-  return 0;
-}
+const SEEK_OPTIONS = {
+  tick: { type: 'string' },
+  latest: { type: 'boolean', default: false },
+  save: { type: 'string' },
+  load: { type: 'string' },
+  list: { type: 'boolean', default: false },
+  drop: { type: 'string' },
+  'clear-cache': { type: 'boolean', default: false },
+  'no-persistent-cache': { type: 'boolean', default: false },
+  diff: { type: 'boolean', default: false },
+  'diff-limit': { type: 'string', default: '2000' },
+};
 
 /**
  * @param {string[]} args
  * @returns {SeekSpec}
  */
 function parseSeekArgs(args) {
-  /** @type {SeekSpec} */
-  const spec = {
-    action: 'status',
-    tickValue: null,
-    name: null,
-    noPersistentCache: false,
-    diff: false,
-    diffLimit: 2000,
-  };
-  let diffLimitProvided = false;
-
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i];
-
-    if (arg === '--tick') {
-      if (spec.action !== 'status') {
-        throw usageError('--tick cannot be combined with other seek flags');
-      }
-      spec.action = 'tick';
-      const val = args[i + 1];
-      if (val === undefined) {
-        throw usageError('Missing value for --tick');
-      }
-      spec.tickValue = val;
-      i += 1;
-    } else if (arg.startsWith('--tick=')) {
-      if (spec.action !== 'status') {
-        throw usageError('--tick cannot be combined with other seek flags');
-      }
-      spec.action = 'tick';
-      spec.tickValue = arg.slice('--tick='.length);
-    } else if (arg === '--latest') {
-      if (spec.action !== 'status') {
-        throw usageError('--latest cannot be combined with other seek flags');
-      }
-      spec.action = 'latest';
-    } else if (arg === '--save' || arg.startsWith('--save=')) {
-      i += parseSeekNamedAction('save', arg, args, i, spec);
-    } else if (arg === '--load' || arg.startsWith('--load=')) {
-      i += parseSeekNamedAction('load', arg, args, i, spec);
-    } else if (arg === '--list') {
-      if (spec.action !== 'status') {
-        throw usageError('--list cannot be combined with other seek flags');
-      }
-      spec.action = 'list';
-    } else if (arg === '--drop' || arg.startsWith('--drop=')) {
-      i += parseSeekNamedAction('drop', arg, args, i, spec);
-    } else if (arg === '--clear-cache' || arg === '--no-persistent-cache' || arg === '--diff') {
-      handleSeekBooleanFlag(arg, spec);
-    } else if (arg === '--diff-limit' || arg.startsWith('--diff-limit=')) {
-      handleDiffLimitFlag(arg, args, i, spec);
-      diffLimitProvided = true;
-      if (arg === '--diff-limit') {
-        i += 1;
-      }
-    } else if (arg.startsWith('-')) {
-      throw usageError(`Unknown seek option: ${arg}`);
-    }
-  }
-
-  // --diff is only meaningful for actions that navigate to a tick
-  const DIFF_ACTIONS = new Set(['tick', 'latest', 'load']);
-  if (spec.diff && !DIFF_ACTIONS.has(spec.action)) {
-    throw usageError(`--diff cannot be used with --${spec.action}`);
-  }
-  if (diffLimitProvided && !spec.diff) {
-    throw usageError('--diff-limit requires --diff');
-  }
-
-  return spec;
+  const { values } = parseCommandArgs(args, SEEK_OPTIONS, seekSchema);
+  return /** @type {SeekSpec} */ (values);
 }
 
 // ============================================================================

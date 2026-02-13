@@ -1,105 +1,43 @@
 import { renderSvg } from '../../../src/visualization/renderers/svg/index.js';
 import { layoutGraph, pathResultToGraphData } from '../../../src/visualization/layouts/index.js';
-import { EXIT_CODES, usageError, notFoundError, readOptionValue } from '../infrastructure.js';
+import { EXIT_CODES, usageError, notFoundError, parseCommandArgs } from '../infrastructure.js';
 import { openGraph, applyCursorCeiling, emitCursorWarning } from '../shared.js';
+import { pathSchema } from '../schemas.js';
 
 /** @typedef {import('../types.js').CliOptions} CliOptions */
 
+const PATH_OPTIONS = {
+  from: { type: 'string' },
+  to: { type: 'string' },
+  dir: { type: 'string' },
+  label: { type: 'string', multiple: true },
+  'max-depth': { type: 'string' },
+};
+
 /** @param {string[]} args */
 function parsePathArgs(args) {
-  const options = createPathOptions();
-  /** @type {string[]} */
-  const labels = [];
-  /** @type {string[]} */
-  const positionals = [];
+  const { values, positionals } = parseCommandArgs(args, PATH_OPTIONS, pathSchema, { allowPositionals: true });
 
-  for (let i = 0; i < args.length; i += 1) {
-    const result = consumePathArg({ args, index: i, options, labels, positionals });
-    i += result.consumed;
-  }
+  // Positionals can supply from/to when flags are omitted
+  const from = values.from || positionals[0] || null;
+  const to = values.to || positionals[1] || null;
 
-  finalizePathOptions(options, labels, positionals);
-  return options;
-}
-
-/** @returns {{from: string|null, to: string|null, dir: string|undefined, labelFilter: string|string[]|undefined, maxDepth: number|undefined}} */
-function createPathOptions() {
-  return {
-    from: null,
-    to: null,
-    dir: undefined,
-    labelFilter: undefined,
-    maxDepth: undefined,
-  };
-}
-
-/**
- * @param {{args: string[], index: number, options: ReturnType<typeof createPathOptions>, labels: string[], positionals: string[]}} params
- */
-function consumePathArg({ args, index, options, labels, positionals }) {
-  const arg = args[index];
-  /** @type {Array<{flag: string, apply: (value: string) => void}>} */
-  const handlers = [
-    { flag: '--from', apply: (value) => { options.from = value; } },
-    { flag: '--to', apply: (value) => { options.to = value; } },
-    { flag: '--dir', apply: (value) => { options.dir = value; } },
-    { flag: '--label', apply: (value) => { labels.push(...parseLabels(value)); } },
-    { flag: '--max-depth', apply: (value) => { options.maxDepth = parseMaxDepth(value); } },
-  ];
-
-  for (const handler of handlers) {
-    const result = readOptionValue({ args, index, flag: handler.flag });
-    if (result) {
-      handler.apply(result.value);
-      return result;
-    }
-  }
-
-  if (arg.startsWith('-')) {
-    throw usageError(`Unknown path option: ${arg}`);
-  }
-
-  positionals.push(arg);
-  return { consumed: 0 };
-}
-
-/**
- * @param {ReturnType<typeof createPathOptions>} options
- * @param {string[]} labels
- * @param {string[]} positionals
- */
-function finalizePathOptions(options, labels, positionals) {
-  if (!options.from) {
-    options.from = positionals[0] || null;
-  }
-
-  if (!options.to) {
-    options.to = positionals[1] || null;
-  }
-
-  if (!options.from || !options.to) {
+  if (!from || !to) {
     throw usageError('Path requires --from and --to (or two positional ids)');
   }
 
+  // Expand comma-separated labels
+  const labels = values.labels.flatMap((/** @type {string} */ l) => l.split(',').map((/** @type {string} */ s) => s.trim()).filter(Boolean));
+
+  /** @type {string|string[]|undefined} */
+  let labelFilter;
   if (labels.length === 1) {
-    options.labelFilter = labels[0];
+    labelFilter = labels[0];
   } else if (labels.length > 1) {
-    options.labelFilter = labels;
+    labelFilter = labels;
   }
-}
 
-/** @param {string} value */
-function parseLabels(value) {
-  return value.split(',').map((label) => label.trim()).filter(Boolean);
-}
-
-/** @param {string} value */
-function parseMaxDepth(value) {
-  const parsed = Number.parseInt(value, 10);
-  if (Number.isNaN(parsed)) {
-    throw usageError('Invalid value for --max-depth');
-  }
-  return parsed;
+  return { from, to, dir: values.dir, labelFilter, maxDepth: values.maxDepth };
 }
 
 /**
