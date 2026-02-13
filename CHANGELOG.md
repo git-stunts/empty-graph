@@ -19,6 +19,7 @@ Makes the CLI (`bin/`) portable across Node 22+, Bun, and Deno by removing Node-
 
 ### Changed
 
+- **COMMANDS registry**: Extracted `COMMANDS` Map from `warp-graph.js` into `bin/cli/commands/registry.js` (side-effect-free); `KNOWN_COMMANDS` exported from `infrastructure.js`. Sync test asserts they match via direct import.
 - **Cross-runtime adapters**: `NodeCryptoAdapter` → `WebCryptoAdapter` (uses `globalThis.crypto.subtle`), `ClockAdapter.node()` → `ClockAdapter.global()` (uses `globalThis.performance`), removed `import crypto from 'node:crypto'` in seek.js (converted `computeFrontierHash` to async Web Crypto).
 - **Base arg parser** (`bin/cli/infrastructure.js`): Replaced 170 LOC hand-rolled parser with `node:util.parseArgs`. Two-pass approach: `extractBaseArgs` splits base flags from command args, `preprocessView` handles `--view`'s optional-value semantics. Returns `{options, command, commandArgs}` instead of `{options, positionals}`.
 - **Per-command parsers**: All 10 commands now use `parseCommandArgs()` (wraps `nodeParseArgs` + Zod `safeParse`) instead of hand-rolled loops. Query uses a hybrid approach: `extractTraversalSteps` for `--outgoing`/`--incoming` optional values, then standard parsing for the rest.
