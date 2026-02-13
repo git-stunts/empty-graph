@@ -11,9 +11,9 @@ Makes the CLI (`bin/`) portable across Node 22+, Bun, and Deno by removing Node-
 
 ### Fixed
 
-- **verify-audit**: Reject empty-string `--since`/`--writer` values at schema level
+- **verify-audit**: Reject empty-string `--since`/`--writer` values at schema level; use strict `!== undefined` check for `writerFilter`
 - **install-hooks**: `readHookContent` now only swallows ENOENT; permission errors propagate
-- **view**: Module-not-found catch narrowed to `git-warp-tui` specifier only
+- **view**: Module-not-found catch narrowed to `git-warp-tui` specifier/package name only (ignores transitive dep failures)
 - **schemas**: `--max-depth` rejects negative values; `--diff` alone (without --tick/--latest/--load) now rejected; `--save`/`--load`/`--drop` reject empty-string cursor names
 - **npm packaging**: Added `bin/cli` to the `files` array — the commands-split refactor broke the published package for CLI use.
 

@@ -32,7 +32,7 @@ export default async function handleVerifyAudit({ options, args }) {
 
   /** @type {*} */ // TODO(ts-cleanup): type verify-audit payload
   let payload;
-  if (writerFilter) {
+  if (writerFilter !== undefined) {
     const chain = await verifier.verifyChain(graphName, writerFilter, { since });
     const invalid = chain.status !== 'VALID' && chain.status !== 'PARTIAL' ? 1 : 0;
     payload = {

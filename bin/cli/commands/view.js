@@ -31,7 +31,8 @@ export default async function handleView({ options, args }) {
     });
   } catch (/** @type {*} */ err) { // TODO(ts-cleanup): type error
     const isMissing = err.code === 'ERR_MODULE_NOT_FOUND' || (err.message && err.message.includes('Cannot find module'));
-    const isTui = err.message?.includes('git-warp-tui') || err.specifier?.includes('git-warp-tui');
+    const isTui = err.specifier?.includes('git-warp-tui') ||
+      /cannot find (?:package|module) ['"]@git-stunts\/git-warp-tui/i.test(err.message);
     if (isMissing && isTui) {
       throw usageError(
         'Interactive TUI requires @git-stunts/git-warp-tui.\n' +
