@@ -727,7 +727,7 @@ The receipt digest is computed from the canonical CBOR bytes, not from the recei
 
 ---
 
-## 14. Verification Output (M4.T1)
+## 13. Verification Output (M4.T1)
 
 ### JSON Output Schema
 
