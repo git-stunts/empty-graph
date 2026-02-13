@@ -16,6 +16,7 @@ Makes the CLI (`bin/`) portable across Node 22+, Bun, and Deno by removing Node-
 - **view**: Module-not-found catch narrowed to `git-warp-tui` specifier/package name only (ignores transitive dep failures)
 - **schemas**: `--max-depth` rejects negative values; `--diff` alone (without --tick/--latest/--load) now rejected; `--save`/`--load`/`--drop` reject empty-string cursor names
 - **npm packaging**: Added `bin/cli` to the `files` array — the commands-split refactor broke the published package for CLI use.
+- **BATS audit seed**: Added `materialize()` call before first patch so `_cachedState` is initialized and audit receipts are created (all 5 verify-audit BATS tests were failing in CI).
 
 ### Changed
 

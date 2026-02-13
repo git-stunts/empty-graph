@@ -12,6 +12,9 @@ const graph = await WarpGraph.open({
   audit: true,
 });
 
+// Materialize to initialize _cachedState so audit receipts are created on commit
+await graph.materialize();
+
 const p1 = await graph.createPatch();
 await p1
   .addNode('user:alice')
