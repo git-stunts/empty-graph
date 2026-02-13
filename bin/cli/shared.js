@@ -7,7 +7,7 @@ import { execFileSync } from 'node:child_process';
 import GitPlumbing, { ShellRunnerFactory } from '@git-stunts/plumbing';
 import WarpGraph from '../../src/domain/WarpGraph.js';
 import GitGraphAdapter from '../../src/infrastructure/adapters/GitGraphAdapter.js';
-import NodeCryptoAdapter from '../../src/infrastructure/adapters/NodeCryptoAdapter.js';
+import WebCryptoAdapter from '../../src/infrastructure/adapters/WebCryptoAdapter.js';
 import {
   REF_PREFIX,
   buildCursorActiveRef,
@@ -96,7 +96,7 @@ export async function openGraph(options) {
     persistence,
     graphName,
     writerId: options.writer,
-    crypto: new NodeCryptoAdapter(),
+    crypto: new WebCryptoAdapter(),
   })));
   return { graph, graphName, persistence };
 }

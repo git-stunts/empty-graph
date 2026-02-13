@@ -10,7 +10,7 @@ import { openGraph, applyCursorCeiling, emitCursorWarning, readCheckpointDate, c
 
 /** @param {Persistence} persistence */
 async function getHealth(persistence) {
-  const clock = ClockAdapter.node();
+  const clock = ClockAdapter.global();
   const healthService = new HealthCheckService({ persistence: /** @type {*} */ (persistence), clock }); // TODO(ts-cleanup): narrow port type
   return await healthService.getHealth();
 }

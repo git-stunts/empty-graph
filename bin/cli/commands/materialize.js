@@ -1,4 +1,4 @@
-import NodeCryptoAdapter from '../../../src/infrastructure/adapters/NodeCryptoAdapter.js';
+import WebCryptoAdapter from '../../../src/infrastructure/adapters/WebCryptoAdapter.js';
 import WarpGraph from '../../../src/domain/WarpGraph.js';
 import { EXIT_CODES, notFoundError } from '../infrastructure.js';
 import { createPersistence, listGraphNames, readActiveCursor, emitCursorWarning } from '../shared.js';
@@ -12,7 +12,7 @@ import { createPersistence, listGraphNames, readActiveCursor, emitCursorWarning 
  * @returns {Promise<{graph: string, nodes: number, edges: number, properties: number, checkpoint: string|null, writers: Record<string, number>, patchCount: number}>}
  */
 async function materializeOneGraph({ persistence, graphName, writerId, ceiling }) {
-  const graph = await WarpGraph.open({ persistence, graphName, writerId, crypto: new NodeCryptoAdapter() });
+  const graph = await WarpGraph.open({ persistence, graphName, writerId, crypto: new WebCryptoAdapter() });
   await graph.materialize(ceiling !== undefined ? { ceiling } : undefined);
   const nodes = await graph.getNodes();
   const edges = await graph.getEdges();

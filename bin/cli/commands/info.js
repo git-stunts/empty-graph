@@ -1,4 +1,4 @@
-import NodeCryptoAdapter from '../../../src/infrastructure/adapters/NodeCryptoAdapter.js';
+import WebCryptoAdapter from '../../../src/infrastructure/adapters/WebCryptoAdapter.js';
 import WarpGraph from '../../../src/domain/WarpGraph.js';
 import {
   buildCheckpointRef,
@@ -77,7 +77,7 @@ async function getGraphInfo(persistence, graphName, {
       persistence,
       graphName,
       writerId: 'cli',
-      crypto: new NodeCryptoAdapter(),
+      crypto: new WebCryptoAdapter(),
     });
     /** @type {Record<string, number>} */
     const writerPatches = {};

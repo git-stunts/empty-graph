@@ -1,4 +1,3 @@
-import crypto from 'node:crypto';
 import { summarizeOps } from '../../../src/visualization/renderers/ascii/history.js';
 import { diffStates } from '../../../src/domain/services/StateDiff.js';
 import {
@@ -329,15 +328,19 @@ function countPatchesAtTick(tick, perWriter) {
 
 /**
  * @param {Map<string, WriterTickInfo>} perWriter
- * @returns {string}
+ * @returns {Promise<string>}
  */
-function computeFrontierHash(perWriter) {
+async function computeFrontierHash(perWriter) {
   /** @type {Record<string, string|null>} */
   const tips = {};
   for (const [writerId, info] of perWriter) {
     tips[writerId] = info?.tipSha || null;
   }
-  return crypto.createHash('sha256').update(stableStringify(tips)).digest('hex');
+  const data = new TextEncoder().encode(stableStringify(tips));
+  const digest = await globalThis.crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
 }
 
 /**
@@ -550,7 +553,7 @@ export default async function handleSeek({ options, args }) {
 
   const activeCursor = await readActiveCursor(persistence, graphName);
   const { ticks, maxTick, perWriter } = await graph.discoverTicks();
-  const frontierHash = computeFrontierHash(perWriter);
+  const frontierHash = await computeFrontierHash(perWriter);
   if (seekSpec.action === 'list') {
     const saved = await listSavedCursors(persistence, graphName);
     return {
