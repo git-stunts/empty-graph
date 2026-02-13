@@ -76,7 +76,6 @@ PY
   # Create a dangling commit with wrong parent to break the chain
   TREE=$(git --git-dir="${TEST_REPO}/.git" rev-parse "${TIP}^{tree}")
   MSG=$(git --git-dir="${TEST_REPO}/.git" show -s --format=%B "${TIP}")
-  WRONG_PARENT="$(printf '0%.0s' {1..40})"
   # Create a new commit with the same tree+message but no parent
   FAKE=$(echo "${MSG}" | git --git-dir="${TEST_REPO}/.git" commit-tree "${TREE}")
   # Point the audit ref to this orphan commit
