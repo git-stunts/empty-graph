@@ -31,6 +31,7 @@ Makes the CLI (`bin/`) portable across Node 22+, Bun, and Deno by removing Node-
 - **`bin/cli/schemas.js`**: Zod schemas for all commands — type coercion, enum validation, mutual-exclusion checks (seek's 10-flag parser).
 - **`parseCommandArgs()`** in infrastructure.js: Shared helper wrapping `nodeParseArgs` + Zod validation for command-level parsing.
 - **67 new CLI tests**: `parseArgs.test.js` (25 tests for base parsing), `schemas.test.js` (32 tests for Zod schema validation).
+- **Public export**: `InMemoryGraphAdapter` now exported from the package entry point (`index.js` + `index.d.ts`) so downstream modules can use it for tests without reaching into internal paths.
 
 ## [10.11.0] — 2026-02-12 — COMMANDS SPLIT: CLI Decomposition
 
