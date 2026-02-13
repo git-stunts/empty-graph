@@ -38,7 +38,7 @@ const VIEW_SUPPORTED_COMMANDS = ['info', 'check', 'history', 'path', 'materializ
  * @returns {Promise<void>}
  */
 async function main() {
-  const { options, positionals } = parseArgs(process.argv.slice(2));
+  const { options, command, commandArgs } = parseArgs(process.argv.slice(2));
 
   if (options.help) {
     process.stdout.write(HELP_TEXT);
@@ -56,7 +56,6 @@ async function main() {
     throw usageError('--json and --ndjson are mutually exclusive');
   }
 
-  const command = positionals[0];
   if (!command) {
     process.stderr.write(HELP_TEXT);
     process.exitCode = EXIT_CODES.USAGE;
@@ -74,7 +73,7 @@ async function main() {
 
   const result = await /** @type {Function} */ (handler)({
     command,
-    args: positionals.slice(1),
+    args: commandArgs,
     options,
   });
 

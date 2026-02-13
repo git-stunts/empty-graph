@@ -1,5 +1,6 @@
 import path from 'node:path';
 import process from 'node:process';
+import { parseArgs as nodeParseArgs } from 'node:util';
 
 /** @typedef {import('./types.js').CliOptions} CliOptions */
 
@@ -98,129 +99,175 @@ export function notFoundError(message) {
   return new CliError(message, { code: 'E_NOT_FOUND', exitCode: EXIT_CODES.NOT_FOUND });
 }
 
-/** @param {string[]} argv */
-export function parseArgs(argv) {
-  const options = createDefaultOptions();
-  /** @type {string[]} */
-  const positionals = [];
-  const optionDefs = [
-    { flag: '--repo', shortFlag: '-r', key: 'repo' },
-    { flag: '--graph', key: 'graph' },
-    { flag: '--writer', key: 'writer' },
-  ];
+const KNOWN_COMMANDS = ['info', 'query', 'path', 'history', 'check', 'materialize', 'seek', 'verify-audit', 'install-hooks', 'view'];
 
-  for (let i = 0; i < argv.length; i += 1) {
-    const result = consumeBaseArg({ argv, index: i, options, optionDefs, positionals });
-    if (result.done) {
+const BASE_OPTIONS = {
+  repo:   { type: 'string', short: 'r' },
+  json:   { type: 'boolean', default: false },
+  ndjson: { type: 'boolean', default: false },
+  view:   { type: 'string' },
+  graph:  { type: 'string' },
+  writer: { type: 'string', default: 'cli' },
+  help:   { type: 'boolean', short: 'h', default: false },
+};
+
+/**
+ * Pre-processes argv to handle --view's optional-value semantics.
+ * If --view is followed by a command name or flag (or is last), injects 'ascii'.
+ * Validates the view mode value.
+ * @param {string[]} argv
+ * @returns {string[]}
+ */
+function preprocessView(argv) {
+  const idx = argv.indexOf('--view');
+  if (idx === -1) {
+    return argv;
+  }
+  const next = argv[idx + 1];
+  const needsDefault = !next || next.startsWith('-') || KNOWN_COMMANDS.includes(next);
+  if (needsDefault) {
+    return [...argv.slice(0, idx + 1), 'ascii', ...argv.slice(idx + 1)];
+  }
+  const validModes = ['ascii', 'browser'];
+  const validPrefixes = ['svg:', 'html:'];
+  const isValid = validModes.includes(next) ||
+    validPrefixes.some((prefix) => next.startsWith(prefix));
+  if (!isValid) {
+    throw usageError(`Invalid view mode: ${next}. Valid modes: ascii, browser, svg:FILE, html:FILE`);
+  }
+  return argv;
+}
+
+/** String flags that always consume a value argument */
+const BASE_STRING_FLAGS = new Set(['--repo', '-r', '--graph', '--writer']);
+/** Boolean flags (no value) */
+const BASE_BOOL_FLAGS = new Set(['--json', '--ndjson', '--help', '-h']);
+
+/**
+ * Checks if a value looks like it belongs to --view (not a flag or command).
+ * @param {string|undefined} next
+ * @returns {boolean}
+ */
+function isViewValue(next) {
+  if (!next || next.startsWith('-') || KNOWN_COMMANDS.includes(next)) {
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Extracts base flags from anywhere in argv, leaving command + commandArgs.
+ *
+ * Base flags (--repo, --graph, --writer, --view, --json, --ndjson, --help)
+ * can appear before or after the command. Everything else (unknown flags,
+ * positionals after the command) becomes commandArgs.
+ *
+ * @param {string[]} argv
+ * @returns {{baseArgs: string[], command: string|undefined, commandArgs: string[]}}
+ */
+function extractBaseArgs(argv) {
+  /** @type {string[]} */
+  const baseArgs = [];
+  /** @type {string[]} */
+  const rest = [];
+  /** @type {string|undefined} */
+  let command;
+  let pastCommand = false;
+
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+
+    if (arg === '--') {
+      rest.push(...argv.slice(i + 1));
       break;
     }
-    i += result.consumed;
-  }
 
-  options.repo = path.resolve(options.repo);
-  return { options, positionals };
-}
-
-function createDefaultOptions() {
-  return {
-    repo: process.cwd(),
-    json: false,
-    ndjson: false,
-    view: null,
-    graph: null,
-    writer: 'cli',
-    help: false,
-  };
-}
-
-/**
- * @param {Object} params
- * @param {string[]} params.argv
- * @param {number} params.index
- * @param {Record<string, *>} params.options
- * @param {Array<{flag: string, shortFlag?: string, key: string}>} params.optionDefs
- * @param {string[]} params.positionals
- */
-function consumeBaseArg({ argv, index, options, optionDefs, positionals }) {
-  const arg = argv[index];
-
-  if (arg === '--') {
-    positionals.push(...argv.slice(index + 1));
-    return { consumed: argv.length - index - 1, done: true };
-  }
-
-  if (arg === '--json') {
-    options.json = true;
-    return { consumed: 0 };
-  }
-
-  if (arg === '--ndjson') {
-    options.ndjson = true;
-    return { consumed: 0 };
-  }
-
-  if (arg === '--view') {
-    // Valid view modes: ascii, browser, svg:FILE, html:FILE
-    // Don't consume known commands as modes
-    const KNOWN_COMMANDS = ['info', 'query', 'path', 'history', 'check', 'materialize', 'seek', 'verify-audit', 'install-hooks'];
-    const nextArg = argv[index + 1];
-    const isViewMode = nextArg &&
-      !nextArg.startsWith('-') &&
-      !KNOWN_COMMANDS.includes(nextArg);
-    if (isViewMode) {
-      // Validate the view mode value
-      const validModes = ['ascii', 'browser'];
-      const validPrefixes = ['svg:', 'html:'];
-      const isValid = validModes.includes(nextArg) ||
-        validPrefixes.some((prefix) => nextArg.startsWith(prefix));
-      if (!isValid) {
-        throw usageError(`Invalid view mode: ${nextArg}. Valid modes: ascii, browser, svg:FILE, html:FILE`);
+    if (BASE_STRING_FLAGS.has(arg)) {
+      baseArgs.push(arg);
+      if (i + 1 < argv.length) {
+        baseArgs.push(argv[++i]);
       }
-      options.view = nextArg;
-      return { consumed: 1 };
+      continue;
     }
-    options.view = 'ascii'; // default mode
-    return { consumed: 0 };
-  }
 
-  if (arg === '-h' || arg === '--help') {
-    options.help = true;
-    return { consumed: 0 };
-  }
-
-  const matched = matchOptionDef(arg, optionDefs);
-  if (matched) {
-    const result = readOptionValue({
-      args: argv,
-      index,
-      flag: matched.flag,
-      shortFlag: matched.shortFlag,
-      allowEmpty: false,
-    });
-    if (result) {
-      options[matched.key] = result.value;
-      return { consumed: result.consumed };
+    // Handle --flag=value form for string flags
+    if (arg.startsWith('--') && BASE_STRING_FLAGS.has(arg.split('=')[0])) {
+      baseArgs.push(arg);
+      continue;
     }
+
+    // --view has optional-value semantics: consume next only if it looks like a view mode
+    if (arg === '--view') {
+      baseArgs.push(arg);
+      if (isViewValue(argv[i + 1])) {
+        baseArgs.push(argv[++i]);
+      }
+      continue;
+    }
+
+    if (arg.startsWith('--view=')) {
+      baseArgs.push(arg);
+      continue;
+    }
+
+    if (BASE_BOOL_FLAGS.has(arg)) {
+      baseArgs.push(arg);
+      continue;
+    }
+
+    if (!pastCommand && !arg.startsWith('-')) {
+      command = arg;
+      pastCommand = true;
+      continue;
+    }
+
+    rest.push(arg);
   }
 
-  if (arg.startsWith('-')) {
-    throw usageError(`Unknown option: ${arg}`);
-  }
-
-  positionals.push(arg, ...argv.slice(index + 1));
-  return { consumed: argv.length - index - 1, done: true };
+  return { baseArgs, command, commandArgs: rest };
 }
 
 /**
- * @param {string} arg
- * @param {Array<{flag: string, shortFlag?: string, key: string}>} optionDefs
+ * Two-pass arg parser using node:util.parseArgs.
+ *
+ * Pass 1: extract base flags from anywhere in argv.
+ * Pass 2: pre-process --view (optional-value semantics) on base args.
+ * Pass 3: parseArgs with strict:true on base args only.
+ *
+ * @param {string[]} argv
+ * @returns {{options: CliOptions, command: string|undefined, commandArgs: string[]}}
  */
-function matchOptionDef(arg, optionDefs) {
-  return optionDefs.find((def) =>
-    arg === def.flag ||
-    arg === def.shortFlag ||
-    arg.startsWith(`${def.flag}=`)
-  );
+export function parseArgs(argv) {
+  const { baseArgs, command, commandArgs } = extractBaseArgs(argv);
+  const processed = preprocessView(baseArgs);
+
+  /** @type {*} */
+  let parsed;
+  try {
+    parsed = nodeParseArgs({
+      args: processed,
+      options: /** @type {*} */ (BASE_OPTIONS),
+      strict: true,
+      allowPositionals: false,
+    });
+  } catch (/** @type {*} */ err) {
+    throw usageError(err.message);
+  }
+
+  const { values } = parsed;
+
+  /** @type {CliOptions} */
+  const options = {
+    repo: path.resolve(typeof values.repo === 'string' ? values.repo : process.cwd()),
+    json: Boolean(values.json),
+    ndjson: Boolean(values.ndjson),
+    view: typeof values.view === 'string' ? values.view : null,
+    graph: typeof values.graph === 'string' ? values.graph : null,
+    writer: typeof values.writer === 'string' ? values.writer : 'cli',
+    help: Boolean(values.help),
+  };
+
+  return { options, command, commandArgs };
 }
 
 /**
