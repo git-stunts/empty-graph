@@ -1,3 +1,6 @@
+import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
 import { describe, it, expect } from 'vitest';
 import { parseArgs, KNOWN_COMMANDS } from '../../../bin/cli/infrastructure.js';
 
@@ -137,15 +140,18 @@ describe('parseArgs (base)', () => {
   });
 
   describe('KNOWN_COMMANDS sync', () => {
-    // COMMANDS map in warp-graph.js cannot be imported without side-effects,
-    // so we hardcode the expected set here as a drift-detection test.
-    const EXPECTED_COMMANDS = [
-      'info', 'query', 'path', 'history', 'check',
-      'materialize', 'seek', 'verify-audit', 'view', 'install-hooks',
-    ];
+    // warp-graph.js calls main() at load time, so we cannot import COMMANDS
+    // directly. Instead, read the source and extract keys from the Map literal.
+    const entrypoint = path.resolve(
+      path.dirname(fileURLToPath(import.meta.url)),
+      '../../../bin/warp-graph.js',
+    );
+    const source = fs.readFileSync(entrypoint, 'utf8');
+    const matches = [...source.matchAll(/\['([a-z-]+)',\s*handle/g)];
+    const commandsFromSource = matches.map((m) => m[1]).sort();
 
     it('KNOWN_COMMANDS matches the COMMANDS map in warp-graph.js', () => {
-      expect([...KNOWN_COMMANDS].sort()).toEqual([...EXPECTED_COMMANDS].sort());
+      expect([...KNOWN_COMMANDS].sort()).toEqual(commandsFromSource);
     });
   });
 });
