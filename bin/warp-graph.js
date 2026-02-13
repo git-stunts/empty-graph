@@ -5,30 +5,7 @@ import { EXIT_CODES, HELP_TEXT, CliError, parseArgs, usageError } from './cli/in
 import { present } from './presenters/index.js';
 import { stableStringify, compactStringify } from './presenters/json.js';
 import { renderError } from './presenters/text.js';
-import handleInfo from './cli/commands/info.js';
-import handleQuery from './cli/commands/query.js';
-import handlePath from './cli/commands/path.js';
-import handleHistory from './cli/commands/history.js';
-import handleCheck from './cli/commands/check.js';
-import handleMaterialize from './cli/commands/materialize.js';
-import handleSeek from './cli/commands/seek.js';
-import handleVerifyAudit from './cli/commands/verify-audit.js';
-import handleView from './cli/commands/view.js';
-import handleInstallHooks from './cli/commands/install-hooks.js';
-
-/** @type {Map<string, Function>} */
-const COMMANDS = new Map(/** @type {[string, Function][]} */ ([
-  ['info', handleInfo],
-  ['query', handleQuery],
-  ['path', handlePath],
-  ['history', handleHistory],
-  ['check', handleCheck],
-  ['materialize', handleMaterialize],
-  ['seek', handleSeek],
-  ['verify-audit', handleVerifyAudit],
-  ['view', handleView],
-  ['install-hooks', handleInstallHooks],
-]));
+import { COMMANDS } from './cli/commands/registry.js';
 
 const VIEW_SUPPORTED_COMMANDS = ['info', 'check', 'history', 'path', 'materialize', 'query', 'seek'];
 
