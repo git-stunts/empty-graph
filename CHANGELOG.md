@@ -16,7 +16,7 @@ Decomposes the 2491-line `bin/warp-graph.js` monolith into per-command modules (
 - **`bin/cli/shared.js`**: 12 helpers used by 2+ commands (createPersistence, openGraph, applyCursorCeiling, etc.).
 - **`bin/cli/types.js`**: JSDoc typedefs (Persistence, WarpGraphInstance, CliOptions, etc.).
 - **`bin/cli/commands/`**: 10 per-command modules (info, query, path, history, check, materialize, seek, verify-audit, view, install-hooks).
-- **ESLint config**: Replaced `bin/warp-graph.js` relaxed-complexity entry with `bin/cli/commands/seek.js` and `bin/cli/commands/query.js`.
+- **ESLint config**: Added `bin/cli/commands/seek.js`, `bin/cli/commands/query.js`, and other `bin/cli/` modules to the relaxed-complexity block alongside `bin/warp-graph.js`.
 
 ## [10.10.0] — 2026-02-12 — VERIFY-AUDIT: Chain Verification
 
