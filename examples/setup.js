@@ -104,15 +104,15 @@ async function main() {
   const state = await graph.materialize();
 
   console.log('\n[4] Materialized state:');
-  const nodes = graph.getNodes();
-  const edges = graph.getEdges();
+  const nodes = await graph.getNodes();
+  const edges = await graph.getEdges();
   console.log(`    Nodes: ${nodes.length}`);
   console.log(`    Edges: ${edges.length}`);
   console.log(`    Properties: ${state.prop.size}`);
 
   // Access node properties
-  const aliceProps = graph.getNodeProps('user:alice');
-  const postProps = graph.getNodeProps('post:1');
+  const aliceProps = await graph.getNodeProps('user:alice');
+  const postProps = await graph.getNodeProps('post:1');
   const aliceName = aliceProps?.get('name');
   const aliceEmail = aliceProps?.get('email');
   const postTitle = postProps?.get('title');
