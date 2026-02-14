@@ -156,7 +156,7 @@ async function runChecks(ctx, startMs) {
         f.durationMs = checkDuration;
         findings.push(f);
       }
-    } catch (/** @type {*} */ err) {
+    } catch (/** @type {*} TODO(ts-cleanup): narrow error type */ err) {
       checkDuration = checkDuration ?? 0;
       checksRun++;
       findings.push({
