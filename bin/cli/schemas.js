@@ -23,7 +23,14 @@ export const installHooksSchema = z.object({
 export const verifyAuditSchema = z.object({
   since: z.string().min(1, 'Missing value for --since').optional(),
   writer: z.string().min(1, 'Missing value for --writer').optional(),
-}).strict();
+  'trust-required': z.boolean().default(false),
+  'trust-ref-tip': z.string().min(1, 'Missing value for --trust-ref-tip').optional(),
+}).strict().transform((val) => ({
+  since: val.since,
+  writer: val.writer,
+  trustRequired: val['trust-required'],
+  trustRefTip: val['trust-ref-tip'],
+}));
 
 // ============================================================================
 // Path
@@ -165,3 +172,19 @@ export const seekSchema = z.object({
     diffLimit: val['diff-limit'],
   };
 });
+
+// ============================================================================
+// Trust
+// ============================================================================
+
+export const trustSchema = z.object({
+  'from-writers': z.boolean().default(false),
+  policy: z.string().optional(),
+  strict: z.boolean().default(false),
+  pin: z.string().min(1, 'Missing value for --pin').optional(),
+}).strict().transform((val) => ({
+  fromWriters: val['from-writers'],
+  policy: val.policy,
+  strict: val.strict,
+  pin: val.pin,
+}));

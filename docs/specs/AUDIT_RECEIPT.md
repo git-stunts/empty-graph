@@ -334,6 +334,16 @@ The `version` field is a positive integer, incremented on breaking schema change
 
 Verifiers SHOULD record and compare tip hashes across runs. External anchoring mechanisms (signed checkpoints, transparency logs, multi-party witnesses) can provide stronger guarantees but are out of scope for v1.
 
+### Trust Configuration (v10.15.0)
+
+The optional **trust ref** at `refs/warp/<graph>/trust/root` declares which writers are trusted. When configured, the `verify-audit` command produces a dual verdict: **integrity** (chain structure) and **trust** (writer allowlist).
+
+Trust configuration is stored as a `trust.json` blob in a CAS-protected, ff-only Git commit chain. The schema includes a `trustedWriters` array and a `policy` field (`"any"` or `"all_writers_must_be_trusted"`). Trust evaluation is pure — no environment reads, no side effects.
+
+Pin resolution priority: CLI `--trust-ref-tip` > `WARP_TRUSTED_ROOT` env > live ref. Invalid pins fail closed (no fallback).
+
+For the full trust specification, see [`docs/specs/TRUST_MODEL.md`](TRUST_MODEL.md).
+
 ### Authoritative Time
 
 `receipt.timestamp` is the authoritative time source. Git commit header timestamps (`committer` and `author` dates) are informational only. Verifiers MUST NOT compare Git header timestamps against receipt timestamps in v1.
@@ -757,11 +767,21 @@ The receipt digest is computed from the canonical CBOR bytes, not from the recei
       "warnings": [{ "code": "string", "message": "string" }]
     }
   ],
-  "trustWarning": {
-    "code": "string",
-    "message": "string",
-    "sources": ["string"]
-  }
+  "trust": {
+    "status": "not_configured | configured | pinned | error",
+    "source": "ref | cli_pin | env_pin | none",
+    "sourceDetail": "string | null",
+    "ref": "string | null",
+    "commit": "string | null",
+    "policy": "string | null",
+    "evaluatedWriters": ["string"],
+    "untrustedWriters": ["string"],
+    "explanations": [{ "writerId": "string", "trusted": "boolean", "reason": "string" }],
+    "snapshotDigest": "string | null"
+  },
+  "integrityVerdict": "pass | fail",
+  "trustVerdict": "pass | degraded | fail | not_configured",
+  "trustWarning": "null (deprecated v2.x legacy field)"
 }
 ```
 

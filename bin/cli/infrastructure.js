@@ -22,6 +22,7 @@ Commands:
   check            Report graph health/GC status
   doctor           Diagnose structural issues and suggest fixes
   verify-audit     Verify audit receipt chain integrity
+  trust            Manage trust configuration (init, show, doctor)
   materialize      Materialize and checkpoint all graphs
   seek             Time-travel: step through graph history by Lamport tick
   view             Interactive TUI graph browser (requires @git-stunts/git-warp-tui)
@@ -62,6 +63,8 @@ Doctor options:
 Verify-audit options:
   --writer <id>         Verify a single writer's chain (default: all)
   --since <commit>      Verify from tip down to this commit (inclusive)
+  --trust-required      Exit non-zero if trust verdict is not "pass"
+  --trust-ref-tip <sha> Pin trust config to a specific commit SHA
 
 Seek options:
   --tick <N|+N|-N>      Jump to tick N, or step forward/backward
@@ -72,7 +75,15 @@ Seek options:
   --drop <name>         Delete a saved cursor
   --diff                Show structural diff (added/removed nodes, edges, props)
   --diff-limit <N>      Max diff entries (default 2000)
+
+Trust options:
+  trust init              Create genesis trust ref
+  trust init --from-writers  Seed from existing writer refs
+  trust show              Show current trust config
+  trust doctor            Diagnose trust ref health
+  trust doctor --pin <sha>   Validate pinned commit
 `;
+
 
 /**
  * Structured CLI error with exit code and error code.
@@ -103,7 +114,7 @@ export function notFoundError(message) {
   return new CliError(message, { code: 'E_NOT_FOUND', exitCode: EXIT_CODES.NOT_FOUND });
 }
 
-export const KNOWN_COMMANDS = ['info', 'query', 'path', 'history', 'check', 'doctor', 'materialize', 'seek', 'verify-audit', 'install-hooks', 'view'];
+export const KNOWN_COMMANDS = ['info', 'query', 'path', 'history', 'check', 'doctor', 'materialize', 'seek', 'verify-audit', 'trust', 'install-hooks', 'view'];
 
 const BASE_OPTIONS = {
   repo:   { type: 'string', short: 'r' },

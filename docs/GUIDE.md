@@ -1355,8 +1355,18 @@ refs/warp/<graphName>/
 │   └── ...
 ├── checkpoints/
 │   └── head           # Latest checkpoint
-└── coverage/
-    └── head           # Octopus anchor (all writer tips)
+├── coverage/
+│   └── head           # Octopus anchor (all writer tips)
+├── audit/
+│   ├── alice          # Alice's audit receipt chain
+│   └── ...
+├── trust/
+│   └── root           # Trust configuration chain
+├── cursor/
+│   ├── active         # Current seek position
+│   └── saved/
+│       └── <name>     # Named cursor bookmarks
+└── seek-cache         # Materialization cache index
 ```
 
 Each writer's ref points to the tip of their patch chain. Patches are Git commits whose parents point to the previous patch from the same writer. All commits point to Git's well-known empty tree (`4b825dc642cb6eb9a060e54bf8d69288fbee4904`), making data invisible to normal Git workflows.
@@ -1742,6 +1752,93 @@ Exit code 0 means all chains are valid (or partial when `--since` is used). Exit
 #### Spec Reference
 
 The full specification — including canonical serialization rules, field constraints, trust model, and normative test vectors — lives in [`docs/specs/AUDIT_RECEIPT.md`](specs/AUDIT_RECEIPT.md).
+
+### Trust Configuration
+
+Trust configuration declares which writers are trusted for a graph. It is stored as a Git ref at `refs/warp/<graph>/trust/root` and evaluated during `verify-audit`.
+
+#### Setting Up Trust
+
+```bash
+# Initialize from existing writers (recommended)
+git warp trust init --from-writers
+
+# Initialize with empty writer list
+git warp trust init
+
+# Initialize with strict policy
+git warp trust init --policy all_writers_must_be_trusted
+```
+
+#### Viewing Trust Config
+
+```bash
+git warp trust show
+git warp --json trust show
+```
+
+#### Trust Doctor
+
+Check trust configuration health:
+
+```bash
+git warp trust doctor
+git warp --json trust doctor
+git warp trust doctor --strict       # non-zero exit on failures
+git warp trust doctor --pin <sha>    # validate a specific commit
+```
+
+#### Trust-Aware Verification
+
+When trust is configured, `verify-audit` produces dual verdicts:
+
+```bash
+# Standard verification (trust evaluation included automatically)
+git warp --json verify-audit
+
+# Pin verification to a specific trust commit
+git warp --json verify-audit --trust-ref-tip abc123...
+
+# Require trust to pass (for CI gates)
+git warp verify-audit --trust-required
+```
+
+The JSON output includes:
+
+- `integrityVerdict`: `"pass"` or `"fail"` (chain structure)
+- `trustVerdict`: `"pass"`, `"degraded"`, `"fail"`, or `"not_configured"`
+- `trust.untrustedWriters`: Writers not in the trusted set
+- `trust.explanations`: Per-writer reasoning
+
+#### Policies
+
+| Policy | Behavior |
+|---|---|
+| `"any"` (default) | All writers accepted; untrusted writers noted but not rejected |
+| `"all_writers_must_be_trusted"` | Only listed writers accepted; unlisted writers cause `trustVerdict: "degraded"` |
+
+#### Programmatic API
+
+```javascript
+import TrustService from '@git-stunts/git-warp/domain/services/TrustService.js';
+
+const trust = new TrustService({ persistence, graphName: 'my-graph', crypto });
+
+// Initialize
+await trust.initFromWriters(['alice', 'bob']);
+
+// Read current config
+const { config, commitSha, snapshotDigest } = await trust.readTrustConfig();
+
+// Evaluate writers
+const result = trust.evaluateWriters(['alice', 'charlie'], config);
+// { evaluatedWriters: ['alice', 'charlie'], untrustedWriters: [], explanations: [...] }
+
+// Diagnose
+const findings = await trust.diagnose();
+```
+
+For the full trust specification, see [`docs/specs/TRUST_MODEL.md`](specs/TRUST_MODEL.md).
 
 ---
 

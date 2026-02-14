@@ -39,6 +39,20 @@ const STATUS_DATA_MISMATCH = 'DATA_MISMATCH';
 /** Operational failure. */
 const STATUS_ERROR = 'ERROR';
 
+/** @type {TrustAssessment} */
+const NOT_CONFIGURED_TRUST = {
+  status: 'not_configured',
+  source: 'none',
+  sourceDetail: null,
+  ref: null,
+  commit: null,
+  policy: null,
+  evaluatedWriters: [],
+  untrustedWriters: [],
+  explanations: [],
+  snapshotDigest: null,
+};
+
 // ============================================================================
 // Helpers
 // ============================================================================
@@ -176,10 +190,17 @@ function validateTrailerConsistency(receipt, decoded) {
  */
 
 /**
- * @typedef {Object} TrustWarning
- * @property {string} code
- * @property {string} message
- * @property {string[]} sources
+ * @typedef {Object} TrustAssessment
+ * @property {'not_configured'|'configured'|'pinned'|'error'} status
+ * @property {'ref'|'env_pin'|'cli_pin'|'none'} source
+ * @property {string|null} sourceDetail
+ * @property {string|null} ref
+ * @property {string|null} commit
+ * @property {string|null} policy
+ * @property {string[]} evaluatedWriters
+ * @property {string[]} untrustedWriters
+ * @property {Array<{ writerId: string, trusted: boolean, reason: string }>} explanations
+ * @property {string|null} snapshotDigest
  */
 
 /**
@@ -188,7 +209,10 @@ function validateTrailerConsistency(receipt, decoded) {
  * @property {string} verifiedAt
  * @property {{ total: number, valid: number, partial: number, invalid: number }} summary
  * @property {ChainResult[]} chains
- * @property {TrustWarning|null} trustWarning
+ * @property {TrustAssessment} trust
+ * @property {'pass'|'fail'} integrityVerdict
+ * @property {'pass'|'degraded'|'fail'|'not_configured'} trustVerdict
+ * @property {null} trustWarning - deprecated v2.x legacy field
  */
 
 export class AuditVerifierService {
@@ -197,17 +221,19 @@ export class AuditVerifierService {
    * @param {import('../../ports/CommitPort.js').default & import('../../ports/RefPort.js').default & import('../../ports/BlobPort.js').default & import('../../ports/TreePort.js').default} options.persistence
    * @param {import('../../ports/CodecPort.js').default} options.codec
    * @param {import('../../ports/LoggerPort.js').default} [options.logger]
+   * @param {import('./TrustService.js').default} [options.trustService]
    */
-  constructor({ persistence, codec, logger }) {
+  constructor({ persistence, codec, logger, trustService }) {
     this._persistence = persistence;
     this._codec = codec;
     this._logger = logger || null;
+    this._trustService = trustService || null;
   }
 
   /**
    * Verifies all audit chains for a graph.
    * @param {string} graphName
-   * @param {{ since?: string }} [options]
+   * @param {{ since?: string, trustRefTip?: string, trustRequired?: boolean }} [options]
    * @returns {Promise<VerifyResult>}
    */
   async verifyAll(graphName, options = {}) {
@@ -227,12 +253,19 @@ export class AuditVerifierService {
     const partial = chains.filter((c) => c.status === STATUS_PARTIAL).length;
     const invalid = chains.length - valid - partial;
 
+    const integrityVerdict = invalid > 0 ? 'fail' : 'pass';
+    const trust = await this._evaluateTrust(graphName, writerIds, options);
+    const trustVerdict = deriveTrustVerdict(trust);
+
     return {
       graph: graphName,
       verifiedAt: new Date().toISOString(),
       summary: { total: chains.length, valid, partial, invalid },
       chains,
-      trustWarning: detectTrustWarning(),
+      trust,
+      integrityVerdict,
+      trustVerdict,
+      trustWarning: null, // deprecated v2.x legacy field
     };
   }
 
@@ -621,28 +654,95 @@ export class AuditVerifierService {
       result.status = STATUS_ERROR;
     }
   }
+
+  /**
+   * Orchestration layer for trust evaluation.
+   * Handles pin resolution: CLI pin > env pin > live ref.
+   * Invalid pin fails closed (no fallback to live ref).
+   *
+   * @param {string} graphName
+   * @param {string[]} writerIds
+   * @param {{ trustRefTip?: string }} options
+   * @returns {Promise<TrustAssessment>}
+   * @private
+   */
+  async _evaluateTrust(graphName, writerIds, options) {
+    if (!this._trustService) {
+      return NOT_CONFIGURED_TRUST;
+    }
+
+    // Pin resolution priority: CLI > env > live ref
+    const cliPin = options.trustRefTip || null;
+    const envPin = (typeof process !== 'undefined' && process.env?.WARP_TRUSTED_ROOT) || null;
+    const pin = cliPin || envPin;
+    const source = cliPin ? 'cli_pin' : envPin ? 'env_pin' : 'ref';
+
+    let configResult;
+    try {
+      if (pin) {
+        configResult = await this._trustService.readTrustConfigAtCommit(pin);
+      } else {
+        configResult = await this._trustService.readTrustConfig();
+      }
+    } catch {
+      // Invalid pin: fail closed, no fallback
+      if (pin) {
+        return {
+          status: 'error',
+          source,
+          sourceDetail: pin,
+          ref: null,
+          commit: null,
+          policy: null,
+          evaluatedWriters: [],
+          untrustedWriters: [],
+          explanations: [],
+          snapshotDigest: null,
+        };
+      }
+      return NOT_CONFIGURED_TRUST;
+    }
+
+    if (!configResult) {
+      return NOT_CONFIGURED_TRUST;
+    }
+
+    const { config, commitSha, snapshotDigest } = configResult;
+    const eval_ = this._trustService.evaluateWriters(writerIds, config);
+
+    return {
+      status: pin ? 'pinned' : 'configured',
+      source,
+      sourceDetail: pin || this._trustService._trustRef,
+      ref: this._trustService._trustRef,
+      commit: commitSha,
+      policy: config.policy,
+      evaluatedWriters: eval_.evaluatedWriters,
+      untrustedWriters: eval_.untrustedWriters,
+      explanations: eval_.explanations,
+      snapshotDigest,
+    };
+  }
 }
 
 // ============================================================================
-// Trust Root (v1 stub)
+// Trust helpers
 // ============================================================================
 
 /**
- * Detects trust configuration and returns a structured warning if present.
- * Full GPG verification is deferred to v2.
- * @returns {TrustWarning|null}
+ * Derives trust verdict from trust assessment.
+ * @param {TrustAssessment} trust
+ * @returns {'pass'|'degraded'|'fail'|'not_configured'}
  */
-function detectTrustWarning() {
-  const sources = [];
-  if (typeof process !== 'undefined' && process.env?.WARP_TRUSTED_ROOT) {
-    sources.push('env');
+function deriveTrustVerdict(trust) {
+  if (trust.status === 'not_configured') {
+    return 'not_configured';
   }
-  if (sources.length === 0) {
-    return null;
+  if (trust.status === 'error') {
+    return 'fail';
   }
-  return {
-    code: 'TRUST_CONFIG_PRESENT_UNENFORCED',
-    message: 'Trust root configured but signature verification is not implemented in v1',
-    sources,
-  };
+  if (trust.untrustedWriters.length > 0) {
+    return 'degraded';
+  }
+  return 'pass';
 }

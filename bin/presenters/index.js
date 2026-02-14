@@ -28,6 +28,7 @@ import {
   renderMaterialize,
   renderInstallHooks,
   renderSeek,
+  renderTrust,
   renderVerifyAudit,
 } from './text.js';
 
@@ -71,6 +72,7 @@ const TEXT_RENDERERS = new Map(/** @type {[string, function(*): string][]} */ ([
   ['materialize', renderMaterialize],
   ['seek', renderSeek],
   ['verify-audit', renderVerifyAudit],
+  ['trust', renderTrust],
   ['install-hooks', renderInstallHooks],
 ]));
 

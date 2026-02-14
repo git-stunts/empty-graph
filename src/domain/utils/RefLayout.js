@@ -11,6 +11,7 @@
  * - refs/warp/<graph>/cursor/active
  * - refs/warp/<graph>/cursor/saved/<name>
  * - refs/warp/<graph>/audit/<writer_id>
+ * - refs/warp/<graph>/trust/root
  *
  * @module domain/utils/RefLayout
  */
@@ -346,6 +347,25 @@ export function buildAuditPrefix(graphName) {
 export function buildSeekCacheRef(graphName) {
   validateGraphName(graphName);
   return `${REF_PREFIX}/${graphName}/seek-cache`;
+}
+
+/**
+ * Builds the trust root ref path for the given graph.
+ *
+ * The trust root ref points to a commit whose tree contains a
+ * `trust.json` blob. Updates are ff-only with CAS protection.
+ *
+ * @param {string} graphName - The name of the graph
+ * @returns {string} The full ref path, e.g. `refs/warp/<graphName>/trust/root`
+ * @throws {Error} If graphName is invalid
+ *
+ * @example
+ * buildTrustRef('events');
+ * // => 'refs/warp/events/trust/root'
+ */
+export function buildTrustRef(graphName) {
+  validateGraphName(graphName);
+  return `${REF_PREFIX}/${graphName}/trust/root`;
 }
 
 // -----------------------------------------------------------------------------

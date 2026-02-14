@@ -458,6 +458,70 @@ export function renderDoctor(payload) {
   return `${lines.join('\n')}\n`;
 }
 
+// ── Trust renderer ───────────────────────────────────────────────────────────
+
+/** @param {*} payload */
+export function renderTrust(payload) {
+  if (payload.action === 'init') {
+    return renderTrustInit(payload);
+  }
+  if (payload.action === 'show') {
+    return renderTrustShow(payload);
+  }
+  if (payload.action === 'doctor') {
+    return renderTrustDoctor(payload);
+  }
+  return `${JSON.stringify(payload)}\n`;
+}
+
+/** @param {*} payload */
+function renderTrustInit(payload) {
+  const lines = [`Trust initialized for graph: ${payload.graph}`];
+  lines.push(`Commit: ${payload.commit}`);
+  if (payload.config) {
+    lines.push(`Policy: ${payload.config.policy}`);
+    lines.push(`Writers: ${payload.config.trustedWriters.length}`);
+    for (const w of payload.config.trustedWriters) {
+      lines.push(`  - ${w}`);
+    }
+  }
+  if (payload.snapshotDigest) {
+    lines.push(`Digest: ${payload.snapshotDigest.slice(0, 16)}...`);
+  }
+  return `${lines.join('\n')}\n`;
+}
+
+/** @param {*} payload */
+function renderTrustShow(payload) {
+  const lines = [];
+  lines.push(`Ref: ${payload.ref}`);
+  lines.push(`Commit: ${payload.commit}`);
+  lines.push(`Version: ${payload.config.version}`);
+  lines.push(`Policy: ${payload.config.policy}`);
+  lines.push(`Epoch: ${payload.config.epoch}`);
+  lines.push(`Writers: ${payload.config.trustedWriters.length}`);
+  for (const w of payload.config.trustedWriters) {
+    lines.push(`  - ${w}`);
+  }
+  if (payload.snapshotDigest) {
+    lines.push(`Digest: ${payload.snapshotDigest.slice(0, 16)}...`);
+  }
+  return `${lines.join('\n')}\n`;
+}
+
+/** @param {*} payload */
+function renderTrustDoctor(payload) {
+  const lines = [
+    `Health: ${colorHealth(payload.health)}`,
+    `Checks: ${payload.summary.checksRun} (${payload.summary.ok} ok, ${payload.summary.warn} warn, ${payload.summary.fail} fail)`,
+    '',
+  ];
+  for (const f of payload.findings) {
+    lines.push(`${findingIcon(f.status)} ${f.id}: ${f.message}`);
+  }
+  return `${lines.join('\n')}\n`;
+}
+
 // ── Verify-audit renderer ────────────────────────────────────────────────────
 
 /** @param {string} status */
@@ -466,6 +530,40 @@ function colorStatus(status) {
     return `${ANSI_GREEN}${status}${ANSI_RESET}`;
   }
   return `${ANSI_RED}${status}${ANSI_RESET}`;
+}
+
+/** @param {string} verdict */
+function colorVerdict(verdict) {
+  if (verdict === 'pass') {
+    return `${ANSI_GREEN}${verdict}${ANSI_RESET}`;
+  }
+  if (verdict === 'degraded' || verdict === 'not_configured') {
+    return `${ANSI_YELLOW}${verdict}${ANSI_RESET}`;
+  }
+  return `${ANSI_RED}${verdict}${ANSI_RESET}`;
+}
+
+/**
+ * Renders the trust assessment block for verify-audit.
+ * @param {string[]} lines
+ * @param {*} payload
+ */
+function appendTrustBlock(lines, payload) {
+  if (!payload.trust || payload.trust.status === 'not_configured') {
+    lines.push('');
+    lines.push(`${ANSI_DIM}Trust: not configured${ANSI_RESET}`);
+    return;
+  }
+
+  const t = payload.trust;
+  lines.push('');
+  lines.push(`Trust: ${t.status} (source=${t.source}, policy=${t.policy || 'n/a'})`);
+  if (t.commit) {
+    lines.push(`  Commit: ${t.commit.slice(0, 12)}`);
+  }
+  if (t.untrustedWriters.length > 0) {
+    lines.push(`  ${ANSI_YELLOW}Untrusted: ${t.untrustedWriters.join(', ')}${ANSI_RESET}`);
+  }
 }
 
 /** @param {*} payload */
@@ -492,9 +590,13 @@ export function renderVerifyAudit(payload) {
     }
   }
 
-  if (payload.trustWarning) {
+  appendTrustBlock(lines, payload);
+
+  // Dual verdicts
+  if (payload.integrityVerdict) {
     lines.push('');
-    lines.push(`${ANSI_YELLOW}Trust: ${payload.trustWarning.message}${ANSI_RESET}`);
+    lines.push(`Integrity: ${colorVerdict(payload.integrityVerdict)}`);
+    lines.push(`Trust: ${colorVerdict(payload.trustVerdict)}`);
   }
 
   return `${lines.join('\n')}\n`;

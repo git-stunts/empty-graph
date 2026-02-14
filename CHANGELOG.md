@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [10.15.0] — 2026-02-14 — Trust Ref Foundation
+
+Adds declarative trust configuration for WARP graphs — "Integrity without Identity." Operators can declare which writers are trusted via a Git-native trust ref, and `verify-audit` now produces dual verdicts (integrity + trust).
+
+### Added
+
+- **`TrustService`**: Domain service for managing trust configuration stored at `refs/warp/<graph>/trust/root`. Supports `initTrust()`, `initFromWriters()`, `updateTrust()`, `readTrustConfig()`, `readTrustConfigAtCommit()`, `evaluateWriters()`, `getTrustHistory()`, and `diagnose()`.
+- **`TrustSchema`**: Zod schema for `trust.json` v1 with canonical JSON serialization and domain-separated SHA-256 digest computation (`git-warp:trust:v1\0` prefix).
+- **`TrustError`**: Domain error class with codes: `E_TRUST_SCHEMA_INVALID`, `E_TRUST_REF_CONFLICT`, `E_TRUST_PIN_INVALID`, `E_TRUST_NOT_CONFIGURED`, `E_TRUST_POLICY_RESERVED`, `E_TRUST_EPOCH_REGRESSION`.
+- **`canonicalJson`**: Utility module for deterministic JSON serialization with sorted keys at every nesting level.
+- **`buildTrustRef()`**: RefLayout helper for `refs/warp/<graph>/trust/root`.
+- **`git warp trust init`**: Creates genesis trust commit. Supports `--from-writers` (seed from existing writer refs) and `--policy` (default: `"any"`).
+- **`git warp trust show`**: Displays current trust configuration with snapshot digest.
+- **`git warp trust doctor`**: Diagnostic checks for trust ref health (ref existence, schema validity, writer list, policy, pin validity). Supports `--strict` and `--pin`.
+- **`verify-audit` trust integration**: Dual verdicts — `integrityVerdict` (chain structure) and `trustVerdict` (writer allowlist). Trust assessment includes pin resolution (CLI > env > live ref), fail-closed semantics on invalid pins.
+- **`--trust-required`**: Flag on `verify-audit` that makes non-`"pass"` trust verdicts exit non-zero (for CI gates).
+- **`--trust-ref-tip`**: Flag on `verify-audit` to pin verification to a specific trust commit SHA.
+- **Trust text renderer**: Human-readable output for `trust init`, `trust show`, and `trust doctor` subcommands with ANSI color coding.
+- **Unit tests**: TrustSchema (6 tests), TrustService (12 tests), RefLayout trust ref coverage.
+- **BATS E2E tests**: 12 scenarios in `cli-trust.bats` covering init, show, doctor, verify-audit trust integration, error cases.
+- **`docs/specs/TRUST_MODEL.md`**: Full trust specification — schema, policies, evaluation semantics, threat model, CLI reference.
+- **GUIDE.md**: Trust Configuration section with setup, verification, and programmatic API examples.
+- **AUDIT_RECEIPT.md**: Updated Section 9 with trust ref details; updated Section 13 JSON schema with trust assessment fields.
+
+### Changed
+
+- **`AuditVerifierService.verifyAll()`**: Now accepts optional `TrustService` and returns `trust`, `integrityVerdict`, and `trustVerdict` fields.
+- **`verify-audit` CLI**: Injects `TrustService` into `AuditVerifierService`; passes `--trust-required` and `--trust-ref-tip` through to verification.
+- **Presenter**: `renderVerifyAudit()` now renders trust assessment block and dual verdict lines.
+
 ## [10.14.0] — 2026-02-14 — Patch Wrapper
 
 Adds `graph.patch(fn)` — a single-await convenience wrapper around `createPatch()` + `commit()`. No semantic or runtime behavior changes; purely ergonomic sugar.

@@ -12,6 +12,10 @@
 
 import { buildAuditRef } from '../utils/RefLayout.js';
 import { encodeAuditMessage } from './AuditMessageCodec.js';
+import { sortedReplacer } from '../utils/canonicalJson.js';
+
+// Re-export for backward compatibility (used by tests and spec vectors).
+export { sortedReplacer };
 
 // ============================================================================
 // Constants
@@ -28,26 +32,6 @@ export const OPS_DIGEST_PREFIX = 'git-warp:opsDigest:v1\0';
 // ============================================================================
 // Normative Canonicalization Helpers (DO NOT ALTER — tied to spec Sections 5.2-5.3)
 // ============================================================================
-
-/**
- * JSON.stringify replacer that sorts object keys lexicographically
- * at every nesting level. Produces canonical JSON per spec Section 5.2.
- *
- * @param {string} _key
- * @param {unknown} value
- * @returns {unknown}
- */
-export function sortedReplacer(_key, value) {
-  if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
-    const sorted = /** @type {Record<string, unknown>} */ ({});
-    const obj = /** @type {Record<string, unknown>} */ (value);
-    for (const k of Object.keys(obj).sort()) {
-      sorted[k] = obj[k];
-    }
-    return sorted;
-  }
-  return value;
-}
 
 /**
  * Produces canonical JSON string of an ops array per spec Section 5.2.

@@ -7,6 +7,7 @@ import {
   buildCoverageRef,
   buildWritersPrefix,
   buildSeekCacheRef,
+  buildTrustRef,
   buildCursorActiveRef,
   buildCursorSavedRef,
   buildCursorSavedPrefix,
@@ -377,6 +378,23 @@ describe('RefLayout', () => {
       expect(() => validateGraphName('123')).not.toThrow();
       expect(() => validateWriterId('123')).not.toThrow();
       expect(buildWriterRef('123', '456')).toBe('refs/warp/123/writers/456');
+    });
+  });
+
+  describe('buildTrustRef', () => {
+    it('builds correct trust ref path', () => {
+      expect(buildTrustRef('events')).toBe('refs/warp/events/trust/root');
+    });
+
+    it('builds trust ref for various graph names', () => {
+      expect(buildTrustRef('my-graph')).toBe('refs/warp/my-graph/trust/root');
+      expect(buildTrustRef('team/events')).toBe('refs/warp/team/events/trust/root');
+    });
+
+    it('throws for invalid graph name', () => {
+      expect(() => buildTrustRef('')).toThrow('cannot be empty');
+      expect(() => buildTrustRef('../bad')).toThrow("contains path traversal sequence '..'");
+      expect(() => buildTrustRef('my graph')).toThrow('contains space');
     });
   });
 
