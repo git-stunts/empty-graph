@@ -14,8 +14,9 @@ teardown() {
 # Helper: run a command and capture only stdout (BATS 1.8+ merges stderr into
 # $output, which breaks JSON parsing when git emits diagnostic messages).
 _run_json() {
-  output=$("$@" 2>/dev/null) || true
-  status=$?
+  local rc=0
+  output=$("$@" 2>/dev/null) || rc=$?
+  status=$rc
 }
 
 @test "doctor --json healthy graph returns all ok" {

@@ -296,7 +296,7 @@ describe('individual check guards', () => {
     expect(finding.code).toBe(CODES.CLOCK_SYNCED);
   });
 
-  it('checkRefsConsistent OK message counts only verified refs (not null-sha)', async () => {
+  it('checkRefsConsistent reports null-sha heads as dangling', async () => {
     const ctx = /** @type {*} */ ({
       writerHeads: [
         { writerId: 'alice', sha: 'aaaa000000000000000000000000000000000000', ref: 'refs/warp/demo/writers/alice' },
@@ -308,11 +308,18 @@ describe('individual check guards', () => {
     });
 
     const findings = /** @type {*[]} */ (await checkRefsConsistent(ctx));
-    const ok = findings.find((/** @type {*} */ f) => f.code === CODES.REFS_OK);
 
-    expect(ok).toBeDefined();
-    // Must say "1 ref(s)" not "2 refs" — bob's null sha was not verified
-    expect(ok.message).toMatch(/\b1 ref/);
+    // bob's null sha should produce a REFS_DANGLING_OBJECT finding
+    const dangling = findings.find((/** @type {*} */ f) => f.code === CODES.REFS_DANGLING_OBJECT);
+    expect(dangling).toBeDefined();
+    expect(dangling.status).toBe('fail');
+    expect(dangling.ref || dangling.evidence?.ref).toBeTruthy();
+
+    // No OK finding because allOk is false
+    const ok = findings.find((/** @type {*} */ f) => f.code === CODES.REFS_OK);
+    expect(ok).toBeUndefined();
+
+    // nodeExists should NOT have been called with null
     expect(ctx.persistence.nodeExists).not.toHaveBeenCalledWith(null);
   });
 });

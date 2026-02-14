@@ -70,10 +70,21 @@ export async function checkRefsConsistent(ctx) {
     const allRefs = ctx.writerHeads.map((h) => ({
       ref: h.ref, sha: h.sha, label: `writer ${h.writerId}`,
     }));
-    const checkable = allRefs.filter((r) => r.sha);
     let allOk = true;
+    let checkedCount = 0;
 
-    for (const { ref, sha, label } of checkable) {
+    for (const { ref, sha, label } of allRefs) {
+      if (!sha) {
+        allOk = false;
+        findings.push({
+          id: 'refs-consistent', status: 'fail', code: CODES.REFS_DANGLING_OBJECT,
+          impact: 'data_integrity',
+          message: `Ref ${ref} points to a missing or unreadable object`,
+          fix: `Investigate broken ref for ${label}`, evidence: { ref },
+        });
+        continue;
+      }
+      checkedCount++;
       const exists = await ctx.persistence.nodeExists(sha);
       if (!exists) {
         allOk = false;
@@ -89,7 +100,7 @@ export async function checkRefsConsistent(ctx) {
     if (allOk) {
       findings.push({
         id: 'refs-consistent', status: 'ok', code: CODES.REFS_OK,
-        impact: 'data_integrity', message: `All ${checkable.length} ref(s) point to existing objects`,
+        impact: 'data_integrity', message: `All ${checkedCount} ref(s) point to existing objects`,
       });
     }
     return findings;

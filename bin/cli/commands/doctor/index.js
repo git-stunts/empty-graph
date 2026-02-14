@@ -101,7 +101,7 @@ function assemblePayload({ repo, graph, policy, findings, checksRun, startMs }) 
 /**
  * @param {import('../../types.js').Persistence} persistence
  * @param {string} graphName
- * @returns {Promise<Array<{writerId: string, sha: string, ref: string}>>}
+ * @returns {Promise<Array<{writerId: string, sha: string|null, ref: string}>>}
  */
 async function collectWriterHeads(persistence, graphName) {
   const prefix = buildWritersPrefix(graphName);
@@ -112,10 +112,14 @@ async function collectWriterHeads(persistence, graphName) {
     if (!writerId) {
       continue;
     }
-    const sha = await persistence.readRef(ref);
-    if (sha) {
-      heads.push({ writerId, sha, ref });
+    let sha = null;
+    try {
+      sha = await persistence.readRef(ref);
+    } catch {
+      // Dangling ref — readRef may fail (e.g. show-ref exits 128 for missing objects).
+      // Include the head with sha=null so downstream checks can report it.
     }
+    heads.push({ writerId, sha, ref });
   }
   return heads.sort((a, b) => a.writerId.localeCompare(b.writerId));
 }

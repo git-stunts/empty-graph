@@ -25,5 +25,7 @@ await patchTwo
   .addEdge('user:alice', 'user:bob', 'follows')
   .commit();
 
-// Materialize to create checkpoint + coverage refs
+// Materialize state, then explicitly create checkpoint + coverage refs
 await graph.materialize();
+await graph.createCheckpoint();
+await graph.syncCoverage();

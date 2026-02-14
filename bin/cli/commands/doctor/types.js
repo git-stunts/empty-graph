@@ -67,7 +67,7 @@
  * @typedef {Object} DoctorContext
  * @property {import('../../types.js').Persistence} persistence
  * @property {string} graphName
- * @property {Array<{writerId: string, sha: string, ref: string}>} writerHeads
+ * @property {Array<{writerId: string, sha: string|null, ref: string}>} writerHeads
  * @property {DoctorPolicy} policy
  * @property {string} repoPath
  */
