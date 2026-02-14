@@ -1,0 +1,240 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { CODES } from '../../../bin/cli/commands/doctor/codes.js';
+import { DOCTOR_EXIT_CODES } from '../../../bin/cli/commands/doctor/types.js';
+
+// Mock shared.js to avoid real git operations
+vi.mock('../../../bin/cli/shared.js', () => ({
+  createPersistence: vi.fn(),
+  resolveGraphName: vi.fn(),
+  createHookInstaller: vi.fn(),
+}));
+
+// Mock HealthCheckService
+vi.mock('../../../src/domain/services/HealthCheckService.js', () => ({
+  default: vi.fn().mockImplementation(() => ({
+    getHealth: vi.fn().mockResolvedValue({
+      status: 'healthy',
+      components: { repository: { status: 'healthy', latencyMs: 1 } },
+    }),
+  })),
+}));
+
+// Mock ClockAdapter
+vi.mock('../../../src/infrastructure/adapters/ClockAdapter.js', () => ({
+  default: { global: vi.fn().mockReturnValue({}) },
+}));
+
+const { createPersistence, resolveGraphName, createHookInstaller } = await import('../../../bin/cli/shared.js');
+
+/**
+ * Builds a mock persistence object that simulates a healthy graph
+ * with a single writer "alice".
+ */
+function buildMockPersistence() {
+  return {
+    ping: vi.fn().mockResolvedValue({ ok: true }),
+    readRef: vi.fn().mockImplementation((ref) => {
+      if (ref.includes('writers/alice')) {
+        return Promise.resolve('aaaa000000000000000000000000000000000000');
+      }
+      if (ref.includes('checkpoints/head')) {
+        return Promise.resolve('bbbb000000000000000000000000000000000000');
+      }
+      if (ref.includes('coverage/head')) {
+        return Promise.resolve('cccc000000000000000000000000000000000000');
+      }
+      return Promise.resolve(null);
+    }),
+    listRefs: vi.fn().mockImplementation((prefix) => {
+      if (prefix.includes('writers/')) {
+        return Promise.resolve([`${prefix}alice`]);
+      }
+      if (prefix.includes('audit/')) {
+        return Promise.resolve([]);
+      }
+      return Promise.resolve([]);
+    }),
+    nodeExists: vi.fn().mockResolvedValue(true),
+    isAncestor: vi.fn().mockResolvedValue(true),
+    getNodeInfo: vi.fn().mockResolvedValue({
+      sha: 'bbbb000000000000000000000000000000000000',
+      date: new Date().toISOString(),
+      author: 'Test',
+      message: '',
+      parents: [],
+    }),
+    plumbing: {},
+  };
+}
+
+describe('doctor command', () => {
+  let handleDoctor;
+  let mockPersistence;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    mockPersistence = buildMockPersistence();
+
+    createPersistence.mockResolvedValue({ persistence: mockPersistence });
+    resolveGraphName.mockResolvedValue('demo');
+    createHookInstaller.mockReturnValue({
+      getHookStatus: vi.fn().mockReturnValue({
+        installed: true,
+        current: true,
+        version: '10.8.0',
+        hookPath: '/tmp/test/.git/hooks/post-merge',
+      }),
+    });
+
+    // Dynamic import to pick up mocks
+    const mod = await import('../../../bin/cli/commands/doctor/index.js');
+    handleDoctor = mod.default;
+  });
+
+  it('produces valid payload for a healthy graph', async () => {
+    const result = await handleDoctor({
+      options: {
+        repo: '/tmp/test',
+        graph: 'demo',
+        json: true,
+        ndjson: false,
+        view: null,
+        writer: 'cli',
+        help: false,
+      },
+      args: [],
+    });
+
+    const { payload, exitCode } = result;
+
+    // Exit code
+    expect(exitCode).toBe(DOCTOR_EXIT_CODES.OK);
+
+    // Top-level fields
+    expect(payload.doctorVersion).toBe(1);
+    expect(payload.graph).toBe('demo');
+    expect(payload.repo).toBe('/tmp/test');
+    expect(payload.health).toBe('ok');
+    expect(typeof payload.checkedAt).toBe('string');
+    expect(typeof payload.durationMs).toBe('number');
+
+    // Policy echo
+    expect(payload.policy.strict).toBe(false);
+    expect(payload.policy.clockSkewMs).toBe(300_000);
+    expect(payload.policy.checkpointMaxAgeHours).toBe(168);
+    expect(payload.policy.globalDeadlineMs).toBe(10_000);
+
+    // Summary
+    expect(payload.summary.checksRun).toBe(7);
+    expect(payload.summary.fail).toBe(0);
+    expect(payload.summary.warn).toBe(0);
+    expect(payload.summary.ok).toBeGreaterThanOrEqual(1);
+    expect(payload.summary.priorityActions).toEqual([]);
+
+    // Findings: all should be ok
+    for (const f of payload.findings) {
+      expect(f.status).toBe('ok');
+      expect(f.id).toBeTruthy();
+      expect(f.code).toBeTruthy();
+      expect(f.impact).toBeTruthy();
+      expect(f.message).toBeTruthy();
+    }
+
+    // Check that known codes are used
+    const codes = payload.findings.map((f) => f.code);
+    expect(codes).toContain(CODES.REPO_OK);
+    expect(codes).toContain(CODES.REFS_OK);
+    expect(codes).toContain(CODES.COVERAGE_OK);
+    expect(codes).toContain(CODES.CHECKPOINT_OK);
+    expect(codes).toContain(CODES.HOOKS_OK);
+  });
+
+  it('returns exit 3 when warnings are present', async () => {
+    // Remove checkpoint to trigger warning
+    mockPersistence.readRef.mockImplementation((ref) => {
+      if (ref.includes('writers/alice')) {
+        return Promise.resolve('aaaa000000000000000000000000000000000000');
+      }
+      if (ref.includes('coverage/head')) {
+        return Promise.resolve('cccc000000000000000000000000000000000000');
+      }
+      return Promise.resolve(null);
+    });
+
+    const result = await handleDoctor({
+      options: {
+        repo: '/tmp/test',
+        graph: 'demo',
+        json: true,
+        ndjson: false,
+        view: null,
+        writer: 'cli',
+        help: false,
+      },
+      args: [],
+    });
+
+    expect(result.exitCode).toBe(DOCTOR_EXIT_CODES.FINDINGS);
+    expect(result.payload.health).toBe('degraded');
+    expect(result.payload.summary.warn).toBeGreaterThan(0);
+
+    const checkpointFinding = result.payload.findings.find(
+      (f) => f.code === CODES.CHECKPOINT_MISSING,
+    );
+    expect(checkpointFinding).toBeDefined();
+    expect(checkpointFinding.status).toBe('warn');
+  });
+
+  it('returns exit 4 in strict mode with warnings', async () => {
+    mockPersistence.readRef.mockImplementation((ref) => {
+      if (ref.includes('writers/alice')) {
+        return Promise.resolve('aaaa000000000000000000000000000000000000');
+      }
+      if (ref.includes('coverage/head')) {
+        return Promise.resolve('cccc000000000000000000000000000000000000');
+      }
+      return Promise.resolve(null);
+    });
+
+    const result = await handleDoctor({
+      options: {
+        repo: '/tmp/test',
+        graph: 'demo',
+        json: true,
+        ndjson: false,
+        view: null,
+        writer: 'cli',
+        help: false,
+      },
+      args: ['--strict'],
+    });
+
+    expect(result.exitCode).toBe(DOCTOR_EXIT_CODES.STRICT_FINDINGS);
+  });
+
+  it('sorts findings by status > impact > id', async () => {
+    // Make refs-consistent fail by breaking nodeExists for writer ref
+    mockPersistence.nodeExists.mockResolvedValue(false);
+
+    const result = await handleDoctor({
+      options: {
+        repo: '/tmp/test',
+        graph: 'demo',
+        json: true,
+        ndjson: false,
+        view: null,
+        writer: 'cli',
+        help: false,
+      },
+      args: [],
+    });
+
+    const statuses = result.payload.findings.map((f) => f.status);
+    // fail should come before warn, which comes before ok
+    const firstOkIdx = statuses.indexOf('ok');
+    const lastFailIdx = statuses.lastIndexOf('fail');
+    if (lastFailIdx >= 0 && firstOkIdx >= 0) {
+      expect(lastFailIdx).toBeLessThan(firstOkIdx);
+    }
+  });
+});

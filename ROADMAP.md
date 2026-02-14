@@ -331,7 +331,7 @@ Create `docs/specs/AUDIT_RECEIPT.md` with:
 
 ### M4.T2.DOCTOR (B-Tier)
 
-- **Status:** `OPEN`
+- **Status:** `DONE`
 
 **User Story:** As an operator, I need one command that identifies likely system breakage fast.
 
