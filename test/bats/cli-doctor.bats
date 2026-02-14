@@ -4,7 +4,7 @@ load helpers/setup.bash
 
 setup() {
   setup_test_repo
-  seed_graph "seed-graph.js"
+  seed_graph "seed-doctor-graph.js"
 }
 
 teardown() {
@@ -12,6 +12,10 @@ teardown() {
 }
 
 @test "doctor --json healthy graph returns all ok" {
+  # Install hooks so the hooks-installed check passes
+  run git warp --repo "${TEST_REPO}" install-hooks
+  assert_success
+
   run git warp --repo "${TEST_REPO}" --graph demo --json doctor
   assert_success
 
@@ -32,6 +36,10 @@ PY
 }
 
 @test "doctor human output includes check IDs" {
+  # Install hooks so the hooks-installed check passes
+  run git warp --repo "${TEST_REPO}" install-hooks
+  assert_success
+
   run git warp --repo "${TEST_REPO}" --graph demo doctor
   assert_success
   echo "$output" | grep -q "repo-accessible"
@@ -41,8 +49,9 @@ PY
 }
 
 @test "doctor --json broken writer ref yields refs-consistent fail" {
-  # Point writer ref to a non-existent object
-  git -C "${TEST_REPO}" update-ref refs/warp/demo/writers/ghost deadbeefdeadbeefdeadbeefdeadbeefdeadbeef
+  # Write a dangling ref directly (git update-ref rejects nonexistent objects)
+  mkdir -p "${TEST_REPO}/.git/refs/warp/demo/writers"
+  echo "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef" > "${TEST_REPO}/.git/refs/warp/demo/writers/ghost"
 
   run git warp --repo "${TEST_REPO}" --graph demo --json doctor
   # Should exit with code 3 (findings)
@@ -58,7 +67,7 @@ PY
 }
 
 @test "doctor --json no checkpoint yields checkpoint-fresh warn" {
-  # Remove the checkpoint ref if it exists
+  # Remove the checkpoint ref
   git -C "${TEST_REPO}" update-ref -d refs/warp/demo/checkpoints/head 2>/dev/null || true
 
   run git warp --repo "${TEST_REPO}" --graph demo --json doctor
