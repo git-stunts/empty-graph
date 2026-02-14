@@ -26,6 +26,7 @@ Adds `git warp doctor`, a structural diagnostics command that probes for anomali
 - **coverage-complete**: Writer heads with null SHA are now reported as missing (not silently skipped)
 - **checkHooksInstalled**: Made `async` for consistency with other check functions (`await Promise.resolve(...)` pattern to satisfy both `require-await` and `await-thenable` lint rules)
 - **sort-order test**: Hardened to exercise all three status tiers (fail/warn/ok) with targeted mocks and assert the full three-key sort invariant (status > impact > id)
+- **refs-consistent**: OK message now counts only verified refs (excludes null-sha writer heads)
 - **seed-doctor-graph.js**: Removed stale "installs hooks" claim from doc comment
 
 ## [10.12.0] — 2026-02-13 — Multi-Runtime CLI + parseArgs Migration
