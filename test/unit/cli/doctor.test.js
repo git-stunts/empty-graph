@@ -153,6 +153,8 @@ describe('doctor command', () => {
     expect(codes).toContain(CODES.COVERAGE_OK);
     expect(codes).toContain(CODES.CHECKPOINT_OK);
     expect(codes).toContain(CODES.HOOKS_OK);
+    expect(codes).toContain(CODES.CLOCK_SYNCED);
+    expect(codes).toContain(CODES.AUDIT_OK);
   });
 
   it('returns exit 3 when warnings are present', async () => {

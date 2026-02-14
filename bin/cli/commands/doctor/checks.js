@@ -350,13 +350,14 @@ export async function checkClockSkew(ctx) {
  * @param {DoctorContext} ctx
  * @returns {Promise<DoctorFinding>}
  */
+// eslint-disable-next-line @typescript-eslint/require-await -- sync body, async contract
 export async function checkHooksInstalled(ctx) {
   try {
     const installer = createHookInstaller();
     const s = installer.getHookStatus(ctx.repoPath);
-    return await Promise.resolve(buildHookFinding(s));
+    return buildHookFinding(s);
   } catch (/** @type {*} */ err) { // TODO(ts-cleanup): narrow error type
-    return await Promise.resolve(internalError('hooks-installed', err));
+    return internalError('hooks-installed', err);
   }
 }
 
