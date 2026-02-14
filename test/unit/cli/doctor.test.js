@@ -224,11 +224,13 @@ describe('doctor command', () => {
     expect(statuses).toContain('ok');
 
     // Assert full three-key sort invariant: (status, impact, id) ascending.
+    /** @type {Record<string, number>} */
     const STATUS_ORDER = { fail: 0, warn: 1, ok: 2 };
+    /** @type {Record<string, number>} */
     const IMPACT_ORDER = { data_integrity: 0, security: 1, operability: 2, hygiene: 3 };
     for (let i = 1; i < findings.length; i++) {
-      const a = findings[i - 1];
-      const b = findings[i];
+      const a = /** @type {*} */ (findings[i - 1]);
+      const b = /** @type {*} */ (findings[i]);
       const statusCmp = (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9);
       if (statusCmp !== 0) {
         expect(statusCmp).toBeLessThan(0);
@@ -257,7 +259,7 @@ describe('individual check guards', () => {
       },
     });
 
-    const finding = await checkCoverageComplete(ctx);
+    const finding = /** @type {*} */ (await checkCoverageComplete(ctx));
 
     expect(finding.code).toBe(CODES.COVERAGE_MISSING_WRITERS);
     expect(finding.evidence.missingWriters).toContain('alice');
