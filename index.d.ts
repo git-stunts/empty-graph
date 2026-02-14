@@ -1532,6 +1532,9 @@ export default class WarpGraph {
    * The callback receives a patch builder and may be synchronous or
    * asynchronous. The commit happens only after the callback resolves.
    * If the callback throws or rejects, no commit is attempted.
+   *
+   * Not reentrant: calling `graph.patch()` inside a callback throws.
+   * Use `createPatch()` directly for nested or concurrent patches.
    */
   patch(build: (patch: PatchSession) => void | Promise<void>): Promise<string>;
 

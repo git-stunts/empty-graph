@@ -231,6 +231,9 @@ export default class WarpGraph {
     this._seekCache = seekCache || null;
 
     /** @type {boolean} */
+    this._patchInProgress = false;
+
+    /** @type {boolean} */
     this._provenanceDegraded = false;
 
     /** @type {boolean} */
@@ -445,8 +448,8 @@ export default class WarpGraph {
    * successfully. If the callback throws or rejects, no commit is attempted
    * and the error propagates untouched.
    *
-   * Nested calls (`graph.patch()` inside a callback) are legal — each
-   * creates an independent patch with a higher Lamport timestamp.
+   * Not reentrant: calling `graph.patch()` inside a callback throws.
+   * Use `createPatch()` directly for advanced multi-patch workflows.
    *
    * @param {(p: PatchBuilderV2) => void | Promise<void>} build - Callback that adds operations to the patch
    * @returns {Promise<string>} The commit SHA of the new patch
@@ -458,9 +461,19 @@ export default class WarpGraph {
    * });
    */
   async patch(build) {
-    const p = await this.createPatch();
-    await build(p);
-    return await p.commit();
+    if (this._patchInProgress) {
+      throw new Error(
+        'graph.patch() is not reentrant. Use createPatch() for nested or concurrent patches.',
+      );
+    }
+    this._patchInProgress = true;
+    try {
+      const p = await this.createPatch();
+      await build(p);
+      return await p.commit();
+    } finally {
+      this._patchInProgress = false;
+    }
   }
 
   /**

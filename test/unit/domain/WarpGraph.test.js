@@ -2077,35 +2077,15 @@ eg-schema: 2`;
       expect(captured).toBeDefined();
     });
 
-    it('supports nested patch calls with independent Lamport timestamps', async () => {
-      const persistence = createMockPersistence();
-      let commitCount = 0;
-      persistence.readRef.mockResolvedValue(null);
-      persistence.writeBlob.mockResolvedValue('b'.repeat(40));
-      persistence.writeTree.mockResolvedValue('b'.repeat(40));
-      persistence.commitNodeWithTree.mockImplementation(() => {
-        commitCount++;
-        return Promise.resolve(`${'d'.repeat(39)}${commitCount}`);
-      });
-      persistence.updateRef.mockResolvedValue(undefined);
+    it('rejects nested patch() calls with reentrancy guard', async () => {
+      const { graph } = await openGraphWithCommitMocks();
 
-      const graph = await WarpGraph.open({
-        persistence,
-        graphName: 'nested-test',
-        writerId: 'w1',
-      });
-
-      const outerSha = await graph.patch(async p => {
+      await expect(graph.patch(async p => {
         p.addNode('outer');
-        // Nested patch — independent, higher Lamport
         await graph.patch(inner => {
           inner.addNode('inner');
         });
-      });
-
-      expect(typeof outerSha).toBe('string');
-      // Both patches committed
-      expect(commitCount).toBe(2);
+      })).rejects.toThrow(/not reentrant|nested/i);
     });
 
     it('round-trips setEdgeProperty via createPatch', async () => {
