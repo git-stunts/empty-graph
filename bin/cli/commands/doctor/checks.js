@@ -70,12 +70,10 @@ export async function checkRefsConsistent(ctx) {
     const allRefs = ctx.writerHeads.map((h) => ({
       ref: h.ref, sha: h.sha, label: `writer ${h.writerId}`,
     }));
+    const checkable = allRefs.filter((r) => r.sha);
     let allOk = true;
 
-    for (const { ref, sha, label } of allRefs) {
-      if (!sha) {
-        continue;
-      }
+    for (const { ref, sha, label } of checkable) {
       const exists = await ctx.persistence.nodeExists(sha);
       if (!exists) {
         allOk = false;
@@ -91,7 +89,7 @@ export async function checkRefsConsistent(ctx) {
     if (allOk) {
       findings.push({
         id: 'refs-consistent', status: 'ok', code: CODES.REFS_OK,
-        impact: 'data_integrity', message: `All ${allRefs.length} refs point to existing objects`,
+        impact: 'data_integrity', message: `All ${checkable.length} ref(s) point to existing objects`,
       });
     }
     return findings;

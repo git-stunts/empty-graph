@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { CODES } from '../../../bin/cli/commands/doctor/codes.js';
 import { DOCTOR_EXIT_CODES } from '../../../bin/cli/commands/doctor/types.js';
-import { checkCoverageComplete, checkClockSkew } from '../../../bin/cli/commands/doctor/checks.js';
+import { checkCoverageComplete, checkClockSkew, checkRefsConsistent } from '../../../bin/cli/commands/doctor/checks.js';
 
 // Mock shared.js to avoid real git operations
 vi.mock('../../../bin/cli/shared.js', () => ({
@@ -292,5 +292,25 @@ describe('individual check guards', () => {
     expect(ctx.persistence.getNodeInfo).not.toHaveBeenCalledWith(null);
     // Only one writer had valid data, so skew check is skipped (< 2 writers)
     expect(finding.code).toBe(CODES.CLOCK_SYNCED);
+  });
+
+  it('checkRefsConsistent OK message counts only verified refs (not null-sha)', async () => {
+    const ctx = /** @type {*} */ ({
+      writerHeads: [
+        { writerId: 'alice', sha: 'aaaa000000000000000000000000000000000000', ref: 'refs/warp/demo/writers/alice' },
+        { writerId: 'bob', sha: null, ref: 'refs/warp/demo/writers/bob' },
+      ],
+      persistence: {
+        nodeExists: vi.fn().mockResolvedValue(true),
+      },
+    });
+
+    const findings = /** @type {*[]} */ (await checkRefsConsistent(ctx));
+    const ok = findings.find((/** @type {*} */ f) => f.code === CODES.REFS_OK);
+
+    expect(ok).toBeDefined();
+    // Must say "1 ref(s)" not "2 refs" — bob's null sha was not verified
+    expect(ok.message).toMatch(/\b1 ref/);
+    expect(ctx.persistence.nodeExists).not.toHaveBeenCalledWith(null);
   });
 });
