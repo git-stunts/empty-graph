@@ -447,6 +447,9 @@ No v2.0 tag until all pass:
 | B9 | B | ~~DONE~~ **`graph.patch()` INTEGRATION TEST** — end-to-end tests with real Git persistence verifying CAS behavior (reentrancy guard, ref advancement, sequential patches) |
 | B10 | C | ~~DONE~~ **`Writer.commitPatch()` REENTRANCY GUARD** — `commitPatch()` now has a `_commitInProgress` guard matching `graph.patch()` semantics |
 | B11 | C | **`graph.patchMany(fns)` BATCH API** — sequence multiple patch callbacks atomically, each seeing the ref left by the previous; avoids reentrancy issue entirely and enables multi-patch workflows without dropping to `createPatch()` |
+| B12 | C | **DOCS-VERSION-SYNC PRE-COMMIT CHECK** — grep for version literals in .md files and examples, compare against `package.json`; prevents migration guides referencing wrong versions |
+| B13 | C | **ESLINT: NO-STRING-DUPLICATION** — custom rule or plugin to flag long error messages (>80 chars) appearing 3+ times; catches drift-prone copy-paste strings like `E_NO_STATE_MSG` before they're extracted |
+| B14 | B | **`HttpSyncServer` CONFIG VALIDATION LAYER** — Zod-style schema validation for constructor options; catch impossible/contradictory combos (e.g. `allowedWriters` without `auth`, `maxRequestBytes < 0`) at construction time instead of silently misbehaving at runtime |
 
 ---
 
