@@ -389,6 +389,11 @@ export default class SyncAuthService {
    * Validates that all writer IDs are in the allowed set.
    * Call after verify() succeeds.
    *
+   * This method is a pure validator — it always returns `{ ok: false }` for
+   * forbidden writers regardless of `this._mode`. Mode enforcement (enforce
+   * vs log-only) is the caller's responsibility, matching the same pattern
+   * used by `verify()` and `HttpSyncServer._checkAuth()`.
+   *
    * @param {string[]} writerIds - Writer IDs from the sync request
    * @returns {{ ok: true } | { ok: false, reason: string, status: number }}
    */

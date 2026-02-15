@@ -781,3 +781,30 @@ describe('verifyWriters()', () => {
     })).toThrow('allowedWriters must be a non-empty array');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Mode-agnostic validation (documentation-by-test)
+// Both verify() and verifyWriters() are pure validators that always return
+// { ok: false } on failure, regardless of mode. Mode enforcement (enforce
+// vs log-only) is the caller's responsibility (see HttpSyncServer).
+// ---------------------------------------------------------------------------
+describe('mode-agnostic validation', () => {
+  it('verify() returns { ok: false } in log-only mode (caller decides enforcement)', async () => {
+    const svc = makeService({ mode: 'log-only' });
+    const req = await buildSignedRequest({ 'x-warp-signature': 'a'.repeat(64) });
+    const result = await svc.verify(req);
+    expect(result.ok).toBe(false);
+    expect(result.reason).toBe('INVALID_SIGNATURE');
+  });
+
+  it('verifyWriters() returns { ok: false } in log-only mode (caller decides enforcement)', () => {
+    const svc = new SyncAuthService({
+      keys: { default: 'secret123' },
+      mode: 'log-only',
+      allowedWriters: ['alice'],
+    });
+    const result = svc.verifyWriters(['eve']);
+    expect(result.ok).toBe(false);
+    expect(result.reason).toBe('FORBIDDEN_WRITER');
+  });
+});

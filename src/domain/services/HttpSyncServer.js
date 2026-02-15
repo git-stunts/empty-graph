@@ -200,29 +200,6 @@ function initAuth(auth, allowedWriters) {
   return { auth: null, authMode: null };
 }
 
-/**
- * Checks the writer whitelist if auth is configured.
- *
- * @param {SyncAuthService|null} auth
- * @param {string|null} authMode
- * @param {*} parsed - Parsed sync request body
- * @returns {{ status: number, headers: Object, body: string }|null}
- * @private
- */
-function checkWriterWhitelist(auth, authMode, parsed) {
-  if (auth && parsed.patches && typeof parsed.patches === 'object') {
-    const writerIds = Object.keys(parsed.patches);
-    const result = auth.verifyWriters(writerIds);
-    if (!result.ok) {
-      if (authMode === 'enforce') {
-        return errorResponse(result.status, result.reason);
-      }
-      auth.recordLogOnlyPassthrough();
-    }
-  }
-  return null;
-}
-
 export default class HttpSyncServer {
   /**
    * @param {Object} options
@@ -278,6 +255,28 @@ export default class HttpSyncServer {
     return null;
   }
 
+  /**
+   * Checks the writer whitelist if auth is configured. Returns an error
+   * response when enforcement blocks the request, or null to proceed.
+   *
+   * @param {*} parsed - Parsed sync request body
+   * @returns {{ status: number, headers: Object, body: string }|null}
+   * @private
+   */
+  _checkWriterWhitelist(parsed) {
+    if (this._auth && parsed.patches && typeof parsed.patches === 'object') {
+      const writerIds = Object.keys(parsed.patches);
+      const result = this._auth.verifyWriters(writerIds);
+      if (!result.ok) {
+        if (this._authMode === 'enforce') {
+          return errorResponse(result.status, result.reason);
+        }
+        this._auth.recordLogOnlyPassthrough();
+      }
+    }
+    return null;
+  }
+
   /** @param {{ method: string, url: string, headers: { [x: string]: string }, body: Buffer|undefined }} request */
   async _handleRequest(request) {
     const contentTypeError = checkContentType(request.headers);
@@ -305,7 +304,7 @@ export default class HttpSyncServer {
       return error;
     }
 
-    const writerError = checkWriterWhitelist(this._auth, this._authMode, parsed);
+    const writerError = this._checkWriterWhitelist(parsed);
     if (writerError) {
       return writerError;
     }
