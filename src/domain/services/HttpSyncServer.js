@@ -240,7 +240,9 @@ export default class HttpSyncServer {
     const authInit = initAuth(auth, allowedWriters);
     this._auth = authInit.auth;
     this._authMode = authInit.authMode;
-    this._allowedWriters = allowedWriters || null;
+    if (allowedWriters && !authInit.auth) {
+      throw new Error('allowedWriters requires auth.keys to be configured');
+    }
   }
 
   /**
