@@ -253,7 +253,7 @@ describe('WarpGraph Integration', () => {
       expect(refAfter).toBeTruthy();
       expect(refAfter).not.toBe(refBefore);
 
-      const state = await graph.materialize();
+      const state = /** @type {*} */ (await graph.materialize());
       expect(nodeVisibleV5(state, 'a')).toBe(true);
     });
 
@@ -274,7 +274,7 @@ describe('WarpGraph Integration', () => {
       expect(sha2).toBeTruthy();
       expect(sha1).not.toBe(sha2);
 
-      const state = await graph.materialize();
+      const state = /** @type {*} */ (await graph.materialize());
       expect(nodeVisibleV5(state, 'a')).toBe(true);
       expect(nodeVisibleV5(state, 'b')).toBe(true);
     });
@@ -286,24 +286,25 @@ describe('WarpGraph Integration', () => {
         writerId: 'alice',
       });
 
+      /** @type {Error|undefined} */
       let innerError;
       await graph.patch(async (p) => {
         p.addNode('a');
         try {
           await graph.patch(p2 => { p2.addNode('b'); });
         } catch (err) {
-          innerError = err;
+          innerError = /** @type {Error} */ (err);
         }
       });
 
       expect(innerError).toBeDefined();
-      expect(innerError.message).toMatch(/not reentrant/i);
+      expect(/** @type {Error} */ (innerError).message).toMatch(/not reentrant/i);
 
       // Outer patch committed (ref advanced once)
       const ref = await persistence.readRef(buildWriterRef('cas-reentrant', 'alice'));
       expect(ref).toBeTruthy();
 
-      const state = await graph.materialize();
+      const state = /** @type {*} */ (await graph.materialize());
       expect(nodeVisibleV5(state, 'a')).toBe(true);
       expect(nodeVisibleV5(state, 'b')).toBe(false);
     });

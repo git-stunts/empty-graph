@@ -184,6 +184,7 @@ function parseBody(body) {
  * Initializes auth service from config if present.
  *
  * @param {{ keys: Record<string, string>, mode?: 'enforce'|'log-only', crypto?: *, logger?: *, wallClockMs?: () => number }|undefined} auth
+ * @param {string[]} [allowedWriters]
  * @returns {{ auth: SyncAuthService|null, authMode: string|null }}
  * @private
  */
@@ -227,6 +228,7 @@ export default class HttpSyncServer {
    * @param {string} [options.host='127.0.0.1'] - Host to bind
    * @param {number} [options.maxRequestBytes=4194304] - Maximum request body size in bytes
    * @param {{ keys: Record<string, string>, mode?: 'enforce'|'log-only', crypto?: import('../../ports/CryptoPort.js').default, logger?: import('../../ports/LoggerPort.js').default, wallClockMs?: () => number }} [options.auth] - Auth configuration
+   * @param {string[]} [options.allowedWriters] - Optional whitelist of allowed writer IDs
    */
   constructor({ httpPort, graph, path = '/sync', host = '127.0.0.1', maxRequestBytes = DEFAULT_MAX_REQUEST_BYTES, auth, allowedWriters } = /** @type {*} */ ({})) { // TODO(ts-cleanup): needs options type
     this._httpPort = httpPort;

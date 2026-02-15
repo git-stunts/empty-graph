@@ -752,8 +752,10 @@ describe('verifyWriters()', () => {
     });
     const result = auth.verifyWriters(['alice', 'eve']);
     expect(result.ok).toBe(false);
-    expect(result.reason).toBe('FORBIDDEN_WRITER');
-    expect(result.status).toBe(403);
+    if (!result.ok) {
+      expect(result.reason).toBe('FORBIDDEN_WRITER');
+      expect(result.status).toBe(403);
+    }
   });
 
   it('increments forbiddenWriterRejects metric', async () => {

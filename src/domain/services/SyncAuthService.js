@@ -386,7 +386,7 @@ export default class SyncAuthService {
     if (!this._allowedWriters) {
       return { ok: true };
     }
-    const forbidden = writerIds.filter(id => !this._allowedWriters.has(id));
+    const forbidden = writerIds.filter(id => !/** @type {Set<string>} */ (this._allowedWriters).has(id));
     if (forbidden.length > 0) {
       this._metrics.forbiddenWriterRejects += 1;
       return fail('FORBIDDEN_WRITER', 403);
