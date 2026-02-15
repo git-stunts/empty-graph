@@ -124,7 +124,7 @@ All 12 milestones (77 tasks, ~255 human hours, ~13,100 LOC) have been implemente
 
 ### M1.T2.HYGIENE — Exploitable Risk Triage (C/B-Tier)
 
-- **Status:** `OPEN`
+- **Status:** `DONE`
 
 **User Story:** As a maintainer, I need a defendable security posture, not vanity metrics.
 
@@ -193,7 +193,7 @@ All 12 milestones (77 tasks, ~255 human hours, ~13,100 LOC) have been implemente
 
 ### M2.T3.SIGNPOSTS + DEFAULTS (B-Tier bundle)
 
-- **Status:** `OPEN`
+- **Status:** `DONE`
 
 **User Story:** As a new dev, I should hit fewer dead ends and get immediate recovery hints.
 
@@ -443,9 +443,9 @@ No v2.0 tag until all pass:
 | B5 | D | **EXPERIMENTAL SYNC-BUILDER** — only behind explicit flag; requires invariants doc + soak + rollback proof; not eligible for core release without separate RFC |
 | B6 | B/C | **RUST CORE / WASM** — pursue only when measured perf ceiling is proven in JS path |
 | B7 | C | **DOCTOR: PROPERTY-BASED FUZZ TEST** — fuzz `writerHeads` with random null/empty shas and verify no check throws (all return findings) |
-| B8 | B | **`readRef` DANGLING-REF RESILIENCE** — `refExists` in `GitGraphAdapter` should catch `show-ref` exit 128 (dangling object) alongside exit 1 (missing ref), so `readRef` returns `null` instead of throwing; currently only doctor works around this, but any other caller hitting a dangling ref will crash |
-| B9 | B | **`graph.patch()` INTEGRATION TEST** — end-to-end test with real Git persistence to verify CAS behavior (reentrancy guard, ref advancement); mock-based unit tests masked the nested-patch CAS issue caught in PR #29 |
-| B10 | C | **`Writer.commitPatch()` REENTRANCY GUARD** — consider whether `Writer.commitPatch()` should also have a `_patchInProgress` guard for consistency with `graph.patch()` |
+| B8 | B | ~~DONE~~ **`readRef` DANGLING-REF RESILIENCE** — `refExists` and `readRef` in `GitGraphAdapter` now catch exit 128 (dangling object) alongside exit 1 (missing ref), returning `null`/`false` instead of throwing |
+| B9 | B | ~~DONE~~ **`graph.patch()` INTEGRATION TEST** — end-to-end tests with real Git persistence verifying CAS behavior (reentrancy guard, ref advancement, sequential patches) |
+| B10 | C | ~~DONE~~ **`Writer.commitPatch()` REENTRANCY GUARD** — `commitPatch()` now has a `_commitInProgress` guard matching `graph.patch()` semantics |
 | B11 | C | **`graph.patchMany(fns)` BATCH API** — sequence multiple patch callbacks atomically, each seeing the ref left by the previous; avoids reentrancy issue entirely and enables multi-patch workflows without dropping to `createPatch()` |
 
 ---

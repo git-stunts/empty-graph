@@ -115,6 +115,26 @@ function getExitCode(err) {
 }
 
 /**
+ * Checks if a Git error indicates a dangling or missing object.
+ * Exit code 128 with specific stderr patterns means the ref exists but
+ * points to a missing object. Other exit-128 failures (bad repo, corrupt
+ * index, permission errors) are NOT considered dangling and will re-throw.
+ * @param {GitError} err
+ * @returns {boolean}
+ */
+function isDanglingObjectError(err) {
+  if (getExitCode(err) !== 128) {
+    return false;
+  }
+  const stderr = (err.details?.stderr || '').toLowerCase();
+  return (
+    stderr.includes('bad object') ||
+    stderr.includes('not a valid object name') ||
+    stderr.includes('does not point to a valid object')
+  );
+}
+
+/**
  * Checks whether a Git ref exists without resolving it.
  * @param {function(Object): Promise<string>} execute - The git command executor function
  * @param {string} ref - The ref to check (e.g., 'refs/warp/events/writers/alice')
@@ -127,6 +147,9 @@ async function refExists(execute, ref) {
     return true;
   } catch (/** @type {*} */ err) { // TODO(ts-cleanup): type error
     if (getExitCode(err) === 1) {
+      return false;
+    }
+    if (isDanglingObjectError(err)) {
       return false;
     }
     throw err;
@@ -523,6 +546,9 @@ export default class GitGraphAdapter extends GraphPersistencePort {
       return oid.trim();
     } catch (/** @type {*} */ err) { // TODO(ts-cleanup): type error
       if (getExitCode(err) === 1) {
+        return null;
+      }
+      if (isDanglingObjectError(err)) {
         return null;
       }
       throw err;

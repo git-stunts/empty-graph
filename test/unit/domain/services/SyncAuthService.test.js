@@ -723,3 +723,52 @@ describe('Constructor', () => {
     expect(svc.getMetrics().authFailCount).toBe(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// verifyWriters()
+// ---------------------------------------------------------------------------
+describe('verifyWriters()', () => {
+  it('allows all writers when allowedWriters is not set', async () => {
+    const auth = new SyncAuthService({
+      keys: { default: 'secret123' },
+    });
+    const result = auth.verifyWriters(['alice', 'bob', 'charlie']);
+    expect(result.ok).toBe(true);
+  });
+
+  it('allows listed writers', async () => {
+    const auth = new SyncAuthService({
+      keys: { default: 'secret123' },
+      allowedWriters: ['alice', 'bob'],
+    });
+    const result = auth.verifyWriters(['alice', 'bob']);
+    expect(result.ok).toBe(true);
+  });
+
+  it('rejects unlisted writers with FORBIDDEN_WRITER 403', async () => {
+    const auth = new SyncAuthService({
+      keys: { default: 'secret123' },
+      allowedWriters: ['alice'],
+    });
+    const result = auth.verifyWriters(['alice', 'eve']);
+    expect(result.ok).toBe(false);
+    expect(result.reason).toBe('FORBIDDEN_WRITER');
+    expect(result.status).toBe(403);
+  });
+
+  it('increments forbiddenWriterRejects metric', async () => {
+    const auth = new SyncAuthService({
+      keys: { default: 'secret123' },
+      allowedWriters: ['alice'],
+    });
+    auth.verifyWriters(['eve']);
+    expect(auth.getMetrics().forbiddenWriterRejects).toBe(1);
+  });
+
+  it('validates writer IDs at construction time', () => {
+    expect(() => new SyncAuthService({
+      keys: { default: 'secret123' },
+      allowedWriters: ['valid', 'a/b'],
+    })).toThrow('Invalid writer ID');
+  });
+});

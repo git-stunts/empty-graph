@@ -71,6 +71,9 @@ export class Writer {
 
     /** @type {import('../../ports/CodecPort.js').default|undefined} */
     this._codec = codec || defaultCodec;
+
+    /** @type {boolean} */
+    this._commitInProgress = false;
   }
 
   /**
@@ -174,8 +177,19 @@ export class Writer {
    * });
    */
   async commitPatch(build) {
-    const patch = await this.beginPatch();
-    await build(patch);
-    return await patch.commit();
+    if (this._commitInProgress) {
+      throw new WriterError(
+        'COMMIT_IN_PROGRESS',
+        'commitPatch() is not reentrant. Use beginPatch() for nested or concurrent patches.',
+      );
+    }
+    this._commitInProgress = true;
+    try {
+      const patch = await this.beginPatch();
+      await build(patch);
+      return await patch.commit();
+    } finally {
+      this._commitInProgress = false;
+    }
   }
 }

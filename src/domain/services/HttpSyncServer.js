@@ -187,16 +187,35 @@ function parseBody(body) {
  * @returns {{ auth: SyncAuthService|null, authMode: string|null }}
  * @private
  */
-function initAuth(auth) {
+function initAuth(auth, allowedWriters) {
   if (auth && auth.keys) {
     const VALID_MODES = new Set(['enforce', 'log-only']);
     const mode = auth.mode || 'enforce';
     if (!VALID_MODES.has(mode)) {
       throw new Error(`Invalid auth.mode: '${mode}'. Must be 'enforce' or 'log-only'.`);
     }
-    return { auth: new SyncAuthService(auth), authMode: mode };
+    return { auth: new SyncAuthService({ ...auth, allowedWriters }), authMode: mode };
   }
   return { auth: null, authMode: null };
+}
+
+/**
+ * Checks the writer whitelist if auth is configured.
+ *
+ * @param {SyncAuthService|null} auth
+ * @param {*} parsed - Parsed sync request body
+ * @returns {{ status: number, headers: Object, body: string }|null}
+ * @private
+ */
+function checkWriterWhitelist(auth, parsed) {
+  if (auth && parsed.patches && typeof parsed.patches === 'object') {
+    const writerIds = Object.keys(parsed.patches);
+    const result = auth.verifyWriters(writerIds);
+    if (!result.ok) {
+      return errorResponse(result.status, result.reason);
+    }
+  }
+  return null;
 }
 
 export default class HttpSyncServer {
@@ -209,16 +228,17 @@ export default class HttpSyncServer {
    * @param {number} [options.maxRequestBytes=4194304] - Maximum request body size in bytes
    * @param {{ keys: Record<string, string>, mode?: 'enforce'|'log-only', crypto?: import('../../ports/CryptoPort.js').default, logger?: import('../../ports/LoggerPort.js').default, wallClockMs?: () => number }} [options.auth] - Auth configuration
    */
-  constructor({ httpPort, graph, path = '/sync', host = '127.0.0.1', maxRequestBytes = DEFAULT_MAX_REQUEST_BYTES, auth } = /** @type {*} */ ({})) { // TODO(ts-cleanup): needs options type
+  constructor({ httpPort, graph, path = '/sync', host = '127.0.0.1', maxRequestBytes = DEFAULT_MAX_REQUEST_BYTES, auth, allowedWriters } = /** @type {*} */ ({})) { // TODO(ts-cleanup): needs options type
     this._httpPort = httpPort;
     this._graph = graph;
     this._path = path && path.startsWith('/') ? path : `/${path || 'sync'}`;
     this._host = host;
     this._maxRequestBytes = maxRequestBytes;
     this._server = null;
-    const authInit = initAuth(auth);
+    const authInit = initAuth(auth, allowedWriters);
     this._auth = authInit.auth;
     this._authMode = authInit.authMode;
+    this._allowedWriters = allowedWriters || null;
   }
 
   /**
@@ -275,6 +295,11 @@ export default class HttpSyncServer {
     const { error, parsed } = parseBody(request.body);
     if (error) {
       return error;
+    }
+
+    const writerError = checkWriterWhitelist(this._auth, parsed);
+    if (writerError) {
+      return writerError;
     }
 
     try {
