@@ -255,12 +255,9 @@ export default class HttpSyncServer {
     // Writer whitelist (uses parsed body for writer IDs)
     if (parsed.patches && typeof parsed.patches === 'object') {
       const writerIds = Object.keys(parsed.patches);
-      const writerResult = this._auth.verifyWriters(writerIds);
+      const writerResult = this._auth.enforceWriters(writerIds);
       if (!writerResult.ok) {
-        if (this._authMode === 'enforce') {
-          return errorResponse(writerResult.status, writerResult.reason);
-        }
-        this._auth.recordLogOnlyPassthrough();
+        return errorResponse(writerResult.status, writerResult.reason);
       }
     }
 

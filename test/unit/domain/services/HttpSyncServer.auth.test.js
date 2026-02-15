@@ -479,11 +479,11 @@ describe('HttpSyncServer auth integration', () => {
       expect(parsed.type).toBe('sync-response');
       expect(graph.processSyncRequest).toHaveBeenCalledOnce();
 
-      // Auth failure was logged
-      expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining('sync auth:'),
-        expect.any(Object),
+      // Both failures were independently logged
+      const warnCalls = logger.warn.mock.calls.filter(
+        (/** @type {any[]} */ args) => typeof args[0] === 'string' && args[0].startsWith('sync auth:'),
       );
+      expect(warnCalls.length).toBeGreaterThanOrEqual(2);
     });
   });
 });
