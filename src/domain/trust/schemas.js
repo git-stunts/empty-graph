@@ -50,12 +50,12 @@ export const KeyRevokeSubjectSchema = z.object({
 });
 
 export const WriterBindAddSubjectSchema = z.object({
-  writerId: z.string().min(1).trim(),
+  writerId: z.string().trim().min(1),
   keyId: KeyIdSchema,
 });
 
 export const WriterBindRevokeSubjectSchema = z.object({
-  writerId: z.string().min(1).trim(),
+  writerId: z.string().trim().min(1),
   keyId: KeyIdSchema,
   reasonCode: z.enum(['ACCESS_REMOVED', 'ROTATION', 'KEY_REVOKED']),
 });
@@ -67,7 +67,7 @@ export const TrustRecordSchema = z.object({
   recordType: RecordTypeSchema,
   recordId: RecordIdSchema,
   issuerKeyId: KeyIdSchema,
-  issuedAt: z.string().datetime({ offset: true }),
+  issuedAt: z.string().datetime({ offset: false }),
   prev: RecordIdSchema.nullable(),
   subject: z.record(z.unknown()),
   meta: z.record(z.unknown()).optional().default({}),

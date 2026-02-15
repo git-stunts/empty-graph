@@ -48,7 +48,7 @@ export function unsignedRecordForSignature(record) {
 }
 
 /**
- * Computes the canonical bytes for recordId hashing.
+ * Computes the canonical string for recordId hashing.
  *
  * @param {Record<string, *>} record - Full record (recordId and signature will be stripped)
  * @returns {string} Domain-separated canonical JSON string
@@ -58,7 +58,7 @@ export function recordIdPayload(record) {
 }
 
 /**
- * Computes the canonical bytes for signature verification.
+ * Computes the canonical string for signature verification.
  *
  * @param {Record<string, *>} record - Full record (signature will be stripped)
  * @returns {string} Domain-separated canonical JSON string
