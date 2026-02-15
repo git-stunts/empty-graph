@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [10.15.0] — 2026-02-14 — Hardening Sprint
+## [11.0.0] — 2026-02-14 — Hardening Sprint
 
 Completes M1.T2 (security hygiene), M2.T3 (signposts + defaults), and backlog items B1, B8–B10. Breaking change: `autoMaterialize` now defaults to `true`.
 
