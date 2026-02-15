@@ -126,13 +126,11 @@ await graphA.syncWith(graphB);
 
 ## Querying
 
-Query methods require materialized state. Either call `materialize()` first, or pass `autoMaterialize: true` to `WarpGraph.open()` to handle this automatically.
+Query methods auto-materialize by default. Just open a graph and start querying:
 
 ### Simple Queries
 
 ```javascript
-await graph.materialize();
-
 await graph.getNodes();                              // ['user:alice', 'user:bob']
 await graph.hasNode('user:alice');                   // true
 await graph.getNodeProps('user:alice');              // Map { 'name' => 'Alice', 'role' => 'admin' }

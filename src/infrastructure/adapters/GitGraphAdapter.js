@@ -530,7 +530,7 @@ export default class GitGraphAdapter extends GraphPersistencePort {
   /**
    * Reads the OID a ref points to.
    * @param {string} ref - The ref name
-   * @returns {Promise<string|null>} The OID, or null if the ref does not exist
+   * @returns {Promise<string|null>} The OID, or null if the ref does not exist or points to a dangling/missing object
    * @throws {Error} If the ref format is invalid
    */
   async readRef(ref) {

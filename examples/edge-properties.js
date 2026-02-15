@@ -37,17 +37,16 @@ async function main() {
   const persistence = new GitGraphAdapter({ plumbing });
 
   // ============================================================================
-  // Step 2: Open graph with autoMaterialize
+  // Step 2: Open graph
   // ============================================================================
 
   const graph = await WarpGraph.open({
     persistence,
     graphName: 'edge-props-demo',
     writerId: 'writer-1',
-    autoMaterialize: true,
   });
 
-  console.log(`[2] Opened graph "${graph.graphName}" (autoMaterialize: on)`);
+  console.log(`[2] Opened graph "${graph.graphName}"`);
 
   // ============================================================================
   // Step 3: Create nodes and edges with properties

@@ -166,6 +166,7 @@ export class Writer {
    *
    * @param {(p: PatchSession) => void | Promise<void>} build - Function to build the patch
    * @returns {Promise<string>} The commit SHA of the new patch
+   * @throws {WriterError} COMMIT_IN_PROGRESS if called while another commitPatch() is in progress (not reentrant)
    * @throws {WriterError} EMPTY_PATCH if no operations were added
    * @throws {WriterError} WRITER_REF_ADVANCED if CAS fails (ref moved since beginPatch)
    * @throws {WriterError} PERSIST_WRITE_FAILED if git operations fail
