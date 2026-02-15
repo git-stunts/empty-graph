@@ -773,4 +773,11 @@ describe('verifyWriters()', () => {
       allowedWriters: ['valid', 'a/b'],
     })).toThrow('Invalid writer ID');
   });
+
+  it('rejects empty allowedWriters array', () => {
+    expect(() => new SyncAuthService({
+      keys: { default: 'secret123' },
+      allowedWriters: [],
+    })).toThrow('allowedWriters must be a non-empty array');
+  });
 });

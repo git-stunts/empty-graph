@@ -395,4 +395,51 @@ describe('HttpSyncServer auth integration', () => {
       expect(res.status).toBe(413);
     });
   });
+
+  describe('allowedWriters + log-only mode', () => {
+    it('allows forbidden writer through in log-only mode', async () => {
+      const mock = createMockPort();
+      const server = new HttpSyncServer(/** @type {any} */ ({
+        httpPort: mock.port,
+        graph,
+        auth: { keys: KEYS, mode: 'log-only', crypto: defaultCrypto, wallClockMs: () => Date.now() },
+        allowedWriters: ['alice'],
+      }));
+      await server.listen(9999);
+      const handler = mock.getHandler();
+
+      const bodyObj = { type: 'sync-request', frontier: {}, patches: { eve: [] } };
+      const { body, headers } = await signedBody(bodyObj);
+      const res = await handler({
+        method: 'POST',
+        url: '/sync',
+        headers,
+        body,
+      });
+      // log-only: request proceeds (200), not blocked (403)
+      expect(res.status).toBe(200);
+    });
+
+    it('blocks forbidden writer in enforce mode', async () => {
+      const mock = createMockPort();
+      const server = new HttpSyncServer(/** @type {any} */ ({
+        httpPort: mock.port,
+        graph,
+        auth: { keys: KEYS, mode: 'enforce', crypto: defaultCrypto, wallClockMs: () => Date.now() },
+        allowedWriters: ['alice'],
+      }));
+      await server.listen(9999);
+      const handler = mock.getHandler();
+
+      const bodyObj = { type: 'sync-request', frontier: {}, patches: { eve: [] } };
+      const { body, headers } = await signedBody(bodyObj);
+      const res = await handler({
+        method: 'POST',
+        url: '/sync',
+        headers,
+        body,
+      });
+      expect(res.status).toBe(403);
+    });
+  });
 });

@@ -204,16 +204,20 @@ function initAuth(auth, allowedWriters) {
  * Checks the writer whitelist if auth is configured.
  *
  * @param {SyncAuthService|null} auth
+ * @param {string|null} authMode
  * @param {*} parsed - Parsed sync request body
  * @returns {{ status: number, headers: Object, body: string }|null}
  * @private
  */
-function checkWriterWhitelist(auth, parsed) {
+function checkWriterWhitelist(auth, authMode, parsed) {
   if (auth && parsed.patches && typeof parsed.patches === 'object') {
     const writerIds = Object.keys(parsed.patches);
     const result = auth.verifyWriters(writerIds);
     if (!result.ok) {
-      return errorResponse(result.status, result.reason);
+      if (authMode === 'enforce') {
+        return errorResponse(result.status, result.reason);
+      }
+      auth.recordLogOnlyPassthrough();
     }
   }
   return null;
@@ -301,7 +305,7 @@ export default class HttpSyncServer {
       return error;
     }
 
-    const writerError = checkWriterWhitelist(this._auth, parsed);
+    const writerError = checkWriterWhitelist(this._auth, this._authMode, parsed);
     if (writerError) {
       return writerError;
     }

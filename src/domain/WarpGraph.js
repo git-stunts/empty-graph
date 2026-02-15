@@ -1738,7 +1738,7 @@ export default class WarpGraph {
     const t0 = this._clock.now();
     try {
       if (!this._cachedState) {
-        throw new QueryError('No materialized state. Call materialize() before querying, or use autoMaterialize: true (the default). See https://github.com/git-stunts/git-warp#materialization', {
+        throw new QueryError(E_NO_STATE_MSG, {
           code: 'E_NO_STATE',
         });
       }

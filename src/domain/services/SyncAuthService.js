@@ -151,6 +151,23 @@ function _validateKeys(keys) {
   }
 }
 
+/**
+ * @param {string[]|undefined} allowedWriters
+ * @returns {Set<string>|null}
+ */
+function _validateAllowedWriters(allowedWriters) {
+  if (!allowedWriters) {
+    return null;
+  }
+  if (allowedWriters.length === 0) {
+    throw new Error('allowedWriters must be a non-empty array when provided');
+  }
+  for (const w of allowedWriters) {
+    validateWriterId(w);
+  }
+  return new Set(allowedWriters);
+}
+
 export default class SyncAuthService {
   /**
    * @param {Object} options
@@ -173,14 +190,7 @@ export default class SyncAuthService {
     this._maxClockSkewMs = typeof maxClockSkewMs === 'number' ? maxClockSkewMs : MAX_CLOCK_SKEW_MS;
     this._nonceCache = new LRUCache(nonceCapacity || DEFAULT_NONCE_CAPACITY);
     this._metrics = _freshMetrics();
-    if (allowedWriters) {
-      for (const w of allowedWriters) {
-        validateWriterId(w);
-      }
-      this._allowedWriters = new Set(allowedWriters);
-    } else {
-      this._allowedWriters = null;
-    }
+    this._allowedWriters = _validateAllowedWriters(allowedWriters);
   }
 
   /** @returns {'enforce'|'log-only'} */
