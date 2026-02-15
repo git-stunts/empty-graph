@@ -17,6 +17,7 @@ This document specifies the **trust configuration** layer for WARP graphs — a 
 3. **CAS-protected updates:** Trust config changes are protected by compare-and-swap, preventing concurrent mutation.
 4. **Content-addressed snapshots:** Each trust configuration is stored as a canonical JSON blob in a Git commit tree, enabling deterministic digest computation.
 5. **Separation of integrity and trust:** The `verify-audit` command produces two independent verdicts — integrity (chain structure) and trust (writer allowlist).
+6. **Domain purity:** Domain services (`src/domain/`) never read `process.env` or other ambient runtime state. Runtime configuration is resolved at the adapter boundary (CLI layer).
 
 ### Scope
 

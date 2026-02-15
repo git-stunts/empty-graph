@@ -232,17 +232,27 @@ export class AuditVerifierService {
   }
 
   /**
+   * Lists writer IDs from audit refs for a graph.
+   * @param {string} graphName
+   * @returns {Promise<string[]>}
+   * @private
+   */
+  async _listWriterIds(graphName) {
+    const prefix = buildAuditPrefix(graphName);
+    const refs = await this._persistence.listRefs(prefix);
+    return refs
+      .map((/** @type {string} */ ref) => ref.slice(prefix.length))
+      .filter((/** @type {string} */ id) => id.length > 0);
+  }
+
+  /**
    * Verifies all audit chains for a graph.
    * @param {string} graphName
-   * @param {{ since?: string, trustRefTip?: string, trustRequired?: boolean }} [options]
+   * @param {{ since?: string, trustRefTip?: string, pinSource?: 'cli_pin'|'env_pin', trustRequired?: boolean }} [options]
    * @returns {Promise<VerifyResult>}
    */
   async verifyAll(graphName, options = {}) {
-    const prefix = buildAuditPrefix(graphName);
-    const refs = await this._persistence.listRefs(prefix);
-    const writerIds = refs
-      .map((/** @type {string} */ ref) => ref.slice(prefix.length))
-      .filter((/** @type {string} */ id) => id.length > 0);
+    const writerIds = await this._listWriterIds(graphName);
 
     const chains = [];
     for (const writerId of writerIds.sort()) {
@@ -268,6 +278,19 @@ export class AuditVerifierService {
       trustVerdict,
       trustWarning: null, // deprecated v2.x legacy field
     };
+  }
+
+  /**
+   * Evaluates trust posture for a graph without running chain verification.
+   * @param {string} graphName
+   * @param {{ trustRefTip?: string, pinSource?: 'cli_pin'|'env_pin' }} [options]
+   * @returns {Promise<{ trust: TrustAssessment, trustVerdict: 'pass'|'degraded'|'fail'|'not_configured' }>}
+   */
+  async evaluateTrust(graphName, options = {}) {
+    const writerIds = await this._listWriterIds(graphName);
+    const trust = await this._evaluateTrust(graphName, writerIds, options);
+    const trustVerdict = deriveTrustVerdict(trust);
+    return { trust, trustVerdict };
   }
 
   /**
@@ -658,12 +681,13 @@ export class AuditVerifierService {
 
   /**
    * Orchestration layer for trust evaluation.
-   * Handles pin resolution: CLI pin > env pin > live ref.
+   * Pin resolution (CLI > env > live ref) is handled at the CLI boundary;
+   * this method receives an already-resolved pin and its source tag.
    * Invalid pin fails closed (no fallback to live ref).
    *
    * @param {string} graphName
    * @param {string[]} writerIds
-   * @param {{ trustRefTip?: string }} options
+   * @param {{ trustRefTip?: string, pinSource?: 'cli_pin'|'env_pin' }} options
    * @returns {Promise<TrustAssessment>}
    * @private
    */
@@ -672,11 +696,8 @@ export class AuditVerifierService {
       return NOT_CONFIGURED_TRUST;
     }
 
-    // Pin resolution priority: CLI > env > live ref
-    const cliPin = options.trustRefTip || null;
-    const envPin = (typeof process !== 'undefined' && process.env?.WARP_TRUSTED_ROOT) || null;
-    const pin = cliPin || envPin;
-    const source = cliPin ? 'cli_pin' : envPin ? 'env_pin' : 'ref';
+    const pin = options.trustRefTip || null;
+    const source = pin ? (options.pinSource || 'cli_pin') : 'ref';
 
     let configResult;
     try {
@@ -731,11 +752,18 @@ export class AuditVerifierService {
 // ============================================================================
 
 /**
- * Derives trust verdict from trust assessment.
+ * Derives the trust verdict string from a TrustAssessment.
+ *
+ * Mapping:
+ * - status 'not_configured' → 'not_configured'
+ * - status 'error'          → 'fail'
+ * - untrustedWriters.length > 0 → 'degraded'
+ * - otherwise               → 'pass'
+ *
  * @param {TrustAssessment} trust
  * @returns {'pass'|'degraded'|'fail'|'not_configured'}
  */
-function deriveTrustVerdict(trust) {
+export function deriveTrustVerdict(trust) {
   if (trust.status === 'not_configured') {
     return 'not_configured';
   }

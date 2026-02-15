@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`AuditVerifierService.evaluateTrust()`**: Standalone trust evaluation method that skips chain verification — O(writer count) instead of O(all patches). Eliminates the redundant `verifyAll()` call when using `--writer` filter.
+- **`deriveTrustVerdict()` export**: Now a named export with full JSDoc mapping contract (not_configured → not_configured, error → fail, untrusted writers → degraded, otherwise → pass).
+- **Domain purity boundary tests**: `grep`-based assertion that `src/domain/` never references `process.env`; `deriveTrustVerdict` exhaustiveness tests covering all 6 input combinations.
+
+### Changed
+
+- **`_evaluateTrust()` no longer reads `process.env`**: Pin resolution (`WARP_TRUSTED_ROOT`) moved to CLI boundary via `resolveTrustPin()` helper in `verify-audit.js`. Domain services are now genuinely pure — no ambient runtime state.
+- **`verify-audit --writer` path**: Uses `evaluateTrust()` instead of `verifyAll()`, avoiding redundant full chain verification.
+- **`verifyAll()` / `evaluateTrust()` options**: Accept `pinSource: 'cli_pin' | 'env_pin'` to tag where the pin originated.
+- **`TRUST_MODEL.md`**: Added design principle 6 — domain purity boundary statement.
+
 ## [11.1.0] — 2026-02-15 — Trust Ref Foundation
 
 Adds declarative trust configuration for WARP graphs — "Integrity without Identity." Operators can declare which writers are trusted via a Git-native trust ref, and `verify-audit` now produces dual verdicts (integrity + trust).

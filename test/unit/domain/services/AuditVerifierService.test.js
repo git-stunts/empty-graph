@@ -5,11 +5,11 @@
  * then verifies chain integrity, tamper detection, and edge cases.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { createHash } from 'node:crypto';
 import InMemoryGraphAdapter from '../../../../src/infrastructure/adapters/InMemoryGraphAdapter.js';
 import { AuditReceiptService } from '../../../../src/domain/services/AuditReceiptService.js';
-import { AuditVerifierService } from '../../../../src/domain/services/AuditVerifierService.js';
+import { AuditVerifierService, deriveTrustVerdict } from '../../../../src/domain/services/AuditVerifierService.js';
 import defaultCodec from '../../../../src/domain/utils/defaultCodec.js';
 import { encodeAuditMessage } from '../../../../src/domain/services/AuditMessageCodec.js';
 
@@ -769,5 +769,206 @@ describe('AuditVerifierService — OID length mismatch', () => {
     const result = await verifier.verifyChain('events', 'alice');
 
     expect(result.errors.some((e) => e.code === 'OID_LENGTH_MISMATCH')).toBe(true);
+  });
+});
+
+// ============================================================================
+// evaluateTrust — standalone trust evaluation
+// ============================================================================
+
+describe('AuditVerifierService — evaluateTrust', () => {
+  /** @type {InMemoryGraphAdapter} */
+  let persistence;
+
+  beforeEach(() => {
+    persistence = new InMemoryGraphAdapter();
+  });
+
+  it('returns not_configured when no trustService is injected', async () => {
+    const service = await createAuditService(persistence, 'events', 'alice');
+    await commitReceipt(service, 1);
+
+    const verifier = createVerifier(persistence);
+    const { trust, trustVerdict } = await verifier.evaluateTrust('events');
+
+    expect(trust.status).toBe('not_configured');
+    expect(trustVerdict).toBe('not_configured');
+  });
+
+  it('returns trust assessment with correct verdict when trustService present', async () => {
+    const service = await createAuditService(persistence, 'events', 'alice');
+    await commitReceipt(service, 1);
+
+    const mockTrustService = {
+      trustRef: 'refs/warp/events/trust/root',
+      async readTrustConfig() {
+        return {
+          config: {
+            version: 1,
+            trustedWriters: ['alice'],
+            policy: 'all_writers_must_be_trusted',
+            epoch: '2025-01-01T00:00:00Z',
+            requiredSignatures: null,
+            allowedSignersPath: null,
+          },
+          commitSha: 'a'.repeat(40),
+          snapshotDigest: 'b'.repeat(64),
+        };
+      },
+      async readTrustConfigAtCommit() { return null; },
+      evaluateWriters(/** @type {string[]} */ writerIds, /** @type {{ trustedWriters: string[] }} */ config) {
+        const trusted = new Set(config.trustedWriters);
+        return {
+          evaluatedWriters: writerIds.filter((/** @type {string} */ w) => trusted.has(w)),
+          untrustedWriters: writerIds.filter((/** @type {string} */ w) => !trusted.has(w)),
+          explanations: writerIds.map((/** @type {string} */ w) => ({
+            writerId: w,
+            trusted: trusted.has(w),
+            reason: trusted.has(w) ? 'listed' : 'not listed',
+          })),
+        };
+      },
+    };
+
+    const verifier = new AuditVerifierService({
+      persistence,
+      codec: defaultCodec,
+      trustService: /** @type {*} */ (mockTrustService),
+    });
+    const { trust, trustVerdict } = await verifier.evaluateTrust('events');
+
+    expect(trust.status).toBe('configured');
+    expect(trust.untrustedWriters).toEqual([]);
+    expect(trustVerdict).toBe('pass');
+  });
+
+  it('passes through trustRefTip and pinSource correctly', async () => {
+    const service = await createAuditService(persistence, 'events', 'alice');
+    await commitReceipt(service, 1);
+
+    const pinSha = 'c'.repeat(40);
+    /** @type {string|undefined} */
+    let receivedSha;
+
+    const mockTrustService = {
+      trustRef: 'refs/warp/events/trust/root',
+      async readTrustConfig() { return null; },
+      async readTrustConfigAtCommit(/** @type {string} */ sha) {
+        receivedSha = sha;
+        return {
+          config: {
+            version: 1,
+            trustedWriters: ['alice'],
+            policy: 'any',
+            epoch: '2025-01-01T00:00:00Z',
+            requiredSignatures: null,
+            allowedSignersPath: null,
+          },
+          commitSha: sha,
+          snapshotDigest: null,
+        };
+      },
+      evaluateWriters(/** @type {string[]} */ writerIds) {
+        return {
+          evaluatedWriters: writerIds,
+          untrustedWriters: /** @type {string[]} */ ([]),
+          explanations: writerIds.map((/** @type {string} */ w) => ({
+            writerId: w, trusted: true, reason: 'policy=any',
+          })),
+        };
+      },
+    };
+
+    const verifier = new AuditVerifierService({
+      persistence,
+      codec: defaultCodec,
+      trustService: /** @type {*} */ (mockTrustService),
+    });
+    const { trust } = await verifier.evaluateTrust('events', {
+      trustRefTip: pinSha,
+      pinSource: 'env_pin',
+    });
+
+    expect(receivedSha).toBe(pinSha);
+    expect(trust.status).toBe('pinned');
+    expect(trust.source).toBe('env_pin');
+  });
+
+  it('does not call verifyAll (performance regression guard)', async () => {
+    const service = await createAuditService(persistence, 'events', 'alice');
+    await commitReceipt(service, 1);
+
+    const verifier = createVerifier(persistence);
+    const verifySpy = vi.spyOn(verifier, 'verifyAll');
+
+    await verifier.evaluateTrust('events');
+
+    expect(verifySpy).not.toHaveBeenCalled();
+    verifySpy.mockRestore();
+  });
+});
+
+// ============================================================================
+// deriveTrustVerdict — exhaustiveness
+// ============================================================================
+
+describe('deriveTrustVerdict', () => {
+  const baseTrust = {
+    source: /** @type {const} */ ('ref'),
+    sourceDetail: null,
+    ref: null,
+    commit: null,
+    policy: null,
+    evaluatedWriters: /** @type {string[]} */ ([]),
+    untrustedWriters: /** @type {string[]} */ ([]),
+    explanations: /** @type {Array<{writerId: string, trusted: boolean, reason: string}>} */ ([]),
+    snapshotDigest: null,
+  };
+
+  it('maps not_configured → not_configured', () => {
+    expect(deriveTrustVerdict({ ...baseTrust, status: 'not_configured' })).toBe('not_configured');
+  });
+
+  it('maps error → fail', () => {
+    expect(deriveTrustVerdict({ ...baseTrust, status: 'error' })).toBe('fail');
+  });
+
+  it('maps configured with untrusted writers → degraded', () => {
+    expect(deriveTrustVerdict({
+      ...baseTrust,
+      status: 'configured',
+      untrustedWriters: ['mallory'],
+    })).toBe('degraded');
+  });
+
+  it('maps configured with no untrusted writers → pass', () => {
+    expect(deriveTrustVerdict({ ...baseTrust, status: 'configured' })).toBe('pass');
+  });
+
+  it('maps pinned with no untrusted writers → pass', () => {
+    expect(deriveTrustVerdict({ ...baseTrust, status: 'pinned' })).toBe('pass');
+  });
+
+  it('maps pinned with untrusted writers → degraded', () => {
+    expect(deriveTrustVerdict({
+      ...baseTrust,
+      status: 'pinned',
+      untrustedWriters: ['eve'],
+    })).toBe('degraded');
+  });
+});
+
+// ============================================================================
+// Domain purity — no process.env in src/domain/
+// ============================================================================
+
+describe('Domain purity boundary', () => {
+  it('src/domain/ does not reference process.env', async () => {
+    const { execSync } = await import('node:child_process');
+    const result = execSync(
+      'grep -r "process\\.env" src/domain/ || true',
+      { encoding: 'utf8', cwd: new URL('../../../../', import.meta.url).pathname },
+    );
+    expect(result.trim()).toBe('');
   });
 });

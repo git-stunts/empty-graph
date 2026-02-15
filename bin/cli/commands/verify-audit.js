@@ -8,6 +8,23 @@ import { createPersistence, resolveGraphName } from '../shared.js';
 
 /** @typedef {import('../types.js').CliOptions} CliOptions */
 
+/**
+ * Resolves trust pin from CLI flag or environment variable.
+ * Domain services never read process.env — resolution happens here at the CLI boundary.
+ * @param {string|undefined} cliTrustRefTip - From --trust-ref-tip
+ * @returns {{ trustRefTip: string|undefined, pinSource: 'cli_pin'|'env_pin'|undefined }}
+ */
+function resolveTrustPin(cliTrustRefTip) {
+  if (cliTrustRefTip) {
+    return { trustRefTip: cliTrustRefTip, pinSource: 'cli_pin' };
+  }
+  const envPin = process.env.WARP_TRUSTED_ROOT || undefined;
+  if (envPin) {
+    return { trustRefTip: envPin, pinSource: 'env_pin' };
+  }
+  return { trustRefTip: undefined, pinSource: undefined };
+}
+
 const VERIFY_AUDIT_OPTIONS = {
   since: { type: 'string' },
   writer: { type: 'string' },
@@ -48,13 +65,17 @@ export default async function handleVerifyAudit({ options, args }) {
     trustService,
   });
 
+  const { trustRefTip: resolvedPin, pinSource } = resolveTrustPin(trustRefTip);
+
   /** @type {*} */ // TODO(ts-cleanup): type payload union
   let payload;
   if (writerFilter !== undefined) {
     const chain = await verifier.verifyChain(graphName, writerFilter, { since });
     const invalid = chain.status !== 'VALID' && chain.status !== 'PARTIAL' ? 1 : 0;
-    // For single-writer verification, still run trust evaluation via verifyAll shape
-    const fullResult = await verifier.verifyAll(graphName, { since, trustRefTip });
+    const { trust, trustVerdict } = await verifier.evaluateTrust(graphName, {
+      trustRefTip: resolvedPin,
+      pinSource,
+    });
     payload = {
       graph: graphName,
       verifiedAt: new Date().toISOString(),
@@ -65,13 +86,17 @@ export default async function handleVerifyAudit({ options, args }) {
         invalid,
       },
       chains: [chain],
-      trust: fullResult.trust,
+      trust,
       integrityVerdict: invalid > 0 ? 'fail' : 'pass',
-      trustVerdict: fullResult.trustVerdict,
+      trustVerdict,
       trustWarning: null,
     };
   } else {
-    payload = await verifier.verifyAll(graphName, { since, trustRefTip });
+    payload = await verifier.verifyAll(graphName, {
+      since,
+      trustRefTip: resolvedPin,
+      pinSource,
+    });
   }
 
   // Exit code semantics
