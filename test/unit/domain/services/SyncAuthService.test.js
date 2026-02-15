@@ -794,7 +794,9 @@ describe('mode-agnostic validation', () => {
     const req = await buildSignedRequest({ 'x-warp-signature': 'a'.repeat(64) });
     const result = await svc.verify(req);
     expect(result.ok).toBe(false);
-    expect(result.reason).toBe('INVALID_SIGNATURE');
+    if (!result.ok) {
+      expect(result.reason).toBe('INVALID_SIGNATURE');
+    }
   });
 
   it('verifyWriters() returns { ok: false } in log-only mode (caller decides enforcement)', () => {
@@ -805,6 +807,8 @@ describe('mode-agnostic validation', () => {
     });
     const result = svc.verifyWriters(['eve']);
     expect(result.ok).toBe(false);
-    expect(result.reason).toBe('FORBIDDEN_WRITER');
+    if (!result.ok) {
+      expect(result.reason).toBe('FORBIDDEN_WRITER');
+    }
   });
 });
