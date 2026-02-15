@@ -101,7 +101,7 @@ Post-schema validation:
 
 ### 4.1 Ref Layout
 
-```
+```text
 refs/warp/<graphName>/trust/root → <trust commit SHA>
 ```
 
@@ -109,7 +109,7 @@ The trust ref is independent of writer refs, checkpoint refs, and audit refs. It
 
 ### 4.2 Commit Structure
 
-```
+```text
 trust commit:
   tree:
     trust.json    # 100644 blob — canonical JSON (Section 6)
@@ -177,7 +177,7 @@ Trust configs are serialized using `canonicalStringify()` — `JSON.stringify` w
 
 ### 6.2 Snapshot Digest
 
-```
+```text
 digest = SHA-256("git-warp:trust:v1\0" + canonicalJson)
 ```
 
@@ -202,7 +202,7 @@ The `verify-audit` command produces two independent verdicts:
 
 ### 7.2 Trust Verdict Derivation
 
-```
+```text
 if trust.status == "not_configured" → "not_configured"
 if trust.status == "error"          → "fail"
 if trust.untrustedWriters.length > 0 → "degraded"
@@ -263,7 +263,7 @@ The `trust doctor` subcommand performs diagnostic checks on the trust ref:
 
 ### `--strict` Mode
 
-When `--strict` is passed, any `fail` finding causes a non-zero exit code.
+When `--strict` is passed, any `fail` finding causes a non-zero exit code. Without `--strict`, neither `fail` nor `warn` findings affect the exit code. Note: unlike `git warp doctor` (which treats both `fail` and `warn` as exit-code-triggering under `--strict`), `trust doctor --strict` only treats `fail` findings as exit-code-triggering; `warn` findings are ignored for exit status.
 
 ---
 

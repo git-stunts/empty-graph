@@ -1834,6 +1834,7 @@ const { config, commitSha, snapshotDigest } = await trust.readTrustConfig();
 // Evaluate writers
 const result = trust.evaluateWriters(['alice', 'charlie'], config);
 // { evaluatedWriters: ['alice', 'charlie'], untrustedWriters: [], explanations: [...] }
+// Note: under policy="any", unlisted writers are accepted (not rejected)
 
 // Diagnose
 const findings = await trust.diagnose();

@@ -338,7 +338,7 @@ Verifiers SHOULD record and compare tip hashes across runs. External anchoring m
 
 The optional **trust ref** at `refs/warp/<graph>/trust/root` declares which writers are trusted. When configured, the `verify-audit` command produces a dual verdict: **integrity** (chain structure) and **trust** (writer allowlist).
 
-Trust configuration is stored as a `trust.json` blob in a CAS-protected, ff-only Git commit chain. The schema includes a `trustedWriters` array and a `policy` field (`"any"` or `"all_writers_must_be_trusted"`). Trust evaluation is pure — no environment reads, no side effects.
+Trust configuration is stored as a `trust.json` blob in a CAS-protected, ff-only Git commit chain. The schema includes a `trustedWriters` array and a `policy` field (`"any"` or `"all_writers_must_be_trusted"`). Trust writer evaluation (`TrustService.evaluateWriters`) is pure — no environment reads, no side effects. Pin resolution (performed in `AuditVerifierService._evaluateTrust`) may consult environment variables such as `WARP_TRUSTED_ROOT` and is an orchestration concern. Invalid pins fail closed.
 
 Pin resolution priority: CLI `--trust-ref-tip` > `WARP_TRUSTED_ROOT` env > live ref. Invalid pins fail closed (no fallback).
 
