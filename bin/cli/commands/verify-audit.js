@@ -50,6 +50,8 @@ export default async function handleVerifyAudit({ options, args }) {
     codec: defaultCodec,
   });
 
+  const trustWarning = detectTrustWarning();
+
   /** @type {*} */ // TODO(ts-cleanup): type verify-audit payload
   let payload;
   if (writerFilter !== undefined) {
@@ -65,10 +67,10 @@ export default async function handleVerifyAudit({ options, args }) {
         invalid,
       },
       chains: [chain],
-      trustWarning: null,
+      trustWarning,
     };
   } else {
-    payload = await verifier.verifyAll(graphName, { since, trustWarning: detectTrustWarning() });
+    payload = await verifier.verifyAll(graphName, { since, trustWarning });
   }
 
   const hasInvalid = payload.summary.invalid > 0;

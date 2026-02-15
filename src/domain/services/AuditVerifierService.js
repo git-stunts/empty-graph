@@ -229,7 +229,7 @@ export class AuditVerifierService {
 
     const chains = [];
     for (const writerId of writerIds.sort()) {
-      const result = await this.verifyChain(graphName, writerId, options);
+      const result = await this.verifyChain(graphName, writerId, { since: options.since });
       chains.push(result);
     }
 

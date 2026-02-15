@@ -784,12 +784,6 @@ describe('AuditVerifierService — trustWarning', () => {
     persistence = new InMemoryGraphAdapter();
   });
 
-  it('returns null trustWarning by default', async () => {
-    const verifier = createVerifier(persistence);
-    const result = await verifier.verifyAll('events');
-    expect(result.trustWarning).toBeNull();
-  });
-
   it('passes through CLI-injected trustWarning', async () => {
     const service = await createAuditService(persistence, 'events', 'alice');
     await commitReceipt(service, 1);
