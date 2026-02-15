@@ -572,7 +572,7 @@ export default class StreamingBitmapIndexBuilder {
     const buffer = await /** @type {any} */ (this.storage).readBlob(oid); // TODO(ts-cleanup): narrow port type
     let envelope;
     try {
-      envelope = JSON.parse(buffer.toString('utf-8'));
+      envelope = JSON.parse(new TextDecoder().decode(buffer));
     } catch (err) {
       throw new ShardCorruptionError('Failed to parse shard JSON', {
         oid,

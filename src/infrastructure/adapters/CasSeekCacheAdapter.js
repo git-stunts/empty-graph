@@ -98,7 +98,7 @@ export default class CasSeekCacheAdapter extends SeekCachePort {
     }
     try {
       const buf = await this._persistence.readBlob(oid);
-      const parsed = JSON.parse(buf.toString('utf8'));
+      const parsed = JSON.parse(new TextDecoder().decode(buf));
       if (parsed.schemaVersion !== INDEX_SCHEMA_VERSION) {
         return { schemaVersion: INDEX_SCHEMA_VERSION, entries: {} };
       }

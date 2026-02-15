@@ -38,7 +38,7 @@ export async function loadIndexFrontier(shardOids, storage, { codec } = /** @typ
   const jsonOid = shardOids['frontier.json'];
   if (jsonOid) {
     const buffer = await storage.readBlob(jsonOid);
-    const envelope = /** @type {{ frontier: Record<string, string> }} */ (JSON.parse(buffer.toString('utf-8')));
+    const envelope = /** @type {{ frontier: Record<string, string> }} */ (JSON.parse(new TextDecoder().decode(buffer)));
     validateEnvelope(envelope, 'frontier.json');
     return new Map(Object.entries(envelope.frontier));
   }

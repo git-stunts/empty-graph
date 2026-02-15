@@ -579,7 +579,7 @@ export default class TrustService {
   _parseAndValidateBlob(blobContent, sha) {
     let raw;
     try {
-      raw = JSON.parse(blobContent.toString('utf8'));
+      raw = JSON.parse(new TextDecoder().decode(blobContent));
     } catch (/** @type {*} */ err) { // TODO(ts-cleanup): narrow catch type
       throw new TrustError(
         `Malformed JSON in ${TRUST_BLOB_NAME}: ${err?.message}`,
