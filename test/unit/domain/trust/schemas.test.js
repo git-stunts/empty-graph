@@ -31,7 +31,9 @@ describe('WriterBind schemas — trim-before-min validation', () => {
       keyId: validKeyId,
     });
     expect(result.success).toBe(true);
-    expect(result.data.writerId).toBe('alice');
+    if (result.success) {
+      expect(result.data.writerId).toBe('alice');
+    }
   });
 });
 
