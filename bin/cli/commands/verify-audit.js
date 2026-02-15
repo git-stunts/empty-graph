@@ -6,6 +6,26 @@ import { createPersistence, resolveGraphName } from '../shared.js';
 
 /** @typedef {import('../types.js').CliOptions} CliOptions */
 
+/**
+ * Detects trust configuration from environment and returns a structured warning.
+ * Domain services never read process.env — detection happens at the CLI boundary.
+ * @returns {{ code: string, message: string, sources: string[] } | null}
+ */
+function detectTrustWarning() {
+  const sources = [];
+  if (typeof process !== 'undefined' && process.env?.WARP_TRUSTED_ROOT) {
+    sources.push('env');
+  }
+  if (sources.length === 0) {
+    return null;
+  }
+  return {
+    code: 'TRUST_CONFIG_PRESENT_UNENFORCED',
+    message: 'Trust root configured but signature verification is not implemented in v1',
+    sources,
+  };
+}
+
 const VERIFY_AUDIT_OPTIONS = {
   since: { type: 'string' },
   writer: { type: 'string' },
@@ -48,7 +68,7 @@ export default async function handleVerifyAudit({ options, args }) {
       trustWarning: null,
     };
   } else {
-    payload = await verifier.verifyAll(graphName, { since });
+    payload = await verifier.verifyAll(graphName, { since, trustWarning: detectTrustWarning() });
   }
 
   const hasInvalid = payload.summary.invalid > 0;
