@@ -1748,25 +1748,25 @@ The full specification — including canonical serialization rules, field constr
 
 ### Migrating from autoMaterialize: false
 
-As of v10.9.0, `autoMaterialize` defaults to `true`. If you relied on the previous default of `false`, either:
+As of v11.0.0, `autoMaterialize` defaults to `true`. If you relied on the previous default of `false`, either:
 
 **Option A:** Accept the new default (recommended for most users):
 ```js
 // Before: required explicit materialize()
 const graph = await WarpGraph.open({ persistence, graphName, writerId });
 await graph.materialize();
-const nodes = graph.getNodes();
+const nodes = await graph.getNodes();
 
 // After: just works
 const graph = await WarpGraph.open({ persistence, graphName, writerId });
-const nodes = graph.getNodes();
+const nodes = await graph.getNodes();
 ```
 
 **Option B:** Opt out explicitly:
 ```js
 const graph = await WarpGraph.open({
   persistence, graphName, writerId,
-  autoMaterialize: false, // preserve v10.8 behavior
+  autoMaterialize: false, // preserve pre-v11 behavior
 });
 ```
 
