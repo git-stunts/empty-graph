@@ -143,8 +143,8 @@ describe('Adversarial case 4: Out-of-order record input', () => {
     expect(a1.trustVerdict).toBe(a2.trustVerdict);
     expect(a1.trust.evaluatedWriters).toEqual(a2.trust.evaluatedWriters);
     expect(a1.trust.untrustedWriters).toEqual(a2.trust.untrustedWriters);
-    expect(a1.trust.explanations.map((/** @param {*} e */ e) => e.reasonCode)).toEqual(
-      a2.trust.explanations.map((/** @param {*} e */ e) => e.reasonCode),
+    expect(a1.trust.explanations.map((/** @type {{reasonCode: string}} */ e) => e.reasonCode)).toEqual(
+      a2.trust.explanations.map((/** @type {{reasonCode: string}} */ e) => e.reasonCode),
     );
   });
 });

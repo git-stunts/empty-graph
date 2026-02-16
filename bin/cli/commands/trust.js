@@ -104,7 +104,7 @@ export default async function handleTrust({ options, args }) {
   const graphName = await resolveGraphName(persistence, options.graph);
 
   const recordService = new TrustRecordService({
-    persistence: /** @type {*} */ (persistence),
+    persistence: /** @type {*} TODO(ts-cleanup) */ (persistence),
     codec: defaultCodec,
   });
 
