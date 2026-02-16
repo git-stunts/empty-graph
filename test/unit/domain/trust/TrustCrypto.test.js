@@ -107,6 +107,7 @@ describe('computeKeyFingerprint', () => {
   });
 
   it('throws E_TRUST_INVALID_KEY for wrong-length key', () => {
+    expect.assertions(2);
     const short = Buffer.alloc(16).toString('base64');
     expect(() => computeKeyFingerprint(short)).toThrow(TrustError);
     try {
@@ -152,6 +153,7 @@ describe('unsupported algorithm rejection', () => {
   });
 
   it('error has code E_TRUST_UNSUPPORTED_ALGORITHM', () => {
+    expect.assertions(1);
     try {
       verifySignature({
         algorithm: 'rsa',
