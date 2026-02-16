@@ -1,3 +1,4 @@
+// @ts-nocheck — tests dynamic prototype descriptors that TypeScript cannot track
 import { describe, it, expect } from 'vitest';
 import WarpGraph from '../../../src/domain/WarpGraph.js';
 

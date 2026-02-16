@@ -198,7 +198,6 @@ export default class WarpGraph {
    * @param {Object} [opts] - Options
    * @param {string} [opts.metrics] - Extra metrics string to append in parentheses
    * @param {Error} [opts.error] - If set, logs a failure message instead
-   * @private
    */
   _logTiming(op, t0, { metrics, error } = {}) {
     if (!this._logger) {
