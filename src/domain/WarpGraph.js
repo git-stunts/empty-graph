@@ -11,7 +11,7 @@
 import { validateGraphName, validateWriterId, buildWriterRef, buildCoverageRef, buildCheckpointRef, buildWritersPrefix, parseWriterIdFromRef } from './utils/RefLayout.js';
 import { PatchBuilderV2 } from './services/PatchBuilderV2.js';
 import { reduceV5, createEmptyStateV5, joinStates, join as joinPatch, cloneStateV5 } from './services/JoinReducer.js';
-import { decodeEdgeKey, decodePropKey, isEdgePropKey, decodeEdgePropKey, encodeEdgeKey } from './services/KeyCodec.js';
+import { decodeEdgeKey } from './services/KeyCodec.js';
 import { ProvenanceIndex } from './services/ProvenanceIndex.js';
 import { ProvenancePayload } from './services/ProvenancePayload.js';
 import { diffStates, isEmptyDiff } from './services/StateDiff.js';
@@ -36,10 +36,7 @@ import {
 import { retry, timeout, RetryExhaustedError, TimeoutError } from '@git-stunts/alfred';
 import { Writer } from './warp/Writer.js';
 import { generateWriterId, resolveWriterId } from './utils/WriterId.js';
-import QueryBuilder from './services/QueryBuilder.js';
 import LogicalTraversal from './services/LogicalTraversal.js';
-import ObserverView from './services/ObserverView.js';
-import { computeTranslationCost } from './services/TranslationCost.js';
 import LRUCache from './utils/LRUCache.js';
 import SyncError from './errors/SyncError.js';
 import QueryError from './errors/QueryError.js';
@@ -47,12 +44,13 @@ import ForkError from './errors/ForkError.js';
 import { createWormhole as createWormholeImpl } from './services/WormholeService.js';
 import { checkAborted } from './utils/cancellation.js';
 import OperationAbortedError from './errors/OperationAbortedError.js';
-import { compareEventIds } from './utils/EventId.js';
 import { TemporalQuery } from './services/TemporalQuery.js';
 import HttpSyncServer from './services/HttpSyncServer.js';
 import { signSyncRequest, canonicalizePath } from './services/SyncAuthService.js';
 import { buildSeekCacheKey } from './utils/seekCacheKey.js';
 import defaultClock from './utils/defaultClock.js';
+import { wireWarpMethods } from './warp/_wire.js';
+import * as queryMethods from './warp/query.methods.js';
 
 /**
  * @typedef {import('../ports/GraphPersistencePort.js').default & import('../ports/RefPort.js').default & import('../ports/CommitPort.js').default & import('../ports/BlobPort.js').default & import('../ports/TreePort.js').default & import('../ports/ConfigPort.js').default} FullPersistence
@@ -2651,407 +2649,9 @@ export default class WarpGraph {
     }
   }
 
-  // ============================================================================
-  // Query API (Task 7) - Queries on Materialized WARP State
-  // ============================================================================
+  // ── Query/observer/translationCost methods: see warp/query.methods.js ──────
 
-  /**
-   * Creates a fluent query builder for the logical graph.
-   *
-   * The query builder provides a chainable API for querying nodes, filtering
-   * by patterns and properties, traversing edges, and selecting results.
-   *
-   * **Requires a cached state.** Call materialize() first if not already cached,
-   * or use autoMaterialize option when opening the graph.
-   *
-   * @returns {import('./services/QueryBuilder.js').default} A fluent query builder
-   *
-   * @example
-   * await graph.materialize();
-   * const users = await graph.query()
-   *   .match('user:*')
-   *   .where('active', true)
-   *   .outgoing('follows')
-   *   .select('*');
-   */
-  query() {
-    return new QueryBuilder(this);
-  }
-
-  /**
-   * Creates a read-only observer view of the current materialized state.
-   *
-   * The observer sees only nodes matching the `match` glob pattern, with
-   * property visibility controlled by `expose` and `redact` lists.
-   * Edges are only visible when both endpoints pass the match filter.
-   *
-   * **Requires a cached state.** Call materialize() first if not already cached,
-   * or use autoMaterialize option when opening the graph.
-   *
-   * @param {string} name - Observer name
-   * @param {Object} config - Observer configuration
-   * @param {string} config.match - Glob pattern for visible nodes (e.g. 'user:*')
-   * @param {string[]} [config.expose] - Property keys to include (whitelist)
-   * @param {string[]} [config.redact] - Property keys to exclude (blacklist, takes precedence over expose)
-   * @returns {Promise<import('./services/ObserverView.js').default>} A read-only observer view
-   * @throws {QueryError} If no cached state exists (code: `E_NO_STATE`)
-   * @throws {QueryError} If cached state is dirty (code: `E_STALE_STATE`)
-   *
-   * @example
-   * await graph.materialize();
-   * const view = await graph.observer('userView', {
-   *   match: 'user:*',
-   *   redact: ['ssn', 'password'],
-   * });
-   * const users = await view.getNodes();
-   * const result = await view.query().match('user:*').run();
-   */
-  async observer(name, config) {
-    if (!config || typeof config.match !== 'string') {
-      throw new Error('observer config.match must be a string');
-    }
-    await this._ensureFreshState();
-    return new ObserverView({ name, config, graph: this });
-  }
-
-  /**
-   * Computes the directed MDL translation cost from observer A to observer B.
-   *
-   * The cost measures how much information is lost when translating from
-   * A's view to B's view. It is asymmetric: cost(A->B) != cost(B->A).
-   *
-   * **Requires a cached state.** Call materialize() first if not already cached,
-   * or use autoMaterialize option when opening the graph.
-   *
-   * @param {Object} configA - Observer configuration for A
-   * @param {string} configA.match - Glob pattern for visible nodes
-   * @param {string[]} [configA.expose] - Property keys to include
-   * @param {string[]} [configA.redact] - Property keys to exclude
-   * @param {Object} configB - Observer configuration for B
-   * @param {string} configB.match - Glob pattern for visible nodes
-   * @param {string[]} [configB.expose] - Property keys to include
-   * @param {string[]} [configB.redact] - Property keys to exclude
-   * @returns {Promise<{cost: number, breakdown: {nodeLoss: number, edgeLoss: number, propLoss: number}}>}
-   * @throws {QueryError} If no cached state exists (code: `E_NO_STATE`)
-   * @throws {QueryError} If cached state is dirty (code: `E_STALE_STATE`)
-   *
-   * @see Paper IV, Section 4 -- Directed rulial cost
-   *
-   * @example
-   * await graph.materialize();
-   * const result = await graph.translationCost(
-   *   { match: 'user:*' },
-   *   { match: 'user:*', redact: ['ssn'] }
-   * );
-   * console.log(result.cost);       // e.g. 0.04
-   * console.log(result.breakdown);  // { nodeLoss: 0, edgeLoss: 0, propLoss: 0.2 }
-   */
-  async translationCost(configA, configB) {
-    await this._ensureFreshState();
-    return computeTranslationCost(configA, configB, this._cachedState);
-  }
-
-  /**
-   * Checks if a node exists in the materialized graph state.
-   *
-   * **Requires a cached state.** Call materialize() first if not already cached.
-   *
-   * @param {string} nodeId - The node ID to check
-   * @returns {Promise<boolean>} True if the node exists in the materialized state
-   * @throws {QueryError} If no cached state exists (code: `E_NO_STATE`)
-   * @throws {QueryError} If cached state is dirty (code: `E_STALE_STATE`)
-   *
-   * @example
-   * await graph.materialize();
-   * if (await graph.hasNode('user:alice')) {
-   *   console.log('Alice exists in the graph');
-   * }
-   */
-  async hasNode(nodeId) {
-    await this._ensureFreshState();
-    const s = /** @type {import('./services/JoinReducer.js').WarpStateV5} */ (this._cachedState);
-    return orsetContains(s.nodeAlive, nodeId);
-  }
-
-  /**
-   * Gets all properties for a node from the materialized state.
-   *
-   * Returns properties as a Map of key → value. Only returns properties
-   * for nodes that exist in the materialized state.
-   *
-   * **Requires a cached state.** Call materialize() first if not already cached.
-   *
-   * @param {string} nodeId - The node ID to get properties for
-   * @returns {Promise<Map<string, *>|null>} Map of property key → value, or null if node doesn't exist
-   * @throws {QueryError} If no cached state exists (code: `E_NO_STATE`)
-   * @throws {QueryError} If cached state is dirty (code: `E_STALE_STATE`)
-   *
-   * @example
-   * await graph.materialize();
-   * const props = await graph.getNodeProps('user:alice');
-   * if (props) {
-   *   console.log('Name:', props.get('name'));
-   * }
-   */
-  async getNodeProps(nodeId) {
-    await this._ensureFreshState();
-    const s = /** @type {import('./services/JoinReducer.js').WarpStateV5} */ (this._cachedState);
-
-    // Check if node exists
-    if (!orsetContains(s.nodeAlive, nodeId)) {
-      return null;
-    }
-
-    // Collect all properties for this node
-    const props = new Map();
-    for (const [propKey, register] of s.prop) {
-      const decoded = decodePropKey(propKey);
-      if (decoded.nodeId === nodeId) {
-        props.set(decoded.propKey, register.value);
-      }
-    }
-
-    return props;
-  }
-
-  /**
-   * Gets all properties for an edge from the materialized state.
-   *
-   * Returns properties as a plain object of key → value. Only returns
-   * properties for edges that exist in the materialized state.
-   *
-   * **Requires a cached state.** Call materialize() first if not already cached.
-   *
-   * @param {string} from - Source node ID
-   * @param {string} to - Target node ID
-   * @param {string} label - Edge label
-   * @returns {Promise<Record<string, *>|null>} Object of property key → value, or null if edge doesn't exist
-   * @throws {QueryError} If no cached state exists (code: `E_NO_STATE`)
-   * @throws {QueryError} If cached state is dirty (code: `E_STALE_STATE`)
-   *
-   * @example
-   * await graph.materialize();
-   * const props = await graph.getEdgeProps('user:alice', 'user:bob', 'follows');
-   * if (props) {
-   *   console.log('Weight:', props.weight);
-   * }
-   */
-  async getEdgeProps(from, to, label) {
-    await this._ensureFreshState();
-    const s = /** @type {import('./services/JoinReducer.js').WarpStateV5} */ (this._cachedState);
-
-    // Check if edge exists
-    const edgeKey = encodeEdgeKey(from, to, label);
-    if (!orsetContains(s.edgeAlive, edgeKey)) {
-      return null;
-    }
-
-    // Check node liveness for both endpoints
-    if (!orsetContains(s.nodeAlive, from) ||
-        !orsetContains(s.nodeAlive, to)) {
-      return null;
-    }
-
-    // Determine the birth EventId for clean-slate filtering
-    const birthEvent = s.edgeBirthEvent?.get(edgeKey);
-
-    // Collect all properties for this edge, filtering out stale props
-    // (props set before the edge's most recent re-add)
-    /** @type {Record<string, any>} */
-    const props = {};
-    for (const [propKey, register] of s.prop) {
-      if (!isEdgePropKey(propKey)) {
-        continue;
-      }
-      const decoded = decodeEdgePropKey(propKey);
-      if (decoded.from === from && decoded.to === to && decoded.label === label) {
-        if (birthEvent && register.eventId && compareEventIds(register.eventId, birthEvent) < 0) {
-          continue; // stale prop from before the edge's current incarnation
-        }
-        props[decoded.propKey] = register.value;
-      }
-    }
-
-    return props;
-  }
-
-  /**
-   * Gets neighbors of a node from the materialized state.
-   *
-   * Returns node IDs connected to the given node by edges in the specified direction.
-   * Direction 'outgoing' returns nodes where the given node is the edge source.
-   * Direction 'incoming' returns nodes where the given node is the edge target.
-   * Direction 'both' returns all connected nodes.
-   *
-   * **Requires a cached state.** Call materialize() first if not already cached.
-   *
-   * @param {string} nodeId - The node ID to get neighbors for
-   * @param {'outgoing' | 'incoming' | 'both'} [direction='both'] - Edge direction to follow
-   * @param {string} [edgeLabel] - Optional edge label filter
-   * @returns {Promise<Array<{nodeId: string, label: string, direction: 'outgoing' | 'incoming'}>>} Array of neighbor info
-   * @throws {QueryError} If no cached state exists (code: `E_NO_STATE`)
-   * @throws {QueryError} If cached state is dirty (code: `E_STALE_STATE`)
-   *
-   * @example
-   * await graph.materialize();
-   * // Get all outgoing neighbors
-   * const outgoing = await graph.neighbors('user:alice', 'outgoing');
-   * // Get neighbors connected by 'follows' edges
-   * const follows = await graph.neighbors('user:alice', 'outgoing', 'follows');
-   */
-  async neighbors(nodeId, direction = 'both', edgeLabel = undefined) {
-    await this._ensureFreshState();
-    const s = /** @type {import('./services/JoinReducer.js').WarpStateV5} */ (this._cachedState);
-
-    /** @type {Array<{nodeId: string, label: string, direction: 'outgoing' | 'incoming'}>} */
-    const neighbors = [];
-
-    // Iterate over all visible edges
-    for (const edgeKey of orsetElements(s.edgeAlive)) {
-      const { from, to, label } = decodeEdgeKey(edgeKey);
-
-      // Filter by label if specified
-      if (edgeLabel !== undefined && label !== edgeLabel) {
-        continue;
-      }
-
-      // Check edge direction and collect neighbors
-      if ((direction === 'outgoing' || direction === 'both') && from === nodeId) {
-        // Ensure target node is visible
-        if (orsetContains(s.nodeAlive, to)) {
-          neighbors.push({ nodeId: to, label, direction: /** @type {const} */ ('outgoing') });
-        }
-      }
-
-      if ((direction === 'incoming' || direction === 'both') && to === nodeId) {
-        // Ensure source node is visible
-        if (orsetContains(s.nodeAlive, from)) {
-          neighbors.push({ nodeId: from, label, direction: /** @type {const} */ ('incoming') });
-        }
-      }
-    }
-
-    return neighbors;
-  }
-
-  /**
-   * Returns a defensive copy of the current materialized state.
-   *
-   * The returned object is a shallow clone: top-level ORSet, LWW, and
-   * VersionVector instances are copied so that mutations by the caller
-   * cannot corrupt the internal cache.
-   *
-   * **Requires a cached state.** Call materialize() first if not already cached.
-   *
-   * @returns {Promise<import('./services/JoinReducer.js').WarpStateV5 | null>}
-   *   Cloned state, or null if no state has been materialized yet.
-   */
-  async getStateSnapshot() {
-    if (!this._cachedState && !this._autoMaterialize) {
-      return null;
-    }
-    await this._ensureFreshState();
-    if (!this._cachedState) {
-      return null;
-    }
-    return cloneStateV5(/** @type {import('./services/JoinReducer.js').WarpStateV5} */ (this._cachedState));
-  }
-
-  /**
-   * Gets all visible nodes in the materialized state.
-   *
-   * **Requires a cached state.** Call materialize() first if not already cached.
-   *
-   * @returns {Promise<string[]>} Array of node IDs
-   * @throws {QueryError} If no cached state exists (code: `E_NO_STATE`)
-   * @throws {QueryError} If cached state is dirty (code: `E_STALE_STATE`)
-   *
-   * @example
-   * await graph.materialize();
-   * for (const nodeId of await graph.getNodes()) {
-   *   console.log(nodeId);
-   * }
-   */
-  async getNodes() {
-    await this._ensureFreshState();
-    const s = /** @type {import('./services/JoinReducer.js').WarpStateV5} */ (this._cachedState);
-    return [...orsetElements(s.nodeAlive)];
-  }
-
-  /**
-   * Gets all visible edges in the materialized state.
-   *
-   * Each edge includes a `props` object containing any edge properties
-   * from the materialized state.
-   *
-   * **Requires a cached state.** Call materialize() first if not already cached.
-   *
-   * @returns {Promise<Array<{from: string, to: string, label: string, props: Record<string, *>}>>} Array of edge info
-   * @throws {QueryError} If no cached state exists (code: `E_NO_STATE`)
-   * @throws {QueryError} If cached state is dirty (code: `E_STALE_STATE`)
-   *
-   * @example
-   * await graph.materialize();
-   * for (const edge of await graph.getEdges()) {
-   *   console.log(`${edge.from} --${edge.label}--> ${edge.to}`, edge.props);
-   * }
-   */
-  async getEdges() {
-    await this._ensureFreshState();
-    const s = /** @type {import('./services/JoinReducer.js').WarpStateV5} */ (this._cachedState);
-
-    // Pre-collect edge props into a lookup: "from\0to\0label" → {propKey: value}
-    // Filters out stale props using full EventId ordering via compareEventIds
-    // against the edge's birth EventId (clean-slate semantics on re-add)
-    const edgePropsByKey = new Map();
-    for (const [propKey, register] of s.prop) {
-      if (!isEdgePropKey(propKey)) {
-        continue;
-      }
-      const decoded = decodeEdgePropKey(propKey);
-      const ek = encodeEdgeKey(decoded.from, decoded.to, decoded.label);
-
-      // Clean-slate filter: skip props from before the edge's current incarnation
-      const birthEvent = s.edgeBirthEvent?.get(ek);
-      if (birthEvent && register.eventId && compareEventIds(register.eventId, birthEvent) < 0) {
-        continue;
-      }
-
-      let bag = edgePropsByKey.get(ek);
-      if (!bag) {
-        bag = {};
-        edgePropsByKey.set(ek, bag);
-      }
-      bag[decoded.propKey] = register.value;
-    }
-
-    const edges = [];
-    for (const edgeKey of orsetElements(s.edgeAlive)) {
-      const { from, to, label } = decodeEdgeKey(edgeKey);
-      // Only include edges where both endpoints are visible
-      if (orsetContains(s.nodeAlive, from) &&
-          orsetContains(s.nodeAlive, to)) {
-        const props = edgePropsByKey.get(edgeKey) || {};
-        edges.push({ from, to, label, props });
-      }
-    }
-    return edges;
-  }
-
-  /**
-   * Returns the number of property entries in the materialized state.
-   *
-   * **Requires a cached state.** Call materialize() first if not already cached.
-   *
-   * @returns {Promise<number>} Number of property entries
-   * @throws {QueryError} If no cached state exists (code: `E_NO_STATE`)
-   * @throws {QueryError} If cached state is dirty (code: `E_STALE_STATE`)
-   */
-  async getPropertyCount() {
-    await this._ensureFreshState();
-    const s = /** @type {import('./services/JoinReducer.js').WarpStateV5} */ (this._cachedState);
-    return s.prop.size;
-  }
+  // ── Query methods: see warp/query.methods.js ───────────────────────────────
 
   // ============================================================================
   // Fork API (HOLOGRAM)
@@ -3655,3 +3255,6 @@ export default class WarpGraph {
     return this._provenanceIndex;
   }
 }
+
+// ── Wire extracted method groups onto WarpGraph.prototype ───────────────────
+wireWarpMethods(WarpGraph, [queryMethods]);
