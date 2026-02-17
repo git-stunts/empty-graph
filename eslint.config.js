@@ -196,6 +196,15 @@ export default tseslint.config(
   {
     files: [
       "src/domain/WarpGraph.js",
+      "src/domain/warp/query.methods.js",
+      "src/domain/warp/subscribe.methods.js",
+      "src/domain/warp/provenance.methods.js",
+      "src/domain/warp/fork.methods.js",
+      "src/domain/warp/sync.methods.js",
+      "src/domain/warp/checkpoint.methods.js",
+      "src/domain/warp/patch.methods.js",
+      "src/domain/warp/materialize.methods.js",
+      "src/domain/warp/materializeAdvanced.methods.js",
       "src/domain/services/CommitDagTraversalService.js",
       "src/domain/services/CheckpointService.js",
       "src/domain/services/QueryBuilder.js",
