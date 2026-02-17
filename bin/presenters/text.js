@@ -249,10 +249,10 @@ export function renderInstallHooks(payload) {
 
 /**
  * Formats a numeric delta as " (+N)" or " (-N)", or empty string for zero/non-finite.
- * @param {*} n
+ * @param {unknown} n
  * @returns {string}
  */
-function formatDelta(n) { // TODO(ts-cleanup): type CLI payload
+function formatDelta(n) {
   if (typeof n !== 'number' || !Number.isFinite(n) || n === 0) {
     return '';
   }
@@ -262,10 +262,10 @@ function formatDelta(n) { // TODO(ts-cleanup): type CLI payload
 
 /**
  * Formats an operation summary object as a compact plain-text string.
- * @param {*} summary
+ * @param {Record<string, number> | null | undefined} summary
  * @returns {string}
  */
-function formatOpSummaryPlain(summary) { // TODO(ts-cleanup): type CLI payload
+function formatOpSummaryPlain(summary) {
   const order = [
     ['NodeAdd', '+', 'node'],
     ['EdgeAdd', '+', 'edge'],

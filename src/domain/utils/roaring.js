@@ -31,8 +31,17 @@
 const NOT_CHECKED = Symbol('NOT_CHECKED');
 
 /**
+ * Shape of the lazily-loaded roaring module after ESM/CJS unwrapping.
+ * `isNativelyInstalled` exists at runtime but is absent from type stubs.
+ * @typedef {Object} RoaringModule
+ * @property {typeof import('roaring').RoaringBitmap32 & { isNativelyInstalled?: () => boolean }} RoaringBitmap32
+ * @property {{ RoaringBitmap32: typeof import('roaring').RoaringBitmap32 }} [default]
+ * @property {boolean} [isNativelyInstalled]
+ */
+
+/**
  * Cached reference to the loaded roaring module.
- * @type {any} // TODO(ts-cleanup): type lazy singleton
+ * @type {RoaringModule | null}
  * @private
  */
 let roaringModule = null;
@@ -51,7 +60,7 @@ let nativeAvailability = NOT_CHECKED;
  * Uses a top-level-await-friendly pattern with dynamic import.
  * The module is cached after first load.
  *
- * @returns {any} The roaring module exports
+ * @returns {RoaringModule} The roaring module exports
  * @throws {Error} If the roaring package is not installed or fails to load
  * @private
  */
@@ -67,7 +76,7 @@ function loadRoaring() {
  * This is called automatically via top-level await when the module is imported,
  * but can also be called manually with a pre-loaded module for testing.
  *
- * @param {Object} [mod] - Pre-loaded roaring module (for testing/DI)
+ * @param {RoaringModule} [mod] - Pre-loaded roaring module (for testing/DI)
  * @returns {Promise<void>}
  */
 export async function initRoaring(mod) {
@@ -76,7 +85,7 @@ export async function initRoaring(mod) {
     return;
   }
   if (!roaringModule) {
-    roaringModule = await import('roaring');
+    roaringModule = /** @type {RoaringModule} */ (await import('roaring'));
     // Handle both ESM default export and CJS module.exports
     if (roaringModule.default && roaringModule.default.RoaringBitmap32) {
       roaringModule = roaringModule.default;

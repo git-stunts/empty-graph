@@ -126,15 +126,19 @@ function createFetchHandler(requestHandler, logger) {
 }
 
 /**
+ * @typedef {{ hostname: string, port: number, stop: () => void }} BunServer
+ */
+
+/**
  * Starts a Bun server and invokes the callback with (null) on success
  * or (err) on failure.
  *
  * Note: Bun.serve() is synchronous, so cb fires on the same tick
  * (unlike Node's server.listen which defers via the event loop).
  *
- * @param {*} serveOptions
+ * @param {BunServeOptions} serveOptions
  * @param {Function|undefined} cb - Node-style callback
- * @returns {*} The Bun server instance
+ * @returns {BunServer} The Bun server instance
  */
 function startServer(serveOptions, cb) {
   const server = globalThis.Bun.serve(serveOptions);
@@ -147,7 +151,7 @@ function startServer(serveOptions, cb) {
 /**
  * Safely stops a Bun server, forwarding errors to the callback.
  *
- * @param {{ server: * }} state - Shared mutable state
+ * @param {{ server: BunServer | null }} state - Shared mutable state
  * @param {Function} [callback]
  */
 function stopServer(state, callback) {
@@ -191,7 +195,7 @@ export default class BunHttpAdapter extends HttpServerPort {
    */
   createServer(requestHandler) {
     const fetchHandler = createFetchHandler(requestHandler, this._logger);
-    /** @type {{ server: * }} */
+    /** @type {{ server: BunServer | null }} */
     const state = { server: null };
 
     return {

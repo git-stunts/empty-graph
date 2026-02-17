@@ -88,7 +88,7 @@ export default async function handleVerifyAudit({ options, args }) {
         mode: trustMode,
       });
       payload.trustAssessment = trustAssessment;
-    } catch (/** @type {*} */ err) { // TODO(ts-cleanup): type catch
+    } catch (err) {
       if (trustMode === 'enforce') {
         throw err;
       }
@@ -96,7 +96,7 @@ export default async function handleVerifyAudit({ options, args }) {
         trustSchemaVersion: 1,
         mode: 'signed_evidence_v1',
         trustVerdict: 'error',
-        error: err?.message ?? 'Trust evaluation failed',
+        error: err instanceof Error ? err.message : 'Trust evaluation failed',
       };
     }
   }
