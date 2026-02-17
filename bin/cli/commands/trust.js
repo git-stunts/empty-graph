@@ -7,7 +7,7 @@
  * @module cli/commands/trust
  */
 
-import { EXIT_CODES, parseCommandArgs } from '../infrastructure.js';
+import { EXIT_CODES, parseCommandArgs, getEnvVar } from '../infrastructure.js';
 import { trustSchema } from '../schemas.js';
 import { createPersistence, resolveGraphName } from '../shared.js';
 import defaultCodec from '../../../src/domain/utils/defaultCodec.js';
@@ -40,7 +40,7 @@ function resolveTrustPin(cliPin) {
   if (cliPin) {
     return { pin: cliPin, source: 'cli_pin', sourceDetail: cliPin, status: 'pinned' };
   }
-  const envPin = typeof process !== 'undefined' ? process.env?.WARP_TRUST_PIN : undefined;
+  const envPin = getEnvVar('WARP_TRUST_PIN');
   if (envPin) {
     return { pin: envPin, source: 'env_pin', sourceDetail: envPin, status: 'pinned' };
   }

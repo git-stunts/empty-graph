@@ -13,6 +13,22 @@ export const EXIT_CODES = {
   TRUST_FAIL: 4,
 };
 
+/**
+ * Reads an environment variable across Node, Bun, and Deno runtimes.
+ * @param {string} name
+ * @returns {string|undefined}
+ */
+export function getEnvVar(name) {
+  if (typeof process !== 'undefined' && process.env) {
+    return process.env[name];
+  }
+  if (typeof Deno !== 'undefined') {
+    // eslint-disable-next-line no-undef
+    try { return Deno.env.get(name); } catch { return undefined; }
+  }
+  return undefined;
+}
+
 export const HELP_TEXT = `warp-graph <command> [options]
 (or: git warp <command> [options])
 
