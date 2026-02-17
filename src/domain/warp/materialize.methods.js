@@ -44,8 +44,9 @@ async function scanFrontierForMaxLamport(graph, frontier) {
  */
 function scanPatchesForMaxLamport(graph, patches) {
   for (const { patch } of patches) {
-    if ((patch.lamport ?? 0) > graph._maxObservedLamport) {
-      graph._maxObservedLamport = patch.lamport;
+    const tick = patch.lamport ?? 0;
+    if (tick > graph._maxObservedLamport) {
+      graph._maxObservedLamport = tick;
     }
   }
 }
