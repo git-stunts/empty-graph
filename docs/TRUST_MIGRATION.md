@@ -82,7 +82,7 @@ Trust evaluation is purely advisory in warn mode. No data is modified or blocked
 
 `WARP_TRUSTED_ROOT` is deprecated. If set, `verify-audit` will emit a warning:
 
-```
+```text
 Trust: Trust root configured but signature verification is not implemented in v1
 ```
 
