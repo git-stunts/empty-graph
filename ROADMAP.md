@@ -612,6 +612,10 @@ No v2.0 tag until **every** gate passes. If any RG fails: no tag. Period.
 | B34 | B | **DOCS: SECURITY_SYNC.md** — extract threat model for sync auth from `SyncAuthService.js` JSDoc into standalone operator doc; covers nonce replay, clock skew, HMAC limitations, log-only vs enforce rollout |
 | B35 | C | **DOCS: README INSTALL SECTION** — add "Quick Install" with two paths: Docker sandbox and local native; local path ends with a verification command (not tourism); standardize on `git warp` as primary command name |
 | B36 | C | **FLUENT STATE BUILDER FOR TESTS** — `StateBuilder` helper in `test/helpers/`; replaces manual `WarpStateV5` object literals with `builder.addNode('A').addProp('k','v').build()`; immunizes tests against state-schema changes |
+| B37 | C | **SHARED MOCK PERSISTENCE FIXTURE** — extract `createMockPersistence()` from `TrustRecordService.test.js` and `TrustRecordService.chain.test.js` into `test/helpers/mockPersistence.js`; both trust test files currently duplicate the same in-memory persistence mock |
+| B38 | C | **DENO AMBIENT TYPE DECLARATION** — add `globals.d.ts` declaring `Deno` as an ambient type; eliminates scattered `@ts-expect-error` annotations in `infrastructure.js`, `DenoHttpAdapter.js`, etc. |
+| B39 | B | **TRUST RECORD CAS RETRY** — add retry-once semantics for `compareAndSwapRef` failures in `TrustRecordService._persistRecord`; re-read tip, re-validate prev-link, retry commit; mirrors the pattern in `AuditReceiptService` |
+| B40 | B | **BATS E2E: `git warp trust` OUTPUT SHAPES** — add BATS integration tests for `git warp trust` covering JSON output schema, exit codes (0 for warn, 4 for enforce-fail), and `not_configured` default behaviour |
 
 ---
 
