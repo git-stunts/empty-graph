@@ -172,7 +172,9 @@ export async function _loadPatchesSince(checkpoint) {
       await this._validatePatchAgainstCheckpoint(writerId, sha, checkpoint);
     }
 
-    allPatches.push(...patches);
+    for (const p of patches) {
+      allPatches.push(p);
+    }
   }
 
   return allPatches;
@@ -256,7 +258,7 @@ export function _maybeRunGC(state) {
     const inputMetrics = {
       ...metrics,
       patchesSinceCompaction: this._patchesSinceGC,
-      timeSinceCompaction: this._clock.now() - this._lastGCTime,
+      timeSinceCompaction: this._lastGCTime > 0 ? this._clock.now() - this._lastGCTime : 0,
     };
     const { shouldRun, reasons } = shouldRunGC(inputMetrics, /** @type {import('../services/GCPolicy.js').GCPolicy} */ (this._gcPolicy));
 

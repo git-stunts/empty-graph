@@ -22,13 +22,11 @@ function createHighTombstoneState() {
 
   // Add many nodes then tombstone them to create high tombstone ratio
   for (let i = 0; i < 100; i++) {
-    const dot = `writer-1:${i + 1}`;
-    orsetAdd(state.nodeAlive, `node-${i}`, /** @type {any} */ (dot));
+    orsetAdd(state.nodeAlive, `node-${i}`, { writerId: 'writer-1', counter: i + 1 });
   }
-  // Remove them all (add tombstones for each dot)
+  // Remove them all (add tombstones for each encoded dot)
   for (let i = 0; i < 100; i++) {
-    const dot = `writer-1:${i + 1}`;
-    state.nodeAlive.tombstones.add(dot);
+    state.nodeAlive.tombstones.add(`writer-1:${i + 1}`);
   }
 
   state.observedFrontier = vv;

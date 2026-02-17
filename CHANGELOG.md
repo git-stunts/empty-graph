@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [11.2.1] — 2026-02-17 — Decompose WarpGraph Monolith
+
+Decomposes `WarpGraph.js` from 3260 lines to 416 lines (-87%) by extracting methods into 9 focused modules in `src/domain/warp/`, with no changes to the public API surface.
+
+### Changed
+
+- **`WarpGraph.js`**: Reduced to constructor, `static open()`, property getters, and `_logTiming()`. All other methods extracted into dedicated modules wired onto the prototype at import time via `wireWarpMethods()`.
+- **Method modules** (`src/domain/warp/`): `query.methods.js`, `patch.methods.js`, `sync.methods.js`, `checkpoint.methods.js`, `fork.methods.js`, `materialize.methods.js`, `materializeAdvanced.methods.js`, `subscribe.methods.js`, `provenance.methods.js`.
+- **`_wiredMethods.d.ts`**: TypeScript module augmentation so `tsc --noEmit` sees the wired methods.
+
+### Fixed
+
+- **Stack safety**: Replaced `allPatches.push(...patches)` with loop in `_loadPatchesSince` to prevent stack overflow on large histories.
+- **GC guard**: `_maybeRunGC` no longer triggers spurious GC on first run when `_lastGCTime` is 0.
+- **Sync state freshness**: `applySyncResponse` now clears `_stateDirty` so `status()` reports "fresh" after sync.
+- **Test correctness**: `createHighTombstoneState()` test helper now uses proper Dot objects instead of raw strings, fixing silent `computeAppliedVV` failures.
+- **Deno imports**: Replaced `https://deno.land` imports with `jsr:@std/assert` for Docker `--node-modules-dir` compatibility.
+
 ## [11.2.0] — 2026-02-16 — Trust V1 Phases 2–5: Record Store, Evaluation, CLI, Hardening
 
 Implements Milestone 7 (Trust V1). Writer trust is now derived from signed Ed25519 records with monotonic key/binding revocation, evaluated deterministically, and surfaced through a new `git warp trust` CLI command. Release gates (RG-T1 through RG-T8) require verification before v2.0 tag.

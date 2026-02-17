@@ -272,6 +272,9 @@ export function applySyncResponse(response) {
   // Track patches for GC
   this._patchesSinceGC += result.applied;
 
+  // State is now in sync with the frontier — clear dirty flag
+  this._stateDirty = false;
+
   return result;
 }
 
