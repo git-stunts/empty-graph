@@ -261,8 +261,8 @@ export async function _loadPatchesBySha(shas) {
  * This ensures deterministic ordering regardless of discovery order.
  *
  * @this {import('../WarpGraph.js').default}
- * @param {Array<{patch: any, sha: string}>} patches - Unsorted patch entries
- * @returns {Array<{patch: any, sha: string}>} Sorted patch entries
+ * @param {Array<{patch: *, sha: string}>} patches - Unsorted patch entries
+ * @returns {Array<{patch: *, sha: string}>} Sorted patch entries
  */
 export function _sortPatchesCausally(patches) {
   return [...patches].sort((a, b) => {

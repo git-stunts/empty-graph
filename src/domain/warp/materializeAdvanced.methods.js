@@ -99,7 +99,7 @@ export function _buildAdjacency(state) {
  *
  * @this {import('../WarpGraph.js').default}
  * @param {import('../services/JoinReducer.js').WarpStateV5} state
- * @returns {Promise<{state: any, stateHash: string, adjacency: any}>}
+ * @returns {Promise<{state: *, stateHash: string, adjacency: *}>}
  * @private
  */
 export async function _setMaterializedState(state) {

@@ -1,0 +1,11 @@
+{
+  "$comment": "IRONCLAD M9 ratchet — this number can ONLY decrease, NEVER increase.",
+  "wildcardCount": 117,
+  "lastUpdated": "2026-02-18",
+  "rules": [
+    "any in JSDoc type expressions (Record<string, any>, etc.)",
+    "bare {*} in JSDoc @param/@property/@returns",
+    "embedded * in JSDoc generics (Record<string, *>, etc.)"
+  ],
+  "instructions": "Fix wildcards, run `node scripts/ts-policy-check.js`, update this count downward."
+}

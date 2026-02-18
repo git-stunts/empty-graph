@@ -8,6 +8,29 @@ on:
     branches: [ main ]
 
 jobs:
+  # ── IRONCLAD M9 type firewall ────────────────────────────────────────────
+  # This job is the primary gate. It runs ALL type safety checks in parallel.
+  # It MUST pass before any PR can merge. Configure as a required status check
+  # in GitHub branch protection settings.
+  type-firewall:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm install
+      - name: "Gate 1: TypeScript compiler (strict mode)"
+        run: npm run typecheck
+      - name: "Gate 2: IRONCLAD policy checker (any/wildcard/ts-ignore ban)"
+        run: npm run typecheck:policy
+      - name: "Gate 3: Consumer type surface test"
+        run: npm run typecheck:consumer
+      - name: "Gate 4: ESLint (typed rules + no-explicit-any + no-unsafe-*)"
+        run: npm run lint
+
   lint:
     runs-on: ubuntu-latest
     steps:
