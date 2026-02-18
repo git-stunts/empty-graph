@@ -710,7 +710,7 @@ describe('Constructor', () => {
   });
 
   it('rejects missing keys option', () => {
-    expect(() => new SyncAuthService({})).toThrow('non-empty keys map');
+    expect(() => new SyncAuthService(/** @type {{ keys: Record<string, string> }} */ ({}))).toThrow('non-empty keys map');
   });
 
   it('rejects undefined options', () => {

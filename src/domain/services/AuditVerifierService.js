@@ -16,6 +16,10 @@
  * @see docs/specs/AUDIT_RECEIPT.md Section 8
  */
 
+/**
+ * @typedef {{ graph: string, writer: string, dataCommit: string, opsDigest: string, schema: number, prevAuditCommit: string, writerId: string, graphName: string, tick: number }} AuditReceipt
+ */
+
 import { buildAuditPrefix, buildAuditRef } from '../utils/RefLayout.js';
 import { decodeAuditMessage } from './AuditMessageCodec.js';
 import { TrustRecordService } from '../trust/TrustRecordService.js';
@@ -312,7 +316,7 @@ export class AuditVerifierService {
    */
   async _walkChain(graphName, writerId, tip, since, result) {
     let current = tip;
-    /** @type {Record<string, *>|null} */ let prevReceipt = null;
+    /** @type {Record<string, unknown>|null} */ let prevReceipt = null;
     /** @type {number|null} */ let chainOidLen = null;
 
     while (current) {
@@ -456,7 +460,7 @@ export class AuditVerifierService {
    * @param {string} commitSha
    * @param {{ message: string }} commitInfo
    * @param {ChainResult} result
-   * @returns {Promise<{ receipt: *, decodedTrailers: * }|null>}
+   * @returns {Promise<{ receipt: AuditReceipt, decodedTrailers: { graph: string, writer: string, dataCommit: string, opsDigest: string, schema: number } }|null>}
    * @private
    */
   async _readReceipt(commitSha, commitInfo, result) {
@@ -502,7 +506,7 @@ export class AuditVerifierService {
     // Decode CBOR
     let receipt;
     try {
-      receipt = this._codec.decode(blobContent);
+      receipt = /** @type {AuditReceipt} */ (this._codec.decode(blobContent));
     } catch (err) {
       this._addError(result, 'CBOR_DECODE_FAILED',
         `CBOR decode failed: ${err instanceof Error ? err.message : String(err)}`, commitSha);
@@ -645,7 +649,7 @@ export class AuditVerifierService {
    * @param {Object} [options]
    * @param {string} [options.pin] - Pinned trust chain commit SHA
    * @param {string} [options.mode] - Policy mode ('warn' or 'enforce')
-   * @returns {Promise<Record<string, *>>}
+   * @returns {Promise<import('../trust/TrustEvaluator.js').TrustAssessment>}
    */
   async evaluateTrust(graphName, options = {}) {
     const recordService = new TrustRecordService({

@@ -30,7 +30,7 @@ import { TrustRecordSchema } from './schemas.js';
  * - Binding validity: WRITER_BIND_ADD requires the referenced key to be active
  * - Schema validation: each record is validated against TrustRecordSchema
  *
- * @param {Array<Record<string, *>>} records - Trust records in chain order
+ * @param {Array<Record<string, unknown>>} records - Trust records in chain order
  * @returns {TrustState} Frozen trust state
  */
 export function buildState(records) {
@@ -49,7 +49,7 @@ export function buildState(records) {
     const parsed = TrustRecordSchema.safeParse(record);
     if (!parsed.success) {
       errors.push({
-        recordId: record.recordId ?? '(unknown)',
+        recordId: /** @type {string} */ (record.recordId) ?? '(unknown)',
         error: `Schema validation failed: ${parsed.error.message}`,
       });
       continue;

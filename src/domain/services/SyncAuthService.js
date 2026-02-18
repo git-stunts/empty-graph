@@ -171,8 +171,8 @@ function _validateAllowedWriters(allowedWriters) {
 
 export default class SyncAuthService {
   /**
-   * @param {Object} [options]
-   * @param {Record<string, string>} [options.keys] - Key-id to secret mapping
+   * @param {Object} options
+   * @param {Record<string, string>} options.keys - Key-id to secret mapping
    * @param {'enforce'|'log-only'} [options.mode='enforce'] - Auth enforcement mode
    * @param {number} [options.nonceCapacity] - Nonce LRU capacity
    * @param {number} [options.maxClockSkewMs] - Max clock skew tolerance
@@ -181,7 +181,7 @@ export default class SyncAuthService {
    * @param {() => number} [options.wallClockMs] - Wall clock function
    * @param {string[]} [options.allowedWriters] - Optional whitelist of allowed writer IDs. If set, sync requests with unlisted writers are rejected with 403.
    */
-  constructor({ keys, mode = 'enforce', nonceCapacity, maxClockSkewMs, crypto, logger, wallClockMs, allowedWriters } = {}) {
+  constructor({ keys, mode = 'enforce', nonceCapacity, maxClockSkewMs, crypto, logger, wallClockMs, allowedWriters } = /** @type {{ keys: Record<string, string> }} */ ({})) {
     _validateKeys(keys);
     this._keys = keys;
     this._mode = mode;
@@ -434,7 +434,7 @@ export default class SyncAuthService {
   /**
    * Records an auth failure and returns the result.
    * @param {string} message
-   * @param {Record<string, *>} context
+   * @param {Record<string, unknown>} context
    * @param {{ ok: false, reason: string, status: number }} result
    * @returns {{ ok: false, reason: string, status: number }}
    * @private

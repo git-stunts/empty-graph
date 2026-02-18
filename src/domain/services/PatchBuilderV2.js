@@ -13,7 +13,7 @@
 
 import defaultCodec from '../utils/defaultCodec.js';
 import nullLogger from '../utils/nullLogger.js';
-import { vvIncrement, vvClone } from '../crdt/VersionVector.js';
+import { vvIncrement, vvClone, vvSerialize } from '../crdt/VersionVector.js';
 import { orsetGetDots, orsetContains, orsetElements } from '../crdt/ORSet.js';
 import {
   createNodeAddV2,
@@ -454,7 +454,7 @@ export class PatchBuilderV2 {
       schema,
       writer: this._writerId,
       lamport: this._lamport,
-      context: /** @type {import('../types/WarpTypesV2.js').VersionVector} */ (/** @type {unknown} */ (this._vv)),
+      context: vvSerialize(this._vv),
       ops: this._ops,
       reads: [...this._reads].sort(),
       writes: [...this._writes].sort(),
@@ -546,7 +546,7 @@ export class PatchBuilderV2 {
       schema,
       writer: this._writerId,
       lamport,
-      context: /** @type {import('../types/WarpTypesV2.js').VersionVector} */ (/** @type {unknown} */ (this._vv)),
+      context: vvSerialize(this._vv),
       ops: this._ops,
       reads: [...this._reads].sort(),
       writes: [...this._writes].sort(),

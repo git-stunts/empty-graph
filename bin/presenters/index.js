@@ -84,8 +84,8 @@ function renderTree(payload) {
   return `${lines.join('\n')}\n`;
 }
 
-/** @type {Map<string, function(*): string>} */
-const TEXT_RENDERERS = new Map(/** @type {[string, function(*): string][]} */ ([
+/** @type {Map<string, function(unknown): string>} */
+const TEXT_RENDERERS = new Map(/** @type {[string, function(unknown): string][]} */ ([
   ['info', renderInfo],
   ['query', renderQuery],
   ['path', renderPath],
@@ -101,8 +101,8 @@ const TEXT_RENDERERS = new Map(/** @type {[string, function(*): string][]} */ ([
   ['install-hooks', renderInstallHooks],
 ]));
 
-/** @type {Map<string, function(*): string>} */
-const VIEW_RENDERERS = new Map(/** @type {[string, function(*): string][]} */ ([
+/** @type {Map<string, function(unknown): string>} */
+const VIEW_RENDERERS = new Map(/** @type {[string, function(unknown): string][]} */ ([
   ['info', renderInfoView],
   ['check', renderCheckView],
   ['history', renderHistoryView],

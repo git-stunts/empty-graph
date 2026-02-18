@@ -327,7 +327,7 @@ export async function materializeIncremental({
  * @param {Object} visibleProjection - The checkpoint's visible projection
  * @param {string[]} visibleProjection.nodes - Visible node IDs
  * @param {Array<{from: string, to: string, label: string}>} visibleProjection.edges - Visible edges
- * @param {Array<{node: string, key: string, value: *}>} visibleProjection.props - Visible properties
+ * @param {Array<{node: string, key: string, value: unknown}>} visibleProjection.props - Visible properties
  * @returns {import('./JoinReducer.js').WarpStateV5} Reconstructed WarpStateV5
  * @public
  */

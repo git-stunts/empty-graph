@@ -14,7 +14,7 @@ import { recordIdPayload, signaturePayload } from './canonical.js';
 /**
  * Computes the record ID (SHA-256 hex digest) for a trust record.
  *
- * @param {Record<string, *>} record - Full trust record
+ * @param {Record<string, unknown>} record - Full trust record
  * @returns {string} 64-character lowercase hex string
  */
 export function computeRecordId(record) {
@@ -24,7 +24,7 @@ export function computeRecordId(record) {
 /**
  * Computes the signature payload as a Buffer (UTF-8 bytes).
  *
- * @param {Record<string, *>} record - Full trust record (signature will be stripped)
+ * @param {Record<string, unknown>} record - Full trust record (signature will be stripped)
  * @returns {Buffer} UTF-8 encoded bytes of the domain-separated canonical string
  */
 export function computeSignaturePayload(record) {
@@ -34,7 +34,7 @@ export function computeSignaturePayload(record) {
 /**
  * Verifies that a record's recordId matches its content.
  *
- * @param {Record<string, *>} record - Trust record with `recordId` field
+ * @param {Record<string, unknown>} record - Trust record with `recordId` field
  * @returns {boolean} true if recordId matches computed value
  */
 export function verifyRecordId(record) {

@@ -33,7 +33,7 @@ import HttpSyncServer from '../services/HttpSyncServer.js';
 import { signSyncRequest, canonicalizePath } from '../services/SyncAuthService.js';
 import { isError } from '../types/WarpErrors.js';
 
-/** @typedef {import('../types/WarpPersistence.js').PersistenceReader} PersistenceReader */
+/** @typedef {import('../types/WarpPersistence.js').CorePersistence} CorePersistence */
 
 // ── Private helpers ─────────────────────────────────────────────────────────
 
@@ -224,7 +224,7 @@ export async function createSyncRequest() {
  */
 export async function processSyncRequest(request) {
   const localFrontier = await this.getFrontier();
-  /** @type {PersistenceReader} */
+  /** @type {CorePersistence} */
   const persistence = this._persistence;
   return await processSyncRequestImpl(
     request,
@@ -518,18 +518,18 @@ export async function syncWith(remote, options = {}) {
  * Starts a built-in sync server for this graph.
  *
  * @this {import('../WarpGraph.js').default}
- * @param {Object} [options]
- * @param {number} [options.port] - Port to listen on
+ * @param {Object} options
+ * @param {number} options.port - Port to listen on
  * @param {string} [options.host='127.0.0.1'] - Host to bind
  * @param {string} [options.path='/sync'] - Path to handle sync requests
  * @param {number} [options.maxRequestBytes=4194304] - Max request size in bytes
- * @param {import('../../ports/HttpServerPort.js').default} [options.httpPort] - HTTP server adapter (required)
+ * @param {import('../../ports/HttpServerPort.js').default} options.httpPort - HTTP server adapter
  * @param {{ keys: Record<string, string>, mode?: 'enforce'|'log-only' }} [options.auth] - Auth configuration
  * @returns {Promise<{close: () => Promise<void>, url: string}>} Server handle
  * @throws {Error} If port is not a number
  * @throws {Error} If httpPort adapter is not provided
  */
-export async function serve({ port, host = '127.0.0.1', path = '/sync', maxRequestBytes = DEFAULT_SYNC_SERVER_MAX_BYTES, httpPort, auth } = {}) {
+export async function serve({ port, host = '127.0.0.1', path = '/sync', maxRequestBytes = DEFAULT_SYNC_SERVER_MAX_BYTES, httpPort, auth } = /** @type {{ port: number, httpPort: import('../../ports/HttpServerPort.js').default }} */ ({})) {
   if (typeof port !== 'number') {
     throw new Error('serve() requires a numeric port');
   }

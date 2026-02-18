@@ -39,9 +39,9 @@ export default class IndexRebuildService {
   /**
    * Creates an IndexRebuildService instance.
    *
-   * @param {Object} [options] - Configuration options
-   * @param {{ iterateNodes: (opts: { ref: string, limit: number }) => AsyncIterable<{ sha: string, parents: string[] }> }} [options.graphService] - Graph service providing node iteration.
-   * @param {import('../../ports/IndexStoragePort.js').default} [options.storage] - Storage adapter
+   * @param {Object} options - Configuration options
+   * @param {{ iterateNodes: (opts: { ref: string, limit: number }) => AsyncIterable<{ sha: string, parents: string[] }> }} options.graphService - Graph service providing node iteration.
+   * @param {import('../../ports/IndexStoragePort.js').default} options.storage - Storage adapter
    *   for persisting index blobs and trees. Typically GitGraphAdapter.
    * @param {import('../../ports/LoggerPort.js').default} [options.logger] - Logger for
    *   structured logging. Defaults to null logger (no logging).
@@ -50,7 +50,7 @@ export default class IndexRebuildService {
    * @throws {Error} If graphService is not provided
    * @throws {Error} If storage adapter is not provided
    */
-  constructor({ graphService, storage, logger = nullLogger, codec, crypto } = {}) {
+  constructor({ graphService, storage, logger = nullLogger, codec, crypto } = /** @type {{ graphService: { iterateNodes: (opts: { ref: string, limit: number }) => AsyncIterable<{ sha: string, parents: string[] }> }, storage: import('../../ports/IndexStoragePort.js').default }} */ ({})) {
     if (!graphService) {
       throw new Error('IndexRebuildService requires a graphService');
     }

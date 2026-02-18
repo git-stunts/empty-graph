@@ -168,7 +168,7 @@ export function orsetContains(set, element) {
  * Only returns elements that have at least one non-tombstoned dot.
  *
  * @param {ORSet} set - The ORSet
- * @returns {Array<*>} Array of present elements
+ * @returns {string[]} Array of present elements
  */
 export function orsetElements(set) {
   const result = [];
@@ -311,7 +311,7 @@ export function orsetCompact(set, includedVV) {
  * Tombstones are sorted.
  *
  * @param {ORSet} set
- * @returns {{entries: Array<[*, string[]]>, tombstones: string[]}}
+ * @returns {{entries: Array<[unknown, string[]]>, tombstones: string[]}}
  */
 export function orsetSerialize(set) {
   // Serialize entries: convert Map to array of [element, sortedDots]
@@ -349,7 +349,7 @@ export function orsetSerialize(set) {
 /**
  * Deserializes a plain object back to an ORSet.
  *
- * @param {{entries?: Array<[*, string[]]>, tombstones?: string[]}} obj
+ * @param {{entries?: Array<[unknown, string[]]>, tombstones?: string[]}} obj
  * @returns {ORSet}
  */
 export function orsetDeserialize(obj) {

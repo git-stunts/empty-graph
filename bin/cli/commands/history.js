@@ -36,7 +36,7 @@ function patchTouchesNode(patch, nodeId) {
 /**
  * Handles the `history` command: shows patch history for a writer.
  * @param {{options: CliOptions, args: string[]}} params
- * @returns {Promise<{payload: *, exitCode: number}>}
+ * @returns {Promise<{payload: unknown, exitCode: number}>}
  */
 export default async function handleHistory({ options, args }) {
   const historyOptions = parseHistoryArgs(args);

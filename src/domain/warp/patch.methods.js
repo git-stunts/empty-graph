@@ -18,7 +18,7 @@ import { decodePatchMessage, detectMessageKind } from '../services/WarpMessageCo
 import { Writer } from './Writer.js';
 import { generateWriterId, resolveWriterId } from '../utils/WriterId.js';
 
-/** @typedef {import('../types/WarpPersistence.js').PersistenceWriter} PersistenceWriter */
+/** @typedef {import('../types/WarpPersistence.js').CorePersistence} CorePersistence */
 
 /**
  * Creates a new PatchBuilderV2 for this graph.
@@ -258,7 +258,7 @@ export async function writer(writerId) {
     configSet,
   });
 
-  /** @type {PersistenceWriter} */
+  /** @type {CorePersistence} */
   const persistence = this._persistence;
   return new Writer({
     persistence,
@@ -316,7 +316,7 @@ export async function createWriter(opts = {}) {
     await this._persistence.configSet(configKey, freshWriterId);
   }
 
-  /** @type {PersistenceWriter} */
+  /** @type {CorePersistence} */
   const writerPersistence = this._persistence;
   return new Writer({
     persistence: writerPersistence,

@@ -82,7 +82,7 @@ const BTR_VERSION = 1;
  * @param {string} fields.h_in - Hash of input state
  * @param {string} fields.h_out - Hash of output state
  * @param {Uint8Array} fields.U_0 - Serialized initial state
- * @param {Array<*>} fields.P - Serialized provenance payload
+ * @param {Array<unknown>} fields.P - Serialized provenance payload
  * @param {string} fields.t - ISO timestamp
  * @param {string|Uint8Array} key - HMAC key
  * @param {{ crypto: import('../../ports/CryptoPort.js').default, codec?: import('../../ports/CodecPort.js').default }} deps - Dependencies
@@ -111,7 +111,7 @@ async function computeHmac(fields, key, { crypto, codec }) {
  * @property {string} h_in - Hash of input state (hex SHA-256)
  * @property {string} h_out - Hash of output state (hex SHA-256)
  * @property {Uint8Array} U_0 - Serialized initial state (CBOR)
- * @property {Array<*>} P - Serialized provenance payload
+ * @property {Array<unknown>} P - Serialized provenance payload
  * @property {string} t - ISO 8601 timestamp
  * @property {string} kappa - Authentication tag (hex HMAC-SHA256)
  */
@@ -329,7 +329,7 @@ export async function replayBTR(btr, { crypto, codec } = {}) {
   const initialState = deserializeInitialState(btr.U_0, { codec });
 
   // Reconstruct payload
-  const payload = ProvenancePayload.fromJSON(btr.P);
+  const payload = ProvenancePayload.fromJSON(/** @type {import('./ProvenancePayload.js').PatchEntry[]} */ (btr.P));
 
   // Replay
   const finalState = payload.replay(initialState);
@@ -394,7 +394,7 @@ export function serializeBTR(btr, { codec } = {}) {
  */
 export function deserializeBTR(bytes, { codec } = {}) {
   const c = codec || defaultCodec;
-  const obj = /** @type {Record<string, *>} */ (c.decode(bytes));
+  const obj = /** @type {Record<string, unknown>} */ (c.decode(bytes));
 
   // Validate structure (reuse module-level constant for consistency with validateBTRStructure)
   for (const field of REQUIRED_FIELDS) {
@@ -403,7 +403,7 @@ export function deserializeBTR(bytes, { codec } = {}) {
     }
   }
 
-  return {
+  return /** @type {BTR} */ ({
     version: obj.version,
     h_in: obj.h_in,
     h_out: obj.h_out,
@@ -411,7 +411,7 @@ export function deserializeBTR(bytes, { codec } = {}) {
     P: obj.P,
     t: obj.t,
     kappa: obj.kappa,
-  };
+  });
 }
 
 /**

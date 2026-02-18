@@ -24,8 +24,8 @@ export const TRUST_SIGN_DOMAIN = 'git-warp:trust-sign:v1\0';
  * Returns the record payload used for recordId computation.
  * Strips `recordId` and `signature` — these are derived, not inputs.
  *
- * @param {Record<string, *>} record
- * @returns {Record<string, *>}
+ * @param {Record<string, unknown>} record
+ * @returns {Record<string, unknown>}
  */
 export function unsignedRecordForId(record) {
   const out = { ...record };
@@ -38,8 +38,8 @@ export function unsignedRecordForId(record) {
  * Returns the record payload used for signature computation.
  * Strips `signature` only — `recordId` is included in signed payload.
  *
- * @param {Record<string, *>} record
- * @returns {Record<string, *>}
+ * @param {Record<string, unknown>} record
+ * @returns {Record<string, unknown>}
  */
 export function unsignedRecordForSignature(record) {
   const out = { ...record };
@@ -50,7 +50,7 @@ export function unsignedRecordForSignature(record) {
 /**
  * Computes the canonical string for recordId hashing.
  *
- * @param {Record<string, *>} record - Full record (recordId and signature will be stripped)
+ * @param {Record<string, unknown>} record - Full record (recordId and signature will be stripped)
  * @returns {string} Domain-separated canonical JSON string
  */
 export function recordIdPayload(record) {
@@ -60,7 +60,7 @@ export function recordIdPayload(record) {
 /**
  * Computes the canonical string for signature verification.
  *
- * @param {Record<string, *>} record - Full record (signature will be stripped)
+ * @param {Record<string, unknown>} record - Full record (signature will be stripped)
  * @returns {string} Domain-separated canonical JSON string
  */
 export function signaturePayload(record) {

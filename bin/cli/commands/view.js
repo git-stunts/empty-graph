@@ -11,7 +11,7 @@ const VIEW_OPTIONS = {
 
 /**
  * @param {{options: CliOptions, args: string[]}} params
- * @returns {Promise<{payload: *, exitCode: number}>}
+ * @returns {Promise<{payload: unknown, exitCode: number}>}
  */
 export default async function handleView({ options, args }) {
   if (!process.stdin.isTTY || !process.stdout.isTTY) {

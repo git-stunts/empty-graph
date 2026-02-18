@@ -80,7 +80,7 @@ function findRoots(nodeIds, edges, labelFilter) {
 
 /**
  * Formats annotation string for a node based on requested props.
- * @param {Record<string, *>} nodeProps
+ * @param {Record<string, unknown>} nodeProps
  * @param {string[]} propKeys
  * @returns {string}
  */
@@ -102,7 +102,7 @@ function formatAnnotation(nodeProps, propKeys) {
  * @param {object} params
  * @param {string} params.nodeId
  * @param {Map<string, Array<{id: string, label: string}>>} params.childMap
- * @param {Map<string, Record<string, *>>} params.propsMap
+ * @param {Map<string, Record<string, unknown>>} params.propsMap
  * @param {string[]} params.propKeys
  * @param {string} params.prefix
  * @param {boolean} params.isLast
@@ -151,7 +151,7 @@ function renderTreeNode({ nodeId, childMap, propsMap, propKeys, prefix, isLast, 
 /**
  * Handles the `tree` command: ASCII tree output from graph edges.
  * @param {{options: CliOptions, args: string[]}} params
- * @returns {Promise<{payload: *, exitCode: number}>}
+ * @returns {Promise<{payload: unknown, exitCode: number}>}
  */
 export default async function handleTree({ options, args }) {
   const { values, positionals } = parseCommandArgs(

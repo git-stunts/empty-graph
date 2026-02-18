@@ -35,11 +35,11 @@ export default class CommitDagTraversalService {
   /**
    * Creates a new CommitDagTraversalService.
    *
-   * @param {Object} [options]
-   * @param {import('./BitmapIndexReader.js').default} [options.indexReader] - Index reader for O(1) lookups
+   * @param {Object} options
+   * @param {import('./BitmapIndexReader.js').default} options.indexReader - Index reader for O(1) lookups
    * @param {import('../../ports/LoggerPort.js').default} [options.logger] - Logger instance
    */
-  constructor({ indexReader, logger = nullLogger } = {}) {
+  constructor({ indexReader, logger = nullLogger } = /** @type {{ indexReader: import('./BitmapIndexReader.js').default, logger?: import('../../ports/LoggerPort.js').default }} */ ({})) {
     if (!indexReader) {
       throw new Error('CommitDagTraversalService requires an indexReader');
     }

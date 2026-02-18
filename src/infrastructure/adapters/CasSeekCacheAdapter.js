@@ -16,6 +16,11 @@
  * @module infrastructure/adapters/CasSeekCacheAdapter
  */
 
+/**
+ * Minimal interface for the ContentAddressableStore from @git-stunts/git-cas.
+ * @typedef {{ readManifest: Function, restore: Function, store: Function, createTree: Function }} CasStore
+ */
+
 import SeekCachePort from '../../ports/SeekCachePort.js';
 import { buildSeekCacheRef } from '../../domain/utils/RefLayout.js';
 import { Readable } from 'node:stream';
@@ -59,7 +64,7 @@ export default class CasSeekCacheAdapter extends SeekCachePort {
   /**
    * Lazily initializes the ContentAddressableStore.
    * @private
-   * @returns {Promise<*>}
+   * @returns {Promise<CasStore>}
    */
   async _getCas() {
     if (!this._casPromise) {
@@ -73,7 +78,7 @@ export default class CasSeekCacheAdapter extends SeekCachePort {
 
   /**
    * @private
-   * @returns {Promise<*>}
+   * @returns {Promise<CasStore>}
    */
   async _initCas() {
     const { default: ContentAddressableStore } = await import(

@@ -19,7 +19,7 @@ import { buildSeekCacheKey } from '../utils/seekCacheKey.js';
 import { materializeIncremental } from '../services/CheckpointService.js';
 import { createFrontier, updateFrontier } from '../services/Frontier.js';
 
-/** @typedef {import('../types/WarpPersistence.js').PersistenceReader} PersistenceReader */
+/** @typedef {import('../types/WarpPersistence.js').CorePersistence} CorePersistence */
 import { buildWriterRef } from '../utils/RefLayout.js';
 import { decodePatchMessage, detectMessageKind } from '../services/WarpMessageCodec.js';
 
@@ -328,7 +328,7 @@ export async function materializeAt(checkpointSha) {
   };
 
   // 4. Call materializeIncremental with the checkpoint and target frontier
-  /** @type {PersistenceReader} */
+  /** @type {CorePersistence} */
   const persistence = this._persistence;
   const state = await materializeIncremental({
     persistence,

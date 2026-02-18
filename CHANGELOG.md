@@ -5,16 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [11.3.1] — 2026-02-18 — M8 IRONCLAD: Embedded Wildcard Elimination
+
+Completes M8 IRONCLAD by eliminating all remaining embedded wildcards, fixing
+behavioral regressions from the initial sweep, and upgrading the policy checker
+to prevent regressions.
+
+### Fixed
+
+- **vvSerialize restoration** — Restored `vvSerialize()` call in `PatchBuilderV2.commit()` / `build()` that was accidentally replaced with a type-only cast, preventing Map→Object serialization of version vectors in patch context fields.
+- **Constructor JSDoc accuracy** — Reverted 6 constructors (`CommitDagTraversalService`, `DagPathFinding`, `DagTopology`, `DagTraversal`, `IndexRebuildService`, `SyncAuthService`) from falsely optional `[options]` back to required params with typed default casts.
+- **serve() JSDoc** — `port` and `httpPort` parameters restored to required (matching runtime validation).
 
 ### Changed
 
-- **M8 IRONCLAD Wave 3: cast elimination** — Removed ~107 wildcard casts (`@type {*}` / `@type {any}`) across ~40 files in `src/domain/warp/`, `src/domain/services/`, and `src/infrastructure/adapters/`. All casts replaced with role-specific persistence types (`PersistenceReader`, `PersistenceWriter`, `CheckpointPersistence`, `IndexStorage`), error narrowing helpers (`isError`, `hasErrorCode`, `hasMessage`), and properly typed aliases. Zero `TODO(ts-cleanup)` tags remain in Wave 3 scope.
-- **HttpSyncServer Zod validation** — Constructor now uses Zod schema validation; removed manual mode validation and wildcard casts. `initAuth` typed via schema inference. `z.function()` replaced with `z.custom()` for correct `wallClockMs` TypeScript inference.
-- **HookInstaller** — Constructor deps parameter changed from optional to required (all callers already provided all fields).
+- **M8 IRONCLAD Wave 3: cast elimination** — Removed ~107 wildcard casts (`@type {*}` / `@type {any}`) across ~40 files in `src/domain/warp/`, `src/domain/services/`, and `src/infrastructure/adapters/`. All casts replaced with role-specific persistence types, error narrowing helpers (`isError`, `hasErrorCode`, `hasMessage`), and properly typed aliases.
+- **Embedded wildcard elimination** — Replaced 48 embedded `*` wildcards (`Array<*>`, `Map<string, *>`, `LWWRegister<*>`, `Promise<{payload: *}>`, etc.) with `unknown` or proper specific types across 31 files.
+- **PersistenceReader/Writer/CheckpointPersistence → CorePersistence** — Collapsed three identical type aliases into one honest `CorePersistence` type with documentation noting read/write separation is aspirational.
+- **Proper return types** — Added `AuditReceipt` typedef in `AuditVerifierService`, `CasStore` typedef in `CasSeekCacheAdapter`, `WarpGraphInstance` param type in `patch.js`, specific patch shape types.
+- **HttpSyncServer** — Constructor now uses Zod schema validation; all four `z.any()` uses replaced with `z.custom()` validators.
+- **HookInstaller** — Constructor deps parameter changed from optional to required.
 - **SyncAuthService** — `_validateKeys` now typed as assertion function for proper post-validation narrowing.
-- **WarpErrors** — `hasErrorCode`/`hasMessage` helpers upgraded from wildcard casts to `Record<string, unknown>` narrowing.
 - **WarpPersistence types** — Added `IndexStorage` typedef (`BlobPort & TreePort & RefPort`).
+- **Policy checker upgrade** — `ts-policy-check.js` now enforces 4 rules: (1) ban `@ts-ignore`, (2) ban `@type {*}`/`@type {any}`, (3) ban embedded wildcards in JSDoc generics, (4) ban `z.any()`.
+
+## [Unreleased]
 
 ## [11.3.0] — 2026-02-17 — DX-HAMMER: Read-Path CLI Improvements
 

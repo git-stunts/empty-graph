@@ -86,8 +86,8 @@ function compareProps(a, b) {
 
 /**
  * Checks if two arrays are deeply equal.
- * @param {Array<*>} a
- * @param {Array<*>} b
+ * @param {Array<unknown>} a
+ * @param {Array<unknown>} b
  * @returns {boolean}
  */
 function arraysEqual(a, b) {
@@ -104,8 +104,8 @@ function arraysEqual(a, b) {
 
 /**
  * Checks if two objects are deeply equal.
- * @param {Record<string, *>} a
- * @param {Record<string, *>} b
+ * @param {Record<string, unknown>} a
+ * @param {Record<string, unknown>} b
  * @returns {boolean}
  */
 function objectsEqual(a, b) {

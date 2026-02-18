@@ -15,7 +15,7 @@ import IndexError from './IndexError.js';
  * @property {*} expected - The expected value for the field
  * @property {*} actual - The actual value found in the shard
  * @property {string} field - The field that failed validation (e.g., 'checksum', 'version')
- * @property {Record<string, *>} context - Serializable context object for debugging
+ * @property {Record<string, unknown>} context - Serializable context object for debugging
  *
  * @example
  * if (shard.version !== EXPECTED_VERSION) {
@@ -32,7 +32,7 @@ export default class ShardValidationError extends IndexError {
    * Creates a new ShardValidationError.
    *
    * @param {string} message - Human-readable error message
-   * @param {{ shardPath?: string, expected?: *, actual?: *, field?: string, context?: Record<string, *> }} [options={}] - Error options
+   * @param {{ shardPath?: string, expected?: *, actual?: *, field?: string, context?: Record<string, unknown> }} [options={}] - Error options
    */
   constructor(message, options = {}) {
     const context = {

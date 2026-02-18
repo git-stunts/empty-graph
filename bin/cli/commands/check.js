@@ -11,7 +11,7 @@ import { openGraph, applyCursorCeiling, emitCursorWarning, readCheckpointDate, c
 /** @param {Persistence} persistence */
 async function getHealth(persistence) {
   const clock = ClockAdapter.global();
-  const healthService = new HealthCheckService({ persistence: /** @type {import('../../../src/domain/types/WarpPersistence.js').CheckpointPersistence} */ (/** @type {unknown} */ (persistence)), clock });
+  const healthService = new HealthCheckService({ persistence: /** @type {import('../../../src/domain/types/WarpPersistence.js').CorePersistence} */ (/** @type {unknown} */ (persistence)), clock });
   return await healthService.getHealth();
 }
 
@@ -137,7 +137,7 @@ function getHookStatusForCheck(repoPath) {
 /**
  * Handles the `check` command: reports graph health, GC, and hook status.
  * @param {{options: CliOptions}} params
- * @returns {Promise<{payload: *, exitCode: number}>}
+ * @returns {Promise<{payload: unknown, exitCode: number}>}
  */
 export default async function handleCheck({ options }) {
   const { graph, graphName, persistence } = await openGraph(options);

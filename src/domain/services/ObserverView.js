@@ -43,10 +43,10 @@ function matchGlob(pattern, str) {
  * - If `expose` is provided and non-empty, only keys in `expose` are included.
  * - If `expose` is absent/empty, all non-redacted keys are included.
  *
- * @param {Map<string, *>} propsMap - The full properties Map
+ * @param {Map<string, unknown>} propsMap - The full properties Map
  * @param {string[]|undefined} expose - Whitelist of property keys to include
  * @param {string[]|undefined} redact - Blacklist of property keys to exclude
- * @returns {Map<string, *>} Filtered properties Map
+ * @returns {Map<string, unknown>} Filtered properties Map
  */
 function filterProps(propsMap, expose, redact) {
   const redactSet = redact && redact.length > 0 ? new Set(redact) : null;
@@ -124,7 +124,7 @@ export default class ObserverView {
    * Builds a filtered adjacency structure that only includes edges
    * where both endpoints pass the match filter.
    *
-   * @returns {Promise<{state: *, stateHash: string, adjacency: {outgoing: Map<string, *[]>, incoming: Map<string, *[]>}}>}
+   * @returns {Promise<{state: unknown, stateHash: string, adjacency: {outgoing: Map<string, unknown[]>, incoming: Map<string, unknown[]>}}>}
    * @private
    */
   async _materializeGraph() {
@@ -212,7 +212,7 @@ export default class ObserverView {
    * the observer pattern.
    *
    * @param {string} nodeId - The node ID to get properties for
-   * @returns {Promise<Map<string, *>|null>} Filtered properties Map, or null
+   * @returns {Promise<Map<string, unknown>|null>} Filtered properties Map, or null
    */
   async getNodeProps(nodeId) {
     if (!matchGlob(this._matchPattern, nodeId)) {
@@ -234,7 +234,7 @@ export default class ObserverView {
    *
    * An edge is visible only when both endpoints match the observer pattern.
    *
-   * @returns {Promise<Array<{from: string, to: string, label: string, props: Record<string, *>}>>}
+   * @returns {Promise<Array<{from: string, to: string, label: string, props: Record<string, unknown>}>>}
    */
   async getEdges() {
     const allEdges = await this._graph.getEdges();

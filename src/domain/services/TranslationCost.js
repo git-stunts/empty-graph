@@ -38,7 +38,7 @@ function matchGlob(pattern, str) {
 /**
  * Computes the set of property keys visible under an observer config.
  *
- * @param {Map<string, *>} allNodeProps - Map of propKey -> placeholder
+ * @param {Map<string, unknown>} allNodeProps - Map of propKey -> placeholder
  * @param {string[]|undefined} expose - Whitelist of property keys
  * @param {string[]|undefined} redact - Blacklist of property keys
  * @returns {Set<string>} Visible property keys

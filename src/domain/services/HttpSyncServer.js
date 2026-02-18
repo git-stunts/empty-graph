@@ -24,17 +24,17 @@ const authSchema = z.object({
     (obj) => Object.keys(obj).length > 0,
     'auth.keys must not be empty',
   ),
-  crypto: z.any().optional(),
-  logger: z.any().optional(),
+  crypto: z.custom((v) => v === undefined || (typeof v === 'object' && v !== null)).optional(),
+  logger: z.custom((v) => v === undefined || (typeof v === 'object' && v !== null)).optional(),
   wallClockMs: /** @type {z.ZodType<() => number>} */ (z.custom((v) => v === undefined || typeof v === 'function')).optional(),
 }).strict();
 
 const optionsSchema = z.object({
-  httpPort: z.any().refine(
+  httpPort: z.custom(
     (v) => v !== null && v !== undefined && typeof v === 'object',
     'httpPort is required',
   ),
-  graph: z.any().refine(
+  graph: z.custom(
     (v) => v !== null && v !== undefined && typeof v === 'object',
     'graph is required',
   ),
@@ -244,7 +244,7 @@ export default class HttpSyncServer {
   /**
    * @param {Object} options
    * @param {import('../../ports/HttpServerPort.js').default} options.httpPort - HTTP server port abstraction
-   * @param {{ processSyncRequest: (request: *) => Promise<*> }} options.graph - WarpGraph instance (must expose processSyncRequest)
+   * @param {{ processSyncRequest: Function }} options.graph - WarpGraph instance (must expose processSyncRequest)
    * @param {string} [options.path='/sync'] - URL path to handle sync requests on
    * @param {string} [options.host='127.0.0.1'] - Host to bind
    * @param {number} [options.maxRequestBytes=4194304] - Maximum request body size in bytes

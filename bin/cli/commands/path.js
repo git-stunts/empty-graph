@@ -43,7 +43,7 @@ function parsePathArgs(args) {
 /**
  * Handles the `path` command: finds a shortest path between two nodes.
  * @param {{options: CliOptions, args: string[]}} params
- * @returns {Promise<{payload: *, exitCode: number}>}
+ * @returns {Promise<{payload: unknown, exitCode: number}>}
  */
 export default async function handlePath({ options, args }) {
   const pathOptions = parsePathArgs(args);

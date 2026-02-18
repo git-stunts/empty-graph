@@ -92,7 +92,7 @@ function readHookContent(hookPath) {
 /**
  * Handles the `install-hooks` command.
  * @param {{options: CliOptions, args: string[]}} params
- * @returns {Promise<{payload: *, exitCode: number}>}
+ * @returns {Promise<{payload: unknown, exitCode: number}>}
  */
 export default async function handleInstallHooks({ options, args }) {
   const hookOptions = parseInstallHooksArgs(args);

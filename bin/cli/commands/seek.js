@@ -257,14 +257,14 @@ function computeSeekStateDiff(prevCursor, next, frontierHash) {
 
 /**
  * @param {{tick: number, perWriter: Map<string, WriterTickInfo>, graph: WarpGraphInstance}} params
- * @returns {Promise<Record<string, {sha: string, opSummary: *}>|null>}
+ * @returns {Promise<Record<string, {sha: string, opSummary: unknown}>|null>}
  */
 async function buildTickReceipt({ tick, perWriter, graph }) {
   if (!Number.isInteger(tick) || tick <= 0) {
     return null;
   }
 
-  /** @type {Record<string, {sha: string, opSummary: *}>} */
+  /** @type {Record<string, {sha: string, opSummary: unknown}>} */
   const receipt = {};
 
   for (const [writerId, info] of perWriter) {
@@ -284,7 +284,7 @@ async function buildTickReceipt({ tick, perWriter, graph }) {
 
 /**
  * @param {{graph: WarpGraphInstance, prevTick: number|null, currentTick: number, diffLimit: number}} params
- * @returns {Promise<{structuralDiff: *, diffBaseline: string, baselineTick: number|null, truncated: boolean, totalChanges: number, shownChanges: number}>}
+ * @returns {Promise<{structuralDiff: unknown, diffBaseline: string, baselineTick: number|null, truncated: boolean, totalChanges: number, shownChanges: number}>}
  */
 async function computeStructuralDiff({ graph, prevTick, currentTick, diffLimit }) {
   let beforeState = null;
@@ -354,7 +354,7 @@ function applyDiffLimit(diff, diffBaseline, baselineTick, diffLimit) {
 
 /**
  * @param {{graph: WarpGraphInstance, graphName: string, persistence: Persistence, activeCursor: CursorBlob|null, ticks: number[], maxTick: number, perWriter: Map<string, WriterTickInfo>, frontierHash: string}} params
- * @returns {Promise<{payload: *, exitCode: number}>}
+ * @returns {Promise<{payload: unknown, exitCode: number}>}
  */
 async function handleSeekStatus({ graph, graphName, persistence, activeCursor, ticks, maxTick, perWriter, frontierHash }) {
   if (activeCursor) {
@@ -416,7 +416,7 @@ async function handleSeekStatus({ graph, graphName, persistence, activeCursor, t
 /**
  * Handles the `git warp seek` command across all sub-actions.
  * @param {{options: CliOptions, args: string[]}} params
- * @returns {Promise<{payload: *, exitCode: number}>}
+ * @returns {Promise<{payload: unknown, exitCode: number}>}
  */
 export default async function handleSeek({ options, args }) {
   const seekSpec = parseSeekArgs(args);

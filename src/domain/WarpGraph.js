@@ -285,7 +285,7 @@ export default class WarpGraph {
     // Initialize audit service if enabled
     if (graph._audit) {
       graph._auditService = new AuditReceiptService({
-        persistence: /** @type {import('./types/WarpPersistence.js').CheckpointPersistence} */ (persistence),
+        persistence: /** @type {import('./types/WarpPersistence.js').CorePersistence} */ (persistence),
         graphName,
         writerId,
         codec: graph._codec,

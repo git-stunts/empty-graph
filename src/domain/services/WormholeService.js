@@ -321,7 +321,7 @@ export function deserializeWormhole(json) {
     });
   }
 
-  const /** @type {Record<string, *>} */ typedJson = /** @type {Record<string, *>} */ (json);
+  const /** @type {Record<string, unknown>} */ typedJson = /** @type {Record<string, unknown>} */ (json);
   const requiredFields = ['fromSha', 'toSha', 'writerId', 'patchCount', 'payload'];
   for (const field of requiredFields) {
     if (typedJson[field] === undefined) {
@@ -340,11 +340,11 @@ export function deserializeWormhole(json) {
   }
 
   return {
-    fromSha: typedJson.fromSha,
-    toSha: typedJson.toSha,
-    writerId: typedJson.writerId,
-    patchCount: typedJson.patchCount,
-    payload: ProvenancePayload.fromJSON(typedJson.payload),
+    fromSha: /** @type {string} */ (typedJson.fromSha),
+    toSha: /** @type {string} */ (typedJson.toSha),
+    writerId: /** @type {string} */ (typedJson.writerId),
+    patchCount: /** @type {number} */ (typedJson.patchCount),
+    payload: ProvenancePayload.fromJSON(/** @type {import('./ProvenancePayload.js').PatchEntry[]} */ (typedJson.payload)),
   };
 }
 
