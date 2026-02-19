@@ -40,6 +40,20 @@ const NOT_CHECKED = Symbol('NOT_CHECKED');
  */
 
 /**
+ * Minimum structural contract of a RoaringBitmap32 as used by bitmap index code.
+ * Named "Subset" because it only covers methods actually called by index builders/readers.
+ * Using import('roaring').RoaringBitmap32 directly fails under checkJs + skipLibCheck
+ * because tsc doesn't fully resolve inherited methods from ReadonlyRoaringBitmap32.
+ * @typedef {Object} RoaringBitmapSubset
+ * @property {number} size
+ * @property {function(number): void} add
+ * @property {function(number): boolean} has
+ * @property {function(Iterable<number>): void} orInPlace
+ * @property {function(boolean): Uint8Array} serialize
+ * @property {function(): number[]} toArray
+ */
+
+/**
  * Cached reference to the loaded roaring module.
  * @type {RoaringModule | null}
  * @private

@@ -20,6 +20,13 @@ import { materializeIncremental } from '../services/CheckpointService.js';
 import { createFrontier, updateFrontier } from '../services/Frontier.js';
 
 /** @typedef {import('../types/WarpPersistence.js').CorePersistence} CorePersistence */
+/** @typedef {import('../services/JoinReducer.js').WarpStateV5} WarpStateV5 */
+
+/**
+ * @typedef {{ outgoing: Map<string, Array<{neighborId: string, label: string}>>, incoming: Map<string, Array<{neighborId: string, label: string}>> }} AdjacencyMap
+ * @typedef {{ state: WarpStateV5, stateHash: string, adjacency: AdjacencyMap }} MaterializedResult
+ */
+
 import { buildWriterRef } from '../utils/RefLayout.js';
 import { decodePatchMessage, detectMessageKind } from '../services/WarpMessageCodec.js';
 
@@ -99,7 +106,7 @@ export function _buildAdjacency(state) {
  *
  * @this {import('../WarpGraph.js').default}
  * @param {import('../services/JoinReducer.js').WarpStateV5} state
- * @returns {Promise<{state: *, stateHash: string, adjacency: *}>}
+ * @returns {Promise<MaterializedResult>}
  * @private
  */
 export async function _setMaterializedState(state) {

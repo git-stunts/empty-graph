@@ -17,6 +17,7 @@ import { openGraph, readActiveCursor, writeActiveCursor, wireSeekCache } from '.
 /** @typedef {import('../types.js').WriterTickInfo} WriterTickInfo */
 /** @typedef {import('../types.js').CursorBlob} CursorBlob */
 /** @typedef {import('../types.js').SeekSpec} SeekSpec */
+/** @typedef {import('../../../src/domain/services/StateDiff.js').StateDiffResult} StateDiffResult */
 
 // ============================================================================
 // Cursor I/O Helpers (seek-only)
@@ -315,11 +316,11 @@ async function computeStructuralDiff({ graph, prevTick, currentTick, diffLimit }
 }
 
 /**
- * @param {*} diff
+ * @param {StateDiffResult} diff
  * @param {string} diffBaseline
  * @param {number|null} baselineTick
  * @param {number} diffLimit
- * @returns {{structuralDiff: *, diffBaseline: string, baselineTick: number|null, truncated: boolean, totalChanges: number, shownChanges: number}}
+ * @returns {{structuralDiff: StateDiffResult, diffBaseline: string, baselineTick: number|null, truncated: boolean, totalChanges: number, shownChanges: number}}
  */
 function applyDiffLimit(diff, diffBaseline, baselineTick, diffLimit) {
   const totalChanges =
@@ -332,7 +333,7 @@ function applyDiffLimit(diff, diffBaseline, baselineTick, diffLimit) {
   }
 
   let remaining = diffLimit;
-  const cap = (/** @type {any[]} */ arr) => {
+  const cap = (/** @type {unknown[]} */ arr) => {
     const take = Math.min(arr.length, remaining);
     remaining -= take;
     return arr.slice(0, take);
@@ -345,7 +346,7 @@ function applyDiffLimit(diff, diffBaseline, baselineTick, diffLimit) {
   };
 
   const shownChanges = diffLimit - remaining;
-  return { structuralDiff: capped, diffBaseline, baselineTick, truncated: true, totalChanges, shownChanges };
+  return { structuralDiff: /** @type {StateDiffResult} */ (capped), diffBaseline, baselineTick, truncated: true, totalChanges, shownChanges };
 }
 
 // ============================================================================

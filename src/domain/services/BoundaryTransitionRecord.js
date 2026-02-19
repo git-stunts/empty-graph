@@ -189,7 +189,7 @@ const REQUIRED_FIELDS = ['version', 'h_in', 'h_out', 'U_0', 'P', 't', 'kappa'];
 /**
  * Validates BTR structure and returns failure reason if invalid.
  *
- * @param {*} btr - The BTR object to validate
+ * @param {unknown} btr - The BTR object to validate
  * @returns {string|null} Error message if invalid, null if valid
  * @private
  */
@@ -197,13 +197,14 @@ function validateBTRStructure(btr) {
   if (!btr || typeof btr !== 'object') {
     return 'BTR must be an object';
   }
+  const rec = /** @type {Record<string, unknown>} */ (btr);
   for (const field of REQUIRED_FIELDS) {
-    if (!(field in btr)) {
+    if (!(field in rec)) {
       return `Missing required field: ${field}`;
     }
   }
-  if (btr.version !== BTR_VERSION) {
-    return `Unsupported BTR version: ${btr.version} (expected ${BTR_VERSION})`;
+  if (rec.version !== BTR_VERSION) {
+    return `Unsupported BTR version: ${rec.version} (expected ${BTR_VERSION})`;
   }
   return null;
 }

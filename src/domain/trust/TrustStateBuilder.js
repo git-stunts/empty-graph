@@ -13,6 +13,19 @@
 import { TrustRecordSchema } from './schemas.js';
 
 /**
+ * @typedef {Object} TrustRecord
+ * @property {string} recordType - Record type (KEY_ADD, KEY_REVOKE, WRITER_BIND_ADD, WRITER_BIND_REVOKE)
+ * @property {string} recordId - Content-addressed record identifier
+ * @property {Record<string, string>} subject - Subject fields (keyId, publicKey, writerId, reasonCode vary by type)
+ * @property {string} issuedAt - ISO timestamp
+ * @property {number} schemaVersion
+ * @property {string} issuerKeyId
+ * @property {string|null} prev
+ * @property {{alg: string, sig: string}} signature
+ * @property {Record<string, unknown>} [meta]
+ */
+
+/**
  * @typedef {Object} TrustState
  * @property {Map<string, {publicKey: string, addedAt: string}>} activeKeys - keyId → key info
  * @property {Map<string, {publicKey: string, revokedAt: string, reasonCode: string}>} revokedKeys
@@ -55,7 +68,7 @@ export function buildState(records) {
       continue;
     }
 
-    const rec = parsed.data;
+    const rec = /** @type {TrustRecord} */ (parsed.data);
     processRecord(rec, activeKeys, revokedKeys, writerBindings, revokedBindings, errors);
   }
 
@@ -63,7 +76,7 @@ export function buildState(records) {
 }
 
 /**
- * @param {*} rec
+ * @param {TrustRecord} rec
  * @param {Map<string, {publicKey: string, addedAt: string}>} activeKeys
  * @param {Map<string, {publicKey: string, revokedAt: string, reasonCode: string}>} revokedKeys
  * @param {Map<string, {keyId: string, boundAt: string}>} writerBindings
@@ -90,7 +103,7 @@ function processRecord(rec, activeKeys, revokedKeys, writerBindings, revokedBind
 }
 
 /**
- * @param {*} rec
+ * @param {TrustRecord} rec
  * @param {Map<string, {publicKey: string, addedAt: string}>} activeKeys
  * @param {Map<string, {publicKey: string, revokedAt: string, reasonCode: string}>} revokedKeys
  * @param {Array<{recordId: string, error: string}>} errors
@@ -118,7 +131,7 @@ function handleKeyAdd(rec, activeKeys, revokedKeys, errors) {
 }
 
 /**
- * @param {*} rec
+ * @param {TrustRecord} rec
  * @param {Map<string, {publicKey: string, addedAt: string}>} activeKeys
  * @param {Map<string, {publicKey: string, revokedAt: string, reasonCode: string}>} revokedKeys
  * @param {Array<{recordId: string, error: string}>} errors
@@ -152,7 +165,7 @@ function handleKeyRevoke(rec, activeKeys, revokedKeys, errors) {
 }
 
 /**
- * @param {*} rec
+ * @param {TrustRecord} rec
  * @param {Map<string, {publicKey: string, addedAt: string}>} activeKeys
  * @param {Map<string, {publicKey: string, revokedAt: string, reasonCode: string}>} revokedKeys
  * @param {Map<string, {keyId: string, boundAt: string}>} writerBindings
@@ -182,7 +195,7 @@ function handleBindAdd(rec, activeKeys, revokedKeys, writerBindings, errors) {
 }
 
 /**
- * @param {*} rec
+ * @param {TrustRecord} rec
  * @param {Map<string, {keyId: string, boundAt: string}>} writerBindings
  * @param {Map<string, {keyId: string, revokedAt: string, reasonCode: string}>} revokedBindings
  * @param {Array<{recordId: string, error: string}>} errors

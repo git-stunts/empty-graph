@@ -91,7 +91,7 @@ import { vvContains } from './VersionVector.js';
  * An element is present if it has at least one non-tombstoned dot.
  *
  * @typedef {Object} ORSet
- * @property {Map<*, Set<string>>} entries - element -> dots that added it
+ * @property {Map<string, Set<string>>} entries - element -> dots that added it
  * @property {Set<string>} tombstones - global tombstones
  */
 
@@ -112,7 +112,7 @@ export function createORSet() {
  * Mutates the set.
  *
  * @param {ORSet} set - The ORSet to mutate
- * @param {*} element - The element to add
+ * @param {string} element - The element to add
  * @param {import('./Dot.js').Dot} dot - The dot representing this add operation
  */
 export function orsetAdd(set, element, dot) {
@@ -145,7 +145,7 @@ export function orsetRemove(set, observedDots) {
  * An element is present if it has at least one non-tombstoned dot.
  *
  * @param {ORSet} set - The ORSet to check
- * @param {*} element - The element to check
+ * @param {string} element - The element to check
  * @returns {boolean}
  */
 export function orsetContains(set, element) {
@@ -186,7 +186,7 @@ export function orsetElements(set) {
  * Returns the non-tombstoned dots for an element.
  *
  * @param {ORSet} set - The ORSet
- * @param {*} element - The element
+ * @param {string} element - The element
  * @returns {Set<string>} Set of encoded dots that are not tombstoned
  */
 export function orsetGetDots(set, element) {
@@ -311,11 +311,11 @@ export function orsetCompact(set, includedVV) {
  * Tombstones are sorted.
  *
  * @param {ORSet} set
- * @returns {{entries: Array<[unknown, string[]]>, tombstones: string[]}}
+ * @returns {{entries: Array<[string, string[]]>, tombstones: string[]}}
  */
 export function orsetSerialize(set) {
   // Serialize entries: convert Map to array of [element, sortedDots]
-  /** @type {Array<[any, string[]]>} */
+  /** @type {Array<[string, string[]]>} */
   const entriesArray = [];
   for (const [element, dots] of set.entries) {
     const sortedDots = [...dots].sort((a, b) => {
@@ -349,7 +349,7 @@ export function orsetSerialize(set) {
 /**
  * Deserializes a plain object back to an ORSet.
  *
- * @param {{entries?: Array<[unknown, string[]]>, tombstones?: string[]}} obj
+ * @param {{entries?: Array<[string, string[]]>, tombstones?: string[]}} obj
  * @returns {ORSet}
  */
 export function orsetDeserialize(obj) {

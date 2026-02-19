@@ -17,7 +17,16 @@
  */
 
 /**
- * @typedef {{ graph: string, writer: string, dataCommit: string, opsDigest: string, schema: number, prevAuditCommit: string, writerId: string, graphName: string, tick: number }} AuditReceipt
+ * @typedef {Object} AuditReceipt
+ * @property {number} version
+ * @property {string} graphName
+ * @property {string} writerId
+ * @property {string} dataCommit
+ * @property {string} opsDigest
+ * @property {string} prevAuditCommit
+ * @property {number} tickStart
+ * @property {number} tickEnd
+ * @property {number} timestamp
  */
 
 import { buildAuditPrefix, buildAuditRef } from '../utils/RefLayout.js';
@@ -71,14 +80,15 @@ function validateOidFormat(value) {
 
 /**
  * Checks whether a receipt object has the expected 9 fields with correct types.
- * @param {*} receipt
+ * @param {unknown} receipt
  * @returns {string|null} Error message or null if valid
  */
 function validateReceiptSchema(receipt) {
   if (!receipt || typeof receipt !== 'object') {
     return 'receipt is not an object';
   }
-  const keys = Object.keys(receipt);
+  const rec = /** @type {Record<string, unknown>} */ (receipt);
+  const keys = Object.keys(rec);
   if (keys.length !== 9) {
     return `expected 9 fields, got ${keys.length}`;
   }
@@ -87,46 +97,46 @@ function validateReceiptSchema(receipt) {
     'tickEnd', 'tickStart', 'timestamp', 'version', 'writerId',
   ];
   for (const k of required) {
-    if (!(k in receipt)) {
+    if (!(k in rec)) {
       return `missing field: ${k}`;
     }
   }
-  if (receipt.version !== 1) {
-    return `unsupported version: ${receipt.version}`;
+  if (rec.version !== 1) {
+    return `unsupported version: ${rec.version}`;
   }
-  if (typeof receipt.graphName !== 'string' || receipt.graphName.length === 0) {
+  if (typeof rec.graphName !== 'string' || rec.graphName.length === 0) {
     return 'graphName must be a non-empty string';
   }
-  if (typeof receipt.writerId !== 'string' || receipt.writerId.length === 0) {
+  if (typeof rec.writerId !== 'string' || rec.writerId.length === 0) {
     return 'writerId must be a non-empty string';
   }
-  if (typeof receipt.dataCommit !== 'string') {
+  if (typeof rec.dataCommit !== 'string') {
     return 'dataCommit must be a string';
   }
-  if (typeof receipt.opsDigest !== 'string') {
+  if (typeof rec.opsDigest !== 'string') {
     return 'opsDigest must be a string';
   }
-  if (typeof receipt.prevAuditCommit !== 'string') {
+  if (typeof rec.prevAuditCommit !== 'string') {
     return 'prevAuditCommit must be a string';
   }
-  if (!Number.isInteger(receipt.tickStart) || receipt.tickStart < 1) {
-    return `tickStart must be integer >= 1, got ${receipt.tickStart}`;
+  if (!Number.isInteger(rec.tickStart) || /** @type {number} */ (rec.tickStart) < 1) {
+    return `tickStart must be integer >= 1, got ${rec.tickStart}`;
   }
-  if (!Number.isInteger(receipt.tickEnd) || receipt.tickEnd < receipt.tickStart) {
-    return `tickEnd must be integer >= tickStart, got ${receipt.tickEnd}`;
+  if (!Number.isInteger(rec.tickEnd) || /** @type {number} */ (rec.tickEnd) < /** @type {number} */ (rec.tickStart)) {
+    return `tickEnd must be integer >= tickStart, got ${rec.tickEnd}`;
   }
-  if (receipt.version === 1 && receipt.tickStart !== receipt.tickEnd) {
-    return `v1 requires tickStart === tickEnd, got ${receipt.tickStart} !== ${receipt.tickEnd}`;
+  if (rec.version === 1 && rec.tickStart !== rec.tickEnd) {
+    return `v1 requires tickStart === tickEnd, got ${rec.tickStart} !== ${rec.tickEnd}`;
   }
-  if (!Number.isInteger(receipt.timestamp) || receipt.timestamp < 0) {
-    return `timestamp must be non-negative integer, got ${receipt.timestamp}`;
+  if (!Number.isInteger(rec.timestamp) || /** @type {number} */ (rec.timestamp) < 0) {
+    return `timestamp must be non-negative integer, got ${rec.timestamp}`;
   }
   return null;
 }
 
 /**
  * Validates trailers against the CBOR receipt fields.
- * @param {*} receipt
+ * @param {AuditReceipt} receipt
  * @param {{ graph: string, writer: string, dataCommit: string, opsDigest: string, schema: number }} decoded
  * @returns {string|null} Error message or null if consistent
  */
@@ -316,7 +326,7 @@ export class AuditVerifierService {
    */
   async _walkChain(graphName, writerId, tip, since, result) {
     let current = tip;
-    /** @type {Record<string, unknown>|null} */ let prevReceipt = null;
+    /** @type {AuditReceipt|null} */ let prevReceipt = null;
     /** @type {number|null} */ let chainOidLen = null;
 
     while (current) {
@@ -530,7 +540,7 @@ export class AuditVerifierService {
 
   /**
    * Validates OID format for dataCommit, prevAuditCommit, and opsDigest.
-   * @param {*} receipt
+   * @param {AuditReceipt} receipt
    * @param {ChainResult} result
    * @param {string} commitSha
    * @returns {boolean} true if valid
@@ -560,8 +570,8 @@ export class AuditVerifierService {
 
   /**
    * Validates chain linking between current and previous (newer) receipt.
-   * @param {*} currentReceipt - The older receipt being validated
-   * @param {*} prevReceipt - The newer receipt (closer to tip)
+   * @param {AuditReceipt} currentReceipt - The older receipt being validated
+   * @param {AuditReceipt} prevReceipt - The newer receipt (closer to tip)
    * @param {string} commitSha
    * @param {ChainResult} result
    * @returns {boolean} true if valid

@@ -346,7 +346,7 @@ export class PatchBuilderV2 {
    *
    * @param {string} nodeId - The node ID to set the property on
    * @param {string} key - Property key (should not contain null bytes)
-   * @param {*} value - Property value. Must be JSON-serializable (strings,
+   * @param {unknown} value - Property value. Must be JSON-serializable (strings,
    *   numbers, booleans, arrays, plain objects, or null). Use `null` to
    *   effectively delete a property (LWW semantics).
    * @returns {PatchBuilderV2} This builder instance for method chaining
@@ -389,7 +389,7 @@ export class PatchBuilderV2 {
    * @param {string} to - Target node ID (edge destination)
    * @param {string} label - Edge label/type identifying which edge to modify
    * @param {string} key - Property key (should not contain null bytes)
-   * @param {*} value - Property value. Must be JSON-serializable (strings,
+   * @param {unknown} value - Property value. Must be JSON-serializable (strings,
    *   numbers, booleans, arrays, plain objects, or null). Use `null` to
    *   effectively delete a property (LWW semantics).
    * @returns {PatchBuilderV2} This builder instance for method chaining

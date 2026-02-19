@@ -42,6 +42,16 @@ import { join, cloneStateV5 } from './JoinReducer.js';
 import { cloneFrontier, updateFrontier } from './Frontier.js';
 import { vvDeserialize } from '../crdt/VersionVector.js';
 
+/**
+ * A decoded patch object after CBOR deserialization.
+ * @typedef {Object} DecodedPatch
+ * @property {Object | Map<string, number>} [context] - VersionVector (Map after normalization, plain object before)
+ * @property {import('../types/WarpTypesV2.js').OpV2[]} ops - Ordered array of operations
+ * @property {string} [writer] - Writer ID
+ * @property {number} [lamport] - Lamport timestamp
+ * @property {number} [schema] - Schema version
+ */
+
 // -----------------------------------------------------------------------------
 // Patch Loading
 // -----------------------------------------------------------------------------
@@ -56,9 +66,9 @@ import { vvDeserialize } from '../crdt/VersionVector.js';
  * **Mutation**: This function mutates the input patch object for efficiency.
  * The original object reference is returned.
  *
- * @param {{ context?: Object | Map<any, any>, ops: any[] }} patch - The raw decoded patch from CBOR.
+ * @param {DecodedPatch} patch - The raw decoded patch from CBOR.
  *   If context is present as a plain object, it will be converted to a Map.
- * @returns {{ context?: Object | Map<any, any>, ops: any[] }} The same patch object with context converted to Map
+ * @returns {DecodedPatch} The same patch object with context converted to Map
  * @private
  */
 function normalizePatch(patch) {
@@ -88,7 +98,7 @@ function normalizePatch(patch) {
  * @param {string} sha - The 40-character commit SHA to load the patch from
  * @param {Object} [options]
  * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for deserialization
- * @returns {Promise<{ context?: Object | Map<any, any>, ops: any[] }>} The decoded and normalized patch object containing:
+ * @returns {Promise<DecodedPatch>} The decoded and normalized patch object containing:
  *   - `ops`: Array of patch operations
  *   - `context`: VersionVector (Map) of causal dependencies
  *   - `writerId`: The writer who created this patch
@@ -107,7 +117,7 @@ async function loadPatchFromCommit(persistence, sha, { codec: codecOpt } = /** @
 
   // Read and decode the patch blob
   const patchBuffer = await persistence.readBlob(decoded.patchOid);
-  const patch = /** @type {{ context?: Object | Map<any, any>, ops: any[] }} */ (codec.decode(patchBuffer));
+  const patch = /** @type {DecodedPatch} */ (codec.decode(patchBuffer));
 
   // Normalize the patch (convert context from object to Map)
   return normalizePatch(patch);

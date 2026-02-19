@@ -85,7 +85,7 @@ export async function getEdgeProps(from, to, label) {
 
   const birthEvent = s.edgeBirthEvent?.get(edgeKey);
 
-  /** @type {Record<string, any>} */
+  /** @type {Record<string, unknown>} */
   const props = {};
   for (const [propKey, register] of s.prop) {
     if (!isEdgePropKey(propKey)) {
@@ -275,5 +275,6 @@ export async function observer(name, config) {
  */
 export async function translationCost(configA, configB) {
   await this._ensureFreshState();
-  return computeTranslationCost(configA, configB, this._cachedState);
+  const s = /** @type {import('../services/JoinReducer.js').WarpStateV5} */ (this._cachedState);
+  return computeTranslationCost(configA, configB, s);
 }

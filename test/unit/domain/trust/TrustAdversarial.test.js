@@ -44,8 +44,8 @@ describe('Adversarial case 1: Tampered record mid-chain', () => {
 
   it('verifyChain detects recordId mismatch', () => {
     const service = new TrustRecordService({
-      persistence: {},
-      codec: { encode: () => {}, decode: () => {} },
+      persistence: /** @type {*} */ ({}),
+      codec: /** @type {*} */ ({ encode: () => {}, decode: () => {} }),
     });
 
     const tampered = {

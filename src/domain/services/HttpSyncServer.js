@@ -105,7 +105,7 @@ function errorResponse(status, message) {
 /**
  * Builds a JSON success response with canonical key ordering.
  *
- * @param {*} data - Response payload
+ * @param {unknown} data - Response payload
  * @returns {{ status: number, headers: Object, body: string }}
  * @private
  */
@@ -120,7 +120,7 @@ function jsonResponse(data) {
 /**
  * Validates that a sync request object has the expected shape.
  *
- * @param {*} parsed - Parsed JSON body
+ * @param {unknown} parsed - Parsed JSON body
  * @returns {boolean} True if valid
  * @private
  */
@@ -128,10 +128,11 @@ function isValidSyncRequest(parsed) {
   if (!parsed || typeof parsed !== 'object') {
     return false;
   }
-  if (parsed.type !== 'sync-request') {
+  const rec = /** @type {Record<string, unknown>} */ (parsed);
+  if (rec.type !== 'sync-request') {
     return false;
   }
-  if (!parsed.frontier || typeof parsed.frontier !== 'object' || Array.isArray(parsed.frontier)) {
+  if (!rec.frontier || typeof rec.frontier !== 'object' || Array.isArray(rec.frontier)) {
     return false;
   }
   return true;
@@ -201,7 +202,7 @@ function checkBodySize(body, maxBytes) {
  * Parses and validates the request body as a sync request.
  *
  * @param {Buffer|undefined} body
- * @returns {{ error: { status: number, headers: Object, body: string }, parsed: null } | { error: null, parsed: Object }}
+ * @returns {{ error: { status: number, headers: Object, body: string }, parsed: null } | { error: null, parsed: Record<string, unknown> }}
  * @private
  */
 function parseBody(body) {
@@ -283,7 +284,7 @@ export default class HttpSyncServer {
    * null so the request proceeds.
    *
    * @param {{ method: string, url: string, headers: { [x: string]: string }, body: Buffer|undefined }} request
-   * @param {*} parsed - Parsed sync request body
+   * @param {Record<string, unknown>} parsed - Parsed sync request body
    * @returns {Promise<{ status: number, headers: Object, body: string }|null>}
    * @private
    */

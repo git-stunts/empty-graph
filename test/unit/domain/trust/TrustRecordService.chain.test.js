@@ -46,10 +46,18 @@ function createMockPersistence() {
       if (!blobs.has(oid)) throw new Error(`Blob not found: ${oid}`);
       return blobs.get(oid);
     },
-    /** @param {*} entries */
+    /** @param {string[]} entries - mktree-format lines */
     async writeTree(entries) {
       const oid = `tree-${++counter}`;
-      trees.set(oid, { ...entries });
+      /** @type {Record<string, string>} */
+      const parsed = {};
+      for (const line of entries) {
+        const match = line.match(/^\d+ blob ([^\t]+)\t(.+)$/);
+        if (match) {
+          parsed[match[2]] = match[1];
+        }
+      }
+      trees.set(oid, parsed);
       return oid;
     },
     /** @param {*} oid */
@@ -68,10 +76,10 @@ function createMockPersistence() {
       const c = commits.get(sha);
       return { parents: c.parents, message: c.message, date: null };
     },
-    /** @param {{ tree: *, parents: *, message: * }} opts */
-    async createCommit({ tree, parents, message }) {
+    /** @param {{ treeOid: string, parents?: string[], message: string }} opts */
+    async commitNodeWithTree({ treeOid, parents = [], message }) {
       const oid = `commit-${++counter}`;
-      commits.set(oid, { tree, parents, message });
+      commits.set(oid, { tree: treeOid, parents, message });
       return oid;
     },
   };
@@ -92,7 +100,7 @@ describe('Chain integration (B15)', () => {
 
   beforeEach(() => {
     service = new TrustRecordService({
-      persistence: createMockPersistence(),
+      persistence: /** @type {*} */ (createMockPersistence()),
       codec: createMockCodec(),
     });
   });

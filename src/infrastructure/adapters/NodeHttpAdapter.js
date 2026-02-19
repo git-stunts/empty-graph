@@ -71,7 +71,7 @@ export default class NodeHttpAdapter extends HttpServerPort {
     const logger = this._logger;
     const server = createServer((req, res) => {
       dispatch(req, res, { handler: requestHandler, logger }).catch(
-        /** @param {*} err */ (err) => {
+        /** @param {unknown} err */ (err) => {
           logger.error('[NodeHttpAdapter] unhandled dispatch error:', err);
         });
     });
@@ -85,7 +85,7 @@ export default class NodeHttpAdapter extends HttpServerPort {
       listen(port, host, callback) {
         const cb = typeof host === 'function' ? host : callback;
         const bindHost = typeof host === 'string' ? host : undefined;
-        /** @param {*} err */
+        /** @param {unknown} err */
         const onError = (err) => {
           if (cb) {
             cb(err);

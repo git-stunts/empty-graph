@@ -146,7 +146,8 @@ export default class BitmapIndexReader {
   async lookupId(sha) {
     const prefix = sha.substring(0, 2);
     const path = `meta_${prefix}.json`;
-    const idMap = await this._getOrLoadShard(path, 'json');
+    // Meta shards always map SHA→numeric ID (built by BitmapIndexBuilder)
+    const idMap = /** @type {Record<string, number>} */ (await this._getOrLoadShard(path, 'json'));
     return idMap[sha];
   }
 
@@ -178,7 +179,8 @@ export default class BitmapIndexReader {
   async _getEdges(sha, type) {
     const prefix = sha.substring(0, 2);
     const shardPath = `shards_${type}_${prefix}.json`;
-    const shard = await this._getOrLoadShard(shardPath, 'json');
+    // Bitmap shards always map SHA→base64-encoded bitmap data
+    const shard = /** @type {Record<string, string>} */ (await this._getOrLoadShard(shardPath, 'json'));
 
     const encoded = shard[sha];
     if (!encoded) {
@@ -226,7 +228,8 @@ export default class BitmapIndexReader {
 
     for (const [path] of this.shardOids) {
       if (path.startsWith('meta_') && path.endsWith('.json')) {
-        const shard = await this._getOrLoadShard(path, 'json');
+        // Meta shards always map SHA→numeric ID (built by BitmapIndexBuilder)
+        const shard = /** @type {Record<string, number>} */ (await this._getOrLoadShard(path, 'json'));
         for (const [sha, id] of Object.entries(shard)) {
           this._idToShaCache[id] = sha;
         }
@@ -249,10 +252,10 @@ export default class BitmapIndexReader {
   /**
    * Validates a shard envelope for version and checksum integrity.
    *
-   * @param {{ data?: any, version?: number, checksum?: string }} envelope - The shard envelope to validate
+   * @param {{ data?: Record<string, string | number>, version?: number, checksum?: string }} envelope - The shard envelope to validate
    * @param {string} path - Shard path (for error context)
    * @param {string} oid - Object ID (for error context)
-   * @returns {Promise<any>} The validated data from the envelope
+   * @returns {Promise<Record<string, string | number>>} The validated data from the envelope
    * @throws {ShardCorruptionError} If envelope format is invalid
    * @throws {ShardValidationError} If version or checksum validation fails
    * @private
@@ -301,7 +304,7 @@ export default class BitmapIndexReader {
    * @param {string} context.path - Shard path
    * @param {string} context.oid - Object ID
    * @param {string} context.format - 'json' or 'bitmap'
-   * @returns {Object} Empty shard (non-strict mode only)
+   * @returns {Record<string, string | number>} Empty shard (non-strict mode only)
    * @throws {ShardCorruptionError|ShardValidationError} In strict mode
    * @private
    */
@@ -335,7 +338,7 @@ export default class BitmapIndexReader {
    * @param {Buffer} buffer - Raw shard buffer
    * @param {string} path - Shard path (for error context)
    * @param {string} oid - Object ID (for error context)
-   * @returns {Promise<Object>} The validated data from the shard
+   * @returns {Promise<Record<string, string | number>>} The validated data from the shard
    * @throws {ShardCorruptionError} If parsing fails or format is invalid
    * @throws {ShardValidationError} If version or checksum validation fails
    * @private
@@ -393,7 +396,7 @@ export default class BitmapIndexReader {
    * @param {string} context.path - Shard path
    * @param {string} context.oid - Object ID
    * @param {string} context.format - 'json' or 'bitmap'
-   * @returns {Object | null} Handled result or null if error should be re-thrown
+   * @returns {Record<string, string | number> | null} Handled result or null if error should be re-thrown
    * @private
    */
   _tryHandleShardError(err, context) {
@@ -412,7 +415,7 @@ export default class BitmapIndexReader {
    *
    * @param {string} path - Shard path
    * @param {string} format - 'json' or 'bitmap'
-   * @returns {Promise<any>}
+   * @returns {Promise<Record<string, string | number>>}
    * @throws {ShardLoadError} When storage.readBlob fails
    * @throws {ShardCorruptionError} When shard format is invalid (strict mode only)
    * @throws {ShardValidationError} When version or checksum validation fails (strict mode only)

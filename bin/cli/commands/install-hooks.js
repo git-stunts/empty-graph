@@ -18,7 +18,7 @@ function parseInstallHooksArgs(args) {
 }
 
 /**
- * @param {*} classification
+ * @param {{kind: string, version?: string, appended?: boolean}} classification
  * @param {{force: boolean}} hookOptions
  */
 async function resolveStrategy(classification, hookOptions) {
@@ -37,7 +37,7 @@ async function resolveStrategy(classification, hookOptions) {
   return await promptForForeignStrategy();
 }
 
-/** @param {*} classification */
+/** @param {{kind: string, version?: string, appended?: boolean}} classification */
 async function promptForOursStrategy(classification) {
   const installer = createHookInstaller();
   if (classification.version === installer._version) {

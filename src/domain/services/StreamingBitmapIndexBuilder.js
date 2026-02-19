@@ -126,7 +126,7 @@ export default class StreamingBitmapIndexBuilder {
     /** @type {string[]} ID → SHA reverse mapping (kept in memory) */
     this.idToSha = [];
 
-    /** @type {Map<string, any>} Current in-memory bitmaps */
+    /** @type {Map<string, import('../utils/roaring.js').RoaringBitmapSubset>} Current in-memory bitmaps */
     this.bitmaps = new Map();
 
     /** @type {number} Estimated bytes used by current bitmaps */
@@ -208,7 +208,7 @@ export default class StreamingBitmapIndexBuilder {
       if (!bitmapShards[type][prefix]) {
         bitmapShards[type][prefix] = {};
       }
-      bitmapShards[type][prefix][sha] = bitmap.serialize(true).toString('base64');
+      bitmapShards[type][prefix][sha] = Buffer.from(bitmap.serialize(true)).toString('base64');
     }
     return bitmapShards;
   }
@@ -541,7 +541,7 @@ export default class StreamingBitmapIndexBuilder {
       this.estimatedBitmapBytes += BITMAP_BASE_OVERHEAD;
     }
 
-    const bitmap = this.bitmaps.get(key);
+    const bitmap = /** @type {import('../utils/roaring.js').RoaringBitmapSubset} */ (this.bitmaps.get(key));
     const sizeBefore = bitmap.size;
     bitmap.add(id);
     const sizeAfter = bitmap.size;
@@ -616,7 +616,7 @@ export default class StreamingBitmapIndexBuilder {
    * it using `orInPlace` to combine edge sets.
    *
    * @param {Object} opts - Options object
-   * @param {Record<string, any>} opts.merged - Object mapping SHA to
+   * @param {Record<string, import('../utils/roaring.js').RoaringBitmapSubset>} opts.merged - Object mapping SHA to
    *   RoaringBitmap32 instances (mutated in place)
    * @param {string} opts.sha - The SHA key for this bitmap (40-character hex string)
    * @param {string} opts.base64Bitmap - Base64-encoded serialized RoaringBitmap32 data
@@ -677,7 +677,7 @@ export default class StreamingBitmapIndexBuilder {
    */
   async _mergeChunks(oids, { signal } = {}) {
     // Load all chunks and merge bitmaps by SHA
-    /** @type {Record<string, any>} */
+    /** @type {Record<string, import('../utils/roaring.js').RoaringBitmapSubset>} */
     const merged = {};
 
     for (const oid of oids) {
@@ -693,7 +693,7 @@ export default class StreamingBitmapIndexBuilder {
     /** @type {Record<string, string>} */
     const result = {};
     for (const [sha, bitmap] of Object.entries(merged)) {
-      result[sha] = bitmap.serialize(true).toString('base64');
+      result[sha] = Buffer.from(bitmap.serialize(true)).toString('base64');
     }
 
     // Wrap merged result in envelope with version and checksum

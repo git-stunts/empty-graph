@@ -80,7 +80,7 @@
  * @property {'PropSet'} type - Operation type discriminator
  * @property {NodeId} node - Node ID to set property on
  * @property {string} key - Property key
- * @property {*} value - Property value (any JSON-serializable type)
+ * @property {unknown} value - Property value (any JSON-serializable type)
  */
 
 /**
@@ -156,7 +156,7 @@ export function createEdgeRemoveV2(from, to, label, observedDots) {
  * Creates a PropSet operation (no dot - uses EventId)
  * @param {NodeId} node - Node ID to set property on
  * @param {string} key - Property key
- * @param {*} value - Property value (any JSON-serializable type)
+ * @param {unknown} value - Property value (any JSON-serializable type)
  * @returns {OpV2PropSet} PropSet operation
  */
 export function createPropSetV2(node, key, value) {

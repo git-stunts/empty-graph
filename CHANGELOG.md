@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [11.3.2] — 2026-02-19 — M9 IRONCLAD: Zero Wildcards
+
+Eliminates all 9 remaining wildcards (7 in bitmap index code, 2 in TrustRecordService)
+and sets the fence to 0. Fixes two latent bugs in TrustRecordService that would have
+failed at runtime against a real GitGraphAdapter.
+
+### Fixed
+
+- **TrustRecordService.writeTree** — Was passing an object `{ 'record.cbor': blobOid }` but TreePort expects mktree-format `string[]`. Fixed to `["100644 blob <oid>\trecord.cbor"]`.
+- **TrustRecordService.createCommit** — Was calling non-existent `createCommit()` method. Fixed to `commitNodeWithTree({ treeOid, parents, message })` matching CommitPort.
+- **Bitmap serialize portability** — `bitmap.serialize(true).toString('base64')` relied on Node Buffer return type. Wrapped in `Buffer.from()` for explicit Uint8Array→Buffer conversion.
+
+### Changed
+
+- **RoaringBitmapSubset typedef** — New structural typedef in `src/domain/utils/roaring.js` covering `size`, `add`, `has`, `orInPlace`, `serialize`, `toArray`. Replaces 7 `any`/`*` wildcards across `BitmapIndexBuilder`, `StreamingBitmapIndexBuilder`, and `BitmapIndexReader`.
+- **BitmapIndexReader shard types** — Internal shard data typed as `Record<string, string | number>` with narrowing casts at call sites (meta shards → `Record<string, number>`, bitmap shards → `Record<string, string>`).
+- **TrustRecordService constructor** — `{*}` params replaced with `CommitPort & BlobPort & TreePort & RefPort` and `CodecPort`.
+- **any-fence.json** — Wildcard count ratcheted from 9 → 0.
+
 ## [11.3.1] — 2026-02-18 — M8 IRONCLAD: Embedded Wildcard Elimination
 
 Completes M8 IRONCLAD by eliminating all remaining embedded wildcards, fixing

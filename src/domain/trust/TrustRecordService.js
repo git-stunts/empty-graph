@@ -22,8 +22,8 @@ import TrustError from '../errors/TrustError.js';
 export class TrustRecordService {
   /**
    * @param {Object} options
-   * @param {*} options.persistence - GraphPersistencePort adapter
-   * @param {*} options.codec - CodecPort adapter (CBOR)
+   * @param {import('../../ports/CommitPort.js').default & import('../../ports/BlobPort.js').default & import('../../ports/TreePort.js').default & import('../../ports/RefPort.js').default} options.persistence - GraphPersistencePort adapter
+   * @param {import('../../ports/CodecPort.js').default} options.codec - CodecPort adapter (CBOR)
    */
   constructor({ persistence, codec }) {
     this._persistence = persistence;
@@ -117,13 +117,13 @@ export class TrustRecordService {
 
     while (current) {
       const info = await this._persistence.getNodeInfo(current);
-      const record = this._codec.decode(
+      const record = /** @type {Record<string, unknown>} */ (this._codec.decode(
         await this._persistence.readBlob(
           (await this._persistence.readTreeOids(
             await this._persistence.getCommitTree(current),
           ))['record.cbor'],
         ),
-      );
+      ));
 
       records.unshift(record);
 
@@ -238,8 +238,8 @@ export class TrustRecordService {
       return { tipSha, recordId: null };
     }
 
-    const record = this._codec.decode(await this._persistence.readBlob(blobOid));
-    return { tipSha, recordId: record.recordId ?? null };
+    const record = /** @type {Record<string, unknown>} */ (this._codec.decode(await this._persistence.readBlob(blobOid)));
+    return { tipSha, recordId: /** @type {string|null} */ (record.recordId) ?? null };
   }
 
   /**
@@ -253,16 +253,16 @@ export class TrustRecordService {
   async _persistRecord(ref, record, parentSha) {
     // Encode record as CBOR blob
     const encoded = this._codec.encode(record);
-    const blobOid = await this._persistence.writeBlob(encoded);
+    const blobOid = await this._persistence.writeBlob(Buffer.from(encoded));
 
-    // Create tree with single entry
-    const treeOid = await this._persistence.writeTree({ 'record.cbor': blobOid });
+    // Create tree with single entry (mktree format)
+    const treeOid = await this._persistence.writeTree([`100644 blob ${blobOid}\trecord.cbor`]);
 
     const parents = parentSha ? [parentSha] : [];
     const message = `trust: ${/** @type {string} */ (record.recordType)} ${/** @type {string} */ (record.recordId).slice(0, 12)}`;
 
-    const commitSha = await this._persistence.createCommit({
-      tree: treeOid,
+    const commitSha = await this._persistence.commitNodeWithTree({
+      treeOid,
       parents,
       message,
     });

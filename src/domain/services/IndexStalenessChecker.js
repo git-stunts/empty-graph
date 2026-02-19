@@ -6,12 +6,13 @@
 import defaultCodec from '../utils/defaultCodec.js';
 
 /**
- * @param {*} envelope
+ * @param {unknown} envelope
  * @param {string} label
  * @private
  */
 function validateEnvelope(envelope, label) {
-  if (!envelope || typeof envelope !== 'object' || !envelope.frontier || typeof envelope.frontier !== 'object') {
+  const rec = /** @type {Record<string, unknown>} */ (envelope);
+  if (!rec || typeof rec !== 'object' || !rec.frontier || typeof rec.frontier !== 'object') {
     throw new Error(`invalid frontier envelope for ${label}`);
   }
 }

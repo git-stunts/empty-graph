@@ -49,7 +49,7 @@ function resolveTrustPin(cliPin) {
 
 /**
  * Discovers all writer IDs from the writers prefix refs.
- * @param {*} persistence
+ * @param {import('../types.js').Persistence} persistence
  * @param {string} graphName
  * @returns {Promise<string[]>}
  */

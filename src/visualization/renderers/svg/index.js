@@ -119,7 +119,7 @@ function renderEdge(edge) {
 /**
  * Renders a PositionedGraph as an SVG string.
  *
- * @param {{ nodes?: Array<{ id: string, x: number, y: number, width: number, height: number, label?: string }>, edges?: Array<{ sections?: Array<any>, label?: string }>, width?: number, height?: number }} positionedGraph - PositionedGraph from runLayout()
+ * @param {{ nodes?: Array<{ id: string, x: number, y: number, width: number, height: number, label?: string }>, edges?: Array<{ sections?: Array<{ startPoint?: { x: number, y: number }, endPoint?: { x: number, y: number }, bendPoints?: Array<{ x: number, y: number }> }>, label?: string }>, width?: number, height?: number }} positionedGraph - PositionedGraph from runLayout()
  * @param {{ title?: string }} [options]
  * @returns {string} Complete SVG markup
  */

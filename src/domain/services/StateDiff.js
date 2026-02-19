@@ -24,8 +24,8 @@ import { decodeEdgeKey, decodePropKey, isEdgePropKey } from './KeyCodec.js';
  * @property {string} key - Encoded property key
  * @property {string} nodeId - Node ID (for node props)
  * @property {string} propKey - Property name
- * @property {*} oldValue - Previous value (undefined if new)
- * @property {*} newValue - New value
+ * @property {unknown} oldValue - Previous value (undefined if new)
+ * @property {unknown} newValue - New value
  */
 
 /**
@@ -33,7 +33,7 @@ import { decodeEdgeKey, decodePropKey, isEdgePropKey } from './KeyCodec.js';
  * @property {string} key - Encoded property key
  * @property {string} nodeId - Node ID (for node props)
  * @property {string} propKey - Property name
- * @property {*} oldValue - Previous value
+ * @property {unknown} oldValue - Previous value
  */
 
 /**
@@ -127,8 +127,8 @@ function objectsEqual(a, b) {
 
 /**
  * Checks if two values are deeply equal (for property comparison).
- * @param {*} a
- * @param {*} b
+ * @param {unknown} a
+ * @param {unknown} b
  * @returns {boolean}
  */
 function deepEqual(a, b) {
@@ -148,9 +148,12 @@ function deepEqual(a, b) {
     return false;
   }
   if (Array.isArray(a)) {
-    return arraysEqual(a, b);
+    return arraysEqual(a, /** @type {unknown[]} */ (b));
   }
-  return objectsEqual(a, b);
+  return objectsEqual(
+    /** @type {Record<string, unknown>} */ (a),
+    /** @type {Record<string, unknown>} */ (b),
+  );
 }
 
 /**

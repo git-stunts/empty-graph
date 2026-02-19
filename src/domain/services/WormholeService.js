@@ -27,7 +27,7 @@ import { detectMessageKind, decodePatchMessage } from './WarpMessageCodec.js';
 
 /**
  * Validates that a SHA parameter is a non-empty string.
- * @param {*} sha - The SHA to validate
+ * @param {unknown} sha - The SHA to validate
  * @param {string} paramName - Parameter name for error messages
  * @throws {WormholeError} If SHA is invalid
  * @private

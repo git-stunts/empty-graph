@@ -7,7 +7,7 @@
  * - Array elements that are undefined/function/symbol become "null"
  * - Object properties with undefined/function/symbol values are omitted
  *
- * @param {*} value - Any JSON-serializable value
+ * @param {unknown} value - Any JSON-serializable value
  * @returns {string} Canonical JSON string with sorted keys
  */
 export function canonicalStringify(value) {
@@ -28,14 +28,15 @@ export function canonicalStringify(value) {
     return `[${elements.join(',')}]`;
   }
   if (typeof value === 'object') {
+    const obj = /** @type {Record<string, unknown>} */ (value);
     // Filter out keys with undefined/function/symbol values, then sort
-    const keys = Object.keys(value)
+    const keys = Object.keys(obj)
       .filter(k => {
-        const v = value[k];
+        const v = obj[k];
         return v !== undefined && typeof v !== 'function' && typeof v !== 'symbol';
       })
       .sort();
-    const pairs = keys.map(k => `${JSON.stringify(k)}:${canonicalStringify(value[k])}`);
+    const pairs = keys.map(k => `${JSON.stringify(k)}:${canonicalStringify(obj[k])}`);
     return `{${pairs.join(',')}}`;
   }
   return JSON.stringify(value);

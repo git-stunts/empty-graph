@@ -103,7 +103,7 @@ export default class BitmapIndexBuilder {
     this.shaToId = new Map();
     /** @type {string[]} */
     this.idToSha = [];
-    /** @type {Map<string, any>} */
+    /** @type {Map<string, import('../utils/roaring.js').RoaringBitmapSubset>} */
     this.bitmaps = new Map();
   }
 
@@ -178,7 +178,7 @@ export default class BitmapIndexBuilder {
         bitmapShards[type][prefix] = {};
       }
       // Encode bitmap as base64 for JSON storage
-      bitmapShards[type][prefix][sha] = bitmap.serialize(true).toString('base64');
+      bitmapShards[type][prefix][sha] = Buffer.from(bitmap.serialize(true)).toString('base64');
     }
 
     for (const type of ['fwd', 'rev']) {
@@ -224,6 +224,6 @@ export default class BitmapIndexBuilder {
       const RoaringBitmap32 = ensureRoaringBitmap32();
       this.bitmaps.set(key, new RoaringBitmap32());
     }
-    this.bitmaps.get(key).add(id);
+    /** @type {import('../utils/roaring.js').RoaringBitmapSubset} */ (this.bitmaps.get(key)).add(id);
   }
 }

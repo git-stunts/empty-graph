@@ -120,7 +120,7 @@ export class PatchSession {
    *
    * @param {string} nodeId - The node ID
    * @param {string} key - Property key
-   * @param {*} value - Property value (must be JSON-serializable)
+   * @param {unknown} value - Property value (must be JSON-serializable)
    * @returns {this} This session for chaining
    * @throws {Error} If this session has already been committed
    */
@@ -137,7 +137,7 @@ export class PatchSession {
    * @param {string} to - Target node ID
    * @param {string} label - Edge label/type
    * @param {string} key - Property key
-   * @param {*} value - Property value (must be JSON-serializable)
+   * @param {unknown} value - Property value (must be JSON-serializable)
    * @returns {this} This session for chaining
    * @throws {Error} If this session has already been committed
    */

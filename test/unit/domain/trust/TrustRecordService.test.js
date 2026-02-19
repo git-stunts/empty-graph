@@ -53,10 +53,18 @@ function createMockPersistence() {
       if (!data) throw new Error(`Blob not found: ${oid}`);
       return data;
     },
-    /** @param {*} entries */
+    /** @param {string[]} entries - mktree-format lines */
     async writeTree(entries) {
       const oid = `tree-${++treeCounter}`;
-      trees.set(oid, { ...entries });
+      /** @type {Record<string, string>} */
+      const parsed = {};
+      for (const line of entries) {
+        const match = line.match(/^\d+ blob ([^\t]+)\t(.+)$/);
+        if (match) {
+          parsed[match[2]] = match[1];
+        }
+      }
+      trees.set(oid, parsed);
       return oid;
     },
     /** @param {*} oid */
@@ -77,10 +85,10 @@ function createMockPersistence() {
       if (!commit) throw new Error(`Commit not found: ${sha}`);
       return { parents: commit.parents, message: commit.message, date: null };
     },
-    /** @param {{ tree: *, parents: *, message: * }} opts */
-    async createCommit({ tree, parents, message }) {
+    /** @param {{ treeOid: string, parents?: string[], message: string }} opts */
+    async commitNodeWithTree({ treeOid, parents = [], message }) {
       const oid = `commit-${++commitCounter}`;
-      commits.set(oid, { tree, parents, message });
+      commits.set(oid, { tree: treeOid, parents, message });
       return oid;
     },
   };
@@ -222,7 +230,7 @@ describe('TrustRecordService.verifyChain', () => {
 
   beforeEach(() => {
     service = new TrustRecordService({
-      persistence: createMockPersistence(),
+      persistence: /** @type {*} */ (createMockPersistence()),
       codec: createMockCodec(),
     });
   });
