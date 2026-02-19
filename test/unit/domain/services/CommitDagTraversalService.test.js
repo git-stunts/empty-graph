@@ -69,8 +69,9 @@ describe('CommitDagTraversalService', () => {
     });
 
     it('throws when called with no arguments', () => {
+      // @ts-expect-error — intentional: verifying runtime behavior for invalid call
       expect(() => new CommitDagTraversalService())
-        .toThrow('CommitDagTraversalService requires an indexReader');
+        .toThrow();
     });
   });
 

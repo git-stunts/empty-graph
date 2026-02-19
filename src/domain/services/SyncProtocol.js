@@ -144,7 +144,9 @@ async function loadPatchFromCommit(persistence, sha, { codec: codecOpt } = /** @
  * @param {string|null} fromSha - Start SHA (exclusive). Pass null to load ALL patches
  *   for this writer from the beginning of their chain.
  * @param {string} toSha - End SHA (inclusive). This is typically the writer's current tip.
- * @returns {Promise<Array<{patch: Object, sha: string}>>} Array of patch objects in
+ * @param {Object} [options]
+ * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for deserialization
+ * @returns {Promise<Array<{patch: DecodedPatch, sha: string}>>} Array of patch objects in
  *   chronological order (oldest first). Each entry contains:
  *   - `patch`: The decoded patch object
  *   - `sha`: The commit SHA this patch came from
@@ -308,7 +310,7 @@ export function computeSyncDelta(localFrontier, remoteFrontier) {
  * @property {'sync-response'} type - Message type discriminator for protocol parsing
  * @property {Object.<string, string>} frontier - Responder's frontier as a plain object.
  *   Keys are writer IDs, values are SHAs.
- * @property {Array<{writerId: string, sha: string, patch: Object}>} patches - Patches
+ * @property {Array<{writerId: string, sha: string, patch: DecodedPatch}>} patches - Patches
  *   the requester needs, in chronological order per writer. Contains:
  *   - `writerId`: The writer who created this patch
  *   - `sha`: The commit SHA this patch came from (for frontier updates)
@@ -371,6 +373,8 @@ export function createSyncRequest(frontier) {
  * @param {import('../../ports/GraphPersistencePort.js').default & import('../../ports/CommitPort.js').default & import('../../ports/BlobPort.js').default} persistence - Git persistence
  *   layer for loading patches (uses CommitPort + BlobPort methods)
  * @param {string} graphName - Graph name for error messages and logging
+ * @param {Object} [options]
+ * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for deserialization
  * @returns {Promise<SyncResponse>} Response containing local frontier and patches.
  *   Patches are ordered chronologically within each writer.
  * @throws {Error} If patch loading fails for reasons other than divergence

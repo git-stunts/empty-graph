@@ -20,7 +20,7 @@ cd "$ROOT"
 TMPFILE=$(mktemp)
 trap 'rm -f "$TMPFILE"' EXIT
 
-git diff --cached --name-only --diff-filter=ACM -z | grep -zE '\.(js|mjs|cjs)$' > "$TMPFILE"
+git diff --cached --name-only --diff-filter=ACM -z | grep -zE '\.(js|mjs|cjs)$' > "$TMPFILE" || true
 
 # Check if there are any JS files to lint (file will be empty if none)
 if [ -s "$TMPFILE" ]; then

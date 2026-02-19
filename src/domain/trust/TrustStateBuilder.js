@@ -62,7 +62,7 @@ export function buildState(records) {
     const parsed = TrustRecordSchema.safeParse(record);
     if (!parsed.success) {
       errors.push({
-        recordId: /** @type {string} */ (record.recordId) ?? '(unknown)',
+        recordId: typeof record.recordId === 'string' ? record.recordId : '(unknown)',
         error: `Schema validation failed: ${parsed.error.message}`,
       });
       continue;

@@ -29,7 +29,16 @@ failed at runtime against a real GitGraphAdapter.
 - **Stray transcript file** — Removed `2026-02-17-131249-…w.txt` accidentally committed with M9.
 - **BitmapIndexReader return types** — `_handleShardError`, `_tryHandleShardError`, and `_getOrLoadShard` return types now include `RoaringBitmapSubset` for the bitmap-format branch.
 - **`_tryHandleShardError` guard** — Added `instanceof Error` guard, removing bare `/** @type {Error} */` cast on `unknown` catch variable.
-- **Test cast simplification** — Replaced verbose 100+ char `RoaringBitmapSubset` import casts with `/** @type {*} */` in `WarpStateIndexBuilder.test.js` (test files are outside the wildcard fence).
+- **Test cast simplification** — Replaced `/** @type {*} */` with structural `{ has: (id: number) => boolean }` in `WarpStateIndexBuilder.test.js`.
+- **pre-commit hook** — Added `|| true` to `grep -zE` so non-JS commits don't abort under `set -e`.
+- **loadFence robustness** — `loadFence()` in `ts-policy-check.js` now distinguishes ENOENT (returns null) from JSON parse errors (throws). Prevents malformed fence from silently disabling the ratchet.
+- **HttpSyncServer authSchema** — Added JSDoc type annotations to `z.custom()` for `crypto` and `logger` so `z.infer<>` preserves port types instead of inferring `unknown`.
+- **TrustStateBuilder recordId** — Replaced `/** @type {string} */ (record.recordId) ?? '(unknown)'` with `typeof` guard so the nullish fallback is actually reachable.
+- **SyncProtocol types** — `patch: Object` → `patch: DecodedPatch` in `SyncResponse` typedef and `loadPatchRange` return. Added missing `@param` for `{ codec }` on both `processSyncRequest` and `loadPatchRange`.
+- **TrustRecordService.readRecords guard** — Added `blobOid` null check before calling `readBlob()`, mirroring the pattern in `_readTip`.
+- **CommitDagTraversalService constructor** — Removed `= {}` default so TypeScript enforces the required `indexReader` at compile time.
+- **PatchCommitEvent.sha** — Made `sha` property required (was optional but always provided at emission).
+- **prepack gate** — Wired `typecheck:consumer` into `prepack` script.
 
 ## [11.3.1] — 2026-02-18 — M8 IRONCLAD: Embedded Wildcard Elimination
 

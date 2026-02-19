@@ -23,7 +23,7 @@
 /**
  * @typedef {Object} PatchCommitEvent
  * @property {unknown} [patch]
- * @property {string} [sha]
+ * @property {string} sha
  */
 
 export {};

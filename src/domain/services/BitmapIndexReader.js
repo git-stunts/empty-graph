@@ -94,7 +94,6 @@ export default class BitmapIndexReader {
     if (!storage) {
       throw new Error('BitmapIndexReader requires a storage adapter');
     }
-    /** @type {IndexStorage} */
     this.storage = /** @type {IndexStorage} */ (storage);
     this.strict = strict;
     this.logger = logger;

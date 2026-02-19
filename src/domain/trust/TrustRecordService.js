@@ -117,12 +117,15 @@ export class TrustRecordService {
 
     while (current) {
       const info = await this._persistence.getNodeInfo(current);
+      const entries = await this._persistence.readTreeOids(
+        await this._persistence.getCommitTree(current),
+      );
+      const blobOid = entries['record.cbor'];
+      if (!blobOid) {
+        break;
+      }
       const record = /** @type {Record<string, unknown>} */ (this._codec.decode(
-        await this._persistence.readBlob(
-          (await this._persistence.readTreeOids(
-            await this._persistence.getCommitTree(current),
-          ))['record.cbor'],
-        ),
+        await this._persistence.readBlob(blobOid),
       ));
 
       records.unshift(record);

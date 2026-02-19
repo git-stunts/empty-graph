@@ -24,8 +24,8 @@ const authSchema = z.object({
     (obj) => Object.keys(obj).length > 0,
     'auth.keys must not be empty',
   ),
-  crypto: z.custom((v) => v === undefined || (typeof v === 'object' && v !== null)).optional(),
-  logger: z.custom((v) => v === undefined || (typeof v === 'object' && v !== null)).optional(),
+  crypto: /** @type {z.ZodType<import('../../ports/CryptoPort.js').default>} */ (z.custom((v) => v === undefined || (typeof v === 'object' && v !== null))).optional(),
+  logger: /** @type {z.ZodType<import('../../ports/LoggerPort.js').default>} */ (z.custom((v) => v === undefined || (typeof v === 'object' && v !== null))).optional(),
   wallClockMs: /** @type {z.ZodType<() => number>} */ (z.custom((v) => v === undefined || typeof v === 'function')).optional(),
 }).strict();
 

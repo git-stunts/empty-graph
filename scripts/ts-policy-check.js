@@ -72,8 +72,11 @@ async function loadFence() {
   try {
     const raw = await readFile(fencePath, 'utf8');
     return JSON.parse(raw);
-  } catch {
-    return null;
+  } catch (err) {
+    if (err && /** @type {NodeJS.ErrnoException} */ (err).code === 'ENOENT') {
+      return null;
+    }
+    throw new Error(`Failed to load ${fencePath}: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
 
