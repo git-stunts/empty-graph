@@ -202,7 +202,7 @@ function checkBodySize(body, maxBytes) {
  * Parses and validates the request body as a sync request.
  *
  * @param {Buffer|undefined} body
- * @returns {{ error: { status: number, headers: Object, body: string }, parsed: null } | { error: null, parsed: Record<string, unknown> }}
+ * @returns {{ error: { status: number, headers: Object, body: string }, parsed: null } | { error: null, parsed: import('./SyncProtocol.js').SyncRequest }}
  * @private
  */
 function parseBody(body) {
@@ -310,29 +310,31 @@ export default class HttpSyncServer {
     return null;
   }
 
-  /** @param {{ method: string, url: string, headers: { [x: string]: string }, body: Buffer|undefined }} request */
+  /** @param {{ method: string, url: string, headers: Object, body: Buffer|undefined }} request */
   async _handleRequest(request) {
-    const contentTypeError = checkContentType(request.headers);
+    /** @type {{ method: string, url: string, headers: Record<string, string>, body: Buffer|undefined }} */
+    const req = { ...request, headers: /** @type {Record<string, string>} */ (request.headers) };
+    const contentTypeError = checkContentType(req.headers);
     if (contentTypeError) {
       return contentTypeError;
     }
 
-    const routeError = validateRoute(request, this._path, this._host);
+    const routeError = validateRoute(req, this._path, this._host);
     if (routeError) {
       return routeError;
     }
 
-    const sizeError = checkBodySize(request.body, this._maxRequestBytes);
+    const sizeError = checkBodySize(req.body, this._maxRequestBytes);
     if (sizeError) {
       return sizeError;
     }
 
-    const { error, parsed } = parseBody(request.body);
+    const { error, parsed } = parseBody(req.body);
     if (error) {
       return error;
     }
 
-    const authError = await this._authorize(request, parsed);
+    const authError = await this._authorize(req, parsed);
     if (authError) {
       return authError;
     }
@@ -359,7 +361,7 @@ export default class HttpSyncServer {
 
     /** @type {{ listen: Function, close: Function, address: Function }} */
     const server = this._httpPort.createServer(
-      (/** @type {{ method: string, url: string, headers: Record<string, string>, body: Buffer|undefined }} */ request) => this._handleRequest(request),
+      (/** @type {{ method: string, url: string, headers: Object, body: Buffer|undefined }} */ request) => this._handleRequest(request),
     );
     this._server = server;
 
