@@ -35,7 +35,7 @@
  * Inline value reference - value stored directly in the operation
  * @typedef {Object} ValueRefInline
  * @property {'inline'} type - Discriminator for inline values
- * @property {*} value - The actual value (any JSON-serializable type)
+ * @property {unknown} value - The actual value (any JSON-serializable type)
  */
 
 /**
@@ -70,7 +70,7 @@
 
 /**
  * Creates an inline value reference
- * @param {*} value - The value to store inline
+ * @param {unknown} value - The value to store inline
  * @returns {ValueRefInline} Inline value reference
  */
 export function createInlineValue(value) {

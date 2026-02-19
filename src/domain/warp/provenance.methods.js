@@ -13,6 +13,8 @@ import { createEmptyStateV5, reduceV5 } from '../services/JoinReducer.js';
 import { ProvenancePayload } from '../services/ProvenancePayload.js';
 import { decodePatchMessage, detectMessageKind } from '../services/WarpMessageCodec.js';
 
+/** @typedef {import('../types/WarpTypesV2.js').PatchV2} PatchV2 */
+
 /**
  * Returns all patch SHAs that affected a given node or edge.
  *
@@ -184,7 +186,7 @@ export async function _computeBackwardCone(nodeId) {
       cone.set(sha, patch);
 
       // Add read dependencies to the queue
-      const patchReads = /** @type {any} */ (patch)?.reads; // TODO(ts-cleanup): type patch array
+      const patchReads = /** @type {{reads?: string[]}} */ (patch).reads;
       if (patchReads) {
         for (const readEntity of patchReads) {
           if (!visited.has(readEntity)) {
@@ -261,8 +263,8 @@ export async function _loadPatchesBySha(shas) {
  * This ensures deterministic ordering regardless of discovery order.
  *
  * @this {import('../WarpGraph.js').default}
- * @param {Array<{patch: any, sha: string}>} patches - Unsorted patch entries
- * @returns {Array<{patch: any, sha: string}>} Sorted patch entries
+ * @param {Array<{patch: PatchV2, sha: string}>} patches - Unsorted patch entries
+ * @returns {Array<{patch: PatchV2, sha: string}>} Sorted patch entries
  */
 export function _sortPatchesCausally(patches) {
   return [...patches].sort((a, b) => {

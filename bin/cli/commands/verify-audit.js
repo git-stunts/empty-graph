@@ -46,20 +46,20 @@ export function parseVerifyAuditArgs(args) {
 
 /**
  * @param {{options: CliOptions, args: string[]}} params
- * @returns {Promise<{payload: *, exitCode: number}>}
+ * @returns {Promise<{payload: unknown, exitCode: number}>}
  */
 export default async function handleVerifyAudit({ options, args }) {
   const { since, writerFilter, trustMode, trustPin } = parseVerifyAuditArgs(args);
   const { persistence } = await createPersistence(options.repo);
   const graphName = await resolveGraphName(persistence, options.graph);
   const verifier = new AuditVerifierService({
-    persistence: /** @type {*} */ (persistence), // TODO(ts-cleanup): narrow port type
+    persistence: /** @type {import('../../../src/domain/types/WarpPersistence.js').CorePersistence} */ (/** @type {unknown} */ (persistence)),
     codec: defaultCodec,
   });
 
   const trustWarning = detectTrustWarning();
 
-  /** @type {*} */ // TODO(ts-cleanup): type verify-audit payload
+  /** @type {Record<string, unknown>} */
   let payload;
   if (writerFilter !== undefined) {
     const chain = await verifier.verifyChain(graphName, writerFilter, { since });
@@ -88,7 +88,7 @@ export default async function handleVerifyAudit({ options, args }) {
         mode: trustMode,
       });
       payload.trustAssessment = trustAssessment;
-    } catch (/** @type {*} */ err) { // TODO(ts-cleanup): type catch
+    } catch (err) {
       if (trustMode === 'enforce') {
         throw err;
       }
@@ -96,14 +96,15 @@ export default async function handleVerifyAudit({ options, args }) {
         trustSchemaVersion: 1,
         mode: 'signed_evidence_v1',
         trustVerdict: 'error',
-        error: err?.message ?? 'Trust evaluation failed',
+        error: err instanceof Error ? err.message : 'Trust evaluation failed',
       };
     }
   }
 
-  const hasInvalid = payload.summary.invalid > 0;
+  const { summary, trustAssessment } = /** @type {{summary: {invalid: number}, trustAssessment?: {trustVerdict?: string}}} */ (payload);
+  const hasInvalid = summary.invalid > 0;
   const trustFailed = trustMode === 'enforce' &&
-    payload.trustAssessment?.trustVerdict === 'fail';
+    trustAssessment?.trustVerdict === 'fail';
   return {
     payload,
     exitCode: trustFailed ? EXIT_CODES.TRUST_FAIL

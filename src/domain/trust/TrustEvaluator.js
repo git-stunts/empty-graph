@@ -17,6 +17,21 @@ import { deriveTrustVerdict } from './verdict.js';
  */
 
 /**
+ * @typedef {Object} TrustAssessment
+ * @property {number} trustSchemaVersion
+ * @property {string} mode
+ * @property {string} trustVerdict
+ * @property {Object} trust
+ * @property {'configured'|'pinned'|'error'|'not_configured'} trust.status
+ * @property {string} trust.source
+ * @property {string|null} trust.sourceDetail
+ * @property {string[]} trust.evaluatedWriters
+ * @property {string[]} trust.untrustedWriters
+ * @property {ReadonlyArray<{writerId: string, trusted: boolean, reasonCode: string, reason: string}>} trust.explanations
+ * @property {Record<string, number> & {recordsScanned: number, activeKeys: number, revokedKeys: number, activeBindings: number, revokedBindings: number}} trust.evidenceSummary
+ */
+
+/**
  * Evaluates trust status for a set of writers against the current trust state.
  *
  * For each writer (sorted deterministically), checks:
@@ -25,8 +40,8 @@ import { deriveTrustVerdict } from './verdict.js';
  *
  * @param {string[]} writerIds - Writer IDs to evaluate
  * @param {TrustState} trustState - Built trust state from TrustStateBuilder
- * @param {Record<string, *>} policy - Trust policy configuration
- * @returns {Record<string, *>} Frozen TrustAssessment object
+ * @param {Record<string, unknown>} policy - Trust policy configuration
+ * @returns {TrustAssessment} Frozen TrustAssessment object
  */
 export function evaluateWriters(writerIds, trustState, policy) {
   const policyResult = TrustPolicySchema.safeParse(policy);
@@ -130,7 +145,7 @@ function evaluateSingleWriter(writerId, trustState) {
  *
  * @param {string[]} writerIds
  * @param {string} reasonCode
- * @returns {Record<string, *>}
+ * @returns {TrustAssessment}
  */
 function buildErrorAssessment(writerIds, reasonCode) {
   const sortedWriters = [...writerIds].sort();

@@ -443,8 +443,9 @@ describe('PatchBuilderV2', () => {
 
       const patch = builder.build();
       expect(patch.context).toBeDefined();
-      expect(/** @type {any} */ (patch.context).get('writer1')).toBe(1);
-      expect(/** @type {any} */ (patch.context).get('otherWriter')).toBe(5);
+      // vvSerialize converts Map to plain object
+      expect(/** @type {Record<string, number>} */ (patch.context)['writer1']).toBe(1);
+      expect(/** @type {Record<string, number>} */ (patch.context)['otherWriter']).toBe(5);
     });
 
     it('context is the updated version vector with increments', () => {
@@ -458,8 +459,8 @@ describe('PatchBuilderV2', () => {
       builder.addNode('a').addNode('b').addEdge('a', 'b', 'link');
 
       const patch = builder.build();
-      // Context should reflect all 3 increments
-      expect(/** @type {any} */ (patch.context).get('writer1')).toBe(3);
+      // Context should reflect all 3 increments (vvSerialize converts Map → plain object)
+      expect(/** @type {Record<string, number>} */ (patch.context)['writer1']).toBe(3);
     });
   });
 

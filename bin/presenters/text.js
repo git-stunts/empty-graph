@@ -7,6 +7,28 @@
 
 import { formatStructuralDiff } from '../../src/visualization/renderers/ascii/seek.js';
 
+// ── Payload typedefs ────────────────────────────────────────────────────────
+
+/**
+ * @typedef {{ installed: boolean, foreign?: boolean, current?: boolean, version?: string }} HookStatus
+ * @typedef {{ repo: string, graphs: Array<{ name: string, writers?: { count: number } | null, checkpoint?: { sha: string } | null, coverage?: { sha: string } | null, cursor?: { active: boolean, tick: number, mode: string } | null }> }} InfoPayload
+ * @typedef {{ graph: string, stateHash?: string, nodes: Array<{ id?: string, props?: Record<string, unknown>, edges?: NodeEdges }>, _renderedAscii?: string, _renderedSvg?: string }} QueryPayload
+ * @typedef {{ outgoing?: Array<{ label: string, to: string }>, incoming?: Array<{ label: string, from: string }> }} NodeEdges
+ * @typedef {{ graph: string, from: string, to: string, found: boolean, length?: number, path?: string[] }} PathPayload
+ * @typedef {{ graph: string, health: { status: string }, checkpoint?: { sha: string, ageSeconds: number | null } | null, writers: { count: number, heads: Array<{ writerId: string, sha: string }> }, coverage?: { sha: string, missingWriters: string[] } | null, gc?: { totalTombstones: number, tombstoneRatio: number } | null, hook?: HookStatus | null, status?: { cachedState: string, patchesSinceCheckpoint: number, tombstoneRatio: number, writers: number } | null }} CheckPayload
+ * @typedef {{ graph: string, writer: string, nodeFilter?: string | null, entries: Array<{ sha: string, lamport: number, opCount: number }> }} HistoryPayload
+ * @typedef {{ error: { message: string } }} ErrorPayload
+ * @typedef {{ graphs: Array<{ graph: string, nodes?: number, edges?: number, checkpoint?: string, error?: string }> }} MaterializePayload
+ * @typedef {{ action: string, hookPath?: string, version?: string, backupPath?: string, name?: string }} InstallHooksPayload
+ * @typedef {{ graph?: string, action: string, tick?: number, maxTick?: number, ticks?: number[], nodes?: number, edges?: number, patchCount?: number, perWriter?: Record<string, unknown>, diff?: { nodes?: number, edges?: number } | null, tickReceipt?: Record<string, unknown>, structuralDiff?: import('../../src/domain/services/StateDiff.js').StateDiffResult | null, cursor?: { active: boolean, tick?: number }, message?: string, cursors?: Array<{ name: string, tick: number }>, activeTick?: number | null, name?: string, diffBaseline?: string, baselineTick?: number | null, truncated?: boolean, totalChanges?: number, shownChanges?: number }} SeekPayload
+ * @typedef {{ graph: string, health: string, checkedAt: string, summary: { checksRun: number, findingsTotal: number, ok: number, warn: number, fail: number, priorityActions: string[] }, findings: Array<{ status: string, id: string, message: string, fix?: string }> }} DoctorPayload
+ * @typedef {{ graph: string, verifiedAt: string, summary: { total: number, valid: number, partial: number, invalid: number }, chains: Array<{ writerId: string, status: string, receiptsVerified: number, since?: string, errors: Array<{ code: string, message: string }>, warnings: Array<{ code: string, message: string }> }>, trustWarning?: { message: string } }} VerifyAuditPayload
+ * @typedef {{ graph: string, trustVerdict: string, mode: string, trust: { source: string, evidenceSummary: { activeKeys: number, revokedKeys: number, activeBindings: number }, explanations: Array<{ trusted: boolean, writerId: string, reasonCode: string, reason: string }>, untrustedWriters: string[] } }} TrustPayload
+ * @typedef {{ type: string, node?: string, from?: string, to?: string, label?: string, key?: string, value?: unknown }} PatchOp
+ * @typedef {{ graph: string, sha: string, writer: string, lamport: number, schema?: number, ops: PatchOp[] }} PatchShowPayload
+ * @typedef {{ graph: string, total: number, showing: number, writerFilter?: string | null, entries: Array<{ sha: string, writer: string, lamport: number, opCount: number, nodeIds: string[] }> }} PatchListPayload
+ */
+
 // ── ANSI helpers ─────────────────────────────────────────────────────────────
 
 const ANSI_GREEN = '\x1b[32m';
@@ -26,7 +48,7 @@ function colorCachedState(state) {
   return `${ANSI_RED}${ANSI_DIM}${state}${ANSI_RESET}`;
 }
 
-/** @param {*} hook */
+/** @param {HookStatus} hook */
 function formatHookStatusLine(hook) {
   if (!hook.installed && hook.foreign) {
     return "Hook: foreign hook present — run 'git warp install-hooks'";
@@ -42,7 +64,7 @@ function formatHookStatusLine(hook) {
 
 // ── Simple renderers ─────────────────────────────────────────────────────────
 
-/** @param {*} payload */
+/** @param {InfoPayload} payload */
 export function renderInfo(payload) {
   const lines = [`Repo: ${payload.repo}`];
   lines.push(`Graphs: ${payload.graphs.length}`);
@@ -65,7 +87,7 @@ export function renderInfo(payload) {
 /**
  * Appends edge lines for a single node to the output array.
  * @param {string[]} lines
- * @param {*} edges
+ * @param {NodeEdges} edges
  */
 function appendNodeEdges(lines, edges) {
   if (edges.outgoing && edges.outgoing.length > 0) {
@@ -80,7 +102,7 @@ function appendNodeEdges(lines, edges) {
   }
 }
 
-/** @param {*} payload */
+/** @param {QueryPayload} payload */
 export function renderQuery(payload) {
   const lines = [
     `Graph: ${payload.graph}`,
@@ -102,7 +124,7 @@ export function renderQuery(payload) {
   return `${lines.join('\n')}\n`;
 }
 
-/** @param {*} payload */
+/** @param {PathPayload} payload */
 export function renderPath(payload) {
   const lines = [
     `Graph: ${payload.graph}`,
@@ -125,7 +147,7 @@ export function renderPath(payload) {
 /**
  * Appends checkpoint and writer lines to check output.
  * @param {string[]} lines
- * @param {*} payload
+ * @param {CheckPayload} payload
  */
 function appendCheckpointAndWriters(lines, payload) {
   if (payload.checkpoint?.sha) {
@@ -148,7 +170,7 @@ function appendCheckpointAndWriters(lines, payload) {
 /**
  * Appends coverage, gc, and hook lines to check output.
  * @param {string[]} lines
- * @param {*} payload
+ * @param {CheckPayload} payload
  */
 function appendCoverageAndExtras(lines, payload) {
   if (payload.coverage?.sha) {
@@ -170,7 +192,7 @@ function appendCoverageAndExtras(lines, payload) {
   }
 }
 
-/** @param {*} payload */
+/** @param {CheckPayload} payload */
 export function renderCheck(payload) {
   const lines = [
     `Graph: ${payload.graph}`,
@@ -189,7 +211,7 @@ export function renderCheck(payload) {
   return `${lines.join('\n')}\n`;
 }
 
-/** @param {*} payload */
+/** @param {HistoryPayload} payload */
 export function renderHistory(payload) {
   const lines = [
     `Graph: ${payload.graph}`,
@@ -208,12 +230,12 @@ export function renderHistory(payload) {
   return `${lines.join('\n')}\n`;
 }
 
-/** @param {*} payload */
+/** @param {ErrorPayload} payload */
 export function renderError(payload) {
   return `Error: ${payload.error.message}\n`;
 }
 
-/** @param {*} payload */
+/** @param {MaterializePayload} payload */
 export function renderMaterialize(payload) {
   if (payload.graphs.length === 0) {
     return 'No graphs found in repo.\n';
@@ -230,7 +252,7 @@ export function renderMaterialize(payload) {
   return `${lines.join('\n')}\n`;
 }
 
-/** @param {*} payload */
+/** @param {InstallHooksPayload} payload */
 export function renderInstallHooks(payload) {
   if (payload.action === 'up-to-date') {
     return `Hook: already up to date (v${payload.version}) at ${payload.hookPath}\n`;
@@ -249,10 +271,10 @@ export function renderInstallHooks(payload) {
 
 /**
  * Formats a numeric delta as " (+N)" or " (-N)", or empty string for zero/non-finite.
- * @param {*} n
+ * @param {unknown} n
  * @returns {string}
  */
-function formatDelta(n) { // TODO(ts-cleanup): type CLI payload
+function formatDelta(n) {
   if (typeof n !== 'number' || !Number.isFinite(n) || n === 0) {
     return '';
   }
@@ -262,10 +284,10 @@ function formatDelta(n) { // TODO(ts-cleanup): type CLI payload
 
 /**
  * Formats an operation summary object as a compact plain-text string.
- * @param {*} summary
+ * @param {Record<string, number> | null | undefined} summary
  * @returns {string}
  */
-function formatOpSummaryPlain(summary) { // TODO(ts-cleanup): type CLI payload
+function formatOpSummaryPlain(summary) {
   const order = [
     ['NodeAdd', '+', 'node'],
     ['EdgeAdd', '+', 'edge'],
@@ -288,7 +310,7 @@ function formatOpSummaryPlain(summary) { // TODO(ts-cleanup): type CLI payload
 /**
  * Appends a per-writer tick receipt summary below a base line.
  * @param {string} baseLine
- * @param {*} payload
+ * @param {SeekPayload} payload
  * @returns {string}
  */
 function appendReceiptSummary(baseLine, payload) {
@@ -308,8 +330,12 @@ function appendReceiptSummary(baseLine, payload) {
   const maxWriterLen = Math.max(5, ...entries.map(([writerId]) => writerId.length));
   const receiptLines = [`  Tick ${payload.tick}:`];
   for (const [writerId, entry] of entries) {
-    const sha = typeof entry.sha === 'string' ? entry.sha.slice(0, 7) : '';
-    const opSummary = entry.opSummary && typeof entry.opSummary === 'object' ? entry.opSummary : entry;
+    /** @type {Record<string, unknown>} */
+    const rec = /** @type {Record<string, unknown>} */ (entry);
+    const sha = typeof rec.sha === 'string' ? rec.sha.slice(0, 7) : '';
+    const opSummary = rec.opSummary && typeof rec.opSummary === 'object'
+      ? /** @type {Record<string, number>} */ (rec.opSummary)
+      : /** @type {Record<string, number>} */ (rec);
     receiptLines.push(`    ${writerId.padEnd(maxWriterLen)}  ${sha.padEnd(7)}  ${formatOpSummaryPlain(opSummary)}`);
   }
 
@@ -318,7 +344,7 @@ function appendReceiptSummary(baseLine, payload) {
 
 /**
  * Builds human-readable state count strings from a seek payload.
- * @param {*} payload
+ * @param {SeekPayload} payload
  * @returns {{nodesStr: string, edgesStr: string, patchesStr: string}}
  */
 function buildStateStrings(payload) {
@@ -334,20 +360,20 @@ function buildStateStrings(payload) {
 
 /**
  * Renders the "tick" / "latest" / "load" seek action with receipt + structural diff.
- * @param {*} payload
+ * @param {SeekPayload} payload
  * @param {string} headerLine
  * @returns {string}
  */
 function renderSeekWithDiff(payload, headerLine) {
   const base = appendReceiptSummary(headerLine, payload);
-  return base + formatStructuralDiff(payload);
+  return base + formatStructuralDiff(/** @type {import('../../src/visualization/renderers/ascii/seek.js').SeekPayload} */ (payload));
 }
 
 // ── Seek simple-action renderers ─────────────────────────────────────────────
 
 /**
  * Renders seek actions that don't involve state counts: clear-cache, list, drop, save.
- * @param {*} payload
+ * @param {SeekPayload} payload
  * @returns {string|null} Rendered string, or null if action is not simple
  */
 function renderSeekSimple(payload) {
@@ -368,11 +394,11 @@ function renderSeekSimple(payload) {
 
 /**
  * Renders the cursor list action.
- * @param {*} payload
+ * @param {SeekPayload} payload
  * @returns {string}
  */
 function renderSeekList(payload) {
-  if (payload.cursors.length === 0) {
+  if (!payload.cursors || payload.cursors.length === 0) {
     return 'No saved cursors.\n';
   }
   const lines = [];
@@ -387,7 +413,7 @@ function renderSeekList(payload) {
 
 /**
  * Renders seek actions that show state: latest, load, tick, status.
- * @param {*} payload
+ * @param {SeekPayload} payload
  * @returns {string}
  */
 function renderSeekState(payload) {
@@ -420,19 +446,19 @@ function renderSeekState(payload) {
       payload,
     );
   }
-  return `${payload.graph}: no cursor active, ${payload.ticks.length} ticks available\n`;
+  return `${payload.graph}: no cursor active, ${(payload.ticks ?? []).length} ticks available\n`;
 }
 
 // ── Seek main renderer ──────────────────────────────────────────────────────
 
-/** @param {*} payload */
+/** @param {SeekPayload} payload */
 export function renderSeek(payload) {
   return renderSeekSimple(payload) ?? renderSeekState(payload);
 }
 
 // ── Doctor renderer ──────────────────────────────────────────────────────────
 
-/** @param {'ok'|'warn'|'fail'} status */
+/** @param {string} status */
 function findingIcon(status) {
   if (status === 'ok') {
     return `${ANSI_GREEN}\u2713${ANSI_RESET}`;
@@ -443,7 +469,7 @@ function findingIcon(status) {
   return `${ANSI_RED}\u2717${ANSI_RESET}`;
 }
 
-/** @param {'ok'|'degraded'|'failed'} health */
+/** @param {string} health */
 function colorHealth(health) {
   if (health === 'ok') {
     return `${ANSI_GREEN}${health}${ANSI_RESET}`;
@@ -454,7 +480,7 @@ function colorHealth(health) {
   return `${ANSI_RED}${health}${ANSI_RESET}`;
 }
 
-/** @param {*} payload */
+/** @param {DoctorPayload} payload */
 export function renderDoctor(payload) {
   const lines = [
     `Graph: ${payload.graph}`,
@@ -492,7 +518,7 @@ function colorStatus(status) {
   return `${ANSI_RED}${status}${ANSI_RESET}`;
 }
 
-/** @param {*} payload */
+/** @param {VerifyAuditPayload} payload */
 export function renderVerifyAudit(payload) {
   const lines = [
     `Graph: ${payload.graph}`,
@@ -537,7 +563,7 @@ function colorVerdict(verdict) {
   return `${ANSI_RED}${verdict}${ANSI_RESET}`;
 }
 
-/** @param {*} payload */
+/** @param {TrustPayload} payload */
 export function renderTrust(payload) {
   const lines = [
     `Graph: ${payload.graph}`,
@@ -570,7 +596,7 @@ export function renderTrust(payload) {
 
 /**
  * Formats a single operation line for patch show output.
- * @param {*} op
+ * @param {PatchOp} op
  * @returns {string|null}
  */
 function formatPatchOp(op) {
@@ -595,7 +621,7 @@ function formatPatchOp(op) {
   return null;
 }
 
-/** @param {*} payload */
+/** @param {PatchShowPayload} payload */
 export function renderPatchShow(payload) {
   const lines = [
     `Graph: ${payload.graph}`,
@@ -617,7 +643,7 @@ export function renderPatchShow(payload) {
   return `${lines.join('\n')}\n`;
 }
 
-/** @param {*} payload */
+/** @param {PatchListPayload} payload */
 export function renderPatchList(payload) {
   const lines = [
     `Graph: ${payload.graph}`,

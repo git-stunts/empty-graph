@@ -7,7 +7,7 @@
  */
 
 /**
- * @typedef {{ id: string, label: string, props?: Record<string, any> }} GraphDataNode
+ * @typedef {{ id: string, label: string, props?: Record<string, unknown> }} GraphDataNode
  * @typedef {{ from: string, to: string, label?: string }} GraphDataEdge
  * @typedef {{ nodes: GraphDataNode[], edges: GraphDataEdge[] }} GraphData
  */
@@ -16,7 +16,7 @@
  * Converts a query result payload + edge array into graph data.
  * Edges are filtered to only those connecting matched nodes.
  *
- * @param {{ nodes?: Array<{ id: string, props?: Record<string, any> }> } | null} payload - Query result
+ * @param {{ nodes?: Array<{ id: string, props?: Record<string, unknown> }> } | null} payload - Query result
  * @param {Array<{ from: string, to: string, label?: string }>}  edges   - Edge array from graph.getEdges()
  * @returns {GraphData}
  */

@@ -16,9 +16,9 @@ const patchSchema = z.object({
 
 /**
  * Collects all patches across all writers (or a single writer).
- * @param {*} graph
+ * @param {import('../types.js').WarpGraphInstance} graph
  * @param {string|null} writerFilter
- * @returns {Promise<Array<{sha: string, writer: string, patch: *}>>}
+ * @returns {Promise<Array<{sha: string, writer: string, patch: {schema?: number, lamport: number, ops?: Array<Record<string, unknown>>, context?: Record<string, unknown>}}>>}
  */
 async function collectPatches(graph, writerFilter) {
   const writers = writerFilter ? [writerFilter] : await graph.discoverWriters();
@@ -37,7 +37,7 @@ async function collectPatches(graph, writerFilter) {
 /**
  * Handles the `patch` command: show or list decoded patches.
  * @param {{options: CliOptions, args: string[]}} params
- * @returns {Promise<{payload: *, exitCode: number}>}
+ * @returns {Promise<{payload: unknown, exitCode: number}>}
  */
 export default async function handlePatch({ options, args }) {
   // First positional is the subaction: show or list
@@ -58,7 +58,7 @@ export default async function handlePatch({ options, args }) {
 
 /**
  * @param {{options: CliOptions, args: string[]}} params
- * @returns {Promise<{payload: *, exitCode: number}>}
+ * @returns {Promise<{payload: unknown, exitCode: number}>}
  */
 async function handlePatchShow({ options, args }) {
   if (!args[0]) {
@@ -88,7 +88,7 @@ async function handlePatchShow({ options, args }) {
 
 /**
  * @param {{options: CliOptions, args: string[]}} params
- * @returns {Promise<{payload: *, exitCode: number}>}
+ * @returns {Promise<{payload: unknown, exitCode: number}>}
  */
 async function handlePatchList({ options, args }) {
   const { values } = parseCommandArgs(args, PATCH_OPTIONS, patchSchema);
@@ -103,7 +103,7 @@ async function handlePatchList({ options, args }) {
     writer: p.writer,
     lamport: p.patch.lamport,
     opCount: Array.isArray(p.patch.ops) ? p.patch.ops.length : 0,
-    nodeIds: extractNodeIds(p.patch.ops),
+    nodeIds: extractNodeIds(p.patch.ops || []),
   }));
 
   const payload = {
@@ -119,7 +119,7 @@ async function handlePatchList({ options, args }) {
 
 /**
  * Extracts unique node IDs touched by a patch's operations.
- * @param {Array<*>} ops
+ * @param {Array<Record<string, unknown>>} ops
  * @returns {string[]}
  */
 function extractNodeIds(ops) {

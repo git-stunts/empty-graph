@@ -16,6 +16,11 @@
  * @module infrastructure/adapters/CasSeekCacheAdapter
  */
 
+/**
+ * Minimal interface for the ContentAddressableStore from @git-stunts/git-cas.
+ * @typedef {{ readManifest: Function, restore: Function, store: Function, createTree: Function }} CasStore
+ */
+
 import SeekCachePort from '../../ports/SeekCachePort.js';
 import { buildSeekCacheRef } from '../../domain/utils/RefLayout.js';
 import { Readable } from 'node:stream';
@@ -59,7 +64,7 @@ export default class CasSeekCacheAdapter extends SeekCachePort {
   /**
    * Lazily initializes the ContentAddressableStore.
    * @private
-   * @returns {Promise<*>}
+   * @returns {Promise<CasStore>}
    */
   async _getCas() {
     if (!this._casPromise) {
@@ -73,7 +78,7 @@ export default class CasSeekCacheAdapter extends SeekCachePort {
 
   /**
    * @private
-   * @returns {Promise<*>}
+   * @returns {Promise<CasStore>}
    */
   async _initCas() {
     const { default: ContentAddressableStore } = await import(
@@ -132,7 +137,7 @@ export default class CasSeekCacheAdapter extends SeekCachePort {
    * @returns {Promise<CacheIndex>} The mutated index
    */
   async _mutateIndex(mutate) {
-    /** @type {*} */ // TODO(ts-cleanup): type CAS retry error
+    /** @type {unknown} */
     let lastErr;
     for (let attempt = 0; attempt < MAX_CAS_RETRIES; attempt++) {
       const index = await this._readIndex();
@@ -144,7 +149,7 @@ export default class CasSeekCacheAdapter extends SeekCachePort {
         lastErr = err;
         // Transient write failure — retry with fresh read
         if (attempt === MAX_CAS_RETRIES - 1) {
-          throw new Error(`CasSeekCacheAdapter: index update failed after retries: ${lastErr.message}`);
+          throw new Error(`CasSeekCacheAdapter: index update failed after retries: ${lastErr instanceof Error ? lastErr.message : String(lastErr)}`);
         }
       }
     }

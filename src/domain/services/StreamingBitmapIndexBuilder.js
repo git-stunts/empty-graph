@@ -8,6 +8,8 @@ import { getRoaringBitmap32 } from '../utils/roaring.js';
 import { canonicalStringify } from '../utils/canonicalStringify.js';
 import { SHARD_VERSION } from '../utils/shardVersion.js';
 
+/** @typedef {import('../types/WarpPersistence.js').IndexStorage} IndexStorage */
+
 // Re-export for backwards compatibility
 export { SHARD_VERSION };
 
@@ -81,7 +83,7 @@ export default class StreamingBitmapIndexBuilder {
    * Creates a new StreamingBitmapIndexBuilder instance.
    *
    * @param {Object} options - Configuration options
-   * @param {Object} options.storage - Storage adapter implementing IndexStoragePort.
+   * @param {import('../../ports/IndexStoragePort.js').default} options.storage - Storage adapter implementing IndexStoragePort.
    *   Required methods: writeBlob, writeTree, readBlob
    * @param {number} [options.maxMemoryBytes=52428800] - Maximum bitmap memory before flush (default 50MB).
    *   Note: SHA→ID mappings are not counted against this limit as they must remain in memory.
@@ -106,8 +108,8 @@ export default class StreamingBitmapIndexBuilder {
     /** @type {import('../../ports/CodecPort.js').default} */
     this._codec = codec || defaultCodec;
 
-    /** @type {Object} */
-    this.storage = storage;
+    /** @type {IndexStorage} */
+    this.storage = /** @type {IndexStorage} */ (storage);
 
     /** @type {number} */
     this.maxMemoryBytes = maxMemoryBytes;
@@ -124,7 +126,7 @@ export default class StreamingBitmapIndexBuilder {
     /** @type {string[]} ID → SHA reverse mapping (kept in memory) */
     this.idToSha = [];
 
-    /** @type {Map<string, any>} Current in-memory bitmaps */
+    /** @type {Map<string, import('../utils/roaring.js').RoaringBitmapSubset>} Current in-memory bitmaps */
     this.bitmaps = new Map();
 
     /** @type {number} Estimated bytes used by current bitmaps */
@@ -139,8 +141,8 @@ export default class StreamingBitmapIndexBuilder {
     /** @type {number} Number of flush operations performed */
     this.flushCount = 0;
 
-    /** @type {any} Cached Roaring bitmap constructor */ // TODO(ts-cleanup): type lazy singleton
-    this._RoaringBitmap32 = getRoaringBitmap32(); // TODO(ts-cleanup): type lazy singleton
+    /** @type {typeof import('roaring').RoaringBitmap32} Cached Roaring bitmap constructor */
+    this._RoaringBitmap32 = getRoaringBitmap32();
   }
 
   /**
@@ -206,7 +208,7 @@ export default class StreamingBitmapIndexBuilder {
       if (!bitmapShards[type][prefix]) {
         bitmapShards[type][prefix] = {};
       }
-      bitmapShards[type][prefix][sha] = bitmap.serialize(true).toString('base64');
+      bitmapShards[type][prefix][sha] = Buffer.from(bitmap.serialize(true)).toString('base64');
     }
     return bitmapShards;
   }
@@ -238,7 +240,7 @@ export default class StreamingBitmapIndexBuilder {
               data: shardData,
             };
             const buffer = Buffer.from(JSON.stringify(envelope));
-            const oid = await /** @type {any} */ (this.storage).writeBlob(buffer); // TODO(ts-cleanup): narrow port type
+            const oid = await this.storage.writeBlob(buffer);
             if (!this.flushedChunks.has(path)) {
               this.flushedChunks.set(path, []);
             }
@@ -348,7 +350,7 @@ export default class StreamingBitmapIndexBuilder {
           data: map,
         };
         const buffer = Buffer.from(JSON.stringify(envelope));
-        const oid = await /** @type {any} */ (this.storage).writeBlob(buffer); // TODO(ts-cleanup): narrow port type
+        const oid = await this.storage.writeBlob(buffer);
         return `100644 blob ${oid}\t${path}`;
       })
     );
@@ -410,8 +412,8 @@ export default class StreamingBitmapIndexBuilder {
    * @param {Object} [options] - Finalization options
    * @param {AbortSignal} [options.signal] - Optional AbortSignal for cancellation.
    *   If aborted, throws an error with code 'ABORT_ERR'.
-   * @param {Map<string, number>} [options.frontier] - Optional version vector frontier
-   *   (writerId → clock) for staleness detection. If provided, frontier.cbor and
+   * @param {Map<string, string>} [options.frontier] - Optional writer frontier
+   *   (writerId → tip SHA) for staleness detection. If provided, frontier.cbor and
    *   frontier.json files are included in the tree.
    * @returns {Promise<string>} OID of the created Git tree containing the complete index
    * @throws {Error} If the operation is aborted via signal
@@ -440,19 +442,19 @@ export default class StreamingBitmapIndexBuilder {
 
     // Store frontier metadata for staleness detection
     if (frontier) {
-      /** @type {Record<string, number|undefined>} */
+      /** @type {Record<string, string|undefined>} */
       const sorted = {};
       for (const key of Array.from(frontier.keys()).sort()) {
         sorted[key] = frontier.get(key);
       }
       const envelope = { version: 1, writerCount: frontier.size, frontier: sorted };
-      const cborOid = await /** @type {any} */ (this.storage).writeBlob(Buffer.from(/** @type {any} */ (this._codec).encode(envelope))); // TODO(ts-cleanup): narrow port type
+      const cborOid = await this.storage.writeBlob(Buffer.from(this._codec.encode(envelope)));
       flatEntries.push(`100644 blob ${cborOid}\tfrontier.cbor`);
-      const jsonOid = await /** @type {any} */ (this.storage).writeBlob(Buffer.from(canonicalStringify(envelope))); // TODO(ts-cleanup): narrow port type
+      const jsonOid = await this.storage.writeBlob(Buffer.from(canonicalStringify(envelope)));
       flatEntries.push(`100644 blob ${jsonOid}\tfrontier.json`);
     }
 
-    const treeOid = await /** @type {any} */ (this.storage).writeTree(flatEntries); // TODO(ts-cleanup): narrow port type
+    const treeOid = await this.storage.writeTree(flatEntries);
 
     this.logger.debug('Index finalized', {
       operation: 'finalize',
@@ -539,7 +541,7 @@ export default class StreamingBitmapIndexBuilder {
       this.estimatedBitmapBytes += BITMAP_BASE_OVERHEAD;
     }
 
-    const bitmap = this.bitmaps.get(key);
+    const bitmap = /** @type {import('../utils/roaring.js').RoaringBitmapSubset} */ (this.bitmaps.get(key));
     const sizeBefore = bitmap.size;
     bitmap.add(id);
     const sizeAfter = bitmap.size;
@@ -569,7 +571,7 @@ export default class StreamingBitmapIndexBuilder {
    * @private
    */
   async _loadAndValidateChunk(oid) {
-    const buffer = await /** @type {any} */ (this.storage).readBlob(oid); // TODO(ts-cleanup): narrow port type
+    const buffer = await this.storage.readBlob(oid);
     let envelope;
     try {
       envelope = JSON.parse(buffer.toString('utf-8'));
@@ -577,7 +579,7 @@ export default class StreamingBitmapIndexBuilder {
       throw new ShardCorruptionError('Failed to parse shard JSON', {
         oid,
         reason: 'invalid_format',
-        context: { originalError: /** @type {any} */ (err).message }, // TODO(ts-cleanup): type error
+        context: { originalError: err instanceof Error ? err.message : String(err) },
       });
     }
 
@@ -614,7 +616,7 @@ export default class StreamingBitmapIndexBuilder {
    * it using `orInPlace` to combine edge sets.
    *
    * @param {Object} opts - Options object
-   * @param {Record<string, any>} opts.merged - Object mapping SHA to
+   * @param {Record<string, import('../utils/roaring.js').RoaringBitmapSubset>} opts.merged - Object mapping SHA to
    *   RoaringBitmap32 instances (mutated in place)
    * @param {string} opts.sha - The SHA key for this bitmap (40-character hex string)
    * @param {string} opts.base64Bitmap - Base64-encoded serialized RoaringBitmap32 data
@@ -631,7 +633,7 @@ export default class StreamingBitmapIndexBuilder {
       throw new ShardCorruptionError('Failed to deserialize bitmap', {
         oid,
         reason: 'invalid_bitmap',
-        context: { originalError: /** @type {any} */ (err).message }, // TODO(ts-cleanup): type error
+        context: { originalError: err instanceof Error ? err.message : String(err) },
       });
     }
 
@@ -675,7 +677,7 @@ export default class StreamingBitmapIndexBuilder {
    */
   async _mergeChunks(oids, { signal } = {}) {
     // Load all chunks and merge bitmaps by SHA
-    /** @type {Record<string, any>} */
+    /** @type {Record<string, import('../utils/roaring.js').RoaringBitmapSubset>} */
     const merged = {};
 
     for (const oid of oids) {
@@ -691,7 +693,7 @@ export default class StreamingBitmapIndexBuilder {
     /** @type {Record<string, string>} */
     const result = {};
     for (const [sha, bitmap] of Object.entries(merged)) {
-      result[sha] = bitmap.serialize(true).toString('base64');
+      result[sha] = Buffer.from(bitmap.serialize(true)).toString('base64');
     }
 
     // Wrap merged result in envelope with version and checksum
@@ -707,9 +709,9 @@ export default class StreamingBitmapIndexBuilder {
     } catch (err) {
       throw new ShardCorruptionError('Failed to serialize merged shard', {
         reason: 'serialization_error',
-        context: { originalError: /** @type {any} */ (err).message }, // TODO(ts-cleanup): type error
+        context: { originalError: err instanceof Error ? err.message : String(err) },
       });
     }
-    return /** @type {any} */ (this.storage).writeBlob(serialized); // TODO(ts-cleanup): narrow port type
+    return await this.storage.writeBlob(serialized);
   }
 }

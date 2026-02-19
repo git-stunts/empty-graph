@@ -37,7 +37,7 @@ export async function hasNode(nodeId) {
  *
  * @this {import('../WarpGraph.js').default}
  * @param {string} nodeId - The node ID to get properties for
- * @returns {Promise<Map<string, *>|null>} Map of property key → value, or null if node doesn't exist
+ * @returns {Promise<Map<string, unknown>|null>} Map of property key → value, or null if node doesn't exist
  * @throws {import('../errors/QueryError.js').default} If no cached state exists (code: `E_NO_STATE`)
  */
 export async function getNodeProps(nodeId) {
@@ -66,7 +66,7 @@ export async function getNodeProps(nodeId) {
  * @param {string} from - Source node ID
  * @param {string} to - Target node ID
  * @param {string} label - Edge label
- * @returns {Promise<Record<string, *>|null>} Object of property key → value, or null if edge doesn't exist
+ * @returns {Promise<Record<string, unknown>|null>} Object of property key → value, or null if edge doesn't exist
  * @throws {import('../errors/QueryError.js').default} If no cached state exists (code: `E_NO_STATE`)
  */
 export async function getEdgeProps(from, to, label) {
@@ -85,7 +85,7 @@ export async function getEdgeProps(from, to, label) {
 
   const birthEvent = s.edgeBirthEvent?.get(edgeKey);
 
-  /** @type {Record<string, any>} */
+  /** @type {Record<string, unknown>} */
   const props = {};
   for (const [propKey, register] of s.prop) {
     if (!isEdgePropKey(propKey)) {
@@ -177,7 +177,7 @@ export async function getNodes() {
  * Gets all visible edges in the materialized state.
  *
  * @this {import('../WarpGraph.js').default}
- * @returns {Promise<Array<{from: string, to: string, label: string, props: Record<string, *>}>>} Array of edge info
+ * @returns {Promise<Array<{from: string, to: string, label: string, props: Record<string, unknown>}>>} Array of edge info
  * @throws {import('../errors/QueryError.js').default} If no cached state exists (code: `E_NO_STATE`)
  */
 export async function getEdges() {
@@ -275,5 +275,6 @@ export async function observer(name, config) {
  */
 export async function translationCost(configA, configB) {
   await this._ensureFreshState();
-  return computeTranslationCost(configA, configB, this._cachedState);
+  const s = /** @type {import('../services/JoinReducer.js').WarpStateV5} */ (this._cachedState);
+  return computeTranslationCost(configA, configB, s);
 }

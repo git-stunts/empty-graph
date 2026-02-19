@@ -27,7 +27,7 @@ import { detectMessageKind, decodePatchMessage } from './WarpMessageCodec.js';
 
 /**
  * Validates that a SHA parameter is a non-empty string.
- * @param {*} sha - The SHA to validate
+ * @param {unknown} sha - The SHA to validate
  * @param {string} paramName - Parameter name for error messages
  * @throws {WormholeError} If SHA is invalid
  * @private
@@ -321,13 +321,22 @@ export function deserializeWormhole(json) {
     });
   }
 
-  const /** @type {Record<string, *>} */ typedJson = /** @type {Record<string, *>} */ (json);
+  const /** @type {Record<string, unknown>} */ typedJson = /** @type {Record<string, unknown>} */ (json);
   const requiredFields = ['fromSha', 'toSha', 'writerId', 'patchCount', 'payload'];
   for (const field of requiredFields) {
     if (typedJson[field] === undefined) {
       throw new WormholeError(`Invalid wormhole JSON: missing required field '${field}'`, {
         code: 'E_INVALID_WORMHOLE_JSON',
         context: { missingField: field },
+      });
+    }
+  }
+
+  for (const field of ['fromSha', 'toSha', 'writerId']) {
+    if (typeof typedJson[field] !== 'string') {
+      throw new WormholeError(`Invalid wormhole JSON: '${field}' must be a string`, {
+        code: 'E_INVALID_WORMHOLE_JSON',
+        context: { [field]: typedJson[field] },
       });
     }
   }
@@ -340,11 +349,11 @@ export function deserializeWormhole(json) {
   }
 
   return {
-    fromSha: typedJson.fromSha,
-    toSha: typedJson.toSha,
-    writerId: typedJson.writerId,
-    patchCount: typedJson.patchCount,
-    payload: ProvenancePayload.fromJSON(typedJson.payload),
+    fromSha: /** @type {string} */ (typedJson.fromSha),
+    toSha: /** @type {string} */ (typedJson.toSha),
+    writerId: /** @type {string} */ (typedJson.writerId),
+    patchCount: /** @type {number} */ (typedJson.patchCount),
+    payload: ProvenancePayload.fromJSON(/** @type {import('./ProvenancePayload.js').PatchEntry[]} */ (typedJson.payload)),
   };
 }
 

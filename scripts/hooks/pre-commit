@@ -1,5 +1,18 @@
 #!/bin/sh
-# Pre-commit hook: run eslint on staged JS files
+# IRONCLAD M9 — pre-commit gate.
+# Runs ESLint on staged JS files AND the full TS policy checker.
+# NOTHING commits if either gate fails.
+
+set -e
+
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null)"
+if [ -z "$ROOT" ]; then
+  echo "pre-commit: unable to locate repo root" >&2
+  exit 1
+fi
+cd "$ROOT"
+
+# ── Gate 1: ESLint on staged JS files ──────────────────────────────────────
 
 # Get staged JS files using NUL-delimited output for safe filename handling
 # This handles filenames with spaces, special characters, or starting with '-'
@@ -7,27 +20,19 @@
 TMPFILE=$(mktemp)
 trap 'rm -f "$TMPFILE"' EXIT
 
-git diff --cached --name-only --diff-filter=ACM -z | grep -zE '\.(js|mjs|cjs)$' > "$TMPFILE"
+git diff --cached --name-only --diff-filter=ACM -z | grep -zE '\.(js|mjs|cjs)$' > "$TMPFILE" || true
 
 # Check if there are any JS files to lint (file will be empty if none)
-if [ ! -s "$TMPFILE" ]; then
-  exit 0
+if [ -s "$TMPFILE" ]; then
+  echo "[IRONCLAD] Running ESLint on staged files..."
+  xargs -0 npx eslint --no-warn-ignored -- < "$TMPFILE"
+  echo "[IRONCLAD] ESLint passed."
 fi
 
-echo "Running eslint on staged files..."
+# ── Gate 2: TS policy checker (full scan) ──────────────────────────────────
+# Catches: any in JSDoc, * wildcards, @ts-ignore, z.any(), TODO(ts-cleanup)
+# Scans ALL source files, not just staged — prevents partial-commit evasion.
 
-# Run eslint using NUL-safe xargs
-# Use -- to prevent filenames starting with '-' from being treated as options
-xargs -0 npx eslint --no-warn-ignored -- < "$TMPFILE"
-
-ESLINT_EXIT=$?
-
-if [ $ESLINT_EXIT -ne 0 ]; then
-  echo ""
-  echo "ESLint failed. Please fix errors before committing."
-  echo "   Run 'npx eslint --fix' to auto-fix some issues."
-  exit 1
-fi
-
-echo "ESLint passed"
-exit 0
+echo "[IRONCLAD] Running TS policy check..."
+node scripts/ts-policy-check.js
+echo "[IRONCLAD] All gates passed."

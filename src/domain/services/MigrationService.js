@@ -16,7 +16,7 @@ import { createVersionVector, vvIncrement } from '../crdt/VersionVector.js';
  * @param {Object} v4State - The V4 materialized state (visible projection)
  * @param {Map<string, {value: boolean}>} v4State.nodeAlive - V4 node alive map
  * @param {Map<string, {value: boolean}>} v4State.edgeAlive - V4 edge alive map
- * @param {Map<string, *>} v4State.prop - V4 property map
+ * @param {Map<string, import('../crdt/LWW.js').LWWRegister<unknown>>} v4State.prop - V4 property map
  * @param {string} migrationWriterId - Writer ID to use for synthetic dots
  * @returns {import('./JoinReducer.js').WarpStateV5} The migrated V5 state
  */

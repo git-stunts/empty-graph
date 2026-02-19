@@ -21,7 +21,7 @@ import { runLayout } from './elkLayout.js';
  *
  * @param {{ nodes: Array<{ id: string, label: string }>, edges: Array<{ from: string, to: string, label?: string }> }} graphData - Normalised graph data
  * @param {{ type?: 'query'|'path'|'slice', layoutOptions?: Record<string, string> }} [options]
- * @returns {Promise<{ nodes: any[], edges: any[], width: number, height: number }>} PositionedGraph
+ * @returns {Promise<import('./elkLayout.js').PositionedGraph>} PositionedGraph
  */
 export async function layoutGraph(graphData, options = {}) {
   const elkGraph = toElkGraph(graphData, options);

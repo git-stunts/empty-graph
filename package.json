@@ -1,6 +1,6 @@
 {
   "name": "@git-stunts/git-warp",
-  "version": "11.3.0",
+  "version": "11.3.2",
   "description": "Deterministic WARP graph over Git: graph-native storage, traversal, and tooling.",
   "type": "module",
   "license": "Apache-2.0",
@@ -78,7 +78,7 @@
     "demo:down": "cd examples && docker compose down -v",
     "setup:hooks": "node scripts/setup-hooks.js",
     "prepare": "patch-package && node scripts/setup-hooks.js",
-    "prepack": "npm run lint && npm run test:local",
+    "prepack": "npm run lint && npm run test:local && npm run typecheck:consumer",
     "install:git-warp": "bash scripts/install-git-warp.sh",
     "uninstall:git-warp": "bash scripts/uninstall-git-warp.sh",
     "test:node20": "docker compose -f docker-compose.test.yml --profile node20 run --build --rm test-node20",
@@ -89,6 +89,7 @@
     "typecheck": "tsc --noEmit",
     "typecheck:src": "tsc --noEmit -p tsconfig.src.json",
     "typecheck:test": "tsc --noEmit -p tsconfig.test.json",
+    "typecheck:consumer": "tsc --noEmit -p test/type-check/tsconfig.json",
     "typecheck:policy": "node scripts/ts-policy-check.js"
   },
   "dependencies": {

@@ -41,7 +41,7 @@ export default class DagPathFinding {
    * @param {import('./BitmapIndexReader.js').default} options.indexReader - Index reader for O(1) lookups
    * @param {import('../../ports/LoggerPort.js').default} [options.logger] - Logger instance
    */
-  constructor(/** @type {{ indexReader: import('./BitmapIndexReader.js').default, logger?: import('../../ports/LoggerPort.js').default }} */ { indexReader, logger = nullLogger } = /** @type {*} */ ({})) { // TODO(ts-cleanup): needs options type
+  constructor(/** @type {{ indexReader: import('./BitmapIndexReader.js').default, logger?: import('../../ports/LoggerPort.js').default }} */ { indexReader, logger = nullLogger } = /** @type {{ indexReader: import('./BitmapIndexReader.js').default }} */ ({})) {
     if (!indexReader) {
       throw new Error('DagPathFinding requires an indexReader');
     }
@@ -228,7 +228,7 @@ export default class DagPathFinding {
         checkAborted(signal, 'weightedShortestPath');
       }
 
-      const current = pq.extractMin();
+      const current = /** @type {string} */ (pq.extractMin());
 
       if (visited.has(current)) {
         continue;
@@ -314,7 +314,7 @@ export default class DagPathFinding {
         checkAborted(signal, 'aStarSearch');
       }
 
-      const current = pq.extractMin();
+      const current = /** @type {string} */ (pq.extractMin());
 
       if (visited.has(current)) {
         continue;
@@ -463,7 +463,7 @@ export default class DagPathFinding {
    * Expands the forward frontier by one node in bidirectional A*.
    *
    * @param {Object} state - Forward expansion state
-   * @param {import('../utils/MinHeap.js').default} state.fwdHeap
+   * @param {import('../utils/MinHeap.js').default<string>} state.fwdHeap
    * @param {Set<string>} state.fwdVisited
    * @param {Map<string, number>} state.fwdGScore
    * @param {Map<string, string>} state.fwdPrevious
@@ -483,7 +483,7 @@ export default class DagPathFinding {
     weightProvider, forwardHeuristic, to,
     mu: inputMu, meetingPoint: inputMeeting,
   }) {
-    const current = fwdHeap.extractMin();
+    const current = /** @type {string} */ (fwdHeap.extractMin());
     let explored = 0;
     let bestMu = inputMu;
     let bestMeeting = inputMeeting;
@@ -536,7 +536,7 @@ export default class DagPathFinding {
    * Expands the backward frontier by one node in bidirectional A*.
    *
    * @param {Object} state - Backward expansion state
-   * @param {import('../utils/MinHeap.js').default} state.bwdHeap
+   * @param {import('../utils/MinHeap.js').default<string>} state.bwdHeap
    * @param {Set<string>} state.bwdVisited
    * @param {Map<string, number>} state.bwdGScore
    * @param {Map<string, string>} state.bwdNext
@@ -556,7 +556,7 @@ export default class DagPathFinding {
     weightProvider, backwardHeuristic, from,
     mu: inputMu, meetingPoint: inputMeeting,
   }) {
-    const current = bwdHeap.extractMin();
+    const current = /** @type {string} */ (bwdHeap.extractMin());
     let explored = 0;
     let bestMu = inputMu;
     let bestMeeting = inputMeeting;

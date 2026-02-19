@@ -14,7 +14,7 @@ import IndexError from './IndexError.js';
  * @property {string} shardPath - Path to the shard file that failed to load
  * @property {string} oid - Object ID associated with the shard
  * @property {Error} cause - The original error that caused the load failure
- * @property {Record<string, *>} context - Serializable context object for debugging
+ * @property {Record<string, unknown>} context - Serializable context object for debugging
  *
  * @example
  * try {
@@ -32,7 +32,7 @@ export default class ShardLoadError extends IndexError {
    * Creates a new ShardLoadError.
    *
    * @param {string} message - Human-readable error message
-   * @param {{ shardPath?: string, oid?: string, cause?: Error, context?: Record<string, *> }} [options={}] - Error options
+   * @param {{ shardPath?: string, oid?: string, cause?: Error, context?: Record<string, unknown> }} [options={}] - Error options
    */
   constructor(message, options = {}) {
     const context = {

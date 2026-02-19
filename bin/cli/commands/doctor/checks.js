@@ -24,7 +24,7 @@ import { CODES } from './codes.js';
 
 /**
  * @param {string} id
- * @param {*} err TODO(ts-cleanup): narrow error type
+ * @param {unknown} err
  * @returns {DoctorFinding}
  */
 function internalError(id, err) {
@@ -33,7 +33,7 @@ function internalError(id, err) {
     status: 'fail',
     code: CODES.CHECK_INTERNAL_ERROR,
     impact: 'data_integrity',
-    message: `Internal error: ${err?.message || String(err)}`,
+    message: `Internal error: ${err instanceof Error ? err.message : String(err)}`,
   };
 }
 
@@ -43,7 +43,7 @@ function internalError(id, err) {
 export async function checkRepoAccessible(ctx) {
   try {
     const clock = ClockAdapter.global();
-    const svc = new HealthCheckService({ persistence: /** @type {*} TODO(ts-cleanup): narrow port type */ (ctx.persistence), clock });
+    const svc = new HealthCheckService({ persistence: /** @type {import('../../../../src/domain/types/WarpPersistence.js').CorePersistence} */ (/** @type {unknown} */ (ctx.persistence)), clock });
     const health = await svc.getHealth();
     if (health.components.repository.status === 'unhealthy') {
       return {
@@ -56,7 +56,7 @@ export async function checkRepoAccessible(ctx) {
       id: 'repo-accessible', status: 'ok', code: CODES.REPO_OK,
       impact: 'operability', message: 'Repository is accessible',
     };
-  } catch (/** @type {*} */ err) { // TODO(ts-cleanup): narrow error type
+  } catch (err) {
     return internalError('repo-accessible', err);
   }
 }
@@ -104,7 +104,7 @@ export async function checkRefsConsistent(ctx) {
       });
     }
     return findings;
-  } catch (/** @type {*} */ err) { // TODO(ts-cleanup): narrow error type
+  } catch (err) {
     return [internalError('refs-consistent', err)];
   }
 }
@@ -151,7 +151,7 @@ export async function checkCoverageComplete(ctx) {
       id: 'coverage-complete', status: 'ok', code: CODES.COVERAGE_OK,
       impact: 'operability', message: 'Coverage anchor includes all writers',
     };
-  } catch (/** @type {*} */ err) { // TODO(ts-cleanup): narrow error type
+  } catch (err) {
     return internalError('coverage-complete', err);
   }
 }
@@ -192,7 +192,7 @@ export async function checkCheckpointFresh(ctx) {
 
     const { date, ageHours } = await getCheckpointAge(ctx.persistence, sha);
     return buildCheckpointFinding({ sha, date, ageHours, maxAge: ctx.policy.checkpointMaxAgeHours });
-  } catch (/** @type {*} */ err) { // TODO(ts-cleanup): narrow error type
+  } catch (err) {
     return internalError('checkpoint-fresh', err);
   }
 }
@@ -290,7 +290,7 @@ export async function checkAuditConsistent(ctx) {
       });
     }
     return findings;
-  } catch (/** @type {*} */ err) { // TODO(ts-cleanup): narrow error type
+  } catch (err) {
     return [internalError('audit-consistent', err)];
   }
 }
@@ -350,7 +350,7 @@ export async function checkClockSkew(ctx) {
       message: `Clock skew is within threshold (${Math.round(spreadMs / 1000)}s)`,
       evidence: { spreadMs },
     };
-  } catch (/** @type {*} */ err) { // TODO(ts-cleanup): narrow error type
+  } catch (err) {
     return internalError('clock-skew', err);
   }
 }
@@ -367,13 +367,13 @@ export async function checkHooksInstalled(ctx) {
     const installer = createHookInstaller();
     const s = installer.getHookStatus(ctx.repoPath);
     return buildHookFinding(s);
-  } catch (/** @type {*} */ err) { // TODO(ts-cleanup): narrow error type
+  } catch (err) {
     return internalError('hooks-installed', err);
   }
 }
 
 /**
- * @param {*} s TODO(ts-cleanup): narrow hook status type
+ * @param {{ installed: boolean, version?: string, current?: boolean, foreign?: boolean, hookPath: string }} s
  * @returns {DoctorFinding}
  */
 function buildHookFinding(s) {
@@ -396,7 +396,7 @@ function buildHookFinding(s) {
       id: 'hooks-installed', status: 'warn', code: CODES.HOOKS_OUTDATED,
       impact: 'hygiene', message: `Hook is outdated (v${s.version})`,
       fix: 'Run `git warp install-hooks` to upgrade',
-      evidence: { version: s.version },
+      evidence: { version: s.version ?? null },
     };
   }
   return {

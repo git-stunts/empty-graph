@@ -86,7 +86,7 @@ export class PatchBuilderV2 {
    */
   constructor({ persistence, graphName, writerId, lamport, versionVector, getCurrentState, expectedParentSha = null, onCommitSuccess = null, onDeleteWithData = 'warn', codec, logger }) {
     /** @type {import('../../ports/GraphPersistencePort.js').default & import('../../ports/RefPort.js').default & import('../../ports/CommitPort.js').default & import('../../ports/BlobPort.js').default & import('../../ports/TreePort.js').default} */
-    this._persistence = /** @type {*} */ (persistence); // TODO(ts-cleanup): narrow port type
+    this._persistence = /** @type {import('../../ports/GraphPersistencePort.js').default & import('../../ports/RefPort.js').default & import('../../ports/CommitPort.js').default & import('../../ports/BlobPort.js').default & import('../../ports/TreePort.js').default} */ (persistence);
 
     /** @type {string} */
     this._graphName = graphName;
@@ -346,7 +346,7 @@ export class PatchBuilderV2 {
    *
    * @param {string} nodeId - The node ID to set the property on
    * @param {string} key - Property key (should not contain null bytes)
-   * @param {*} value - Property value. Must be JSON-serializable (strings,
+   * @param {unknown} value - Property value. Must be JSON-serializable (strings,
    *   numbers, booleans, arrays, plain objects, or null). Use `null` to
    *   effectively delete a property (LWW semantics).
    * @returns {PatchBuilderV2} This builder instance for method chaining
@@ -389,7 +389,7 @@ export class PatchBuilderV2 {
    * @param {string} to - Target node ID (edge destination)
    * @param {string} label - Edge label/type identifying which edge to modify
    * @param {string} key - Property key (should not contain null bytes)
-   * @param {*} value - Property value. Must be JSON-serializable (strings,
+   * @param {unknown} value - Property value. Must be JSON-serializable (strings,
    *   numbers, booleans, arrays, plain objects, or null). Use `null` to
    *   effectively delete a property (LWW semantics).
    * @returns {PatchBuilderV2} This builder instance for method chaining
@@ -454,7 +454,7 @@ export class PatchBuilderV2 {
       schema,
       writer: this._writerId,
       lamport: this._lamport,
-      context: /** @type {*} */ (this._vv), // TODO(ts-cleanup): narrow port type
+      context: vvSerialize(this._vv),
       ops: this._ops,
       reads: [...this._reads].sort(),
       writes: [...this._writes].sort(),

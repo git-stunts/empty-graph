@@ -18,7 +18,7 @@ function parseInstallHooksArgs(args) {
 }
 
 /**
- * @param {*} classification
+ * @param {{kind: string, version?: string, appended?: boolean}} classification
  * @param {{force: boolean}} hookOptions
  */
 async function resolveStrategy(classification, hookOptions) {
@@ -37,7 +37,7 @@ async function resolveStrategy(classification, hookOptions) {
   return await promptForForeignStrategy();
 }
 
-/** @param {*} classification */
+/** @param {{kind: string, version?: string, appended?: boolean}} classification */
 async function promptForOursStrategy(classification) {
   const installer = createHookInstaller();
   if (classification.version === installer._version) {
@@ -81,8 +81,8 @@ async function promptForForeignStrategy() {
 function readHookContent(hookPath) {
   try {
     return fs.readFileSync(hookPath, 'utf8');
-  } catch (/** @type {*} */ err) { // TODO(ts-cleanup): type fs error
-    if (err.code === 'ENOENT') {
+  } catch (err) {
+    if (err instanceof Error && /** @type {{code?: string}} */ (err).code === 'ENOENT') {
       return null;
     }
     throw err;
@@ -92,7 +92,7 @@ function readHookContent(hookPath) {
 /**
  * Handles the `install-hooks` command.
  * @param {{options: CliOptions, args: string[]}} params
- * @returns {Promise<{payload: *, exitCode: number}>}
+ * @returns {Promise<{payload: unknown, exitCode: number}>}
  */
 export default async function handleInstallHooks({ options, args }) {
   const hookOptions = parseInstallHooksArgs(args);

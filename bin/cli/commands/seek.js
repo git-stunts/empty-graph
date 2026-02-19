@@ -17,6 +17,7 @@ import { openGraph, readActiveCursor, writeActiveCursor, wireSeekCache } from '.
 /** @typedef {import('../types.js').WriterTickInfo} WriterTickInfo */
 /** @typedef {import('../types.js').CursorBlob} CursorBlob */
 /** @typedef {import('../types.js').SeekSpec} SeekSpec */
+/** @typedef {import('../../../src/domain/services/StateDiff.js').StateDiffResult} StateDiffResult */
 
 // ============================================================================
 // Cursor I/O Helpers (seek-only)
@@ -257,18 +258,19 @@ function computeSeekStateDiff(prevCursor, next, frontierHash) {
 
 /**
  * @param {{tick: number, perWriter: Map<string, WriterTickInfo>, graph: WarpGraphInstance}} params
- * @returns {Promise<Record<string, {sha: string, opSummary: *}>|null>}
+ * @returns {Promise<Record<string, {sha: string, opSummary: unknown}>|null>}
  */
 async function buildTickReceipt({ tick, perWriter, graph }) {
   if (!Number.isInteger(tick) || tick <= 0) {
     return null;
   }
 
-  /** @type {Record<string, {sha: string, opSummary: *}>} */
+  /** @type {Record<string, {sha: string, opSummary: unknown}>} */
   const receipt = {};
 
   for (const [writerId, info] of perWriter) {
-    const sha = /** @type {*} */ (info?.tickShas)?.[tick]; // TODO(ts-cleanup): type CLI payload
+    const tickShas = /** @type {Record<number, string> | undefined} */ (info?.tickShas);
+    const sha = tickShas?.[tick];
     if (!sha) {
       continue;
     }
@@ -283,7 +285,7 @@ async function buildTickReceipt({ tick, perWriter, graph }) {
 
 /**
  * @param {{graph: WarpGraphInstance, prevTick: number|null, currentTick: number, diffLimit: number}} params
- * @returns {Promise<{structuralDiff: *, diffBaseline: string, baselineTick: number|null, truncated: boolean, totalChanges: number, shownChanges: number}>}
+ * @returns {Promise<{structuralDiff: unknown, diffBaseline: string, baselineTick: number|null, truncated: boolean, totalChanges: number, shownChanges: number}>}
  */
 async function computeStructuralDiff({ graph, prevTick, currentTick, diffLimit }) {
   let beforeState = null;
@@ -303,18 +305,22 @@ async function computeStructuralDiff({ graph, prevTick, currentTick, diffLimit }
   }
 
   await graph.materialize({ ceiling: currentTick });
-  const afterState = /** @type {*} */ (await graph.getStateSnapshot()); // TODO(ts-cleanup): narrow WarpStateV5
+  const afterState = await graph.getStateSnapshot();
+  if (!afterState) {
+    const empty = { nodes: { added: [], removed: [] }, edges: { added: [], removed: [] }, props: { set: [], removed: [] } };
+    return applyDiffLimit(empty, diffBaseline, baselineTick, diffLimit);
+  }
   const diff = diffStates(beforeState, afterState);
 
   return applyDiffLimit(diff, diffBaseline, baselineTick, diffLimit);
 }
 
 /**
- * @param {*} diff
+ * @param {StateDiffResult} diff
  * @param {string} diffBaseline
  * @param {number|null} baselineTick
  * @param {number} diffLimit
- * @returns {{structuralDiff: *, diffBaseline: string, baselineTick: number|null, truncated: boolean, totalChanges: number, shownChanges: number}}
+ * @returns {{structuralDiff: StateDiffResult, diffBaseline: string, baselineTick: number|null, truncated: boolean, totalChanges: number, shownChanges: number}}
  */
 function applyDiffLimit(diff, diffBaseline, baselineTick, diffLimit) {
   const totalChanges =
@@ -327,7 +333,7 @@ function applyDiffLimit(diff, diffBaseline, baselineTick, diffLimit) {
   }
 
   let remaining = diffLimit;
-  const cap = (/** @type {any[]} */ arr) => {
+  const cap = (/** @type {unknown[]} */ arr) => {
     const take = Math.min(arr.length, remaining);
     remaining -= take;
     return arr.slice(0, take);
@@ -340,7 +346,7 @@ function applyDiffLimit(diff, diffBaseline, baselineTick, diffLimit) {
   };
 
   const shownChanges = diffLimit - remaining;
-  return { structuralDiff: capped, diffBaseline, baselineTick, truncated: true, totalChanges, shownChanges };
+  return { structuralDiff: /** @type {StateDiffResult} */ (capped), diffBaseline, baselineTick, truncated: true, totalChanges, shownChanges };
 }
 
 // ============================================================================
@@ -349,7 +355,7 @@ function applyDiffLimit(diff, diffBaseline, baselineTick, diffLimit) {
 
 /**
  * @param {{graph: WarpGraphInstance, graphName: string, persistence: Persistence, activeCursor: CursorBlob|null, ticks: number[], maxTick: number, perWriter: Map<string, WriterTickInfo>, frontierHash: string}} params
- * @returns {Promise<{payload: *, exitCode: number}>}
+ * @returns {Promise<{payload: unknown, exitCode: number}>}
  */
 async function handleSeekStatus({ graph, graphName, persistence, activeCursor, ticks, maxTick, perWriter, frontierHash }) {
   if (activeCursor) {
@@ -411,7 +417,7 @@ async function handleSeekStatus({ graph, graphName, persistence, activeCursor, t
 /**
  * Handles the `git warp seek` command across all sub-actions.
  * @param {{options: CliOptions, args: string[]}} params
- * @returns {Promise<{payload: *, exitCode: number}>}
+ * @returns {Promise<{payload: unknown, exitCode: number}>}
  */
 export default async function handleSeek({ options, args }) {
   const seekSpec = parseSeekArgs(args);

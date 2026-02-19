@@ -30,7 +30,7 @@ import { formatOpSummary } from './opSummary.js';
  * @property {number} patchCount
  * @property {Map<string, WriterInfo> | Record<string, WriterInfo>} perWriter
  * @property {{ nodes?: number, edges?: number }} [diff]
- * @property {Record<string, any>} [tickReceipt]
+ * @property {Record<string, unknown>} [tickReceipt]
  * @property {import('../../../domain/services/StateDiff.js').StateDiffResult | null} [structuralDiff]
  * @property {string} [diffBaseline]
  * @property {number | null} [baselineTick]
@@ -73,7 +73,7 @@ function pluralize(n, singular, plural) {
   return n === 1 ? singular : plural;
 }
 
-/** @param {Record<string, any> | undefined} tickReceipt @returns {string[]} */
+/** @param {Record<string, unknown> | undefined} tickReceipt @returns {string[]} */
 function buildReceiptLines(tickReceipt) {
   if (!tickReceipt || typeof tickReceipt !== 'object') {
     return [];
@@ -85,8 +85,12 @@ function buildReceiptLines(tickReceipt) {
 
   const lines = [];
   for (const [writerId, entry] of entries) {
-    const sha = typeof entry.sha === 'string' ? entry.sha : null;
-    const opSummary = entry.opSummary && typeof entry.opSummary === 'object' ? entry.opSummary : entry;
+    /** @type {Record<string, unknown>} */
+    const rec = /** @type {Record<string, unknown>} */ (entry);
+    const sha = typeof rec.sha === 'string' ? rec.sha : null;
+    const opSummary = rec.opSummary && typeof rec.opSummary === 'object'
+      ? /** @type {Record<string, number>} */ (rec.opSummary)
+      : /** @type {Record<string, number>} */ (rec);
     const name = padRight(formatWriterName(writerId, NAME_W), NAME_W);
     const shaStr = sha ? `  ${formatSha(sha)}` : '';
     lines.push(`    ${name}${shaStr}  ${formatOpSummary(opSummary, 40)}`);
@@ -443,14 +447,20 @@ function collectDiffEntries(diff) {
 
 /**
  * Formats a property value for display (truncated if too long).
- * @param {*} value
+ * @param {unknown} value
  * @returns {string}
  */
 function formatPropValue(value) {
   if (value === undefined) {
     return 'undefined';
   }
-  const s = typeof value === 'string' ? `"${value}"` : String(value);
+  if (typeof value === 'string') {
+    const s = `"${value}"`;
+    return s.length > 40 ? `${s.slice(0, 37)}...` : s;
+  }
+  const s = typeof value === 'number' || typeof value === 'boolean'
+    ? String(value)
+    : JSON.stringify(value) ?? '';
   return s.length > 40 ? `${s.slice(0, 37)}...` : s;
 }
 

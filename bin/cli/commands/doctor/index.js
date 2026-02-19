@@ -160,7 +160,7 @@ async function runChecks(ctx, startMs) {
         f.durationMs = checkDuration;
         findings.push(f);
       }
-    } catch (/** @type {*} TODO(ts-cleanup): narrow error type */ err) {
+    } catch (err) {
       checkDuration = checkDuration ?? 0;
       checksRun++;
       findings.push({
@@ -168,7 +168,7 @@ async function runChecks(ctx, startMs) {
         status: 'fail',
         code: CODES.CHECK_INTERNAL_ERROR,
         impact: 'data_integrity',
-        message: `Internal error in ${check.id}: ${err?.message || String(err)}`,
+        message: `Internal error in ${check.id}: ${err instanceof Error ? err.message : String(err)}`,
         durationMs: checkDuration,
       });
     }

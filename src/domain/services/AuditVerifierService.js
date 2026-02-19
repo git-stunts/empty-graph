@@ -16,6 +16,19 @@
  * @see docs/specs/AUDIT_RECEIPT.md Section 8
  */
 
+/**
+ * @typedef {Object} AuditReceipt
+ * @property {number} version
+ * @property {string} graphName
+ * @property {string} writerId
+ * @property {string} dataCommit
+ * @property {string} opsDigest
+ * @property {string} prevAuditCommit
+ * @property {number} tickStart
+ * @property {number} tickEnd
+ * @property {number} timestamp
+ */
+
 import { buildAuditPrefix, buildAuditRef } from '../utils/RefLayout.js';
 import { decodeAuditMessage } from './AuditMessageCodec.js';
 import { TrustRecordService } from '../trust/TrustRecordService.js';
@@ -67,14 +80,15 @@ function validateOidFormat(value) {
 
 /**
  * Checks whether a receipt object has the expected 9 fields with correct types.
- * @param {*} receipt
+ * @param {unknown} receipt
  * @returns {string|null} Error message or null if valid
  */
 function validateReceiptSchema(receipt) {
   if (!receipt || typeof receipt !== 'object') {
     return 'receipt is not an object';
   }
-  const keys = Object.keys(receipt);
+  const rec = /** @type {Record<string, unknown>} */ (receipt);
+  const keys = Object.keys(rec);
   if (keys.length !== 9) {
     return `expected 9 fields, got ${keys.length}`;
   }
@@ -83,46 +97,46 @@ function validateReceiptSchema(receipt) {
     'tickEnd', 'tickStart', 'timestamp', 'version', 'writerId',
   ];
   for (const k of required) {
-    if (!(k in receipt)) {
+    if (!(k in rec)) {
       return `missing field: ${k}`;
     }
   }
-  if (receipt.version !== 1) {
-    return `unsupported version: ${receipt.version}`;
+  if (rec.version !== 1) {
+    return `unsupported version: ${rec.version}`;
   }
-  if (typeof receipt.graphName !== 'string' || receipt.graphName.length === 0) {
+  if (typeof rec.graphName !== 'string' || rec.graphName.length === 0) {
     return 'graphName must be a non-empty string';
   }
-  if (typeof receipt.writerId !== 'string' || receipt.writerId.length === 0) {
+  if (typeof rec.writerId !== 'string' || rec.writerId.length === 0) {
     return 'writerId must be a non-empty string';
   }
-  if (typeof receipt.dataCommit !== 'string') {
+  if (typeof rec.dataCommit !== 'string') {
     return 'dataCommit must be a string';
   }
-  if (typeof receipt.opsDigest !== 'string') {
+  if (typeof rec.opsDigest !== 'string') {
     return 'opsDigest must be a string';
   }
-  if (typeof receipt.prevAuditCommit !== 'string') {
+  if (typeof rec.prevAuditCommit !== 'string') {
     return 'prevAuditCommit must be a string';
   }
-  if (!Number.isInteger(receipt.tickStart) || receipt.tickStart < 1) {
-    return `tickStart must be integer >= 1, got ${receipt.tickStart}`;
+  if (!Number.isInteger(rec.tickStart) || /** @type {number} */ (rec.tickStart) < 1) {
+    return `tickStart must be integer >= 1, got ${rec.tickStart}`;
   }
-  if (!Number.isInteger(receipt.tickEnd) || receipt.tickEnd < receipt.tickStart) {
-    return `tickEnd must be integer >= tickStart, got ${receipt.tickEnd}`;
+  if (!Number.isInteger(rec.tickEnd) || /** @type {number} */ (rec.tickEnd) < /** @type {number} */ (rec.tickStart)) {
+    return `tickEnd must be integer >= tickStart, got ${rec.tickEnd}`;
   }
-  if (receipt.version === 1 && receipt.tickStart !== receipt.tickEnd) {
-    return `v1 requires tickStart === tickEnd, got ${receipt.tickStart} !== ${receipt.tickEnd}`;
+  if (rec.version === 1 && rec.tickStart !== rec.tickEnd) {
+    return `v1 requires tickStart === tickEnd, got ${rec.tickStart} !== ${rec.tickEnd}`;
   }
-  if (!Number.isInteger(receipt.timestamp) || receipt.timestamp < 0) {
-    return `timestamp must be non-negative integer, got ${receipt.timestamp}`;
+  if (!Number.isInteger(rec.timestamp) || /** @type {number} */ (rec.timestamp) < 0) {
+    return `timestamp must be non-negative integer, got ${rec.timestamp}`;
   }
   return null;
 }
 
 /**
  * Validates trailers against the CBOR receipt fields.
- * @param {*} receipt
+ * @param {AuditReceipt} receipt
  * @param {{ graph: string, writer: string, dataCommit: string, opsDigest: string, schema: number }} decoded
  * @returns {string|null} Error message or null if consistent
  */
@@ -312,7 +326,7 @@ export class AuditVerifierService {
    */
   async _walkChain(graphName, writerId, tip, since, result) {
     let current = tip;
-    /** @type {Record<string, *>|null} */ let prevReceipt = null;
+    /** @type {AuditReceipt|null} */ let prevReceipt = null;
     /** @type {number|null} */ let chainOidLen = null;
 
     while (current) {
@@ -322,8 +336,8 @@ export class AuditVerifierService {
       let commitInfo;
       try {
         commitInfo = await this._persistence.getNodeInfo(current);
-      } catch (/** @type {*} */ err) { // TODO(ts-cleanup): narrow catch type
-        this._addError(result, 'MISSING_RECEIPT_BLOB', `Cannot read commit ${current}: ${err?.message}`, current);
+      } catch (err) {
+        this._addError(result, 'MISSING_RECEIPT_BLOB', `Cannot read commit ${current}: ${err instanceof Error ? err.message : String(err)}`, current);
         return;
       }
 
@@ -456,7 +470,7 @@ export class AuditVerifierService {
    * @param {string} commitSha
    * @param {{ message: string }} commitInfo
    * @param {ChainResult} result
-   * @returns {Promise<{ receipt: *, decodedTrailers: * }|null>}
+   * @returns {Promise<{ receipt: AuditReceipt, decodedTrailers: { graph: string, writer: string, dataCommit: string, opsDigest: string, schema: number } }|null>}
    * @private
    */
   async _readReceipt(commitSha, commitInfo, result) {
@@ -464,9 +478,9 @@ export class AuditVerifierService {
     let treeOid;
     try {
       treeOid = await this._persistence.getCommitTree(commitSha);
-    } catch (/** @type {*} */ err) { // TODO(ts-cleanup): narrow catch type
+    } catch (err) {
       this._addError(result, 'MISSING_RECEIPT_BLOB',
-        `Cannot read tree for ${commitSha}: ${err?.message}`, commitSha);
+        `Cannot read tree for ${commitSha}: ${err instanceof Error ? err.message : String(err)}`, commitSha);
       return null;
     }
 
@@ -474,9 +488,9 @@ export class AuditVerifierService {
     let treeEntries;
     try {
       treeEntries = await this._persistence.readTreeOids(treeOid);
-    } catch (/** @type {*} */ err) { // TODO(ts-cleanup): narrow catch type
+    } catch (err) {
       this._addError(result, 'RECEIPT_TREE_INVALID',
-        `Cannot read tree ${treeOid}: ${err?.message}`, commitSha);
+        `Cannot read tree ${treeOid}: ${err instanceof Error ? err.message : String(err)}`, commitSha);
       return null;
     }
 
@@ -493,19 +507,19 @@ export class AuditVerifierService {
     let blobContent;
     try {
       blobContent = await this._persistence.readBlob(blobOid);
-    } catch (/** @type {*} */ err) { // TODO(ts-cleanup): narrow catch type
+    } catch (err) {
       this._addError(result, 'MISSING_RECEIPT_BLOB',
-        `Cannot read receipt blob ${blobOid}: ${err?.message}`, commitSha);
+        `Cannot read receipt blob ${blobOid}: ${err instanceof Error ? err.message : String(err)}`, commitSha);
       return null;
     }
 
     // Decode CBOR
     let receipt;
     try {
-      receipt = this._codec.decode(blobContent);
-    } catch (/** @type {*} */ err) { // TODO(ts-cleanup): narrow catch type
+      receipt = /** @type {AuditReceipt} */ (this._codec.decode(blobContent));
+    } catch (err) {
       this._addError(result, 'CBOR_DECODE_FAILED',
-        `CBOR decode failed: ${err?.message}`, commitSha);
+        `CBOR decode failed: ${err instanceof Error ? err.message : String(err)}`, commitSha);
       result.status = STATUS_ERROR;
       return null;
     }
@@ -514,9 +528,9 @@ export class AuditVerifierService {
     let decodedTrailers;
     try {
       decodedTrailers = decodeAuditMessage(commitInfo.message);
-    } catch (/** @type {*} */ err) { // TODO(ts-cleanup): narrow catch type
+    } catch (err) {
       this._addError(result, 'TRAILER_MISMATCH',
-        `Trailer decode failed: ${err?.message}`, commitSha);
+        `Trailer decode failed: ${err instanceof Error ? err.message : String(err)}`, commitSha);
       result.status = STATUS_DATA_MISMATCH;
       return null;
     }
@@ -526,7 +540,7 @@ export class AuditVerifierService {
 
   /**
    * Validates OID format for dataCommit, prevAuditCommit, and opsDigest.
-   * @param {*} receipt
+   * @param {AuditReceipt} receipt
    * @param {ChainResult} result
    * @param {string} commitSha
    * @returns {boolean} true if valid
@@ -556,8 +570,8 @@ export class AuditVerifierService {
 
   /**
    * Validates chain linking between current and previous (newer) receipt.
-   * @param {*} currentReceipt - The older receipt being validated
-   * @param {*} prevReceipt - The newer receipt (closer to tip)
+   * @param {AuditReceipt} currentReceipt - The older receipt being validated
+   * @param {AuditReceipt} prevReceipt - The newer receipt (closer to tip)
    * @param {string} commitSha
    * @param {ChainResult} result
    * @returns {boolean} true if valid
@@ -645,7 +659,7 @@ export class AuditVerifierService {
    * @param {Object} [options]
    * @param {string} [options.pin] - Pinned trust chain commit SHA
    * @param {string} [options.mode] - Policy mode ('warn' or 'enforce')
-   * @returns {Promise<Record<string, *>>}
+   * @returns {Promise<import('../trust/TrustEvaluator.js').TrustAssessment>}
    */
   async evaluateTrust(graphName, options = {}) {
     const recordService = new TrustRecordService({

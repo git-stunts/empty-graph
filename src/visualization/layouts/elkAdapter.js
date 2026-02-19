@@ -3,7 +3,7 @@
  */
 
 /**
- * @typedef {{ id: string, label: string, props?: Record<string, any> }} GraphDataNode
+ * @typedef {{ id: string, label: string, props?: Record<string, unknown> }} GraphDataNode
  * @typedef {{ from: string, to: string, label?: string }} GraphDataEdge
  * @typedef {{ nodes: GraphDataNode[], edges: GraphDataEdge[] }} GraphData
  * @typedef {{ text: string }} ElkLabel

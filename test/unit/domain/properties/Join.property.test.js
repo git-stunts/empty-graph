@@ -94,7 +94,7 @@ function generateORSet(elements, dotArbitrary) {
     const set = createORSet();
     for (const { element, dots, tombstoneCount } of items) {
       for (const dot of dots) {
-        orsetAdd(set, element, dot);
+        orsetAdd(set, /** @type {string} */ (element), dot);
       }
       // Tombstone some dots
       const dotsToTombstone = dots.slice(0, Math.min(tombstoneCount, dots.length));
