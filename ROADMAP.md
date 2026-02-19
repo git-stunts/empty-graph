@@ -743,6 +743,10 @@ Items that can be picked up opportunistically without blocking anything. No mile
 | B51 | **AUDIT REMAINING `= {}` CONSTRUCTOR DEFAULTS** — DagTraversal, DagPathFinding, DagTopology, BitmapIndexReader all have same compile-time safety gap as CommitDagTraversalService (fixed in 0cead99); remove defaults, add `@ts-expect-error` to negative tests |
 | B52 | **FIX OUTSIDE-DIFF IRONCLAD REVIEW ITEMS** — TickReceipt `sortedReplacer` wildcards (`{[x: string]: *}`), verify-audit.js `@returns {payload: *}`, SyncAuthService `keys` optional JSDoc |
 | B53 | **FIX JSR PUBLISH DRY-RUN DENO PANIC** — Deno 2.6.7 `deno_ast` panics on overlapping text changes from duplicate `roaring` import rewrites; either pin Deno version, vendor the import, or file upstream issue and add workaround |
+| B54 | **`typedCustom()` ZOD HELPER** — `z.custom()` without a generic yields `unknown` in JS; a JSDoc-friendly wrapper (or `@typedef`-based pattern) would eliminate verbose `/** @type {z.ZodType<T>} */ (z.custom(...))` casts across HttpSyncServer and future Zod schemas |
+| B55 | **UPGRADE `HttpServerPort` REQUEST/RESPONSE TYPES** — `createServer` callback uses `Object` for `headers` and `string|Buffer` for response body; tighten to `Record<string, string>` and extract shared request/response typedefs to avoid repeated inline casts in HttpSyncServer, NodeHttpAdapter, BunHttpAdapter, DenoHttpAdapter |
+| B56 | **INVESTIGATE `observedFrontier` / FRONTIER SEMANTIC MISMATCH** — `sync.methods.js` line 261 double-casts `observedFrontier` (a version vector `Map<string, number>`) to `Map<string, string>` (writer frontier) before passing to `applySyncResponseImpl`; determine whether this is a latent correctness bug or an intentional coercion, and fix or document accordingly |
+| B57 | **CI: AUTO-VALIDATE `type-surface.m8.json` AGAINST `index.d.ts`** — add a CI gate or pre-push check that parses the manifest and confirms every declared method/property/return type matches the corresponding signature in `index.d.ts`; prevents drift like the missing `setSeekCache` and `syncWith.state` return found in review |
 
 ### Conformance Property Pack (B19 + B22)
 
