@@ -23,6 +23,14 @@ import { generateWriterId, resolveWriterId } from '../utils/WriterId.js';
 /**
  * Creates a new PatchBuilderV2 for this graph.
  *
+ * In multi-writer scenarios, call `materialize()` (or a query method that
+ * auto-materializes) before creating a patch so that `_maxObservedLamport`
+ * reflects all known writers. Without this, `_nextLamport()` still produces
+ * locally-monotonic ticks (`Math.max(ownTick, _maxObservedLamport) + 1`),
+ * and `PatchBuilderV2.commit()` re-reads the writer's own ref at commit
+ * time, so correctness is preserved — but the tick may be lower than
+ * necessary, losing LWW tiebreakers against other writers.
+ *
  * @this {import('../WarpGraph.js').default}
  * @returns {Promise<PatchBuilderV2>} A new patch builder
  */
@@ -53,6 +61,9 @@ export async function createPatch() {
  *
  * Not reentrant: calling `graph.patch()` inside a callback throws.
  * Use `createPatch()` directly for advanced multi-patch workflows.
+ *
+ * **Multi-writer note:** call `materialize()` before `patch()` so that
+ * `_maxObservedLamport` is up-to-date. See `createPatch()` for details.
  *
  * @this {import('../WarpGraph.js').default}
  * @param {(p: PatchBuilderV2) => void | Promise<void>} build - Callback that adds operations to the patch
@@ -91,30 +102,35 @@ export async function _nextLamport() {
   const writerRef = buildWriterRef(this._graphName, this._writerId);
   const currentRefSha = await this._persistence.readRef(writerRef);
 
-  if (!currentRefSha) {
-    // First commit for this writer
-    return { lamport: 1, parentSha: null };
+  let ownTick = 0;
+
+  if (currentRefSha) {
+    // Read the current patch commit to get its lamport timestamp
+    const commitMessage = await this._persistence.showNode(currentRefSha);
+    const kind = detectMessageKind(commitMessage);
+
+    if (kind === 'patch') {
+      try {
+        const patchInfo = decodePatchMessage(commitMessage);
+        ownTick = patchInfo.lamport;
+      } catch (err) {
+        throw new Error(
+          `Failed to parse lamport from writer ref ${writerRef}: ` +
+          `commit ${currentRefSha} has invalid patch message format`,
+          { cause: err }
+        );
+      }
+    }
+    // Non-patch ref: ownTick stays 0 (fresh start), falls through to standard return.
   }
 
-  // Read the current patch commit to get its lamport timestamp
-  const commitMessage = await this._persistence.showNode(currentRefSha);
-  const kind = detectMessageKind(commitMessage);
-
-  if (kind !== 'patch') {
-    // Writer ref doesn't point to a patch commit - treat as first commit
-    return { lamport: 1, parentSha: currentRefSha };
-  }
-
-  try {
-    const patchInfo = decodePatchMessage(commitMessage);
-    return { lamport: patchInfo.lamport + 1, parentSha: currentRefSha };
-  } catch {
-    // Malformed message - error with actionable message
-    throw new Error(
-      `Failed to parse lamport from writer ref ${writerRef}: ` +
-      `commit ${currentRefSha} has invalid patch message format`
-    );
-  }
+  // Standard Lamport clock rule: next tick = max(own chain, globally observed max) + 1.
+  // _maxObservedLamport is updated during materialize() and after each commit, so this
+  // is O(1) — no additional git reads required at commit time.
+  return {
+    lamport: Math.max(ownTick, this._maxObservedLamport) + 1,
+    parentSha: currentRefSha ?? null,
+  };
 }
 
 /**
@@ -195,6 +211,10 @@ export async function getWriterPatches(writerId, stopAtSha = null) {
  */
 export async function _onPatchCommitted(writerId, { patch: committed, sha } = {}) {
   vvIncrement(this._versionVector, writerId);
+  // Keep _maxObservedLamport up to date so _nextLamport() issues globally-monotonic ticks.
+  if (committed?.lamport !== undefined && committed.lamport > this._maxObservedLamport) {
+    this._maxObservedLamport = committed.lamport;
+  }
   this._patchesSinceCheckpoint++;
   // Eager re-materialize: apply the just-committed patch to cached state
   // Only when the cache is clean — applying a patch to stale state would be incorrect

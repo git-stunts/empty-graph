@@ -24,7 +24,7 @@ import {
   createPatchV2,
 } from '../types/WarpTypesV2.js';
 import { encodeEdgeKey, EDGE_PROP_PREFIX } from './KeyCodec.js';
-import { encodePatchMessage, decodePatchMessage } from './WarpMessageCodec.js';
+import { encodePatchMessage, decodePatchMessage, detectMessageKind } from './WarpMessageCodec.js';
 import { buildWriterRef } from '../utils/RefLayout.js';
 import WriterError from '../errors/WriterError.js';
 
@@ -468,11 +468,12 @@ export class PatchBuilderV2 {
    * 1. Validates the patch is non-empty
    * 2. Checks for concurrent modifications (compare-and-swap on writer ref)
    * 3. Calculates the next lamport timestamp from the parent commit
-   * 4. Encodes the patch as CBOR and writes it as a Git blob
-   * 5. Creates a Git tree containing the patch blob
-   * 6. Creates a commit with proper trailers linking to the parent
-   * 7. Updates the writer ref to point to the new commit
-   * 8. Invokes the success callback if provided (for eager re-materialization)
+   * 4. Builds the PatchV2 structure with the resolved lamport
+   * 5. Encodes the patch as CBOR and writes it as a Git blob
+   * 6. Creates a Git tree containing the patch blob
+   * 7. Creates a commit with proper trailers linking to the parent
+   * 8. Updates the writer ref to point to the new commit
+   * 9. Invokes the success callback if provided (for eager re-materialization)
    *
    * The commit is written to the writer's patch chain at:
    * `refs/warp/<graphName>/writers/<writerId>`
@@ -524,19 +525,39 @@ export class PatchBuilderV2 {
       throw err;
     }
 
-    // 3. Calculate lamport and parent from current ref state
-    let lamport = 1;
+    // 3. Calculate lamport and parent from current ref state.
+    // Start from this._lamport (set by _nextLamport() in createPatch()), which already
+    // incorporates the globally-observed max Lamport tick via _maxObservedLamport.
+    // This ensures a first-time writer whose own chain is empty still commits at a tick
+    // above any previously-observed writer, winning LWW tiebreakers correctly.
+    let lamport = this._lamport;
     let parentCommit = null;
 
     if (currentRefSha) {
-      // Read the current patch commit to get its lamport timestamp
-      const commitMessage = await this._persistence.showNode(currentRefSha);
-      const patchInfo = decodePatchMessage(commitMessage);
-      lamport = patchInfo.lamport + 1;
       parentCommit = currentRefSha;
+      // Read the current patch commit to get its lamport timestamp and take the max,
+      // so the chain stays monotonic even if the ref advanced since createPatch().
+      const commitMessage = await this._persistence.showNode(currentRefSha);
+      const kind = detectMessageKind(commitMessage);
+
+      if (kind === 'patch') {
+        let patchInfo;
+        try {
+          patchInfo = decodePatchMessage(commitMessage);
+        } catch (err) {
+          throw new Error(
+            `Failed to parse lamport from writer ref ${writerRef}: ` +
+            `commit ${currentRefSha} has invalid patch message format`,
+            { cause: err }
+          );
+        }
+        lamport = Math.max(this._lamport, patchInfo.lamport + 1);
+      }
+      // Non-patch ref (checkpoint, etc.): keep lamport from this._lamport
+      // (already incorporates _maxObservedLamport), matching _nextLamport() behavior.
     }
 
-    // 3. Build PatchV2 structure with correct lamport
+    // 4. Build PatchV2 structure with correct lamport
     // Note: Dots were assigned using constructor lamport, but commit lamport may differ.
     // For now, we use the calculated lamport for the patch metadata.
     // The dots themselves are independent of patch lamport (they use VV counters).
@@ -552,10 +573,8 @@ export class PatchBuilderV2 {
       writes: [...this._writes].sort(),
     });
 
-    // 4. Encode patch as CBOR
+    // 5. Encode patch as CBOR and write as a Git blob
     const patchCbor = this._codec.encode(patch);
-
-    // 5. Write patch.cbor blob
     const patchBlobOid = await this._persistence.writeBlob(/** @type {Buffer} */ (patchCbor));
 
     // 6. Create tree with the blob
@@ -563,7 +582,7 @@ export class PatchBuilderV2 {
     const treeEntry = `100644 blob ${patchBlobOid}\tpatch.cbor`;
     const treeOid = await this._persistence.writeTree([treeEntry]);
 
-    // 7. Create patch commit message with trailers (schema:2)
+    // 7. Create commit with proper trailers linking to the parent
     const commitMessage = encodePatchMessage({
       graph: this._graphName,
       writer: this._writerId,
@@ -571,8 +590,6 @@ export class PatchBuilderV2 {
       patchOid: patchBlobOid,
       schema,
     });
-
-    // 8. Create commit with tree, linking to previous patch as parent if exists
     const parents = parentCommit ? [parentCommit] : [];
     const newCommitSha = await this._persistence.commitNodeWithTree({
       treeOid,
@@ -580,10 +597,10 @@ export class PatchBuilderV2 {
       message: commitMessage,
     });
 
-    // 9. Update writer ref to point to new commit
+    // 8. Update writer ref to point to new commit
     await this._persistence.updateRef(writerRef, newCommitSha);
 
-    // 10. Notify success callback (updates graph's version vector + eager re-materialize)
+    // 9. Notify success callback (updates graph's version vector + eager re-materialize)
     if (this._onCommitSuccess) {
       try {
         await this._onCommitSuccess({ patch, sha: newCommitSha });
@@ -593,7 +610,6 @@ export class PatchBuilderV2 {
       }
     }
 
-    // 11. Return the new commit SHA
     return newCommitSha;
   }
 

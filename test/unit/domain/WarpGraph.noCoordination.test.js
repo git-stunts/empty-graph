@@ -139,4 +139,185 @@ describe('No-coordination regression suite', () => {
       { seed: 4242, numRuns: 8 }
     );
   }, { timeout: 30000 });
+
+  describe('Lamport clock global-max monotonicity', () => {
+    it('first-time writer beats existing writer when it materializes first', async () => {
+      // Regression: when writer B makes its very first commit to a repo where writer A
+      // has already committed at tick N, B must commit at tick > N so its operations
+      // win the LWW CRDT tiebreaker — not lose to A's tick-1 commit.
+      const repo = await createGitRepo('lamport-mono');
+      try {
+        // Writer A seeds a node
+        const graphA = await WarpGraph.open({
+          persistence: repo.persistence,
+          graphName: 'test',
+          writerId: 'writer-zzz', // alphabetically > writer-aaa so A would win ties
+          autoMaterialize: true,
+        });
+        const pA = await graphA.createPatch();
+        pA.addNode('node:shared')
+          .setProperty('node:shared', 'value', 'from-A');
+        await pA.commit();
+
+        // Writer B opens a fresh handle, materializes to observe A, then mutates
+        const graphB = await WarpGraph.open({
+          persistence: repo.persistence,
+          graphName: 'test',
+          writerId: 'writer-aaa', // alphabetically < writer-zzz, would LOSE tick ties
+          autoMaterialize: true,
+        });
+        await graphB.syncCoverage();
+        await graphB.materialize(); // observes A's tick-1 patch → _maxObservedLamport = 1
+
+        const pB = await graphB.createPatch();
+        pB.setProperty('node:shared', 'value', 'from-B'); // must be at tick >= 2 to win
+        await pB.commit();
+
+        // B's own state should reflect its own mutation
+        const propsB = await graphB.getNodeProps('node:shared');
+        expect(propsB?.get('value')).toBe('from-B');
+
+        // A fresh reader that sees both writers must also resolve to B's value
+        const graphReader = await WarpGraph.open({
+          persistence: repo.persistence,
+          graphName: 'test',
+          writerId: 'reader',
+          autoMaterialize: true,
+        });
+        await graphReader.syncCoverage();
+        await graphReader.materialize();
+        const propsReader = await graphReader.getNodeProps('node:shared');
+        expect(propsReader?.get('value')).toBe('from-B');
+      } finally {
+        await repo.cleanup();
+      }
+    }, { timeout: 20000 });
+
+    it('_maxObservedLamport is updated after each commit on the same instance', async () => {
+      const repo = await createGitRepo('lamport-mono');
+      try {
+        const graph = await WarpGraph.open({
+          persistence: repo.persistence,
+          graphName: 'test',
+          writerId: 'writer-a',
+          autoMaterialize: true,
+        });
+
+        expect(graph._maxObservedLamport).toBe(0);
+
+        const p1 = await graph.createPatch();
+        p1.addNode('node:x').setProperty('node:x', 'v', '1');
+        await p1.commit();
+
+        expect(graph._maxObservedLamport).toBe(1);
+
+        const p2 = await graph.createPatch();
+        p2.setProperty('node:x', 'v', '2');
+        await p2.commit();
+
+        expect(graph._maxObservedLamport).toBe(2);
+      } finally {
+        await repo.cleanup();
+      }
+    }, { timeout: 10000 });
+
+    it('cross-writer PropSet LWW: later writer override is not silently discarded', async () => {
+      // Regression for: "Lamport clock doesn't advance past cross-writer ticks
+      // during materialize()" — Writer A commits setProperty at tick N, Writer B
+      // materializes (observes A), then commits setProperty for the same key.
+      // B's tick MUST exceed N so its value wins the LWW tiebreaker.
+      // Without the fix, B's lamport stayed within its own sequence and the
+      // property silently resolved to A's value.
+      const repo = await createGitRepo('lamport-lww');
+      try {
+        // Writer A: seed a node with many commits to push lamport high
+        const graphA = await WarpGraph.open({
+          persistence: repo.persistence,
+          graphName: 'test',
+          writerId: 'writer-a',
+          autoMaterialize: true,
+        });
+        // Build up Writer A's lamport by committing several patches
+        for (let i = 0; i < 5; i++) {
+          const p = await graphA.createPatch();
+          p.addNode(`node:padding-${i}`);
+          await p.commit();
+        }
+        // Writer A sets the property we'll contest
+        const pA = await graphA.createPatch();
+        pA.addNode('node:1').setProperty('node:1', 'type', 'task');
+        await pA.commit();
+        // A is now at lamport=6
+
+        // Writer B: observes Writer A's patches via materialize, then overrides
+        const graphB = await WarpGraph.open({
+          persistence: repo.persistence,
+          graphName: 'test',
+          writerId: 'writer-b',
+          autoMaterialize: true,
+        });
+        await graphB.syncCoverage();
+        await graphB.materialize(); // must absorb A's max lamport (6)
+
+        // B's _maxObservedLamport must be >= A's last tick
+        expect(graphB._maxObservedLamport).toBeGreaterThanOrEqual(6);
+
+        const pB = await graphB.createPatch();
+        pB.setProperty('node:1', 'type', 'campaign');
+        await pB.commit(); // lamport must be >= 7
+
+        // B should see its own mutation
+        const propsB = await graphB.getNodeProps('node:1');
+        expect(propsB?.get('type')).toBe('campaign');
+
+        // A fresh reader materializing both chains must resolve to B's value
+        const reader = await WarpGraph.open({
+          persistence: repo.persistence,
+          graphName: 'test',
+          writerId: 'reader',
+          autoMaterialize: true,
+        });
+        await reader.syncCoverage();
+        await reader.materialize();
+        const propsReader = await reader.getNodeProps('node:1');
+        expect(propsReader?.get('type')).toBe('campaign');
+      } finally {
+        await repo.cleanup();
+      }
+    }, { timeout: 20000 });
+
+    it('materialize updates _maxObservedLamport from observed patches', async () => {
+      const repo = await createGitRepo('lamport-mono');
+      try {
+        // Seed with writer-z at tick 1
+        const graphZ = await WarpGraph.open({
+          persistence: repo.persistence,
+          graphName: 'test',
+          writerId: 'writer-z',
+          autoMaterialize: true,
+        });
+        const p = await graphZ.createPatch();
+        p.addNode('node:x').setProperty('node:x', 'v', 'z');
+        await p.commit();
+
+        // Fresh writer-a: before materialize, max is 0
+        const graphA = await WarpGraph.open({
+          persistence: repo.persistence,
+          graphName: 'test',
+          writerId: 'writer-a',
+          autoMaterialize: true,
+        });
+        expect(graphA._maxObservedLamport).toBe(0);
+
+        await graphA.syncCoverage();
+        await graphA.materialize();
+
+        // After materialize, should have observed tick 1 from writer-z
+        expect(graphA._maxObservedLamport).toBe(1);
+      } finally {
+        await repo.cleanup();
+      }
+    }, { timeout: 10000 });
+  });
+
 });
