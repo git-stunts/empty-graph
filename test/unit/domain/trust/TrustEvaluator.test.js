@@ -168,9 +168,9 @@ describe('evaluateWriters — mixed trusted/untrusted', () => {
     expect(assessment.trustVerdict).toBe('fail');
     expect(assessment.trust.untrustedWriters).toEqual(['mallory']);
 
-    const aliceExpl = assessment.trust.explanations.find(/** @param {*} e */ (e) => e.writerId === 'alice');
-    const malloryExpl = assessment.trust.explanations.find(/** @param {*} e */ (e) => e.writerId === 'mallory');
-    expect(aliceExpl.trusted).toBe(true);
-    expect(malloryExpl.trusted).toBe(false);
+    const aliceExpl = assessment.trust.explanations.find(/** @param {Record<string, unknown>} e */ (e) => e.writerId === 'alice');
+    const malloryExpl = assessment.trust.explanations.find(/** @param {Record<string, unknown>} e */ (e) => e.writerId === 'mallory');
+    expect(/** @type {Record<string, unknown>} */ (aliceExpl).trusted).toBe(true);
+    expect(/** @type {Record<string, unknown>} */ (malloryExpl).trusted).toBe(false);
   });
 });

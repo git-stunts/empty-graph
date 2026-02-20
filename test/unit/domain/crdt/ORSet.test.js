@@ -688,8 +688,10 @@ describe('ORSet', () => {
       const set = createORSet();
       const dot = createDot('writer1', 1);
 
+      // @ts-expect-error — testing ORSet with non-string elements
       orsetAdd(set, 42, dot);
 
+      // @ts-expect-error — testing ORSet with non-string elements
       expect(orsetContains(set, 42)).toBe(true);
       expect(orsetElements(set)).toContain(42);
     });
@@ -699,10 +701,12 @@ describe('ORSet', () => {
       const dot = createDot('writer1', 1);
       const obj = { id: 1 };
 
+      // @ts-expect-error — testing ORSet with non-string elements
       orsetAdd(set, obj, dot);
 
+      // @ts-expect-error — testing ORSet with non-string elements
       expect(orsetContains(set, obj)).toBe(true);
-      // Different object with same content won't match
+      // @ts-expect-error — Different object with same content won't match
       expect(orsetContains(set, { id: 1 })).toBe(false);
     });
 

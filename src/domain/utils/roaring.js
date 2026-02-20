@@ -31,8 +31,34 @@
 const NOT_CHECKED = Symbol('NOT_CHECKED');
 
 /**
+ * Shape of the lazily-loaded roaring module after ESM/CJS unwrapping.
+ * Uses Function instead of typeof import('roaring').RoaringBitmap32 to avoid
+ * duplicate import() references that crash Deno's JSR rewriter (deno_ast
+ * overlapping TextChange bug). The single import() reference lives on
+ * getRoaringBitmap32()'s @returns tag.
+ * @typedef {Object} RoaringModule
+ * @property {Function & { isNativelyInstalled?: () => boolean }} RoaringBitmap32
+ * @property {{ RoaringBitmap32: Function }} [default]
+ * @property {boolean} [isNativelyInstalled]
+ */
+
+/**
+ * Minimum structural contract of a RoaringBitmap32 as used by bitmap index code.
+ * Named "Subset" because it only covers methods actually called by index builders/readers.
+ * Using import('roaring').RoaringBitmap32 directly fails under checkJs + skipLibCheck
+ * because tsc doesn't fully resolve inherited methods from ReadonlyRoaringBitmap32.
+ * @typedef {Object} RoaringBitmapSubset
+ * @property {number} size
+ * @property {function(number): void} add
+ * @property {function(number): boolean} has
+ * @property {function(Iterable<number>): void} orInPlace
+ * @property {function(boolean): Uint8Array} serialize
+ * @property {function(): number[]} toArray
+ */
+
+/**
  * Cached reference to the loaded roaring module.
- * @type {any} // TODO(ts-cleanup): type lazy singleton
+ * @type {RoaringModule | null}
  * @private
  */
 let roaringModule = null;
@@ -51,7 +77,7 @@ let nativeAvailability = NOT_CHECKED;
  * Uses a top-level-await-friendly pattern with dynamic import.
  * The module is cached after first load.
  *
- * @returns {any} The roaring module exports
+ * @returns {RoaringModule} The roaring module exports
  * @throws {Error} If the roaring package is not installed or fails to load
  * @private
  */
@@ -67,7 +93,7 @@ function loadRoaring() {
  * This is called automatically via top-level await when the module is imported,
  * but can also be called manually with a pre-loaded module for testing.
  *
- * @param {Object} [mod] - Pre-loaded roaring module (for testing/DI)
+ * @param {RoaringModule} [mod] - Pre-loaded roaring module (for testing/DI)
  * @returns {Promise<void>}
  */
 export async function initRoaring(mod) {
@@ -76,7 +102,7 @@ export async function initRoaring(mod) {
     return;
   }
   if (!roaringModule) {
-    roaringModule = await import('roaring');
+    roaringModule = /** @type {RoaringModule} */ (await import('roaring'));
     // Handle both ESM default export and CJS module.exports
     if (roaringModule.default && roaringModule.default.RoaringBitmap32) {
       roaringModule = roaringModule.default;
@@ -116,7 +142,7 @@ try {
  * const intersection = RoaringBitmap32.and(a, b); // [2, 3]
  */
 export function getRoaringBitmap32() {
-  return loadRoaring().RoaringBitmap32;
+  return /** @type {typeof import('roaring').RoaringBitmap32} */ (loadRoaring().RoaringBitmap32);
 }
 
 /**

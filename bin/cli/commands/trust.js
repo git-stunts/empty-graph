@@ -49,7 +49,7 @@ function resolveTrustPin(cliPin) {
 
 /**
  * Discovers all writer IDs from the writers prefix refs.
- * @param {*} persistence
+ * @param {import('../types.js').Persistence} persistence
  * @param {string} graphName
  * @returns {Promise<string[]>}
  */
@@ -96,7 +96,7 @@ function buildNotConfiguredResult(graphName) {
 
 /**
  * @param {{options: CliOptions, args: string[]}} params
- * @returns {Promise<{payload: *, exitCode: number}>}
+ * @returns {Promise<{payload: unknown, exitCode: number}>}
  */
 export default async function handleTrust({ options, args }) {
   const { mode, trustPin } = parseTrustArgs(args);
@@ -104,7 +104,7 @@ export default async function handleTrust({ options, args }) {
   const graphName = await resolveGraphName(persistence, options.graph);
 
   const recordService = new TrustRecordService({
-    persistence: /** @type {*} TODO(ts-cleanup) */ (persistence),
+    persistence: /** @type {import('../../../src/domain/types/WarpPersistence.js').CorePersistence} */ (/** @type {unknown} */ (persistence)),
     codec: defaultCodec,
   });
 

@@ -11,7 +11,7 @@ const VIEW_OPTIONS = {
 
 /**
  * @param {{options: CliOptions, args: string[]}} params
- * @returns {Promise<{payload: *, exitCode: number}>}
+ * @returns {Promise<{payload: unknown, exitCode: number}>}
  */
 export default async function handleView({ options, args }) {
   if (!process.stdin.isTTY || !process.stdout.isTTY) {
@@ -29,10 +29,11 @@ export default async function handleView({ options, args }) {
       graph: options.graph || 'default',
       mode: viewMode,
     });
-  } catch (/** @type {*} */ err) { // TODO(ts-cleanup): type error
-    const isMissing = err.code === 'ERR_MODULE_NOT_FOUND' || (err.message && err.message.includes('Cannot find module'));
-    const isTui = err.specifier?.includes('git-warp-tui') ||
-      /cannot find (?:package|module) ['"]@git-stunts\/git-warp-tui/i.test(err.message);
+  } catch (err) {
+    const errObj = /** @type {{code?: string, message?: string, specifier?: string}} */ (typeof err === 'object' && err !== null ? err : {});
+    const isMissing = errObj.code === 'ERR_MODULE_NOT_FOUND' || (errObj.message && errObj.message.includes('Cannot find module'));
+    const isTui = errObj.specifier?.includes('git-warp-tui') ||
+      /cannot find (?:package|module) ['"]@git-stunts\/git-warp-tui/i.test(errObj.message || '');
     if (isMissing && isTui) {
       throw usageError(
         'Interactive TUI requires @git-stunts/git-warp-tui.\n' +

@@ -144,6 +144,7 @@ function _checkHeaderFormats(timestamp, nonce, signature) {
 
 /**
  * @param {Record<string, string>|undefined} keys
+ * @returns {asserts keys is Record<string, string>}
  */
 function _validateKeys(keys) {
   if (!keys || typeof keys !== 'object' || Object.keys(keys).length === 0) {
@@ -180,7 +181,7 @@ export default class SyncAuthService {
    * @param {() => number} [options.wallClockMs] - Wall clock function
    * @param {string[]} [options.allowedWriters] - Optional whitelist of allowed writer IDs. If set, sync requests with unlisted writers are rejected with 403.
    */
-  constructor({ keys, mode = 'enforce', nonceCapacity, maxClockSkewMs, crypto, logger, wallClockMs, allowedWriters } = /** @type {*} */ ({})) { // TODO(ts-cleanup): needs options type
+  constructor({ keys, mode = 'enforce', nonceCapacity, maxClockSkewMs, crypto, logger, wallClockMs, allowedWriters } = /** @type {{ keys: Record<string, string> }} */ ({})) {
     _validateKeys(keys);
     this._keys = keys;
     this._mode = mode;
@@ -433,7 +434,7 @@ export default class SyncAuthService {
   /**
    * Records an auth failure and returns the result.
    * @param {string} message
-   * @param {Record<string, *>} context
+   * @param {Record<string, unknown>} context
    * @param {{ ok: false, reason: string, status: number }} result
    * @returns {{ ok: false, reason: string, status: number }}
    * @private

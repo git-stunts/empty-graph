@@ -139,11 +139,11 @@ export async function computeStateHashV5(state, { crypto, codec } = /** @type {{
  * @param {Buffer} buffer
  * @param {Object} [options]
  * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for deserialization
- * @returns {{nodes: string[], edges: Array<{from: string, to: string, label: string}>, props: Array<{node: string, key: string, value: *}>}}
+ * @returns {{nodes: string[], edges: Array<{from: string, to: string, label: string}>, props: Array<{node: string, key: string, value: unknown}>}}
  */
 export function deserializeStateV5(buffer, { codec } = {}) {
   const c = codec || defaultCodec;
-  return /** @type {{nodes: string[], edges: Array<{from: string, to: string, label: string}>, props: Array<{node: string, key: string, value: *}>}} */ (c.decode(buffer));
+  return /** @type {{nodes: string[], edges: Array<{from: string, to: string, label: string}>, props: Array<{node: string, key: string, value: unknown}>}} */ (c.decode(buffer));
 }
 
 // ============================================================================

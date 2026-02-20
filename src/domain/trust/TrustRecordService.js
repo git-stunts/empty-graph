@@ -22,8 +22,8 @@ import TrustError from '../errors/TrustError.js';
 export class TrustRecordService {
   /**
    * @param {Object} options
-   * @param {*} options.persistence - GraphPersistencePort adapter
-   * @param {*} options.codec - CodecPort adapter (CBOR)
+   * @param {import('../../ports/CommitPort.js').default & import('../../ports/BlobPort.js').default & import('../../ports/TreePort.js').default & import('../../ports/RefPort.js').default} options.persistence - GraphPersistencePort adapter
+   * @param {import('../../ports/CodecPort.js').default} options.codec - CodecPort adapter (CBOR)
    */
   constructor({ persistence, codec }) {
     this._persistence = persistence;
@@ -46,7 +46,7 @@ export class TrustRecordService {
    * evaluation when the full key set is available.
    *
    * @param {string} graphName
-   * @param {Record<string, *>} record - Complete signed trust record
+   * @param {Record<string, unknown>} record - Complete signed trust record
    * @param {AppendOptions} [options]
    * @returns {Promise<{commitSha: string, ref: string}>}
    */
@@ -95,7 +95,7 @@ export class TrustRecordService {
    * @param {string} graphName
    * @param {Object} [options]
    * @param {string} [options.tip] - Override tip commit (for pinned reads)
-   * @returns {Promise<Array<Record<string, *>>>}
+   * @returns {Promise<Array<Record<string, unknown>>>}
    */
   async readRecords(graphName, options = {}) {
     const ref = buildTrustRecordRef(graphName);
@@ -117,13 +117,16 @@ export class TrustRecordService {
 
     while (current) {
       const info = await this._persistence.getNodeInfo(current);
-      const record = this._codec.decode(
-        await this._persistence.readBlob(
-          (await this._persistence.readTreeOids(
-            await this._persistence.getCommitTree(current),
-          ))['record.cbor'],
-        ),
+      const entries = await this._persistence.readTreeOids(
+        await this._persistence.getCommitTree(current),
       );
+      const blobOid = entries['record.cbor'];
+      if (!blobOid) {
+        break;
+      }
+      const record = /** @type {Record<string, unknown>} */ (this._codec.decode(
+        await this._persistence.readBlob(blobOid),
+      ));
 
       records.unshift(record);
 
@@ -145,7 +148,7 @@ export class TrustRecordService {
    * - Each record passes schema validation
    * - First record has prev=null
    *
-   * @param {Array<Record<string, *>>} records - Records in chain order (oldest first)
+   * @param {Array<Record<string, unknown>>} records - Records in chain order (oldest first)
    * @returns {{valid: boolean, errors: Array<{index: number, error: string}>}}
    */
   verifyChain(records) {
@@ -177,7 +180,7 @@ export class TrustRecordService {
       // Prev-link check
       if (i === 0) {
         if (record.prev !== null) {
-          errors.push({ index: i, error: `Genesis record must have prev=null, got ${record.prev}` });
+          errors.push({ index: i, error: `Genesis record must have prev=null, got ${JSON.stringify(record.prev)}` });
         }
       } else {
         const expectedPrev = records[i - 1].recordId;
@@ -200,12 +203,13 @@ export class TrustRecordService {
    * cryptographic verification — that requires the issuer's public key
    * from the trust state, which is resolved during evaluation.
    *
-   * @param {Record<string, *>} record
+   * @param {Record<string, unknown>} record
    * @throws {TrustError} if signature envelope is missing or malformed
    * @private
    */
   _verifySignatureEnvelope(record) {
-    if (!record.signature || !record.signature.sig || !record.signature.alg) {
+    const sig = /** @type {Record<string, unknown>|undefined} */ (record.signature);
+    if (!sig || !sig.sig || !sig.alg) {
       throw new TrustError(
         'Trust record missing or malformed signature',
         { code: 'E_TRUST_SIGNATURE_MISSING' },
@@ -237,14 +241,14 @@ export class TrustRecordService {
       return { tipSha, recordId: null };
     }
 
-    const record = this._codec.decode(await this._persistence.readBlob(blobOid));
-    return { tipSha, recordId: record.recordId ?? null };
+    const record = /** @type {Record<string, unknown>} */ (this._codec.decode(await this._persistence.readBlob(blobOid)));
+    return { tipSha, recordId: /** @type {string|null} */ (record.recordId) ?? null };
   }
 
   /**
    * Persists a trust record as a Git commit.
    * @param {string} ref
-   * @param {Record<string, *>} record
+   * @param {Record<string, unknown>} record
    * @param {string|null} parentSha - Resolved tip SHA (null for genesis)
    * @returns {Promise<string>} commit SHA
    * @private
@@ -252,16 +256,19 @@ export class TrustRecordService {
   async _persistRecord(ref, record, parentSha) {
     // Encode record as CBOR blob
     const encoded = this._codec.encode(record);
-    const blobOid = await this._persistence.writeBlob(encoded);
+    // Buffer.from() ensures Uint8Array from codec is accepted by writeBlob
+    const blobOid = await this._persistence.writeBlob(Buffer.from(encoded));
 
-    // Create tree with single entry
-    const treeOid = await this._persistence.writeTree({ 'record.cbor': blobOid });
+    // Create tree with single entry (mktree format)
+    const treeOid = await this._persistence.writeTree([`100644 blob ${blobOid}\trecord.cbor`]);
 
     const parents = parentSha ? [parentSha] : [];
-    const message = `trust: ${record.recordType} ${record.recordId.slice(0, 12)}`;
+    const rType = typeof record.recordType === 'string' ? record.recordType : '';
+    const rId = typeof record.recordId === 'string' ? record.recordId.slice(0, 12) : '';
+    const message = `trust: ${rType} ${rId}`;
 
-    const commitSha = await this._persistence.createCommit({
-      tree: treeOid,
+    const commitSha = await this._persistence.commitNodeWithTree({
+      treeOid,
       parents,
       message,
     });

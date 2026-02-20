@@ -67,7 +67,7 @@ function validateOp(op, index) {
     throw new Error(`ops[${index}] must be an object`);
   }
 
-  const entry = /** @type {Record<string, *>} */ (op);
+  const entry = /** @type {Record<string, unknown>} */ (op);
   validateOpType(entry.op, index);
   validateOpTarget(entry.target, index);
   validateOpResult(entry.result, index);

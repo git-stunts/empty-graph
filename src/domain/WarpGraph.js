@@ -288,7 +288,7 @@ export default class WarpGraph {
     // Initialize audit service if enabled
     if (graph._audit) {
       graph._auditService = new AuditReceiptService({
-        persistence: /** @type {any} */ (persistence), // TODO(ts-cleanup): persistence implements full port union
+        persistence: /** @type {import('./types/WarpPersistence.js').CorePersistence} */ (persistence),
         graphName,
         writerId,
         codec: graph._codec,

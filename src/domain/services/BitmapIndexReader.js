@@ -6,6 +6,7 @@ import { getRoaringBitmap32 } from '../utils/roaring.js';
 import { canonicalStringify } from '../utils/canonicalStringify.js';
 
 /** @typedef {import('../../ports/IndexStoragePort.js').default} IndexStoragePort */
+/** @typedef {import('../types/WarpPersistence.js').IndexStorage} IndexStorage */
 /** @typedef {import('../../ports/LoggerPort.js').default} LoggerPort */
 /** @typedef {import('../../ports/CryptoPort.js').default} CryptoPort */
 
@@ -89,11 +90,11 @@ export default class BitmapIndexReader {
    *   When exceeded, least recently used shards are evicted to free memory.
    * @param {import('../../ports/CryptoPort.js').default} [options.crypto] - CryptoPort instance for checksum verification.
    */
-  constructor({ storage, strict = false, logger = nullLogger, maxCachedShards = DEFAULT_MAX_CACHED_SHARDS, crypto } = /** @type {*} */ ({})) { // TODO(ts-cleanup): needs options type
+  constructor({ storage, strict = false, logger = nullLogger, maxCachedShards = DEFAULT_MAX_CACHED_SHARDS, crypto } = /** @type {{ storage: IndexStoragePort, strict?: boolean, logger?: LoggerPort, maxCachedShards?: number, crypto?: CryptoPort }} */ ({})) {
     if (!storage) {
       throw new Error('BitmapIndexReader requires a storage adapter');
     }
-    this.storage = storage;
+    this.storage = /** @type {IndexStorage} */ (storage);
     this.strict = strict;
     this.logger = logger;
     this.maxCachedShards = maxCachedShards;
@@ -144,7 +145,8 @@ export default class BitmapIndexReader {
   async lookupId(sha) {
     const prefix = sha.substring(0, 2);
     const path = `meta_${prefix}.json`;
-    const idMap = await this._getOrLoadShard(path, 'json');
+    // Meta shards always map SHA→numeric ID (built by BitmapIndexBuilder)
+    const idMap = /** @type {Record<string, number>} */ (await this._getOrLoadShard(path, 'json'));
     return idMap[sha];
   }
 
@@ -176,7 +178,8 @@ export default class BitmapIndexReader {
   async _getEdges(sha, type) {
     const prefix = sha.substring(0, 2);
     const shardPath = `shards_${type}_${prefix}.json`;
-    const shard = await this._getOrLoadShard(shardPath, 'json');
+    // Bitmap shards always map SHA→base64-encoded bitmap data
+    const shard = /** @type {Record<string, string>} */ (await this._getOrLoadShard(shardPath, 'json'));
 
     const encoded = shard[sha];
     if (!encoded) {
@@ -195,7 +198,7 @@ export default class BitmapIndexReader {
         shardPath,
         oid: this.shardOids.get(shardPath),
         reason: 'bitmap_deserialize_error',
-        context: { originalError: /** @type {any} */ (err).message }, // TODO(ts-cleanup): type error
+        context: { originalError: err instanceof Error ? err.message : String(err) },
       });
       this._handleShardError(corruptionError, {
         path: shardPath,
@@ -224,7 +227,8 @@ export default class BitmapIndexReader {
 
     for (const [path] of this.shardOids) {
       if (path.startsWith('meta_') && path.endsWith('.json')) {
-        const shard = await this._getOrLoadShard(path, 'json');
+        // Meta shards always map SHA→numeric ID (built by BitmapIndexBuilder)
+        const shard = /** @type {Record<string, number>} */ (await this._getOrLoadShard(path, 'json'));
         for (const [sha, id] of Object.entries(shard)) {
           this._idToShaCache[id] = sha;
         }
@@ -247,10 +251,10 @@ export default class BitmapIndexReader {
   /**
    * Validates a shard envelope for version and checksum integrity.
    *
-   * @param {{ data?: any, version?: number, checksum?: string }} envelope - The shard envelope to validate
+   * @param {{ data?: Record<string, string | number>, version?: number, checksum?: string }} envelope - The shard envelope to validate
    * @param {string} path - Shard path (for error context)
    * @param {string} oid - Object ID (for error context)
-   * @returns {Promise<any>} The validated data from the envelope
+   * @returns {Promise<Record<string, string | number>>} The validated data from the envelope
    * @throws {ShardCorruptionError} If envelope format is invalid
    * @throws {ShardValidationError} If version or checksum validation fails
    * @private
@@ -299,7 +303,7 @@ export default class BitmapIndexReader {
    * @param {string} context.path - Shard path
    * @param {string} context.oid - Object ID
    * @param {string} context.format - 'json' or 'bitmap'
-   * @returns {any} Empty shard (non-strict mode only)
+   * @returns {Record<string, string | number> | import('../utils/roaring.js').RoaringBitmapSubset} Empty shard (non-strict mode only)
    * @throws {ShardCorruptionError|ShardValidationError} In strict mode
    * @private
    */
@@ -307,17 +311,21 @@ export default class BitmapIndexReader {
     if (this.strict) {
       throw err;
     }
-    /** @type {any} */ // TODO(ts-cleanup): type lazy singleton
-    const errAny = err;
+    /** @type {string|undefined} */
+    const field = err instanceof ShardValidationError ? err.field : undefined;
+    /** @type {unknown} */
+    const expected = err instanceof ShardValidationError ? err.expected : undefined;
+    /** @type {unknown} */
+    const actual = err instanceof ShardValidationError ? err.actual : undefined;
     this.logger.warn('Shard validation warning', {
       operation: 'loadShard',
       shardPath: path,
       oid,
       error: err.message,
       code: err.code,
-      field: errAny.field,
-      expected: errAny.expected,
-      actual: errAny.actual,
+      field,
+      expected,
+      actual,
     });
     const emptyShard = format === 'json' ? {} : new (getRoaringBitmap32())();
     this.loadedShards.set(path, emptyShard);
@@ -329,7 +337,7 @@ export default class BitmapIndexReader {
    * @param {Buffer} buffer - Raw shard buffer
    * @param {string} path - Shard path (for error context)
    * @param {string} oid - Object ID (for error context)
-   * @returns {Promise<Object>} The validated data from the shard
+   * @returns {Promise<Record<string, string | number>>} The validated data from the shard
    * @throws {ShardCorruptionError} If parsing fails or format is invalid
    * @throws {ShardValidationError} If version or checksum validation fails
    * @private
@@ -349,7 +357,7 @@ export default class BitmapIndexReader {
    */
   async _loadShardBuffer(path, oid) {
     try {
-      return await /** @type {any} */ (this.storage).readBlob(oid); // TODO(ts-cleanup): narrow port type
+      return await this.storage.readBlob(oid);
     } catch (cause) {
       throw new ShardLoadError('Failed to load shard from storage', {
         shardPath: path,
@@ -382,15 +390,16 @@ export default class BitmapIndexReader {
   /**
    * Attempts to handle a shard error based on its type.
    * Returns handled result for validation/corruption errors, null otherwise.
-   * @param {any} err - The error to handle
+   * @param {unknown} err - The error to handle
    * @param {Object} context - Error context
    * @param {string} context.path - Shard path
    * @param {string} context.oid - Object ID
    * @param {string} context.format - 'json' or 'bitmap'
-   * @returns {any} Handled result or null if error should be re-thrown
+   * @returns {Record<string, string | number> | import('../utils/roaring.js').RoaringBitmapSubset | null} Handled result or null if error should be re-thrown
    * @private
    */
   _tryHandleShardError(err, context) {
+    if (!(err instanceof Error)) { return null; }
     const wrappedErr = this._wrapParseError(err, context.path, context.oid);
     const isHandleable = wrappedErr instanceof ShardCorruptionError ||
                          wrappedErr instanceof ShardValidationError;
@@ -406,7 +415,7 @@ export default class BitmapIndexReader {
    *
    * @param {string} path - Shard path
    * @param {string} format - 'json' or 'bitmap'
-   * @returns {Promise<any>}
+   * @returns {Promise<Record<string, string | number> | import('../utils/roaring.js').RoaringBitmapSubset>}
    * @throws {ShardLoadError} When storage.readBlob fails
    * @throws {ShardCorruptionError} When shard format is invalid (strict mode only)
    * @throws {ShardValidationError} When version or checksum validation fails (strict mode only)

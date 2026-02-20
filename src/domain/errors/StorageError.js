@@ -14,7 +14,7 @@ import IndexError from './IndexError.js';
  * @property {string} operation - The operation that failed ('read' or 'write')
  * @property {string} oid - Object ID associated with the operation
  * @property {Error} cause - The original error that caused the failure
- * @property {Record<string, *>} context - Serializable context object for debugging
+ * @property {Record<string, unknown>} context - Serializable context object for debugging
  *
  * @example
  * try {
@@ -32,7 +32,7 @@ export default class StorageError extends IndexError {
    * Creates a new StorageError.
    *
    * @param {string} message - Human-readable error message
-   * @param {{ operation?: string, oid?: string, cause?: Error, context?: Record<string, *> }} [options={}] - Error options
+   * @param {{ operation?: string, oid?: string, cause?: Error, context?: Record<string, unknown> }} [options={}] - Error options
    */
   constructor(message, options = {}) {
     const context = {

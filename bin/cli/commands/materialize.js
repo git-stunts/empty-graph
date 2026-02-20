@@ -45,7 +45,7 @@ async function materializeOneGraph({ persistence, graphName, writerId, ceiling }
 /**
  * Handles the `materialize` command: materializes and checkpoints all graphs.
  * @param {{options: CliOptions}} params
- * @returns {Promise<{payload: *, exitCode: number}>}
+ * @returns {Promise<{payload: unknown, exitCode: number}>}
  */
 export default async function handleMaterialize({ options }) {
   const { persistence } = await createPersistence(options.repo);
@@ -91,7 +91,7 @@ export default async function handleMaterialize({ options }) {
     }
   }
 
-  const allFailed = results.every((r) => /** @type {*} */ (r).error); // TODO(ts-cleanup): type CLI payload
+  const allFailed = results.every((r) => 'error' in r);
   return {
     payload: { graphs: results },
     exitCode: allFailed ? EXIT_CODES.INTERNAL : EXIT_CODES.OK,

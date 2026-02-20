@@ -82,7 +82,7 @@ const BTR_VERSION = 1;
  * @param {string} fields.h_in - Hash of input state
  * @param {string} fields.h_out - Hash of output state
  * @param {Uint8Array} fields.U_0 - Serialized initial state
- * @param {Array<*>} fields.P - Serialized provenance payload
+ * @param {Array<unknown>} fields.P - Serialized provenance payload
  * @param {string} fields.t - ISO timestamp
  * @param {string|Uint8Array} key - HMAC key
  * @param {{ crypto: import('../../ports/CryptoPort.js').default, codec?: import('../../ports/CodecPort.js').default }} deps - Dependencies
@@ -111,7 +111,7 @@ async function computeHmac(fields, key, { crypto, codec }) {
  * @property {string} h_in - Hash of input state (hex SHA-256)
  * @property {string} h_out - Hash of output state (hex SHA-256)
  * @property {Uint8Array} U_0 - Serialized initial state (CBOR)
- * @property {Array<*>} P - Serialized provenance payload
+ * @property {Array<unknown>} P - Serialized provenance payload
  * @property {string} t - ISO 8601 timestamp
  * @property {string} kappa - Authentication tag (hex HMAC-SHA256)
  */
@@ -189,7 +189,7 @@ const REQUIRED_FIELDS = ['version', 'h_in', 'h_out', 'U_0', 'P', 't', 'kappa'];
 /**
  * Validates BTR structure and returns failure reason if invalid.
  *
- * @param {*} btr - The BTR object to validate
+ * @param {unknown} btr - The BTR object to validate
  * @returns {string|null} Error message if invalid, null if valid
  * @private
  */
@@ -197,13 +197,14 @@ function validateBTRStructure(btr) {
   if (!btr || typeof btr !== 'object') {
     return 'BTR must be an object';
   }
+  const rec = /** @type {Record<string, unknown>} */ (btr);
   for (const field of REQUIRED_FIELDS) {
-    if (!(field in btr)) {
+    if (!(field in rec)) {
       return `Missing required field: ${field}`;
     }
   }
-  if (btr.version !== BTR_VERSION) {
-    return `Unsupported BTR version: ${btr.version} (expected ${BTR_VERSION})`;
+  if (rec.version !== BTR_VERSION) {
+    return `Unsupported BTR version: ${rec.version} (expected ${BTR_VERSION})`;
   }
   return null;
 }
@@ -250,7 +251,7 @@ async function verifyHmac(btr, key, { crypto, codec }) {
  * @returns {Promise<string|null>} Error message if replay mismatch, null if valid
  * @private
  */
-async function verifyReplayHash(btr, { crypto, codec } = /** @type {*} */ ({})) { // TODO(ts-cleanup): needs options type
+async function verifyReplayHash(btr, { crypto, codec } = {}) {
   try {
     const result = await replayBTR(btr, { crypto, codec });
     if (result.h_out !== btr.h_out) {
@@ -258,7 +259,7 @@ async function verifyReplayHash(btr, { crypto, codec } = /** @type {*} */ ({})) 
     }
     return null;
   } catch (err) {
-    return `Replay failed: ${/** @type {any} */ (err).message}`; // TODO(ts-cleanup): type error
+    return `Replay failed: ${err instanceof Error ? err.message : String(err)}`;
   }
 }
 
@@ -280,7 +281,7 @@ async function verifyReplayHash(btr, { crypto, codec } = /** @type {*} */ ({})) 
  * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for serialization
  * @returns {Promise<VerificationResult>} Verification result with valid flag and optional reason
  */
-export async function verifyBTR(btr, key, options = /** @type {*} */ ({})) { // TODO(ts-cleanup): needs options type
+export async function verifyBTR(btr, key, options = {}) {
   const { crypto, codec } = options;
 
   const structureError = validateBTRStructure(btr);
@@ -323,13 +324,13 @@ export async function verifyBTR(btr, key, options = /** @type {*} */ ({})) { // 
  *   The final state and its hash
  * @throws {Error} If replay fails
  */
-export async function replayBTR(btr, { crypto, codec } = /** @type {*} */ ({})) { // TODO(ts-cleanup): needs options type
+export async function replayBTR(btr, { crypto, codec } = {}) {
   // Deserialize initial state from U_0
   // Note: U_0 is the full serialized state (via serializeFullStateV5)
   const initialState = deserializeInitialState(btr.U_0, { codec });
 
   // Reconstruct payload
-  const payload = ProvenancePayload.fromJSON(btr.P);
+  const payload = ProvenancePayload.fromJSON(/** @type {import('./ProvenancePayload.js').PatchEntry[]} */ (btr.P));
 
   // Replay
   const finalState = payload.replay(initialState);
@@ -355,7 +356,7 @@ export async function replayBTR(btr, { crypto, codec } = /** @type {*} */ ({})) 
  * @returns {import('./JoinReducer.js').WarpStateV5} The deserialized state
  * @private
  */
-function deserializeInitialState(U_0, { codec } = /** @type {*} */ ({})) { // TODO(ts-cleanup): needs options type
+function deserializeInitialState(U_0, { codec } = {}) {
   return deserializeFullStateV5(U_0, { codec });
 }
 
@@ -370,7 +371,7 @@ function deserializeInitialState(U_0, { codec } = /** @type {*} */ ({})) { // TO
  * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for serialization
  * @returns {Uint8Array} CBOR-encoded BTR
  */
-export function serializeBTR(btr, { codec } = /** @type {*} */ ({})) { // TODO(ts-cleanup): needs options type
+export function serializeBTR(btr, { codec } = {}) {
   const c = codec || defaultCodec;
   return c.encode({
     version: btr.version,
@@ -392,9 +393,9 @@ export function serializeBTR(btr, { codec } = /** @type {*} */ ({})) { // TODO(t
  * @returns {BTR} The deserialized BTR
  * @throws {Error} If the bytes are not valid CBOR or missing required fields
  */
-export function deserializeBTR(bytes, { codec } = /** @type {*} */ ({})) { // TODO(ts-cleanup): needs options type
+export function deserializeBTR(bytes, { codec } = {}) {
   const c = codec || defaultCodec;
-  const obj = /** @type {Record<string, *>} */ (c.decode(bytes));
+  const obj = /** @type {Record<string, unknown>} */ (c.decode(bytes));
 
   // Validate structure (reuse module-level constant for consistency with validateBTRStructure)
   for (const field of REQUIRED_FIELDS) {
@@ -403,7 +404,7 @@ export function deserializeBTR(bytes, { codec } = /** @type {*} */ ({})) { // TO
     }
   }
 
-  return {
+  return /** @type {BTR} */ ({
     version: obj.version,
     h_in: obj.h_in,
     h_out: obj.h_out,
@@ -411,7 +412,7 @@ export function deserializeBTR(bytes, { codec } = /** @type {*} */ ({})) { // TO
     P: obj.P,
     t: obj.t,
     kappa: obj.kappa,
-  };
+  });
 }
 
 /**

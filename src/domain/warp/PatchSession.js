@@ -120,7 +120,7 @@ export class PatchSession {
    *
    * @param {string} nodeId - The node ID
    * @param {string} key - Property key
-   * @param {*} value - Property value (must be JSON-serializable)
+   * @param {unknown} value - Property value (must be JSON-serializable)
    * @returns {this} This session for chaining
    * @throws {Error} If this session has already been committed
    */
@@ -137,7 +137,7 @@ export class PatchSession {
    * @param {string} to - Target node ID
    * @param {string} label - Edge label/type
    * @param {string} key - Property key
-   * @param {*} value - Property value (must be JSON-serializable)
+   * @param {unknown} value - Property value (must be JSON-serializable)
    * @returns {this} This session for chaining
    * @throws {Error} If this session has already been committed
    */
@@ -194,23 +194,14 @@ export class PatchSession {
       const sha = await this._builder.commit();
       this._committed = true;
       return sha;
-    } catch (/** @type {any} */ err) { // TODO(ts-cleanup): type error
-      // Check if it's a concurrent commit error from PatchBuilderV2
-      if (err.message?.includes('Concurrent commit detected') ||
-          err.message?.includes('has advanced')) {
-        throw new WriterError(
-          'WRITER_REF_ADVANCED',
-          err.message,
-          err
-        );
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      const cause = err instanceof Error ? err : undefined;
+      if (errMsg.includes('Concurrent commit detected') ||
+          errMsg.includes('has advanced')) {
+        throw new WriterError('WRITER_REF_ADVANCED', errMsg, cause);
       }
-
-      // Wrap other errors
-      throw new WriterError(
-        'PERSIST_WRITE_FAILED',
-        `Failed to persist patch: ${err.message}`,
-        err
-      );
+      throw new WriterError('PERSIST_WRITE_FAILED', `Failed to persist patch: ${errMsg}`, cause);
     }
   }
 

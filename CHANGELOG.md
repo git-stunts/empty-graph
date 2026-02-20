@@ -5,6 +5,79 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [11.3.2] — 2026-02-19 — M9 IRONCLAD: Zero Wildcards
+
+Eliminates all 9 remaining wildcards (7 in bitmap index code, 2 in TrustRecordService)
+and sets the fence to 0. Fixes two latent bugs in TrustRecordService that would have
+failed at runtime against a real GitGraphAdapter.
+
+### Fixed
+
+- **TrustRecordService.writeTree** — Was passing an object `{ 'record.cbor': blobOid }` but TreePort expects mktree-format `string[]`. Fixed to `["100644 blob <oid>\trecord.cbor"]`.
+- **TrustRecordService.createCommit** — Was calling non-existent `createCommit()` method. Fixed to `commitNodeWithTree({ treeOid, parents, message })` matching CommitPort.
+- **Bitmap serialize portability** — `bitmap.serialize(true).toString('base64')` relied on Node Buffer return type. Wrapped in `Buffer.from()` for explicit Uint8Array→Buffer conversion.
+
+### Changed
+
+- **RoaringBitmapSubset typedef** — New structural typedef in `src/domain/utils/roaring.js` covering `size`, `add`, `has`, `orInPlace`, `serialize`, `toArray`. Replaces 7 `any`/`*` wildcards across `BitmapIndexBuilder`, `StreamingBitmapIndexBuilder`, and `BitmapIndexReader`.
+- **BitmapIndexReader shard types** — Internal shard data typed as `Record<string, string | number>` with narrowing casts at call sites (meta shards → `Record<string, number>`, bitmap shards → `Record<string, string>`).
+- **TrustRecordService constructor** — `{*}` params replaced with `CommitPort & BlobPort & TreePort & RefPort` and `CodecPort`.
+- **any-fence.json** — Wildcard count ratcheted from 9 → 0.
+
+### Review Fixes (post-review cleanup)
+
+- **Stray transcript file** — Removed `2026-02-17-131249-…w.txt` accidentally committed with M9.
+- **BitmapIndexReader return types** — `_handleShardError`, `_tryHandleShardError`, and `_getOrLoadShard` return types now include `RoaringBitmapSubset` for the bitmap-format branch.
+- **`_tryHandleShardError` guard** — Added `instanceof Error` guard, removing bare `/** @type {Error} */` cast on `unknown` catch variable.
+- **Test cast simplification** — Replaced `/** @type {*} */` with structural `{ has: (id: number) => boolean }` in `WarpStateIndexBuilder.test.js`.
+- **pre-commit hook** — Added `|| true` to `grep -zE` so non-JS commits don't abort under `set -e`.
+- **loadFence robustness** — `loadFence()` in `ts-policy-check.js` now distinguishes ENOENT (returns null) from JSON parse errors (throws). Prevents malformed fence from silently disabling the ratchet.
+- **HttpSyncServer authSchema** — Added JSDoc type annotations to `z.custom()` for `crypto` and `logger` so `z.infer<>` preserves port types instead of inferring `unknown`.
+- **TrustStateBuilder recordId** — Replaced `/** @type {string} */ (record.recordId) ?? '(unknown)'` with `typeof` guard so the nullish fallback is actually reachable.
+- **SyncProtocol types** — `patch: Object` → `patch: DecodedPatch` in `SyncResponse` typedef and `loadPatchRange` return. Added missing `@param` for `{ codec }` on both `processSyncRequest` and `loadPatchRange`.
+- **TrustRecordService.readRecords guard** — Added `blobOid` null check before calling `readBlob()`, mirroring the pattern in `_readTip`.
+- **CommitDagTraversalService constructor** — Removed `= {}` default so TypeScript enforces the required `indexReader` at compile time.
+- **PatchCommitEvent.sha** — Made `sha` property required (was optional but always provided at emission).
+- **prepack gate** — Wired `typecheck:consumer` into `prepack` script.
+- **JSR publish dry-run panic** — Added `imports` map for `roaring` in `jsr.json` so Deno's rewriter doesn't generate overlapping TextChange entries on duplicate `import('roaring')` references in JSDoc. Also synced `jsr.json` version to 11.3.2.
+- **BATS query test flake** — Fixed order-sensitive assertion in test #93 "query returns nodes using builder" — sorted node IDs before comparison.
+
+### Review Fixes (CodeRabbit round 3)
+
+- **type-surface manifest** — Added missing `setSeekCache` method; `syncWith` return type now includes optional `state` property matching `index.d.ts`.
+- **HttpSyncServer z.custom types** — Added `z.ZodType<>` annotations to `httpPort` and `graph` in `optionsSchema` so `z.infer` preserves port types. Improved error messages.
+- **HttpSyncServer allowedWriters** — Empty array `[]` no longer triggers the "requires auth" validation error (truthy check → length check).
+- **HttpSyncServer initAuth JSDoc** — Merged duplicate JSDoc blocks; removed stale `crypto?: *` and `logger?: *` wildcards.
+- **WormholeService typeof guards** — Added `typeof` string guards for `fromSha`, `toSha`, `writerId` before JSDoc casts, matching the existing `patchCount` guard pattern.
+- **TrustRecordService _persistRecord** — `record.recordId` and `record.recordType` now use `typeof` guards instead of bare JSDoc casts, preventing `TypeError` on `undefined`.
+- **StreamingBitmapIndexBuilder frontier type** — `finalize()` JSDoc changed from `Map<string, number>` to `Map<string, string>` (writerId → tip SHA), matching all callers. Removed double cast in `IndexRebuildService.rebuild()`.
+- **BunHttpAdapter stop() typedef** — `BunServer.stop()` return type corrected from `void` to `Promise<void>` in both JSDoc typedef and `globals.d.ts`.
+- **ROADMAP.md** — Added `text` language specifier to fenced code block (MD040). Fixed grep acceptance criterion (`-rE` flag + wildcard pattern).
+
+## [11.3.1] — 2026-02-18 — M8 IRONCLAD: Embedded Wildcard Elimination
+
+Completes M8 IRONCLAD by eliminating all remaining embedded wildcards, fixing
+behavioral regressions from the initial sweep, and upgrading the policy checker
+to prevent regressions.
+
+### Fixed
+
+- **vvSerialize restoration** — Restored `vvSerialize()` call in `PatchBuilderV2.commit()` / `build()` that was accidentally replaced with a type-only cast, preventing Map→Object serialization of version vectors in patch context fields.
+- **Constructor JSDoc accuracy** — Reverted 6 constructors (`CommitDagTraversalService`, `DagPathFinding`, `DagTopology`, `DagTraversal`, `IndexRebuildService`, `SyncAuthService`) from falsely optional `[options]` back to required params with typed default casts.
+- **serve() JSDoc** — `port` and `httpPort` parameters restored to required (matching runtime validation).
+
+### Changed
+
+- **M8 IRONCLAD Wave 3: cast elimination** — Removed ~107 wildcard casts (`@type {*}` / `@type {any}`) across ~40 files in `src/domain/warp/`, `src/domain/services/`, and `src/infrastructure/adapters/`. All casts replaced with role-specific persistence types, error narrowing helpers (`isError`, `hasErrorCode`, `hasMessage`), and properly typed aliases.
+- **Embedded wildcard elimination** — Replaced 48 embedded `*` wildcards (`Array<*>`, `Map<string, *>`, `LWWRegister<*>`, `Promise<{payload: *}>`, etc.) with `unknown` or proper specific types across 31 files.
+- **PersistenceReader/Writer/CheckpointPersistence → CorePersistence** — Collapsed three identical type aliases into one honest `CorePersistence` type with documentation noting read/write separation is aspirational.
+- **Proper return types** — Added `AuditReceipt` typedef in `AuditVerifierService`, `CasStore` typedef in `CasSeekCacheAdapter`, `WarpGraphInstance` param type in `patch.js`, specific patch shape types.
+- **HttpSyncServer** — Constructor now uses Zod schema validation; all four `z.any()` uses replaced with `z.custom()` validators.
+- **HookInstaller** — Constructor deps parameter changed from optional to required.
+- **SyncAuthService** — `_validateKeys` now typed as assertion function for proper post-validation narrowing.
+- **WarpPersistence types** — Added `IndexStorage` typedef (`BlobPort & TreePort & RefPort`).
+- **Policy checker upgrade** — `ts-policy-check.js` now enforces 4 rules: (1) ban `@ts-ignore`, (2) ban `@type {*}`/`@type {any}`, (3) ban embedded wildcards in JSDoc generics, (4) ban `z.any()`.
+
 ## [Unreleased]
 
 ## [11.3.0] — 2026-02-17 — DX-HAMMER: Read-Path CLI Improvements

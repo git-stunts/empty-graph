@@ -63,29 +63,29 @@ export function shouldStripColor() {
 
 // ── Text renderer map ────────────────────────────────────────────────────────
 
-/** @param {*} payload */
+/** @param {import('./text.js').PatchShowPayload & Partial<import('./text.js').PatchListPayload>} payload */
 function renderPatch(payload) {
   if (payload.ops) {
     return renderPatchShow(payload);
   }
-  return renderPatchList(payload);
+  return renderPatchList(/** @type {import('./text.js').PatchListPayload} */ (payload));
 }
 
-/** @param {*} payload */
+/** @param {{ graph: string, tree?: string, orphanCount?: number, orphans?: string[] }} payload */
 function renderTree(payload) {
   const lines = [`Graph: ${payload.graph}`];
   if (payload.tree) {
     lines.push(payload.tree);
   }
-  if (payload.orphanCount > 0) {
+  if (payload.orphanCount && payload.orphanCount > 0 && payload.orphans) {
     lines.push('');
     lines.push(`Orphans (${payload.orphanCount}): ${payload.orphans.join(', ')}`);
   }
   return `${lines.join('\n')}\n`;
 }
 
-/** @type {Map<string, function(*): string>} */
-const TEXT_RENDERERS = new Map(/** @type {[string, function(*): string][]} */ ([
+/** @type {Map<string, function(unknown): string>} */
+const TEXT_RENDERERS = new Map(/** @type {[string, function(unknown): string][]} */ ([
   ['info', renderInfo],
   ['query', renderQuery],
   ['path', renderPath],
@@ -101,8 +101,8 @@ const TEXT_RENDERERS = new Map(/** @type {[string, function(*): string][]} */ ([
   ['install-hooks', renderInstallHooks],
 ]));
 
-/** @type {Map<string, function(*): string>} */
-const VIEW_RENDERERS = new Map(/** @type {[string, function(*): string][]} */ ([
+/** @type {Map<string, function(unknown): string>} */
+const VIEW_RENDERERS = new Map(/** @type {[string, function(unknown): string][]} */ ([
   ['info', renderInfoView],
   ['check', renderCheckView],
   ['history', renderHistoryView],
@@ -127,7 +127,7 @@ function writeHtmlExport(filePath, svgContent) {
 
 /**
  * Handles svg:PATH and html:PATH view modes for commands that carry _renderedSvg.
- * @param {*} payload
+ * @param {{ _renderedSvg?: string }} payload
  * @param {string} view
  * @returns {boolean} true if handled
  */
@@ -171,13 +171,13 @@ function writeText(text, strip) {
 /**
  * Writes a command result to stdout/stderr in the requested format.
  *
- * @param {*} payload - Command result payload
+ * @param {Record<string, unknown>} payload - Command result payload
  * @param {{format: string, command: string, view: string|null|boolean}} options
  */
 export function present(payload, { format, command, view }) {
   // Error payloads always go to stderr as plain text
   if (payload?.error) {
-    process.stderr.write(renderError(payload));
+    process.stderr.write(renderError(/** @type {import('./text.js').ErrorPayload} */ (payload)));
     return;
   }
 
@@ -211,7 +211,7 @@ export function present(payload, { format, command, view }) {
 
 /**
  * Handles --view output dispatch (ASCII view, SVG file, HTML file).
- * @param {*} payload
+ * @param {Record<string, unknown>} payload
  * @param {string} command
  * @param {string|boolean} view
  */
@@ -225,7 +225,8 @@ function presentView(payload, command, view) {
 
   // query is special: uses pre-rendered _renderedAscii
   if (command === 'query') {
-    writeText(`${payload._renderedAscii ?? ''}\n`, strip);
+    const ascii = typeof payload._renderedAscii === 'string' ? payload._renderedAscii : '';
+    writeText(`${ascii}\n`, strip);
     return;
   }
 

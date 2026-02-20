@@ -16,6 +16,8 @@
 import { orsetElements, orsetContains } from '../crdt/ORSet.js';
 import { decodeEdgeKey, decodePropKey, isEdgePropKey } from './KeyCodec.js';
 
+/** @typedef {import('./JoinReducer.js').WarpStateV5} WarpStateV5 */
+
 /**
  * Tests whether a string matches a glob-style pattern.
  *
@@ -38,7 +40,7 @@ function matchGlob(pattern, str) {
 /**
  * Computes the set of property keys visible under an observer config.
  *
- * @param {Map<string, *>} allNodeProps - Map of propKey -> placeholder
+ * @param {Map<string, unknown>} allNodeProps - Map of propKey -> placeholder
  * @param {string[]|undefined} expose - Whitelist of property keys
  * @param {string[]|undefined} redact - Blacklist of property keys
  * @returns {Set<string>} Visible property keys
@@ -63,7 +65,7 @@ function visiblePropKeys(allNodeProps, expose, redact) {
 /**
  * Collects node property keys from state for a given node.
  *
- * @param {*} state - WarpStateV5 materialized state
+ * @param {WarpStateV5} state - WarpStateV5 materialized state
  * @param {string} nodeId - The node ID
  * @returns {Map<string, boolean>} Map of propKey -> true
  */
@@ -111,7 +113,7 @@ function countMissing(source, targetSet) {
 /**
  * Computes edge loss between two observer node sets.
  *
- * @param {*} state - WarpStateV5
+ * @param {WarpStateV5} state
  * @param {Set<string>} nodesASet - Nodes visible to A
  * @param {Set<string>} nodesBSet - Nodes visible to B
  * @returns {number} edgeLoss fraction
@@ -156,7 +158,7 @@ function countNodePropLoss(nodeProps, { configA, configB, nodeInB }) {
 /**
  * Computes property loss across all A-visible nodes.
  *
- * @param {*} state - WarpStateV5
+ * @param {WarpStateV5} state - WarpStateV5
  * @param {{ nodesA: string[], nodesBSet: Set<string>, configA: {expose?: string[], redact?: string[]}, configB: {expose?: string[], redact?: string[]} }} opts
  * @returns {number} propLoss fraction
  */
@@ -193,7 +195,7 @@ function computePropLoss(state, { nodesA, nodesBSet, configA, configB }) {
  * @param {string} configB.match - Glob pattern for visible nodes
  * @param {string[]} [configB.expose] - Property keys to include
  * @param {string[]} [configB.redact] - Property keys to exclude
- * @param {*} state - WarpStateV5 materialized state
+ * @param {WarpStateV5} state - WarpStateV5 materialized state
  * @returns {{ cost: number, breakdown: { nodeLoss: number, edgeLoss: number, propLoss: number } }}
  */
 export function computeTranslationCost(configA, configB, state) {

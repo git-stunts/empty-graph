@@ -43,7 +43,7 @@ function parsePathArgs(args) {
 /**
  * Handles the `path` command: finds a shortest path between two nodes.
  * @param {{options: CliOptions, args: string[]}} params
- * @returns {Promise<{payload: *, exitCode: number}>}
+ * @returns {Promise<{payload: unknown, exitCode: number}>}
  */
 export default async function handlePath({ options, args }) {
   const pathOptions = parsePathArgs(args);
@@ -79,8 +79,8 @@ export default async function handlePath({ options, args }) {
       payload,
       exitCode: result.found ? EXIT_CODES.OK : EXIT_CODES.NO_MATCH,
     };
-  } catch (/** @type {*} */ error) { // TODO(ts-cleanup): type error
-    if (error && error.code === 'NODE_NOT_FOUND') {
+  } catch (error) {
+    if (error instanceof Error && /** @type {{code?: string}} */ (error).code === 'NODE_NOT_FOUND') {
       throw notFoundError(error.message);
     }
     throw error;

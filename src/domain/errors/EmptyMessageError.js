@@ -12,7 +12,7 @@ import IndexError from './IndexError.js';
  * @property {string} name - The error name ('EmptyMessageError')
  * @property {string} code - Error code ('EMPTY_MESSAGE')
  * @property {string} operation - The operation that failed due to empty message
- * @property {Record<string, *>} context - Serializable context object for debugging
+ * @property {Record<string, unknown>} context - Serializable context object for debugging
  *
  * @example
  * if (!message || message.trim() === '') {
@@ -27,7 +27,7 @@ export default class EmptyMessageError extends IndexError {
    * Creates a new EmptyMessageError.
    *
    * @param {string} message - Human-readable error message
-   * @param {{ operation?: string, context?: Record<string, *> }} [options={}] - Error options
+   * @param {{ operation?: string, context?: Record<string, unknown> }} [options={}] - Error options
    */
   constructor(message, options = {}) {
     const context = {

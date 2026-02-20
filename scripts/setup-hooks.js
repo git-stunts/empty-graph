@@ -33,6 +33,6 @@ try {
   console.log('✅ Git hooks configured successfully');
   console.log(`   Hooks directory: ${hooksDir}`);
 } catch (err) {
-  console.error('❌ Failed to configure git hooks:', /** @type {any} */ (err).message); // TODO(ts-cleanup): type error
+  console.error('❌ Failed to configure git hooks:', err instanceof Error ? err.message : String(err));
   process.exit(1);
 }

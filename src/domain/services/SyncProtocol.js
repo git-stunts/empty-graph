@@ -42,6 +42,16 @@ import { join, cloneStateV5 } from './JoinReducer.js';
 import { cloneFrontier, updateFrontier } from './Frontier.js';
 import { vvDeserialize } from '../crdt/VersionVector.js';
 
+/**
+ * A decoded patch object after CBOR deserialization.
+ * @typedef {Object} DecodedPatch
+ * @property {Object | Map<string, number>} [context] - VersionVector (Map after normalization, plain object before)
+ * @property {import('../types/WarpTypesV2.js').OpV2[]} ops - Ordered array of operations
+ * @property {string} [writer] - Writer ID
+ * @property {number} [lamport] - Lamport timestamp
+ * @property {number} [schema] - Schema version
+ */
+
 // -----------------------------------------------------------------------------
 // Patch Loading
 // -----------------------------------------------------------------------------
@@ -56,9 +66,9 @@ import { vvDeserialize } from '../crdt/VersionVector.js';
  * **Mutation**: This function mutates the input patch object for efficiency.
  * The original object reference is returned.
  *
- * @param {{ context?: Object | Map<any, any>, ops: any[] }} patch - The raw decoded patch from CBOR.
+ * @param {DecodedPatch} patch - The raw decoded patch from CBOR.
  *   If context is present as a plain object, it will be converted to a Map.
- * @returns {{ context?: Object | Map<any, any>, ops: any[] }} The same patch object with context converted to Map
+ * @returns {DecodedPatch} The same patch object with context converted to Map
  * @private
  */
 function normalizePatch(patch) {
@@ -88,7 +98,7 @@ function normalizePatch(patch) {
  * @param {string} sha - The 40-character commit SHA to load the patch from
  * @param {Object} [options]
  * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for deserialization
- * @returns {Promise<{ context?: Object | Map<any, any>, ops: any[] }>} The decoded and normalized patch object containing:
+ * @returns {Promise<DecodedPatch>} The decoded and normalized patch object containing:
  *   - `ops`: Array of patch operations
  *   - `context`: VersionVector (Map) of causal dependencies
  *   - `writerId`: The writer who created this patch
@@ -99,7 +109,7 @@ function normalizePatch(patch) {
  * @throws {Error} If the patch blob cannot be CBOR-decoded (corrupted data)
  * @private
  */
-async function loadPatchFromCommit(persistence, sha, { codec: codecOpt } = /** @type {*} */ ({})) { // TODO(ts-cleanup): needs options type
+async function loadPatchFromCommit(persistence, sha, { codec: codecOpt } = /** @type {{ codec?: import('../../ports/CodecPort.js').default }} */ ({})) {
   const codec = codecOpt || defaultCodec;
   // Read commit message to extract patch OID
   const message = await persistence.showNode(sha);
@@ -107,7 +117,7 @@ async function loadPatchFromCommit(persistence, sha, { codec: codecOpt } = /** @
 
   // Read and decode the patch blob
   const patchBuffer = await persistence.readBlob(decoded.patchOid);
-  const patch = /** @type {{ context?: Object | Map<any, any>, ops: any[] }} */ (codec.decode(patchBuffer));
+  const patch = /** @type {DecodedPatch} */ (codec.decode(patchBuffer));
 
   // Normalize the patch (convert context from object to Map)
   return normalizePatch(patch);
@@ -134,7 +144,9 @@ async function loadPatchFromCommit(persistence, sha, { codec: codecOpt } = /** @
  * @param {string|null} fromSha - Start SHA (exclusive). Pass null to load ALL patches
  *   for this writer from the beginning of their chain.
  * @param {string} toSha - End SHA (inclusive). This is typically the writer's current tip.
- * @returns {Promise<Array<{patch: Object, sha: string}>>} Array of patch objects in
+ * @param {Object} [options]
+ * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for deserialization
+ * @returns {Promise<Array<{patch: DecodedPatch, sha: string}>>} Array of patch objects in
  *   chronological order (oldest first). Each entry contains:
  *   - `patch`: The decoded patch object
  *   - `sha`: The commit SHA this patch came from
@@ -152,7 +164,7 @@ async function loadPatchFromCommit(persistence, sha, { codec: codecOpt } = /** @
  * // Load ALL patches for a new writer
  * const patches = await loadPatchRange(persistence, 'events', 'new-writer', null, tipSha);
  */
-export async function loadPatchRange(persistence, graphName, writerId, fromSha, toSha, { codec } = /** @type {*} */ ({})) { // TODO(ts-cleanup): needs options type
+export async function loadPatchRange(persistence, graphName, writerId, fromSha, toSha, { codec } = /** @type {{ codec?: import('../../ports/CodecPort.js').default }} */ ({})) {
   const patches = [];
   let cur = toSha;
 
@@ -298,7 +310,7 @@ export function computeSyncDelta(localFrontier, remoteFrontier) {
  * @property {'sync-response'} type - Message type discriminator for protocol parsing
  * @property {Object.<string, string>} frontier - Responder's frontier as a plain object.
  *   Keys are writer IDs, values are SHAs.
- * @property {Array<{writerId: string, sha: string, patch: Object}>} patches - Patches
+ * @property {Array<{writerId: string, sha: string, patch: DecodedPatch}>} patches - Patches
  *   the requester needs, in chronological order per writer. Contains:
  *   - `writerId`: The writer who created this patch
  *   - `sha`: The commit SHA this patch came from (for frontier updates)
@@ -361,6 +373,8 @@ export function createSyncRequest(frontier) {
  * @param {import('../../ports/GraphPersistencePort.js').default & import('../../ports/CommitPort.js').default & import('../../ports/BlobPort.js').default} persistence - Git persistence
  *   layer for loading patches (uses CommitPort + BlobPort methods)
  * @param {string} graphName - Graph name for error messages and logging
+ * @param {Object} [options]
+ * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for deserialization
  * @returns {Promise<SyncResponse>} Response containing local frontier and patches.
  *   Patches are ordered chronologically within each writer.
  * @throws {Error} If patch loading fails for reasons other than divergence
@@ -374,7 +388,7 @@ export function createSyncRequest(frontier) {
  *   res.json(response);
  * });
  */
-export async function processSyncRequest(request, localFrontier, persistence, graphName, { codec } = /** @type {*} */ ({})) { // TODO(ts-cleanup): needs options type
+export async function processSyncRequest(request, localFrontier, persistence, graphName, { codec } = /** @type {{ codec?: import('../../ports/CodecPort.js').default }} */ ({})) {
   // Convert incoming frontier from object to Map
   const remoteFrontier = new Map(Object.entries(request.frontier));
 
@@ -401,7 +415,7 @@ export async function processSyncRequest(request, localFrontier, persistence, gr
     } catch (err) {
       // If we detect divergence, skip this writer
       // The requester may need to handle this separately
-      if (/** @type {any} */ (err).code === 'E_SYNC_DIVERGENCE' || /** @type {any} */ (err).message?.includes('Divergence detected')) { // TODO(ts-cleanup): type error
+      if ((err instanceof Error && 'code' in err && /** @type {{ code: string }} */ (err).code === 'E_SYNC_DIVERGENCE') || (err instanceof Error && err.message?.includes('Divergence detected'))) {
         continue;
       }
       throw err;
@@ -491,7 +505,7 @@ export function applySyncResponse(response, state, frontier) {
       // will prevent silent data loss until the reader is upgraded.
       assertOpsCompatible(normalizedPatch.ops, SCHEMA_V3);
       // Apply patch to state
-      join(newState, /** @type {*} */ (normalizedPatch), sha); // TODO(ts-cleanup): type patch array
+      join(newState, /** @type {Parameters<typeof join>[1]} */ (normalizedPatch), sha);
       applied++;
     }
 

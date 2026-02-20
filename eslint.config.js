@@ -64,6 +64,9 @@ export default tseslint.config(
       // Turn off base rule that conflicts with TS version
       "require-await": "off",
 
+      // ── IRONCLAD M9: ban explicit `any` keyword in type annotations ────
+      "@typescript-eslint/no-explicit-any": "error",
+
       // ── More typed rules ─────────────────────────────────────────────────
       "@typescript-eslint/no-unnecessary-type-assertion": "error",
       "@typescript-eslint/no-redundant-type-constituents": "error",
