@@ -24,6 +24,10 @@ Extracts scan helpers and satisfies TypeScript strict narrowing.
 - **PatchBuilderV2** — `commit()` / `build()` now read `graph._maxObservedLamport` to seed the Lamport clock, ensuring monotonicity across materialize→write cycles.
 - **No-coordination test suite** — Added Lamport monotonicity regression tests in `WarpGraph.noCoordination.test.js`.
 
+### Removed
+
+- **docs/RECONCILIATION.md** — Planning document removed from the repository.
+
 ## [11.3.2] — 2026-02-19 — M9 IRONCLAD: Zero Wildcards
 
 Eliminates all 9 remaining wildcards (7 in bitmap index code, 2 in TrustRecordService)
