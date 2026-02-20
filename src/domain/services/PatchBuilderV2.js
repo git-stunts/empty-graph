@@ -468,10 +468,11 @@ export class PatchBuilderV2 {
    * 1. Validates the patch is non-empty
    * 2. Checks for concurrent modifications (compare-and-swap on writer ref)
    * 3. Calculates the next lamport timestamp from the parent commit
-   * 4. Encodes the patch as CBOR and writes it as a Git blob
-   * 5. Creates a Git tree containing the patch blob
-   * 6. Creates a commit with proper trailers linking to the parent
-   * 7. Updates the writer ref to point to the new commit
+   * 4. Builds the PatchV2 structure with the resolved lamport
+   * 5. Encodes the patch as CBOR and writes it as a Git blob
+   * 6. Creates a Git tree containing the patch blob
+   * 7. Creates a commit with proper trailers linking to the parent
+   * 8. Updates the writer ref to point to the new commit
    * 8. Invokes the success callback if provided (for eager re-materialization)
    *
    * The commit is written to the writer's patch chain at:
@@ -563,18 +564,18 @@ export class PatchBuilderV2 {
       writes: [...this._writes].sort(),
     });
 
-    // 4. Encode patch as CBOR
+    // 5. Encode patch as CBOR
     const patchCbor = this._codec.encode(patch);
 
-    // 5. Write patch.cbor blob
+    // 6. Write patch.cbor blob
     const patchBlobOid = await this._persistence.writeBlob(/** @type {Buffer} */ (patchCbor));
 
-    // 6. Create tree with the blob
+    // 7. Create tree with the blob
     // Format for mktree: "mode type oid\tpath"
     const treeEntry = `100644 blob ${patchBlobOid}\tpatch.cbor`;
     const treeOid = await this._persistence.writeTree([treeEntry]);
 
-    // 7. Create patch commit message with trailers (schema:2)
+    // 8. Create patch commit message with trailers (schema:2)
     const commitMessage = encodePatchMessage({
       graph: this._graphName,
       writer: this._writerId,
@@ -583,7 +584,7 @@ export class PatchBuilderV2 {
       schema,
     });
 
-    // 8. Create commit with tree, linking to previous patch as parent if exists
+    // 9. Create commit with tree, linking to previous patch as parent if exists
     const parents = parentCommit ? [parentCommit] : [];
     const newCommitSha = await this._persistence.commitNodeWithTree({
       treeOid,
@@ -591,10 +592,10 @@ export class PatchBuilderV2 {
       message: commitMessage,
     });
 
-    // 9. Update writer ref to point to new commit
+    // 10. Update writer ref to point to new commit
     await this._persistence.updateRef(writerRef, newCommitSha);
 
-    // 10. Notify success callback (updates graph's version vector + eager re-materialize)
+    // 11. Notify success callback (updates graph's version vector + eager re-materialize)
     if (this._onCommitSuccess) {
       try {
         await this._onCommitSuccess({ patch, sha: newCommitSha });
@@ -604,7 +605,7 @@ export class PatchBuilderV2 {
       }
     }
 
-    // 11. Return the new commit SHA
+    // 12. Return the new commit SHA
     return newCommitSha;
   }
 
