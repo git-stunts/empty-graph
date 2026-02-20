@@ -23,6 +23,14 @@ import { generateWriterId, resolveWriterId } from '../utils/WriterId.js';
 /**
  * Creates a new PatchBuilderV2 for this graph.
  *
+ * In multi-writer scenarios, call `materialize()` (or a query method that
+ * auto-materializes) before creating a patch so that `_maxObservedLamport`
+ * reflects all known writers. Without this, `_nextLamport()` still produces
+ * locally-monotonic ticks (`Math.max(ownTick, _maxObservedLamport) + 1`),
+ * and `PatchBuilderV2.commit()` re-reads the writer's own ref at commit
+ * time, so correctness is preserved — but the tick may be lower than
+ * necessary, losing LWW tiebreakers against other writers.
+ *
  * @this {import('../WarpGraph.js').default}
  * @returns {Promise<PatchBuilderV2>} A new patch builder
  */
@@ -53,6 +61,9 @@ export async function createPatch() {
  *
  * Not reentrant: calling `graph.patch()` inside a callback throws.
  * Use `createPatch()` directly for advanced multi-patch workflows.
+ *
+ * **Multi-writer note:** call `materialize()` before `patch()` so that
+ * `_maxObservedLamport` is up-to-date. See `createPatch()` for details.
  *
  * @this {import('../WarpGraph.js').default}
  * @param {(p: PatchBuilderV2) => void | Promise<void>} build - Callback that adds operations to the patch
@@ -98,20 +109,18 @@ export async function _nextLamport() {
     const commitMessage = await this._persistence.showNode(currentRefSha);
     const kind = detectMessageKind(commitMessage);
 
-    if (kind !== 'patch') {
-      // Writer ref doesn't point to a patch commit - treat as fresh start
-      return { lamport: Math.max(1, this._maxObservedLamport + 1), parentSha: currentRefSha };
+    if (kind === 'patch') {
+      try {
+        const patchInfo = decodePatchMessage(commitMessage);
+        ownTick = patchInfo.lamport;
+      } catch {
+        throw new Error(
+          `Failed to parse lamport from writer ref ${writerRef}: ` +
+          `commit ${currentRefSha} has invalid patch message format`
+        );
+      }
     }
-
-    try {
-      const patchInfo = decodePatchMessage(commitMessage);
-      ownTick = patchInfo.lamport;
-    } catch {
-      throw new Error(
-        `Failed to parse lamport from writer ref ${writerRef}: ` +
-        `commit ${currentRefSha} has invalid patch message format`
-      );
-    }
+    // Non-patch ref: ownTick stays 0 (fresh start), falls through to standard return.
   }
 
   // Standard Lamport clock rule: next tick = max(own chain, globally observed max) + 1.
