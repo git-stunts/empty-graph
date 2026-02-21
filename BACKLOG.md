@@ -111,6 +111,22 @@ Full spec in `docs/specs/CONTENT_ATTACHMENT.md`. Proposal to attach content-addr
 
 ---
 
+## Documentation Quality
+
+### B-DOC-1: Add markdownlint to CI
+
+Add a markdownlint check to the CI pipeline to catch MD040 (missing code fence language tags) and similar doc issues automatically. Currently these are only caught by CodeRabbit review, which is slow and non-blocking.
+
+**File:** `.github/workflows/ci.yml`
+
+### B-DOC-2: Add a code sample linter for markdown files
+
+Syntax-check JS/TS code blocks embedded in markdown files (specs, guides, etc.) to catch issues like duplicate `const` declarations, TDZ errors, and other syntax errors before they reach review. Could use `eslint --stdin` on extracted code blocks or a dedicated tool like `remark-lint-fenced-code-flag`.
+
+**Files:** new script or CI step, `docs/**/*.md`
+
+---
+
 ## Developer Experience
 
 ### B-DX-1: Pre-push hook runs full test suite
