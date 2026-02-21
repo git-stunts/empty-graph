@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [11.5.0] — 2026-02-20 — Content Attachment (Paper I `Atom(p)`)
+
+Implements content attachment — the ability to attach content-addressed blobs
+to WARP graph nodes and edges as first-class payloads. A blob OID stored as
+a `_content` string property gets CRDT merge (LWW), time-travel, and observer
+scoping for free — zero changes to JoinReducer, serialization, or the CRDT layer.
+
+### Added
+
+- **`CONTENT_PROPERTY_KEY`** constant (`'_content'`) exported from `KeyCodec` and `index.js`.
+- **`PatchBuilderV2.attachContent(nodeId, content)`** — writes blob to Git object store, sets `_content` property, tracks OID for GC anchoring.
+- **`PatchBuilderV2.attachEdgeContent(from, to, label, content)`** — same for edges.
+- **`PatchSession.attachContent()`** / **`attachEdgeContent()`** — async pass-through delegates.
+- **`WarpGraph.getContent(nodeId)`** — returns `Buffer | null` from the content blob.
+- **`WarpGraph.getContentOid(nodeId)`** — returns hex OID or null.
+- **`WarpGraph.getEdgeContent(from, to, label)`** / **`getEdgeContentOid()`** — edge variants.
+- **Blob anchoring** — content blob OIDs embedded in patch commit tree as `_blob_0`, `_blob_1`, etc. Survives `git gc --prune=now`.
+- **Type declarations** — all new methods in `index.d.ts`, `type-surface.m8.json`, `consumer.ts`.
+- **Integration tests** — 11 tests covering single-writer, LWW, time-travel, deletion, Writer API, GC durability, binary round-trip.
+- **Unit tests** — 23 tests for PatchBuilderV2 content ops and WarpGraph query methods.
+
 ## [11.4.0] — 2026-02-20 — M8 IRONCLAD Phase 3: Declaration Surface Automation
 
 Completes M8 IRONCLAD with automated declaration surface validation and expanded
