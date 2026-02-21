@@ -70,7 +70,7 @@ Content blobs are stored as **Git objects** in the repository's object store. Gi
 
 A content attachment is represented as a **node property** with a well-known key. When a blob is attached to a node, its CAS SHA is stored as the property value:
 
-```
+```text
 node: "adr:0007"
 property: "_content" = "a1b2c3d4e5f6..."  (git blob SHA)
 ```
@@ -100,8 +100,8 @@ patch.commit();
 
 // Read
 const props = graph.getNodeProps('adr:0007');
-const sha = props.get('_content');
-const buffer = await cas.readBlob(sha);
+const contentSha = props.get('_content');
+const buffer = await cas.readBlob(contentSha);
 ```
 
 **Pro:** Zero API surface change. **Con:** Consumer must manage CAS independently.
