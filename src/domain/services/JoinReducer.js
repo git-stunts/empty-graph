@@ -329,6 +329,19 @@ function propSetOutcome(propMap, op, eventId) {
 }
 
 /**
+ * Folds a patch's own dot into the observed frontier.
+ * @param {Map<string, number>} frontier
+ * @param {string} writer
+ * @param {number} lamport
+ */
+function foldPatchDot(frontier, writer, lamport) {
+  const current = frontier.get(writer) || 0;
+  if (lamport > current) {
+    frontier.set(writer, lamport);
+  }
+}
+
+/**
  * Joins a patch into state, applying all operations in order.
  *
  * This is the primary function for incorporating a single patch into WARP state.
@@ -366,6 +379,7 @@ export function join(state, patch, patchSha, collectReceipts) {
       ? patch.context
       : vvDeserialize(patch.context);
     state.observedFrontier = vvMerge(state.observedFrontier, contextVV);
+    foldPatchDot(state.observedFrontier, patch.writer, patch.lamport);
     return state;
   }
 
@@ -423,6 +437,7 @@ export function join(state, patch, patchSha, collectReceipts) {
     ? patch.context
     : vvDeserialize(patch.context);
   state.observedFrontier = vvMerge(state.observedFrontier, contextVV);
+  foldPatchDot(state.observedFrontier, patch.writer, patch.lamport);
 
   const receipt = createTickReceipt({
     patchSha,

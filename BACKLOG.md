@@ -88,26 +88,57 @@ The surface check shows `Manifest entries: 70` vs `index.js exports: 66`. This m
 
 **Files:** `contracts/type-surface.m8.json`, `index.js`
 
+### B-TYPE-3: Establish test-file wildcard ratchet
+
+`ts-policy-check.js` only scans `src/`, `bin/`, and `scripts/` by design — test files are excluded. This means `@type {any}` usages across test files are unchecked. Options:
+- Add a separate ratchet for test files with a higher threshold
+- Add per-file caps to prevent individual test files from growing unbounded
+- Document the exclusion as intentional and accept it
+
+**Files:** `scripts/ts-policy-check.js`
+
 ---
 
 ## Feature: Content Attachment
 
-### B-FEAT-1: Implement content attachment (`Atom(p)` payloads on nodes)
+### B-FEAT-1: ~~Implement content attachment~~ DONE (v11.5.0)
 
-Full spec in `docs/specs/CONTENT_ATTACHMENT.md`. Proposal to attach content-addressed blobs to graph nodes as first-class payloads, bridging git-warp's flat key-value properties to the paper's `α(v)` vertex attachment model.
+Shipped in v11.5.0. See `docs/specs/CONTENT_ATTACHMENT.md` and CHANGELOG.
 
-**Core idea:** Store blobs in the Git object store (already a CAS), reference them via a `_content` property on nodes. This gets CRDT merge (LWW on the SHA), time-travel (`materialize({ ceiling })`), and observer scoping for free — zero changes to the CRDT model.
+### B-FEAT-2: Determinism fuzzer for tree construction
 
-**Key decisions needed:**
+Content blob tree entries are sorted by filename for deterministic tree OIDs. A property-based test should randomize:
+- content blob insertion order in `PatchBuilderV2`
+- content OID iteration order in `CheckpointService.createV5()`
 
-- **API shape:** Property convention only (zero new API) vs dedicated `patch.attachContent()` / `graph.getContent()` methods vs hybrid. Spec recommends hybrid.
-- **Metadata properties:** Whether to store `_content.size`, `_content.mime`, `_content.encoding` at the substrate level or leave to consumers.
-- **Dependency:** `git-cas` package or equivalent `git hash-object -w` / `git cat-file blob` via existing plumbing.
-- **Edge attachments:** Deferred to v2 unless trivially included. Same mechanism — `_content` property on edges.
+and verify the resulting tree OID is identical regardless of insertion order. This would catch any accidental order-dependence in tree construction.
 
-**Out of scope (future):** Nested WARP attachments (where `α(v)` is itself a full WARP graph, not just an atom), content-level merge, MIME handling, content GC protection.
+**Files:** new test in `test/unit/domain/services/`
 
-**Spec:** `docs/specs/CONTENT_ATTACHMENT.md`
+### B-FEAT-3: Reconcile Map vs Record asymmetry in getNodeProps/getEdgeProps
+
+`getNodeProps()` returns a `Map<string, unknown>` while `getEdgeProps()` returns a plain `Record<string, unknown>`. This forces callers to use `.get()` for node props and `[key]` for edge props — an easy source of bugs. Options:
+- Both return Map (breaking change for edge prop consumers)
+- Both return Record (breaking change for node prop consumers)
+- Keep both, document the asymmetry prominently
+
+**Files:** `src/domain/warp/query.methods.js`, `src/domain/WarpGraph.js`
+
+---
+
+## Documentation Quality
+
+### B-DOC-1: Add markdownlint to CI
+
+Add a markdownlint check to the CI pipeline to catch MD040 (missing code fence language tags) and similar doc issues automatically. Currently these are only caught by CodeRabbit review, which is slow and non-blocking.
+
+**File:** `.github/workflows/ci.yml`
+
+### B-DOC-2: Add a code sample linter for markdown files
+
+Syntax-check JS/TS code blocks embedded in markdown files (specs, guides, etc.) to catch issues like duplicate `const` declarations, TDZ errors, and other syntax errors before they reach review. Could use `eslint-plugin-markdown` (runs ESLint natively on fenced blocks) or a custom script that extracts code blocks and pipes them through `eslint --stdin`.
+
+**Files:** new script or CI step, `docs/**/*.md`
 
 ---
 

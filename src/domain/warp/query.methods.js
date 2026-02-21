@@ -8,7 +8,7 @@
  */
 
 import { orsetContains, orsetElements } from '../crdt/ORSet.js';
-import { decodePropKey, isEdgePropKey, decodeEdgePropKey, encodeEdgeKey, decodeEdgeKey } from '../services/KeyCodec.js';
+import { decodePropKey, isEdgePropKey, decodeEdgePropKey, encodeEdgeKey, decodeEdgeKey, CONTENT_PROPERTY_KEY } from '../services/KeyCodec.js';
 import { compareEventIds } from '../utils/EventId.js';
 import { cloneStateV5 } from '../services/JoinReducer.js';
 import QueryBuilder from '../services/QueryBuilder.js';
@@ -277,4 +277,86 @@ export async function translationCost(configA, configB) {
   await this._ensureFreshState();
   const s = /** @type {import('../services/JoinReducer.js').WarpStateV5} */ (this._cachedState);
   return computeTranslationCost(configA, configB, s);
+}
+
+/**
+ * Gets the content blob OID for a node, or null if none is attached.
+ *
+ * @this {import('../WarpGraph.js').default}
+ * @param {string} nodeId - The node ID to check
+ * @returns {Promise<string|null>} Hex blob OID or null
+ * @throws {import('../errors/QueryError.js').default} If no cached state exists (code: `E_NO_STATE`)
+ */
+export async function getContentOid(nodeId) {
+  const props = await getNodeProps.call(this, nodeId);
+  if (!props) {
+    return null;
+  }
+  // getNodeProps returns a Map — use .get() for property access
+  const oid = props.get(CONTENT_PROPERTY_KEY);
+  return (typeof oid === 'string') ? oid : null;
+}
+
+/**
+ * Gets the content blob for a node, or null if none is attached.
+ *
+ * Returns the raw Buffer from `readBlob()`. Consumers wanting text
+ * should call `.toString('utf8')` on the result.
+ *
+ * @this {import('../WarpGraph.js').default}
+ * @param {string} nodeId - The node ID to get content for
+ * @returns {Promise<Buffer|null>} Content buffer or null
+ * @throws {Error} If the referenced blob OID is not in the object store
+ *   (e.g., garbage-collected despite anchoring). Callers should handle this
+ *   if operating on repos with aggressive GC or partial clones.
+ */
+export async function getContent(nodeId) {
+  const oid = await getContentOid.call(this, nodeId);
+  if (!oid) {
+    return null;
+  }
+  return await this._persistence.readBlob(oid);
+}
+
+/**
+ * Gets the content blob OID for an edge, or null if none is attached.
+ *
+ * @this {import('../WarpGraph.js').default}
+ * @param {string} from - Source node ID
+ * @param {string} to - Target node ID
+ * @param {string} label - Edge label
+ * @returns {Promise<string|null>} Hex blob OID or null
+ * @throws {import('../errors/QueryError.js').default} If no cached state exists (code: `E_NO_STATE`)
+ */
+export async function getEdgeContentOid(from, to, label) {
+  const props = await getEdgeProps.call(this, from, to, label);
+  if (!props) {
+    return null;
+  }
+  // getEdgeProps returns a plain object — use bracket access
+  const oid = props[CONTENT_PROPERTY_KEY];
+  return (typeof oid === 'string') ? oid : null;
+}
+
+/**
+ * Gets the content blob for an edge, or null if none is attached.
+ *
+ * Returns the raw Buffer from `readBlob()`. Consumers wanting text
+ * should call `.toString('utf8')` on the result.
+ *
+ * @this {import('../WarpGraph.js').default}
+ * @param {string} from - Source node ID
+ * @param {string} to - Target node ID
+ * @param {string} label - Edge label
+ * @returns {Promise<Buffer|null>} Content buffer or null
+ * @throws {Error} If the referenced blob OID is not in the object store
+ *   (e.g., garbage-collected despite anchoring). Callers should handle this
+ *   if operating on repos with aggressive GC or partial clones.
+ */
+export async function getEdgeContent(from, to, label) {
+  const oid = await getEdgeContentOid.call(this, from, to, label);
+  if (!oid) {
+    return null;
+  }
+  return await this._persistence.readBlob(oid);
 }

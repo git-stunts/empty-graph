@@ -75,6 +75,7 @@ import {
   encodeEdgePropKey,
   decodeEdgePropKey,
   isEdgePropKey,
+  CONTENT_PROPERTY_KEY,
 } from './src/domain/services/KeyCodec.js';
 import {
   createTickReceipt,
@@ -173,6 +174,7 @@ export {
   encodeEdgePropKey,
   decodeEdgePropKey,
   isEdgePropKey,
+  CONTENT_PROPERTY_KEY,
 
   // WARP migration
   migrateV4toV5,

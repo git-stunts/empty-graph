@@ -1,7 +1,7 @@
 # Content Attachment Specification
 
-> **Spec Version:** 0 (proposal)
-> **Status:** Proposal
+> **Spec Version:** 1 (implemented)
+> **Status:** Implemented (v11.5.0)
 > **Paper References:** Paper I Section 2 (WARP definition, vertex/edge attachments, `Atom(p)`)
 
 ---
@@ -54,7 +54,6 @@ This proposal implements the depth-0 case of attachments: nodes carry `Atom(p)` 
 - CLI commands for content manipulation (consumer concerns)
 - Editor integration, conflict resolution UX (consumer concerns)
 - Nested WARP attachments (future work)
-- Edge attachments (deferred to v2 unless trivially included)
 
 ---
 
@@ -84,50 +83,43 @@ This approach:
 
 The `_content` key prefix convention (underscore) signals a system-level property, distinguishing it from user-defined properties.
 
-### 3.3 API Surface (Sketch)
+### 3.3 Final API
 
-The exact API is an implementation decision. Two options are outlined:
+The hybrid approach was implemented: dedicated methods that encapsulate CAS details, while the `_content` property remains directly accessible for advanced use.
 
-#### Option A: Property Convention (Minimal)
-
-No new API methods. Consumers use existing property methods with the `_content` key:
+#### Write API (PatchBuilderV2 / PatchSession)
 
 ```javascript
-// Write
-const sha = await cas.writeBlob(buffer);
-patch.setProperty('adr:0007', '_content', sha);
-patch.commit();
+const patch = await graph.createPatch();
+patch.addNode('adr:0007');
+await patch.attachContent('adr:0007', '# ADR 0007\n\nDecision text...');
+await patch.commit();
+
+// Edge content
+await patch.attachEdgeContent('a', 'b', 'rel', 'edge payload');
 ```
+
+Both methods are async (they call `writeBlob()` internally) and return the builder for chaining.
+
+#### Read API (WarpGraph)
 
 ```javascript
-// Read
-const props = graph.getNodeProps('adr:0007');
-const contentSha = props.get('_content');
-const buffer = await cas.readBlob(contentSha);
+const buffer = await graph.getContent('adr:0007');   // Buffer | null
+const oid    = await graph.getContentOid('adr:0007'); // string | null
+
+// Edge content
+const edgeBuf = await graph.getEdgeContent('a', 'b', 'rel');
+const edgeOid = await graph.getEdgeContentOid('a', 'b', 'rel');
 ```
 
-**Pro:** Zero API surface change. **Con:** Consumer must manage CAS independently.
+`getContent()` returns a raw `Buffer`. Consumers wanting text call `.toString('utf8')`.
 
-#### Option B: Dedicated Methods (Recommended)
-
-New methods on the patch and graph API:
+#### Constant
 
 ```javascript
-// Write (patch API)
-await patch.attachContent('adr:0007', buffer);
-// Internally: cas.writeBlob(buffer) → sha, then setProperty(nodeId, '_content', sha)
-patch.commit();
-
-// Read (graph API)
-const buffer = await graph.getContent('adr:0007');
-// Internally: getNodeProps(nodeId).get('_content') → sha, then cas.readBlob(sha)
+import { CONTENT_PROPERTY_KEY } from '@git-stunts/git-warp';
+// CONTENT_PROPERTY_KEY === '_content'
 ```
-
-**Pro:** Discoverable, encapsulates CAS details, can add integrity checks. **Con:** New API surface.
-
-#### Hybrid
-
-Expose dedicated methods but also allow direct property access for advanced use cases. The `_content` property is documented as the underlying mechanism.
 
 ### 3.4 Content Metadata
 
@@ -170,38 +162,51 @@ The `_content` property at tick `N` points to whatever blob SHA was current at t
 
 ---
 
-## 6. Dependency: git-cas
+## 6. Durability / Git GC
 
-`git-cas` provides content-addressed blob storage over Git plumbing:
+Content blobs created by `git hash-object -w` are loose objects. Without anchoring, `git gc --prune=now` would delete them.
 
-- `writeBlob(buffer) → sha` — write a blob to the Git object store
-- `readBlob(sha) → buffer` — read a blob by SHA
-- No index or working tree involvement
-- Blobs are subject to standard Git GC rules
+**Solution:** `PatchBuilderV2.commit()` embeds content blob OIDs in the patch commit tree alongside the CBOR patch blob:
 
-If `git-cas` is not suitable or available, equivalent functionality can be achieved with `git hash-object -w` (write) and `git cat-file blob` (read) via the existing plumbing layer.
+```text
+patch.cbor          → CBOR-encoded patch blob
+_content_<oid>      → content blob, keyed by its hex OID (self-documenting, unique by construction)
+```
+
+This makes content blobs reachable via the writer ref chain (`refs/warp/<graph>/writers/<id>` → commit → tree → blob). GC protection is automatic. Sync replicates content along with patches. Zero new refs, zero new Git commands.
+
+**Checkpoint anchoring:** `CheckpointService.createV5()` also scans `state.prop` for `_content` values and embeds the referenced blob OIDs in the checkpoint tree. This ensures content survives GC even if patch commits are ever pruned (e.g., by future compaction or writer-chain truncation). The invariant is: **content blobs referenced by live state are always reachable from at least one ref** — either the writer ref (patch commit tree) or the checkpoint ref (checkpoint commit tree).
+
+Integration tests verify both anchoring paths with `git gc --prune=now`.
 
 ---
 
-## 7. Future Work
+## 7. Implementation Notes
 
-- **Edge attachments:** Extend the same mechanism to edges (`β(e)` in the paper). The implementation is identical — a `_content` property on edges. Deferred unless trivially included in v1.
-- **Nested WARP attachments:** The paper allows `α(v)` to be a full WARP graph, not just an atom. This would mean a node's attachment is itself a graph with nodes, edges, and their own attachments. This is a significant extension beyond content blobs and is out of scope for this proposal.
+No external `git-cas` dependency was needed. The existing `BlobPort` on `GitGraphAdapter` (`writeBlob` via `git hash-object -w`, `readBlob` via `git cat-file blob`) provides all required CAS operations.
+
+Edge attachments are included in v1 (not deferred).
+
+---
+
+## 8. Future Work
+
+- **Nested WARP attachments:** The paper allows `α(v)` to be a full WARP graph, not just an atom. This would mean a node's attachment is itself a graph with nodes, edges, and their own attachments. This is a significant extension beyond content blobs and is out of scope.
 - **Content integrity verification:** Optionally verify blob SHA on read to detect corruption.
-- **Content garbage collection:** Mechanism to identify and protect content blobs from Git GC when they are still referenced by live graph state.
 
 ---
 
-## 8. Summary
+## 9. Summary
 
 | Aspect | Decision |
 |---|---|
 | Where content is stored | Git object store (content-addressed blobs) |
-| How content is referenced | `_content` property on nodes (CAS SHA) |
+| How content is referenced | `_content` property on nodes/edges (CAS SHA) |
 | CRDT model | Existing LWW property semantics, no change |
 | Time-travel | Automatic via `materialize({ ceiling })` |
-| New dependency | `git-cas` (or equivalent plumbing) |
-| API shape | TBD — property convention, dedicated methods, or hybrid |
-| Edge attachments | Deferred to v2 |
+| New dependency | None (uses existing BlobPort on GitGraphAdapter) |
+| API shape | Hybrid: dedicated methods + direct property access |
+| GC protection | Blob OIDs embedded in patch commit tree |
+| Edge attachments | Included in v1 |
 | Nested WARP attachments | Future work |
-| Paper alignment | Implements `Atom(p)` for vertex attachments |
+| Paper alignment | Implements `Atom(p)` for vertex and edge attachments |

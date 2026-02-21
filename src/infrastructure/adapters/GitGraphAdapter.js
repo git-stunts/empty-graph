@@ -43,6 +43,7 @@
  * @see {@link https://git-scm.com/book/en/v2/Git-Internals-Plumbing-and-Porcelain} for Git plumbing concepts
  */
 
+import { Buffer } from 'node:buffer';
 import { retry } from '@git-stunts/alfred';
 import GraphPersistencePort from '../../ports/GraphPersistencePort.js';
 import { validateOid, validateRef, validateLimit, validateConfigKey } from './adapterValidation.js';
@@ -510,7 +511,9 @@ export default class GitGraphAdapter extends GraphPersistencePort {
     const stream = await this.plumbing.executeStream({
       args: ['cat-file', 'blob', oid]
     });
-    return await stream.collect({ asString: false });
+    const raw = await stream.collect({ asString: false });
+    // Ensure a real Node Buffer (plumbing may return Uint8Array)
+    return Buffer.isBuffer(raw) ? raw : Buffer.from(raw);
   }
 
   /**

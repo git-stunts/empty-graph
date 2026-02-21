@@ -1148,6 +1148,12 @@ export function decodeEdgePropKey(encoded: string): { from: string; to: string; 
 export function isEdgePropKey(key: string): boolean;
 
 /**
+ * Well-known property key for content attachment.
+ * Stores a content-addressed blob OID as the property value.
+ */
+export const CONTENT_PROPERTY_KEY: '_content';
+
+/**
  * Configuration for an observer view.
  */
 export interface ObserverConfig {
@@ -1345,6 +1351,10 @@ export class PatchBuilderV2 {
   setProperty(nodeId: string, key: string, value: unknown): PatchBuilderV2;
   /** Sets a property on an edge. */
   setEdgeProperty(from: string, to: string, label: string, key: string, value: unknown): PatchBuilderV2;
+  /** Attaches content to a node (writes blob + sets _content property). */
+  attachContent(nodeId: string, content: Buffer | string): Promise<PatchBuilderV2>;
+  /** Attaches content to an edge (writes blob + sets _content edge property). */
+  attachEdgeContent(from: string, to: string, label: string, content: Buffer | string): Promise<PatchBuilderV2>;
   /** Builds the PatchV2 object without committing. */
   build(): PatchV2;
   /** Commits the patch to the graph and returns the commit SHA. */
@@ -1375,6 +1385,10 @@ export class PatchSession {
   setProperty(nodeId: string, key: string, value: unknown): this;
   /** Sets a property on an edge. */
   setEdgeProperty(from: string, to: string, label: string, key: string, value: unknown): this;
+  /** Attaches content to a node (writes blob + sets _content property). */
+  attachContent(nodeId: string, content: Buffer | string): Promise<this>;
+  /** Attaches content to an edge (writes blob + sets _content edge property). */
+  attachEdgeContent(from: string, to: string, label: string, content: Buffer | string): Promise<this>;
   /** Builds the PatchV2 object without committing. */
   build(): PatchV2;
   /** Commits the patch with CAS protection. */
@@ -1644,6 +1658,28 @@ export default class WarpGraph {
    * Returns null if the edge does not exist or is tombstoned.
    */
   getEdgeProps(from: string, to: string, label: string): Promise<Record<string, unknown> | null>;
+
+  /**
+   * Gets the content blob OID for a node, or null if none is attached.
+   */
+  getContentOid(nodeId: string): Promise<string | null>;
+
+  /**
+   * Gets the content blob for a node, or null if none is attached.
+   * Returns raw Buffer; call `.toString('utf8')` for text.
+   */
+  getContent(nodeId: string): Promise<Buffer | null>;
+
+  /**
+   * Gets the content blob OID for an edge, or null if none is attached.
+   */
+  getEdgeContentOid(from: string, to: string, label: string): Promise<string | null>;
+
+  /**
+   * Gets the content blob for an edge, or null if none is attached.
+   * Returns raw Buffer; call `.toString('utf8')` for text.
+   */
+  getEdgeContent(from: string, to: string, label: string): Promise<Buffer | null>;
 
   /**
    * Checks if a node exists in the materialized state.

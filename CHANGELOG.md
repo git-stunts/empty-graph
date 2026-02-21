@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [11.5.0] — 2026-02-20 — Content Attachment (Paper I `Atom(p)`)
+
+Implements content attachment — the ability to attach content-addressed blobs
+to WARP graph nodes and edges as first-class payloads. A blob OID stored as
+a `_content` string property gets CRDT merge (LWW), time-travel, and observer
+scoping for free — zero changes to JoinReducer, serialization, or the CRDT layer.
+
+### Added
+
+- **`CONTENT_PROPERTY_KEY`** constant (`'_content'`) exported from `KeyCodec` and `index.js`.
+- **`PatchBuilderV2.attachContent(nodeId, content)`** — writes blob to Git object store, sets `_content` property, tracks OID for GC anchoring.
+- **`PatchBuilderV2.attachEdgeContent(from, to, label, content)`** — same for edges.
+- **`PatchSession.attachContent()`** / **`attachEdgeContent()`** — async pass-through delegates.
+- **`WarpGraph.getContent(nodeId)`** — returns `Buffer | null` from the content blob.
+- **`WarpGraph.getContentOid(nodeId)`** — returns hex OID or null.
+- **`WarpGraph.getEdgeContent(from, to, label)`** / **`getEdgeContentOid(from, to, label)`** — edge variants.
+- **Blob anchoring** — content blob OIDs embedded in patch commit tree as `_content_<oid>` entries (self-documenting, unique by construction). Survives `git gc --prune=now`.
+- **Type declarations** — all new methods in `index.d.ts`, `type-surface.m8.json`, `consumer.ts`.
+- **Integration tests** — 11 tests covering single-writer, LWW, time-travel, deletion, Writer API, GC durability, binary round-trip.
+- **Unit tests** — 23 tests for PatchBuilderV2 content ops and WarpGraph query methods.
+- **ADR-001 Folds** — design document for future recursive attachments (structural zoom portals). Deferred; documents the path from `Atom(p)` to full `α(v) → WARP` recursion.
+
+### Fixed
+
+- **Checkpoint content anchoring** — `CheckpointService.createV5()` now scans `state.prop` for `_content` values and embeds the referenced blob OIDs in the checkpoint tree as `_content_<oid>` entries. This ensures content survives `git gc` even if patch commits are ever pruned.
+- **`GitGraphAdapter.readBlob()`** — Now always returns a real Node `Buffer` (wraps `Uint8Array` from plumbing with `Buffer.from()`). Consumers can call `.toString('utf8')` directly.
+- **`observedFrontier` staleness (#43)** — `JoinReducer.join()` now folds the patch's own dot (`{writer, lamport}`) into `observedFrontier`. Previously the frontier only reflected patch context VVs (pre-creation state), lagging by one tick per writer. The graph's `_versionVector` — cloned from `observedFrontier` after materialization — now reflects actual Lamport ticks.
+
 ## [11.4.0] — 2026-02-20 — M8 IRONCLAD Phase 3: Declaration Surface Automation
 
 Completes M8 IRONCLAD with automated declaration surface validation and expanded
