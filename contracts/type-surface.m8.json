@@ -72,6 +72,34 @@
           ],
           "returns": "Promise<Record<string, unknown> | null>"
         },
+        "getContentOid": {
+          "async": true,
+          "params": [{ "name": "nodeId", "type": "string" }],
+          "returns": "Promise<string | null>"
+        },
+        "getContent": {
+          "async": true,
+          "params": [{ "name": "nodeId", "type": "string" }],
+          "returns": "Promise<Buffer | null>"
+        },
+        "getEdgeContentOid": {
+          "async": true,
+          "params": [
+            { "name": "from", "type": "string" },
+            { "name": "to", "type": "string" },
+            { "name": "label", "type": "string" }
+          ],
+          "returns": "Promise<string | null>"
+        },
+        "getEdgeContent": {
+          "async": true,
+          "params": [
+            { "name": "from", "type": "string" },
+            { "name": "to", "type": "string" },
+            { "name": "label", "type": "string" }
+          ],
+          "returns": "Promise<Buffer | null>"
+        },
         "neighbors": {
           "async": true,
           "params": [
@@ -310,6 +338,8 @@
         "removeEdge": { "params": [{ "name": "from", "type": "string" }, { "name": "to", "type": "string" }, { "name": "label", "type": "string" }], "returns": "PatchBuilderV2" },
         "setProperty": { "params": [{ "name": "nodeId", "type": "string" }, { "name": "key", "type": "string" }, { "name": "value", "type": "unknown" }], "returns": "PatchBuilderV2" },
         "setEdgeProperty": { "params": [{ "name": "from", "type": "string" }, { "name": "to", "type": "string" }, { "name": "label", "type": "string" }, { "name": "key", "type": "string" }, { "name": "value", "type": "unknown" }], "returns": "PatchBuilderV2" },
+        "attachContent": { "async": true, "params": [{ "name": "nodeId", "type": "string" }, { "name": "content", "type": "Buffer | string" }], "returns": "Promise<PatchBuilderV2>" },
+        "attachEdgeContent": { "async": true, "params": [{ "name": "from", "type": "string" }, { "name": "to", "type": "string" }, { "name": "label", "type": "string" }, { "name": "content", "type": "Buffer | string" }], "returns": "Promise<PatchBuilderV2>" },
         "build": { "params": [], "returns": "PatchV2" },
         "commit": { "async": true, "params": [], "returns": "Promise<string>" }
       },
@@ -326,6 +356,8 @@
         "removeEdge": { "params": [{ "name": "from", "type": "string" }, { "name": "to", "type": "string" }, { "name": "label", "type": "string" }], "returns": "this" },
         "setProperty": { "params": [{ "name": "nodeId", "type": "string" }, { "name": "key", "type": "string" }, { "name": "value", "type": "unknown" }], "returns": "this" },
         "setEdgeProperty": { "params": [{ "name": "from", "type": "string" }, { "name": "to", "type": "string" }, { "name": "label", "type": "string" }, { "name": "key", "type": "string" }, { "name": "value", "type": "unknown" }], "returns": "this" },
+        "attachContent": { "async": true, "params": [{ "name": "nodeId", "type": "string" }, { "name": "content", "type": "Buffer | string" }], "returns": "Promise<this>" },
+        "attachEdgeContent": { "async": true, "params": [{ "name": "from", "type": "string" }, { "name": "to", "type": "string" }, { "name": "label", "type": "string" }, { "name": "content", "type": "Buffer | string" }], "returns": "Promise<this>" },
         "build": { "params": [], "returns": "PatchV2" },
         "commit": { "async": true, "params": [], "returns": "Promise<string>" }
       },
@@ -413,6 +445,7 @@
     "encodeEdgePropKey": { "kind": "function", "params": [{ "name": "from", "type": "string" }, { "name": "to", "type": "string" }, { "name": "label", "type": "string" }, { "name": "propKey", "type": "string" }], "returns": "string" },
     "decodeEdgePropKey": { "kind": "function", "params": [{ "name": "encoded", "type": "string" }], "returns": "{ from: string; to: string; label: string; propKey: string }" },
     "isEdgePropKey": { "kind": "function", "params": [{ "name": "key", "type": "string" }], "returns": "boolean" },
+    "CONTENT_PROPERTY_KEY": { "kind": "const" },
     "computeTranslationCost": { "kind": "function" },
     "migrateV4toV5": { "kind": "function" },
 

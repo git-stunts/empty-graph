@@ -76,6 +76,7 @@ import WarpGraph, {
   encodeEdgePropKey,
   decodeEdgePropKey,
   isEdgePropKey,
+  CONTENT_PROPERTY_KEY,
 } from '../../index.js';
 
 import type {
@@ -176,6 +177,19 @@ const neighbors: Array<{ nodeId: string; label: string; direction: 'outgoing' | 
 const propCount: number = await graph.getPropertyCount();
 const snapshot: WarpStateV5 | null = await graph.getStateSnapshot();
 const edges: Array<{ from: string; to: string; label: string; props: Record<string, unknown> }> = await graph.getEdges();
+
+// ---- content attachment ----
+const contentOid: string | null = await graph.getContentOid('n1');
+const contentBuf: Buffer | null = await graph.getContent('n1');
+const edgeContentOid: string | null = await graph.getEdgeContentOid('n1', 'n2', 'knows');
+const edgeContentBuf: Buffer | null = await graph.getEdgeContent('n1', 'n2', 'knows');
+const _attachResult: PatchBuilderV2 = await pb.attachContent('n1', 'hello');
+const _attachEdgeResult: PatchBuilderV2 = await pb.attachEdgeContent('n1', 'n2', 'knows', Buffer.from('data'));
+const _contentKey: '_content' = CONTENT_PROPERTY_KEY;
+
+// ---- PatchSession content attachment ----
+const psAttach: PatchSession = await ps.attachContent('x', 'content');
+const psAttachEdge: PatchSession = await ps.attachEdgeContent('a', 'b', 'c', 'content');
 
 // ---- query builder ----
 const qb: QueryBuilder = graph.query();
@@ -440,3 +454,6 @@ await WarpGraph.open({ graphName: 'test', writerId: 'w1' });
 
 // @ts-expect-error -- createNodeAdd requires string, not number
 createNodeAdd(42);
+
+// @ts-expect-error -- getContent requires string, not number
+await graph.getContent(42);
