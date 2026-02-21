@@ -43,6 +43,7 @@
  * @see {@link https://git-scm.com/book/en/v2/Git-Internals-Plumbing-and-Porcelain} for Git plumbing concepts
  */
 
+import { Buffer } from 'node:buffer';
 import { retry } from '@git-stunts/alfred';
 import GraphPersistencePort from '../../ports/GraphPersistencePort.js';
 import { validateOid, validateRef, validateLimit, validateConfigKey } from './adapterValidation.js';
