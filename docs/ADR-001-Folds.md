@@ -1,9 +1,4 @@
-Absolutely. Here’s an ADR that’s clean, opinionated, and ready to drop into the repo — while explicitly choosing “Keep It Silly Simple” for now with the OG atom/CAS _content technique.
-
-⸻
-
-
-# ADR-00XX: Folds — Structural Zoom Portals for Recursive Attachments
+# ADR-001: Folds — Structural Zoom Portals for Recursive Attachments
 
 - **Date:** 2026-02-20
 - **Status:** Proposed (Deferred)

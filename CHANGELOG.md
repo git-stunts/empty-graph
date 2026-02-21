@@ -25,6 +25,7 @@ scoping for free — zero changes to JoinReducer, serialization, or the CRDT lay
 - **Type declarations** — all new methods in `index.d.ts`, `type-surface.m8.json`, `consumer.ts`.
 - **Integration tests** — 11 tests covering single-writer, LWW, time-travel, deletion, Writer API, GC durability, binary round-trip.
 - **Unit tests** — 23 tests for PatchBuilderV2 content ops and WarpGraph query methods.
+- **ADR-001 Folds** — design document for future recursive attachments (structural zoom portals). Deferred; documents the path from `Atom(p)` to full `α(v) → WARP` recursion.
 
 ### Fixed
 

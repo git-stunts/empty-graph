@@ -328,6 +328,27 @@ const sha = await (await graph.createPatch())
 
 Each `commit()` creates one Git commit containing all the operations, advances the writer's Lamport clock, and updates the writer's ref via compare-and-swap.
 
+### Content Attachment
+
+Attach content-addressed blobs to nodes and edges as first-class payloads (Paper I `Atom(p)`). Blobs are stored in the Git object store, referenced by SHA, and inherit CRDT merge, time-travel, and observer scoping automatically.
+
+```javascript
+const patch = await graph.createPatch();
+patch.addNode('adr:0007');
+await patch.attachContent('adr:0007', '# ADR 0007\n\nDecision text...');
+await patch.commit();
+
+// Read content back
+const buffer = await graph.getContent('adr:0007');   // Buffer | null
+const oid    = await graph.getContentOid('adr:0007'); // hex SHA or null
+
+// Edge content works the same way
+await patch.attachEdgeContent('a', 'b', 'rel', 'edge payload');
+const edgeBuf = await graph.getEdgeContent('a', 'b', 'rel');
+```
+
+Content blobs survive `git gc` — their OIDs are embedded in the patch commit tree and checkpoint tree, keeping them reachable.
+
 ### Writer API
 
 For repeated writes, the Writer API is more convenient:
@@ -508,7 +529,7 @@ npm run test:matrix     # All runtimes in parallel
 ## When NOT to Use It
 
 - **High-throughput transactional workloads.** If you need thousands of writes per second with immediate consistency, use Postgres or Redis.
-- **Large binary or blob storage.** Data lives in Git commit messages (default cap 1 MB). Use object storage for images or videos.
+- **Large binary or blob storage.** Properties live in Git commit messages; content blobs live in the Git object store. Neither is optimized for large media files. Use object storage for images or videos.
 - **Sub-millisecond read latency.** Materialization has overhead. Use an in-memory database for real-time gaming physics or HFT.
 - **Simple key-value storage.** If you don't have relationships or need traversals, a graph database is overkill.
 - **Non-Git environments.** The value proposition depends on Git infrastructure (push/pull, content-addressing).
