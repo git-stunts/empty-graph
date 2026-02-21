@@ -177,7 +177,9 @@ _blob_1         → second content blob (if multiple in same patch)
 
 This makes content blobs reachable via the writer ref chain (`refs/warp/<graph>/writers/<id>` → commit → tree → blob). GC protection is automatic. Sync replicates content along with patches. Zero new refs, zero new Git commands.
 
-Integration tests verify this with `git gc --prune=now` after attach.
+**Checkpoint anchoring:** `CheckpointService.createV5()` also scans `state.prop` for `_content` values and embeds the referenced blob OIDs in the checkpoint tree. This ensures content survives GC even if patch commits are ever pruned (e.g., by future compaction or writer-chain truncation). The invariant is: **content blobs referenced by live state are always reachable from at least one ref** — either the writer ref (patch commit tree) or the checkpoint ref (checkpoint commit tree).
+
+Integration tests verify both anchoring paths with `git gc --prune=now`.
 
 ---
 

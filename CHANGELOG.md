@@ -26,6 +26,11 @@ scoping for free — zero changes to JoinReducer, serialization, or the CRDT lay
 - **Integration tests** — 11 tests covering single-writer, LWW, time-travel, deletion, Writer API, GC durability, binary round-trip.
 - **Unit tests** — 23 tests for PatchBuilderV2 content ops and WarpGraph query methods.
 
+### Fixed
+
+- **Checkpoint content anchoring** — `CheckpointService.createV5()` now scans `state.prop` for `_content` values and embeds the referenced blob OIDs in the checkpoint tree as `_blob_*` entries. This ensures content survives `git gc` even if patch commits are ever pruned.
+- **`GitGraphAdapter.readBlob()`** — Now always returns a real Node `Buffer` (wraps `Uint8Array` from plumbing with `Buffer.from()`). Consumers can call `.toString('utf8')` directly.
+
 ## [11.4.0] — 2026-02-20 — M8 IRONCLAD Phase 3: Declaration Surface Automation
 
 Completes M8 IRONCLAD with automated declaration surface validation and expanded
