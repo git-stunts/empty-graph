@@ -97,7 +97,9 @@ No new API methods. Consumers use existing property methods with the `_content` 
 const sha = await cas.writeBlob(buffer);
 patch.setProperty('adr:0007', '_content', sha);
 patch.commit();
+```
 
+```javascript
 // Read
 const props = graph.getNodeProps('adr:0007');
 const contentSha = props.get('_content');
