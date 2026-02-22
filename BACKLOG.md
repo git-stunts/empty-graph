@@ -184,3 +184,44 @@ PR #42 had 6 incremental fix commits for review feedback, which triggered 3 Code
 **Files:** process change, no code
 
 ---
+
+## Diagrams / Visualization
+
+### B-DIAG-1: Mermaid diagram content checklist
+
+PR #47 migrated 8 Graphviz SVGs to Mermaid. Self-review found 6 places where annotations, signatures, or structural detail were lost in translation (visibility labels, O(P) complexity notes, operation parameter signatures, trailer fields, elision nodes). Create a lightweight checklist for future diagram migrations:
+- Count annotation nodes / labels in source and target
+- Verify all edge labels and elision markers survive
+- Check that complexity annotations and parameter signatures are preserved
+
+**Files:** process / `CONTRIBUTING.md`
+
+### B-DIAG-2: Mermaid rendering smoke test
+
+GitHub's Mermaid renderer is strict about syntax. A CI step that parses all ` ```mermaid ` blocks with `@mermaid-js/mermaid-cli` (`mmdc`) would catch syntax errors before merge. Currently the only validation is visual inspection on the PR diff page.
+
+**Files:** new CI step in `.github/workflows/ci.yml`, or a script in `scripts/`
+
+### B-DIAG-3: Mermaid invisible-link (`~~~`) positioning is fragile
+
+The data-storage diagram uses `~~~` (invisible links) to position annotation nodes next to subgraphs. This is an undocumented Mermaid feature that may break across renderer versions. If it stops working, fall back to `style` directives or HTML annotations in node labels.
+
+**Files:** `README.md` (data-storage diagram)
+
+---
+
+## Release Process
+
+### B-REL-1: Version consistency gate — CHANGELOG vs package.json vs jsr.json
+
+PR #47 had a CHANGELOG entry for `11.5.2` that was never published (version jumped `11.5.1` → `11.5.3`). CodeRabbit caught it. A CI gate that checks every `## [X.Y.Z]` heading in CHANGELOG against actual published versions (or at least confirms `package.json`/`jsr.json` versions appear in CHANGELOG) would prevent ghost entries.
+
+**Files:** new script in `scripts/`, CI step
+
+### B-REL-2: Preflight bot should validate against CHANGELOG
+
+The release preflight bot reports `package version: X.Y.Z` but doesn't cross-check that a matching CHANGELOG entry exists. Adding a CHANGELOG heading check to the preflight action would catch mismatches earlier.
+
+**Files:** `.github/workflows/` (preflight action)
+
+---
