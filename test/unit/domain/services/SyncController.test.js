@@ -1,5 +1,19 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import SyncController from '../../../../src/domain/services/SyncController.js';
+import SyncError from '../../../../src/domain/errors/SyncError.js';
+import OperationAbortedError from '../../../../src/domain/errors/OperationAbortedError.js';
+
+const { timeoutMock, retryMock, httpSyncServerMock } = vi.hoisted(() => {
+  const timeoutMock = vi.fn(async (/** @type {number} */ _ms, /** @type {Function} */ fn) => {
+    const ac = new AbortController();
+    return await fn(ac.signal);
+  });
+  const retryMock = vi.fn(async (/** @type {Function} */ fn) => await fn());
+  const httpSyncServerMock = vi.fn().mockImplementation(() => ({
+    listen: vi.fn().mockResolvedValue({ close: vi.fn(), url: 'http://127.0.0.1:3000/sync' }),
+  }));
+  return { timeoutMock, retryMock, httpSyncServerMock };
+});
 
 vi.mock('../../../../src/domain/services/SyncProtocol.js', async (importOriginal) => {
   const original = /** @type {Record<string, unknown>} */ (await importOriginal());
@@ -10,6 +24,19 @@ vi.mock('../../../../src/domain/services/SyncProtocol.js', async (importOriginal
     processSyncRequest: vi.fn(),
   };
 });
+
+vi.mock('@git-stunts/alfred', async (importOriginal) => {
+  const original = /** @type {Record<string, unknown>} */ (await importOriginal());
+  return {
+    ...original,
+    timeout: timeoutMock,
+    retry: retryMock,
+  };
+});
+
+vi.mock('../../../../src/domain/services/HttpSyncServer.js', () => ({
+  default: httpSyncServerMock,
+}));
 
 // Import after mock setup so we get the mocked versions
 const { applySyncResponse: applySyncResponseMock, syncNeeded: syncNeededMock, processSyncRequest: processSyncRequestMock } =
@@ -295,6 +322,31 @@ describe('SyncController', () => {
       expect(calledFrontier.size).toBe(0);
       expect(host._lastFrontier).toBe(newFrontier);
     });
+
+    it('passes _lastFrontier (not observedFrontier) to applySyncResponseImpl', () => {
+      const observedFrontier = new Map([['alice', 99]]);
+      const lastFrontier = new Map([['alice', 'sha-tip-1']]);
+      const fakeState = {
+        observedFrontier,
+        nodeAlive: { dots: new Map() },
+        edgeAlive: { dots: new Map() },
+      };
+      const newFrontier = new Map([['alice', 'sha-tip-2']]);
+      applySyncResponseMock.mockReturnValue({ state: fakeState, frontier: newFrontier, applied: 1 });
+
+      const host = createMockHost({
+        _cachedState: fakeState,
+        _lastFrontier: lastFrontier,
+      });
+      const ctrl = new SyncController(/** @type {*} */ (host));
+
+      ctrl.applySyncResponse({ type: 'sync-response', frontier: {}, patches: [] });
+
+      const calledFrontier = applySyncResponseMock.mock.calls[0][2];
+      // Must be the SHA frontier map, not the VersionVector
+      expect(calledFrontier).toBe(lastFrontier);
+      expect(calledFrontier.get('alice')).toBe('sha-tip-1');
+    });
   });
 
   describe('syncNeeded', () => {
@@ -392,6 +444,72 @@ describe('SyncController', () => {
       expect(remotePeer.processSyncRequest).toHaveBeenCalledOnce();
       expect(host._cachedState).toBe(newState);
     });
+
+    it('calls host.materialize() when _cachedState is null before apply', async () => {
+      const materializedState = {
+        observedFrontier: new Map(),
+        nodeAlive: { dots: new Map() },
+        edgeAlive: { dots: new Map() },
+      };
+      const newFrontier = new Map([['alice', 'sha-a2']]);
+      applySyncResponseMock.mockReturnValue({ state: materializedState, frontier: newFrontier, applied: 0 });
+
+      const peerResponse = {
+        type: 'sync-response',
+        frontier: {},
+        patches: [],
+      };
+      const remotePeer = {
+        processSyncRequest: vi.fn().mockResolvedValue(peerResponse),
+        getFrontier: vi.fn().mockResolvedValue(new Map()),
+      };
+
+      const host = createMockHost({
+        _cachedState: null,
+        _lastFrontier: null,
+        discoverWriters: vi.fn().mockResolvedValue([]),
+        materialize: vi.fn().mockImplementation(async function () {
+          host._cachedState = materializedState;
+        }),
+      });
+      const ctrl = new SyncController(/** @type {*} */ (host));
+
+      await ctrl.syncWith(/** @type {*} */ (remotePeer));
+
+      expect(host.materialize).toHaveBeenCalledOnce();
+    });
+
+    it('returns state when materialize option is true', async () => {
+      const fakeState = {
+        observedFrontier: new Map(),
+        nodeAlive: { dots: new Map() },
+        edgeAlive: { dots: new Map() },
+      };
+      const newFrontier = new Map([['alice', 'sha-a2']]);
+      applySyncResponseMock.mockReturnValue({ state: fakeState, frontier: newFrontier, applied: 1 });
+
+      const peerResponse = {
+        type: 'sync-response',
+        frontier: {},
+        patches: [],
+      };
+      const remotePeer = {
+        processSyncRequest: vi.fn().mockResolvedValue(peerResponse),
+        getFrontier: vi.fn().mockResolvedValue(new Map()),
+      };
+
+      const host = createMockHost({
+        _cachedState: fakeState,
+        _lastFrontier: new Map(),
+        discoverWriters: vi.fn().mockResolvedValue([]),
+      });
+      const ctrl = new SyncController(/** @type {*} */ (host));
+
+      const result = await ctrl.syncWith(/** @type {*} */ (remotePeer), { materialize: true });
+
+      expect(result.state).toBe(fakeState);
+      expect(result.applied).toBe(1);
+    });
   });
 
   describe('createSyncRequest', () => {
@@ -428,6 +546,245 @@ describe('SyncController', () => {
 
       await expect(ctrl.serve(/** @type {*} */ ({ port: 3000 })))
         .rejects.toThrow('serve() requires an httpPort adapter');
+    });
+
+    it('instantiates HttpSyncServer with correct args', async () => {
+      httpSyncServerMock.mockClear();
+      const host = createMockHost();
+      const ctrl = new SyncController(/** @type {*} */ (host));
+      const httpPort = { listen: vi.fn() };
+
+      await ctrl.serve(/** @type {*} */ ({
+        port: 3000,
+        httpPort,
+        path: '/custom',
+        maxRequestBytes: 1024,
+      }));
+
+      expect(httpSyncServerMock).toHaveBeenCalledOnce();
+      const args = httpSyncServerMock.mock.calls[0][0];
+      expect(args.httpPort).toBe(httpPort);
+      expect(args.path).toBe('/custom');
+      expect(args.maxRequestBytes).toBe(1024);
+      expect(args.host).toBe('127.0.0.1');
+    });
+
+    it('enhances auth config with crypto and logger from host', async () => {
+      httpSyncServerMock.mockClear();
+      const mockCrypto = { subtle: {} };
+      const mockLogger = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
+      const host = createMockHost({
+        _crypto: mockCrypto,
+        _logger: mockLogger,
+      });
+      const ctrl = new SyncController(/** @type {*} */ (host));
+
+      await ctrl.serve(/** @type {*} */ ({
+        port: 3000,
+        httpPort: { listen: vi.fn() },
+        auth: { keys: { k: 's' } },
+      }));
+
+      const args = httpSyncServerMock.mock.calls[0][0];
+      expect(args.auth.crypto).toBe(mockCrypto);
+      expect(args.auth.logger).toBe(mockLogger);
+      expect(args.auth.keys).toEqual({ k: 's' });
+    });
+
+    it('passes graph host as graph argument to HttpSyncServer', async () => {
+      httpSyncServerMock.mockClear();
+      const host = createMockHost();
+      const ctrl = new SyncController(/** @type {*} */ (host));
+
+      await ctrl.serve(/** @type {*} */ ({
+        port: 3000,
+        httpPort: { listen: vi.fn() },
+      }));
+
+      const args = httpSyncServerMock.mock.calls[0][0];
+      expect(args.graph).toBe(host);
+    });
+  });
+
+  describe('syncWith HTTP path', () => {
+    /** @type {import('vitest').Mock} */
+    let fetchMock;
+    /** @type {ReturnType<typeof createMockHost>} */
+    let host;
+    /** @type {SyncController} */
+    let ctrl;
+
+    beforeEach(() => {
+      fetchMock = vi.fn();
+      vi.stubGlobal('fetch', fetchMock);
+
+      const fakeState = {
+        observedFrontier: new Map(),
+        nodeAlive: { dots: new Map() },
+        edgeAlive: { dots: new Map() },
+      };
+      host = createMockHost({
+        _cachedState: fakeState,
+        _lastFrontier: new Map(),
+        discoverWriters: vi.fn().mockResolvedValue([]),
+      });
+      ctrl = new SyncController(/** @type {*} */ (host));
+
+      // Default: retry calls fn once, timeout passes through
+      retryMock.mockImplementation(async (fn) => await fn());
+      timeoutMock.mockImplementation(async (_ms, fn) => {
+        const ac = new AbortController();
+        return await fn(ac.signal);
+      });
+    });
+
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it('successful HTTP sync returns applied count', async () => {
+      const validResponse = {
+        type: 'sync-response',
+        frontier: { alice: 'sha-a' },
+        patches: [],
+      };
+      fetchMock.mockResolvedValue({
+        status: 200,
+        json: () => Promise.resolve(validResponse),
+      });
+      const newFrontier = new Map([['alice', 'sha-a']]);
+      applySyncResponseMock.mockReturnValue({
+        state: host._cachedState,
+        frontier: newFrontier,
+        applied: 5,
+      });
+
+      const result = await ctrl.syncWith('http://peer:3000/sync');
+
+      expect(result.applied).toBe(5);
+      expect(applySyncResponseMock).toHaveBeenCalled();
+    });
+
+    it('5xx status throws SyncError with E_SYNC_REMOTE', async () => {
+      fetchMock.mockResolvedValue({ status: 502 });
+
+      await expect(ctrl.syncWith('http://peer:3000/sync'))
+        .rejects.toMatchObject({
+          code: 'E_SYNC_REMOTE',
+        });
+    });
+
+    it('4xx status throws SyncError with E_SYNC_PROTOCOL', async () => {
+      fetchMock.mockResolvedValue({ status: 400 });
+
+      await expect(ctrl.syncWith('http://peer:3000/sync'))
+        .rejects.toMatchObject({
+          code: 'E_SYNC_PROTOCOL',
+        });
+    });
+
+    it('invalid JSON response throws SyncError with E_SYNC_PROTOCOL', async () => {
+      fetchMock.mockResolvedValue({
+        status: 200,
+        json: () => Promise.reject(new SyntaxError('Unexpected token')),
+      });
+
+      await expect(ctrl.syncWith('http://peer:3000/sync'))
+        .rejects.toMatchObject({
+          code: 'E_SYNC_PROTOCOL',
+        });
+    });
+
+    it('AbortError throws OperationAbortedError', async () => {
+      const abortErr = new Error('aborted');
+      abortErr.name = 'AbortError';
+      timeoutMock.mockRejectedValue(abortErr);
+
+      await expect(ctrl.syncWith('http://peer:3000/sync'))
+        .rejects.toBeInstanceOf(OperationAbortedError);
+    });
+
+    it('TimeoutError throws SyncError with E_SYNC_TIMEOUT', async () => {
+      const { TimeoutError } = await import('@git-stunts/alfred');
+      timeoutMock.mockRejectedValue(new TimeoutError(10000));
+
+      await expect(ctrl.syncWith('http://peer:3000/sync'))
+        .rejects.toMatchObject({
+          code: 'E_SYNC_TIMEOUT',
+        });
+    });
+
+    it('network error throws SyncError with E_SYNC_NETWORK', async () => {
+      timeoutMock.mockImplementation(async (_ms, fn) => {
+        const ac = new AbortController();
+        return await fn(ac.signal);
+      });
+      fetchMock.mockRejectedValue(new TypeError('fetch failed'));
+
+      await expect(ctrl.syncWith('http://peer:3000/sync'))
+        .rejects.toMatchObject({
+          code: 'E_SYNC_NETWORK',
+        });
+    });
+
+    it('shouldRetry: retries on E_SYNC_REMOTE but not E_SYNC_PROTOCOL', async () => {
+      fetchMock.mockResolvedValue({ status: 502 });
+
+      // Capture shouldRetry from retry mock
+      /** @type {((err: unknown) => boolean) | undefined} */
+      let capturedShouldRetry;
+      retryMock.mockImplementation(async (fn, opts) => {
+        capturedShouldRetry = /** @type {*} */ (opts).shouldRetry;
+        return await fn();
+      });
+
+      try {
+        await ctrl.syncWith('http://peer:3000/sync');
+      } catch {
+        // Expected to throw
+      }
+
+      expect(capturedShouldRetry).toBeDefined();
+      const shouldRetry = /** @type {(err: unknown) => boolean} */ (capturedShouldRetry);
+
+      expect(shouldRetry(new SyncError('remote', { code: 'E_SYNC_REMOTE' }))).toBe(true);
+      expect(shouldRetry(new SyncError('timeout', { code: 'E_SYNC_TIMEOUT' }))).toBe(true);
+      expect(shouldRetry(new SyncError('network', { code: 'E_SYNC_NETWORK' }))).toBe(true);
+      expect(shouldRetry(new SyncError('protocol', { code: 'E_SYNC_PROTOCOL' }))).toBe(false);
+    });
+
+    it('passes auth headers to fetch when auth option provided', async () => {
+      // Provide a crypto mock that supports hash + hmac
+      const mockCrypto = {
+        hash: vi.fn().mockResolvedValue('abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890'),
+        hmac: vi.fn().mockResolvedValue('hmac-signature-hex'),
+      };
+      host._crypto = mockCrypto;
+
+      const validResponse = {
+        type: 'sync-response',
+        frontier: {},
+        patches: [],
+      };
+      fetchMock.mockResolvedValue({
+        status: 200,
+        json: () => Promise.resolve(validResponse),
+      });
+      applySyncResponseMock.mockReturnValue({
+        state: host._cachedState,
+        frontier: new Map(),
+        applied: 0,
+      });
+
+      await ctrl.syncWith('http://peer:3000/sync', {
+        auth: { secret: 'test-secret', keyId: 'k1' },
+      });
+
+      expect(fetchMock).toHaveBeenCalledOnce();
+      const fetchHeaders = fetchMock.mock.calls[0][1].headers;
+      // Auth headers should contain x-warp-* prefixed headers
+      const authHeaderKeys = Object.keys(fetchHeaders).filter(k => k.startsWith('x-warp-'));
+      expect(authHeaderKeys.length).toBeGreaterThan(0);
     });
   });
 });

@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`mockServerGraph` asymmetry** — `syncAuth` test helper now mocks on `_syncController.processSyncRequest` (matching `mockClientGraph` pattern) instead of shadowing the prototype with an own-property mock.
+- **Stale comment** — `BitmapIndexReader.test.js` comment corrected from "default" to "explicit override" for `strict: false` reader.
+- **OID length standardization** — all 25 short 8-char OIDs in `BitmapIndexReader.test.js` extended to 40-char zero-padded hex, matching real Git SHA-1 length and eliminating non-hex characters (`eeffgghh` → `eeff00dd…`).
+
+### Added
+
+- **Frontier fix verification test** (`SyncController.test.js`) — confirms `applySyncResponse` passes `_lastFrontier` (SHA map), not `observedFrontier` (VersionVector), as 3rd arg.
+- **Null-context guard tests** (`JoinReducer.test.js`) — 2 tests verifying `applyFast` handles `undefined` and `null` context gracefully via the `|| {}` fallback.
+- **Auto-materialize path tests** (`SyncController.test.js`) — 2 tests for `syncWith`: calls `materialize()` when `_cachedState` is null; returns `state` when `materialize: true`.
+- **HTTP sync path tests** (`SyncController.test.js`) — 9 tests covering success, 5xx/4xx status codes, invalid JSON, AbortError, TimeoutError, network error, `shouldRetry` predicate, and auth header forwarding.
+- **`serve()` deeper tests** (`SyncController.test.js`) — 3 tests verifying `HttpSyncServer` constructor args, auth config enhancement (crypto + logger injection), and graph host passthrough.
+
 ## [11.5.1] — 2026-02-22 — M9 PARTITION: Architectural Decomposition
 
 Breaks apart structural DRY violations and extracts encapsulated services

@@ -778,6 +778,38 @@ describe('JoinReducer', () => {
       expect(state.observedFrontier.get('w1')).toBe(1);
     });
 
+    it('applyFast handles undefined context gracefully', () => {
+      const state = createEmptyStateV5();
+      const dot = createDot('w1', 1);
+      const patch = {
+        schema: 2,
+        writer: 'w1',
+        lamport: 1,
+        ops: [createNodeAddV2('n1', dot)],
+        context: undefined,
+      };
+      const result = applyFast(state, /** @type {*} */ (patch), 'aa00000000000000');
+      expect(result).toBe(state);
+      expect(orsetContains(state.nodeAlive, 'n1')).toBe(true);
+      expect(state.observedFrontier.get('w1')).toBe(1);
+    });
+
+    it('applyFast handles null context gracefully', () => {
+      const state = createEmptyStateV5();
+      const dot = createDot('w1', 1);
+      const patch = {
+        schema: 2,
+        writer: 'w1',
+        lamport: 1,
+        ops: [createNodeAddV2('n1', dot)],
+        context: null,
+      };
+      const result = applyFast(state, /** @type {*} */ (patch), 'bb00000000000000');
+      expect(result).toBe(state);
+      expect(orsetContains(state.nodeAlive, 'n1')).toBe(true);
+      expect(state.observedFrontier.get('w1')).toBe(1);
+    });
+
     it('join dispatches to applyFast when collectReceipts is false', () => {
       const state = createEmptyStateV5();
       const dot = createDot('w1', 1);

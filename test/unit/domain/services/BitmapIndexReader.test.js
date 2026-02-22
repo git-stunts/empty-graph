@@ -134,7 +134,7 @@ describe('BitmapIndexReader', () => {
 
   describe('setup', () => {
     it('stores shard OIDs for lazy loading', () => {
-      reader.setup({ 'meta_aa.json': 'a1b2c3d4', 'shards_fwd_aa.json': 'e5f6a7b8' });
+      reader.setup({ 'meta_aa.json': 'a1b2c3d400000000000000000000000000000000', 'shards_fwd_aa.json': 'e5f6a7b800000000000000000000000000000000' });
       expect(reader.shardOids.size).toBe(2);
     });
 
@@ -159,24 +159,24 @@ describe('BitmapIndexReader', () => {
     it('loads and decodes bitmap data', async () => {
       // Build a real index
       const builder = new BitmapIndexBuilder();
-      builder.addEdge('aabbccdd', 'eeffgghh');
+      builder.addEdge('aabbccdd00000000000000000000000000000000', 'eeff00dd00000000000000000000000000000000');
       const tree = await builder.serialize();
 
       // Mock storage to return serialized data
       mockStorage.readBlob.mockImplementation(async (/** @type {any} */ oid) => {
-        if (oid === 'aaa1bbb2') return tree['meta_aa.json'] || tree['meta_ee.json'];
-        if (oid === 'bbb2ccc3') return tree['shards_rev_ee.json'];
+        if (oid === 'aaa1bbb200000000000000000000000000000000') return tree['meta_aa.json'] || tree['meta_ee.json'];
+        if (oid === 'bbb2ccc300000000000000000000000000000000') return tree['shards_rev_ee.json'];
         return Buffer.from('{}');
       });
 
       reader.setup({
-        'meta_aa.json': 'aaa1bbb2',
-        'meta_ee.json': 'aaa1bbb2',
-        'shards_rev_ee.json': 'bbb2ccc3',
+        'meta_aa.json': 'aaa1bbb200000000000000000000000000000000',
+        'meta_ee.json': 'aaa1bbb200000000000000000000000000000000',
+        'shards_rev_ee.json': 'bbb2ccc300000000000000000000000000000000',
       });
 
-      const parents = await reader.getParents('eeffgghh');
-      expect(parents).toContain('aabbccdd');
+      const parents = await reader.getParents('eeff00dd00000000000000000000000000000000');
+      expect(parents).toContain('aabbccdd00000000000000000000000000000000');
     });
   });
 
@@ -193,11 +193,11 @@ describe('BitmapIndexReader', () => {
       mockStorage.readBlob.mockRejectedValue(new Error('object not found'));
 
       reader.setup({
-        'meta_ab.json': 'ccc3ddd4',
-        'shards_rev_ab.json': 'ddd4eee5'
+        'meta_ab.json': 'ccc3ddd400000000000000000000000000000000',
+        'shards_rev_ab.json': 'ddd4eee500000000000000000000000000000000'
       });
 
-      await expect(reader.getParents('abcd1234')).rejects.toThrow(ShardLoadError);
+      await expect(reader.getParents('abcd123400000000000000000000000000000000')).rejects.toThrow(ShardLoadError);
     });
 
     it('returns empty array when shard contains invalid JSON (non-strict)', async () => {
@@ -205,11 +205,11 @@ describe('BitmapIndexReader', () => {
       mockStorage.readBlob.mockResolvedValue(Buffer.from('not valid json {{{'));
 
       lenient.setup({
-        'meta_ab.json': 'eee5fff6',
-        'shards_rev_ab.json': 'eee5fff6'
+        'meta_ab.json': 'eee5fff600000000000000000000000000000000',
+        'shards_rev_ab.json': 'eee5fff600000000000000000000000000000000'
       });
 
-      const parents = await lenient.getParents('abcd1234');
+      const parents = await lenient.getParents('abcd123400000000000000000000000000000000');
       expect(parents).toEqual([]);
     });
 
@@ -219,17 +219,17 @@ describe('BitmapIndexReader', () => {
       mockStorage.readBlob.mockResolvedValue(Buffer.from('[1,2,3]'));
 
       lenient.setup({
-        'shards_rev_ab.json': 'fff6aaa1'
+        'shards_rev_ab.json': 'fff6aaa100000000000000000000000000000000'
       });
 
-      const parents = await lenient.getParents('abcd1234');
+      const parents = await lenient.getParents('abcd123400000000000000000000000000000000');
       expect(parents).toEqual([]);
     });
 
     it('throws ShardLoadError on storage failure but continues after', async () => {
       // Build a real index for comparison
       const builder = new BitmapIndexBuilder();
-      builder.addEdge('aabbccdd', 'eeffgghh');
+      builder.addEdge('aabbccdd00000000000000000000000000000000', 'eeff00dd00000000000000000000000000000000');
       const tree = await builder.serialize();
 
       let callCount = 0;
@@ -240,20 +240,20 @@ describe('BitmapIndexReader', () => {
           throw new Error('transient failure');
         }
         // Return real data for subsequent calls
-        if (oid === 'aaa1bbb2') return tree['meta_aa.json'] || tree['meta_ee.json'];
-        if (oid === 'bbb2ccc3') return tree['shards_rev_ee.json'];
+        if (oid === 'aaa1bbb200000000000000000000000000000000') return tree['meta_aa.json'] || tree['meta_ee.json'];
+        if (oid === 'bbb2ccc300000000000000000000000000000000') return tree['shards_rev_ee.json'];
         return Buffer.from('{}');
       });
 
       reader.setup({
-        'meta_aa.json': 'aaa1bbb2',
-        'meta_ee.json': 'aaa1bbb2',
-        'shards_rev_ee.json': 'bbb2ccc3',
-        'shards_rev_aa.json': 'eee5fff6' // This one fails
+        'meta_aa.json': 'aaa1bbb200000000000000000000000000000000',
+        'meta_ee.json': 'aaa1bbb200000000000000000000000000000000',
+        'shards_rev_ee.json': 'bbb2ccc300000000000000000000000000000000',
+        'shards_rev_aa.json': 'eee5fff600000000000000000000000000000000' // This one fails
       });
 
       // First query hits storage error - should throw ShardLoadError
-      await expect(reader.getParents('aabbccdd')).rejects.toThrow(ShardLoadError);
+      await expect(reader.getParents('aabbccdd00000000000000000000000000000000')).rejects.toThrow(ShardLoadError);
 
       // Reader should still be functional for other queries
       // (the reader wasn't corrupted by the error)
@@ -269,10 +269,10 @@ describe('BitmapIndexReader', () => {
       })));
 
       strictReader.setup({
-        'shards_rev_ab.json': 'aab1ccdd'
+        'shards_rev_ab.json': 'aab1ccdd00000000000000000000000000000000'
       });
 
-      await expect(strictReader.getParents('abcd1234')).rejects.toThrow(ShardValidationError);
+      await expect(strictReader.getParents('abcd123400000000000000000000000000000000')).rejects.toThrow(ShardValidationError);
     });
 
     it('in strict mode throws ShardCorruptionError on invalid format', async () => {
@@ -280,10 +280,10 @@ describe('BitmapIndexReader', () => {
       mockStorage.readBlob.mockResolvedValue(Buffer.from('not valid json {{{'));
 
       strictReader.setup({
-        'shards_rev_ab.json': 'eee5fff6'
+        'shards_rev_ab.json': 'eee5fff600000000000000000000000000000000'
       });
 
-      await expect(strictReader.getParents('abcd1234')).rejects.toThrow(ShardCorruptionError);
+      await expect(strictReader.getParents('abcd123400000000000000000000000000000000')).rejects.toThrow(ShardCorruptionError);
     });
 
     it('in strict mode throws ShardValidationError on checksum mismatch', async () => {
@@ -295,10 +295,10 @@ describe('BitmapIndexReader', () => {
       })));
 
       strictReader.setup({
-        'meta_ab.json': 'bbccdd11'
+        'meta_ab.json': 'bbccdd1100000000000000000000000000000000'
       });
 
-      await expect(strictReader.lookupId('abcd1234')).rejects.toThrow(ShardValidationError);
+      await expect(strictReader.lookupId('abcd123400000000000000000000000000000000')).rejects.toThrow(ShardValidationError);
     });
 
     it('error objects contain useful context for debugging', async () => {
@@ -310,11 +310,11 @@ describe('BitmapIndexReader', () => {
       })));
 
       strictReader.setup({
-        'shards_fwd_cd.json': 'ccddee22'
+        'shards_fwd_cd.json': 'ccddee2200000000000000000000000000000000'
       });
 
       try {
-        await strictReader.getChildren('cdcd1234');
+        await strictReader.getChildren('cdcd123400000000000000000000000000000000');
         expect.fail('Should have thrown');
       } catch (/** @type {any} */ err) {
         expect(err).toBeInstanceOf(ShardValidationError);
@@ -331,17 +331,17 @@ describe('BitmapIndexReader', () => {
       mockStorage.readBlob.mockRejectedValue(originalError);
 
       reader.setup({
-        'meta_ef.json': 'ddeeff33'
+        'meta_ef.json': 'ddeeff3300000000000000000000000000000000'
       });
 
       try {
-        await reader.lookupId('efgh5678');
+        await reader.lookupId('ef00567800000000000000000000000000000000');
         expect.fail('Should have thrown');
       } catch (/** @type {any} */ err) {
         expect(err).toBeInstanceOf(ShardLoadError);
         expect(err.code).toBe('SHARD_LOAD_ERROR');
         expect(err.shardPath).toBe('meta_ef.json');
-        expect(err.oid).toBe('ddeeff33');
+        expect(err.oid).toBe('ddeeff3300000000000000000000000000000000');
         expect(err.cause).toBe(originalError);
       }
     });
@@ -349,19 +349,19 @@ describe('BitmapIndexReader', () => {
     it('non-strict mode returns empty but strict mode throws for same corruption', async () => {
       const corruptData = Buffer.from('{"not": "a valid shard format"}');
 
-      // Non-strict reader (default)
+      // Non-strict reader (explicit override)
       const nonStrictReader = new BitmapIndexReader(/** @type {any} */ ({ storage: mockStorage, strict: false }));
       mockStorage.readBlob.mockResolvedValue(corruptData);
-      nonStrictReader.setup({ 'shards_rev_ab.json': 'eee5fff6' });
+      nonStrictReader.setup({ 'shards_rev_ab.json': 'eee5fff600000000000000000000000000000000' });
 
-      const nonStrictResult = await nonStrictReader.getParents('abcd1234');
+      const nonStrictResult = await nonStrictReader.getParents('abcd123400000000000000000000000000000000');
       expect(nonStrictResult).toEqual([]); // Graceful degradation
 
       // Strict reader
       const strictReader = new BitmapIndexReader(/** @type {any} */ ({ storage: mockStorage, strict: true }));
-      strictReader.setup({ 'shards_rev_ab.json': 'eee5fff6' });
+      strictReader.setup({ 'shards_rev_ab.json': 'eee5fff600000000000000000000000000000000' });
 
-      await expect(strictReader.getParents('abcd1234')).rejects.toThrow(ShardCorruptionError);
+      await expect(strictReader.getParents('abcd123400000000000000000000000000000000')).rejects.toThrow(ShardCorruptionError);
     });
 
     it('caches empty shard on validation failure to avoid repeated I/O and log spam', async () => {
@@ -384,10 +384,10 @@ describe('BitmapIndexReader', () => {
         data: {}
       })));
 
-      nonStrictReader.setup({ 'shards_rev_ab.json': 'aab1ccdd' });
+      nonStrictReader.setup({ 'shards_rev_ab.json': 'aab1ccdd00000000000000000000000000000000' });
 
       // First access - should log warning
-      const result1 = await nonStrictReader.getParents('abcd1234');
+      const result1 = await nonStrictReader.getParents('abcd123400000000000000000000000000000000');
       expect(result1).toEqual([]);
       expect(mockLogger.warn).toHaveBeenCalledTimes(1);
       expect(mockLogger.warn).toHaveBeenCalledWith('Shard validation warning', expect.objectContaining({
@@ -395,7 +395,7 @@ describe('BitmapIndexReader', () => {
       }));
 
       // Second access to same shard - should NOT log again (cached)
-      const result2 = await nonStrictReader.getParents('abcd1234');
+      const result2 = await nonStrictReader.getParents('abcd123400000000000000000000000000000000');
       expect(result2).toEqual([]);
       expect(mockLogger.warn).toHaveBeenCalledTimes(1); // Still only 1 call
 
@@ -419,10 +419,10 @@ describe('BitmapIndexReader', () => {
       // Return invalid JSON (parse error)
       mockStorage.readBlob.mockResolvedValue(Buffer.from('not valid json {{{'));
 
-      nonStrictReader.setup({ 'shards_rev_ab.json': 'eee5fff6' });
+      nonStrictReader.setup({ 'shards_rev_ab.json': 'eee5fff600000000000000000000000000000000' });
 
       // First access - should log warning
-      const result1 = await nonStrictReader.getParents('abcd1234');
+      const result1 = await nonStrictReader.getParents('abcd123400000000000000000000000000000000');
       expect(result1).toEqual([]);
       expect(mockLogger.warn).toHaveBeenCalledTimes(1);
       expect(mockLogger.warn).toHaveBeenCalledWith('Shard validation warning', expect.objectContaining({
@@ -431,7 +431,7 @@ describe('BitmapIndexReader', () => {
       }));
 
       // Second access to same shard - should NOT log again (cached)
-      const result2 = await nonStrictReader.getParents('abcd1234');
+      const result2 = await nonStrictReader.getParents('abcd123400000000000000000000000000000000');
       expect(result2).toEqual([]);
       expect(mockLogger.warn).toHaveBeenCalledTimes(1); // Still only 1 call
 
@@ -442,30 +442,30 @@ describe('BitmapIndexReader', () => {
 
   describe('shard versioning', () => {
     it('accepts v1 shards for backward compatibility', async () => {
-      const v1Data = { 'abcd1234': 42 };
+      const v1Data = { 'abcd123400000000000000000000000000000000': 42 };
       const v1Shard = createV1Shard(v1Data);
 
       mockStorage.readBlob.mockResolvedValue(Buffer.from(JSON.stringify(v1Shard)));
 
       reader.setup({
-        'meta_ab.json': 'eeff0044'
+        'meta_ab.json': 'eeff004400000000000000000000000000000000'
       });
 
-      const id = await reader.lookupId('abcd1234');
+      const id = await reader.lookupId('abcd123400000000000000000000000000000000');
       expect(id).toBe(42);
     });
 
     it('accepts v2 shards', async () => {
-      const v2Data = { 'abcd1234': 99 };
+      const v2Data = { 'abcd123400000000000000000000000000000000': 99 };
       const v2Shard = createV2Shard(v2Data);
 
       mockStorage.readBlob.mockResolvedValue(Buffer.from(JSON.stringify(v2Shard)));
 
       reader.setup({
-        'meta_ab.json': 'ff001155'
+        'meta_ab.json': 'ff00115500000000000000000000000000000000'
       });
 
-      const id = await reader.lookupId('abcd1234');
+      const id = await reader.lookupId('abcd123400000000000000000000000000000000');
       expect(id).toBe(99);
     });
 
@@ -476,20 +476,20 @@ describe('BitmapIndexReader', () => {
       const v2ShardWithBadChecksum = {
         version: 2,
         checksum: 'intentionally-wrong-checksum-value',
-        data: { 'abcd1234': 123 }
+        data: { 'abcd123400000000000000000000000000000000': 123 }
       };
 
       mockStorage.readBlob.mockResolvedValue(Buffer.from(JSON.stringify(v2ShardWithBadChecksum)));
 
       strictReader.setup({
-        'meta_ab.json': '00112266'
+        'meta_ab.json': '0011226600000000000000000000000000000000'
       });
 
-      await expect(strictReader.lookupId('abcd1234')).rejects.toThrow(ShardValidationError);
+      await expect(strictReader.lookupId('abcd123400000000000000000000000000000000')).rejects.toThrow(ShardValidationError);
 
       // Verify the error contains the expected context
       try {
-        await strictReader.lookupId('abcd1234');
+        await strictReader.lookupId('abcd123400000000000000000000000000000000');
       } catch (/** @type {any} */ err) {
         expect(err.field).toBe('checksum');
         expect(err.shardPath).toBe('meta_ab.json');
@@ -514,17 +514,17 @@ describe('BitmapIndexReader', () => {
       const v2ShardWithBadChecksum = {
         version: 2,
         checksum: 'intentionally-wrong-checksum-value',
-        data: { 'abcd1234': 123 }
+        data: { 'abcd123400000000000000000000000000000000': 123 }
       };
 
       mockStorage.readBlob.mockResolvedValue(Buffer.from(JSON.stringify(v2ShardWithBadChecksum)));
 
       nonStrictReader.setup({
-        'meta_ab.json': '00112266'
+        'meta_ab.json': '0011226600000000000000000000000000000000'
       });
 
       // Should not throw, but return undefined (empty shard cached)
-      const result = await nonStrictReader.lookupId('abcd1234');
+      const result = await nonStrictReader.lookupId('abcd123400000000000000000000000000000000');
       expect(result).toBeUndefined();
 
       // Should have logged a warning
@@ -558,7 +558,7 @@ describe('BitmapIndexReader', () => {
       mockStorage.readBlob.mockResolvedValue(Buffer.from(JSON.stringify(v1Shard)));
 
       reader.setup({
-        'meta_ze.json': '11223377'
+        'meta_ze.json': '1122337700000000000000000000000000000000'
       });
 
       // Should succeed because v1 uses JSON.stringify for verification
@@ -584,7 +584,7 @@ describe('BitmapIndexReader', () => {
       mockStorage.readBlob.mockResolvedValue(Buffer.from(JSON.stringify(v2Shard)));
 
       reader.setup({
-        'meta_ze.json': '22334488'
+        'meta_ze.json': '2233448800000000000000000000000000000000'
       });
 
       // Should succeed because v2 uses canonicalStringify for verification
@@ -613,27 +613,27 @@ describe('BitmapIndexReader', () => {
       });
 
       smallCacheReader.setup({
-        'meta_aa.json': 'aa001122',
-        'meta_bb.json': 'bb334455',
-        'meta_cc.json': 'cc667788',
+        'meta_aa.json': 'aa00112200000000000000000000000000000000',
+        'meta_bb.json': 'bb33445500000000000000000000000000000000',
+        'meta_cc.json': 'cc66778800000000000000000000000000000000',
       });
 
       // Load first shard
-      await smallCacheReader.lookupId('aabbccdd');
+      await smallCacheReader.lookupId('aabbccdd00000000000000000000000000000000');
       expect(smallCacheReader.loadedShards.size).toBe(1);
       expect(mockStorage.readBlob).toHaveBeenCalledTimes(1);
 
       // Load second shard
-      await smallCacheReader.lookupId('bbccddee');
+      await smallCacheReader.lookupId('bbccddee00000000000000000000000000000000');
       expect(smallCacheReader.loadedShards.size).toBe(2);
       expect(mockStorage.readBlob).toHaveBeenCalledTimes(2);
 
       // Load third shard - should evict first
-      await smallCacheReader.lookupId('ccddeeff');
+      await smallCacheReader.lookupId('ccddeeff00000000000000000000000000000000');
       expect(smallCacheReader.loadedShards.size).toBe(2); // Still 2 due to LRU eviction
 
       // First shard should be evicted, accessing it again should reload
-      await smallCacheReader.lookupId('aabbccdd');
+      await smallCacheReader.lookupId('aabbccdd00000000000000000000000000000000');
       expect(mockStorage.readBlob).toHaveBeenCalledTimes(4); // 3 + 1 reload
     });
 
@@ -654,20 +654,20 @@ describe('BitmapIndexReader', () => {
       });
 
       smallCacheReader.setup({
-        'meta_aa.json': 'aa001122',
-        'meta_bb.json': 'bb334455',
-        'meta_cc.json': 'cc667788',
+        'meta_aa.json': 'aa00112200000000000000000000000000000000',
+        'meta_bb.json': 'bb33445500000000000000000000000000000000',
+        'meta_cc.json': 'cc66778800000000000000000000000000000000',
       });
 
       // Load first two shards
-      await smallCacheReader.lookupId('aabbccdd'); // Load aa
-      await smallCacheReader.lookupId('bbccddee'); // Load bb
+      await smallCacheReader.lookupId('aabbccdd00000000000000000000000000000000'); // Load aa
+      await smallCacheReader.lookupId('bbccddee00000000000000000000000000000000'); // Load bb
 
       // Access 'aa' again to make it recently used
-      await smallCacheReader.lookupId('aabbccdd');
+      await smallCacheReader.lookupId('aabbccdd00000000000000000000000000000000');
 
       // Load third shard - should evict 'bb' (now oldest)
-      await smallCacheReader.lookupId('ccddeeff'); // Load cc
+      await smallCacheReader.lookupId('ccddeeff00000000000000000000000000000000'); // Load cc
 
       // 'aa' should still be in cache (was recently used)
       expect(smallCacheReader.loadedShards.has('meta_aa.json')).toBe(true);
