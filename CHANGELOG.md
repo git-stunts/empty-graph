@@ -7,17 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-
-- **Publication-quality SVG diagrams** — 8 Graphviz diagrams in `docs/diagrams/` covering data storage, two-plane state model, ref layout, patch anatomy, multi-writer convergence, materialization pipeline, checkpoint tree, and hexagonal architecture. Grayscale, transparent-background, serif-font styling matching the AION paper aesthetic.
-- **`scripts/build-diagrams.sh`** — compiles all `.dot` files to SVG with transparent-background post-processing.
-
 ## [11.5.1] — 2026-02-22 — M9 PARTITION: Architectural Decomposition
 
 Breaks apart structural DRY violations and extracts encapsulated services
 from the WarpGraph god class, without changing any public API surface.
 
 ### Added
+
+- **Publication-quality SVG diagrams** — 8 Graphviz diagrams in `docs/diagrams/` covering data storage, two-plane state model, ref layout, patch anatomy, multi-writer convergence, materialization pipeline, checkpoint tree, and hexagonal architecture. Grayscale, transparent-background, serif-font styling matching the AION paper aesthetic.
+- **`scripts/build-diagrams.sh`** — compiles all `.dot` files to SVG with transparent-background post-processing.
 
 - **`SyncController`** (`src/domain/services/SyncController.js`) — new class encapsulating all 9 sync methods (`getFrontier`, `hasFrontierChanged`, `status`, `createSyncRequest`, `processSyncRequest`, `applySyncResponse`, `syncNeeded`, `syncWith`, `serve`) and 2 private helpers. Independently unit-testable with a mock host object. 16 new tests.
 - **`applyFast()` / `applyWithReceipt()`** — named exported functions in `JoinReducer.js` replacing the duplicated fast/receipt code paths. `join()` is now a 3-line dispatcher. `reduceV5()` calls named functions directly. 4 new tests.

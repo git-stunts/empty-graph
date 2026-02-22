@@ -352,7 +352,7 @@ function foldPatchDot(frontier, writer, lamport) {
 function updateFrontierFromPatch(state, patch) {
   const contextVV = patch.context instanceof Map
     ? patch.context
-    : vvDeserialize(patch.context);
+    : vvDeserialize(patch.context || {});
   state.observedFrontier = vvMerge(state.observedFrontier, contextVV);
   foldPatchDot(state.observedFrontier, patch.writer, patch.lamport);
 }

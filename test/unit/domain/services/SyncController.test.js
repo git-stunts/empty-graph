@@ -409,6 +409,7 @@ describe('SyncController', () => {
 
       expect(request).toHaveProperty('type', 'sync-request');
       expect(request).toHaveProperty('frontier');
+      expect(request.frontier).toMatchObject({ alice: 'sha-alice' });
     });
   });
 
