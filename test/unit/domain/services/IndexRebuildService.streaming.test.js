@@ -4,15 +4,11 @@ import GraphNode from '../../../../src/domain/entities/GraphNode.js';
 
 describe('IndexRebuildService streaming mode', () => {
   /** @type {any} */
-  /** @type {any} */
   let service;
-  /** @type {any} */
   /** @type {any} */
   let mockStorage;
   /** @type {any} */
-  /** @type {any} */
   let mockGraphService;
-  /** @type {any} */
   /** @type {any} */
   let writtenBlobs;
 

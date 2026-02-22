@@ -43,9 +43,7 @@ const createV2Shard = (/** @type {any} */ data) => ({
 
 describe('BitmapIndexReader', () => {
   /** @type {any} */
-  /** @type {any} */
   let mockStorage;
-  /** @type {any} */
   /** @type {any} */
   let reader;
 

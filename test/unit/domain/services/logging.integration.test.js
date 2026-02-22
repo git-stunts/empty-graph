@@ -38,12 +38,9 @@ function createMockLogger() {
 describe('Service Logging Integration', () => {
   describe('IndexRebuildService', () => {
     /** @type {any} */
-    /** @type {any} */
     let mockGraphService;
     /** @type {any} */
-    /** @type {any} */
     let mockStorage;
-    /** @type {any} */
     /** @type {any} */
     let mockLogger;
 
@@ -160,9 +157,7 @@ describe('Service Logging Integration', () => {
 
   describe('BitmapIndexReader', () => {
     /** @type {any} */
-    /** @type {any} */
     let mockStorage;
-    /** @type {any} */
     /** @type {any} */
     let mockLogger;
 

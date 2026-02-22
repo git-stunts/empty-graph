@@ -24,7 +24,6 @@ import * as queryMethods from './warp/query.methods.js';
 import * as subscribeMethods from './warp/subscribe.methods.js';
 import * as provenanceMethods from './warp/provenance.methods.js';
 import * as forkMethods from './warp/fork.methods.js';
-import * as syncMethods from './warp/sync.methods.js';
 import * as checkpointMethods from './warp/checkpoint.methods.js';
 import * as patchMethods from './warp/patch.methods.js';
 import * as materializeMethods from './warp/materialize.methods.js';
@@ -414,9 +413,26 @@ wireWarpMethods(WarpGraph, [
   subscribeMethods,
   provenanceMethods,
   forkMethods,
-  syncMethods,
   checkpointMethods,
   patchMethods,
   materializeMethods,
   materializeAdvancedMethods,
 ]);
+
+// ── Sync methods: direct delegation to SyncController (no stub file) ────────
+const syncDelegates = /** @type {const} */ ([
+  'getFrontier', 'hasFrontierChanged', 'status',
+  'createSyncRequest', 'processSyncRequest', 'applySyncResponse',
+  'syncNeeded', 'syncWith', 'serve',
+]);
+for (const method of syncDelegates) {
+  Object.defineProperty(WarpGraph.prototype, method, {
+    // eslint-disable-next-line object-shorthand -- function keyword needed for `this` binding
+    value: /** @this {WarpGraph} */ function (...args) {
+      return this._syncController[method](...args);
+    },
+    writable: true,
+    configurable: true,
+    enumerable: false,
+  });
+}

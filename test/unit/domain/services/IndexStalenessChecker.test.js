@@ -109,12 +109,9 @@ describe('checkStaleness', () => {
 
 describe('IndexRebuildService.load() staleness integration', () => {
   /** @type {any} */
-  /** @type {any} */
   let storage;
   /** @type {any} */
-  /** @type {any} */
   let logger;
-  /** @type {any} */
   /** @type {any} */
   let graphService;
 

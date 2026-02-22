@@ -1,10 +1,9 @@
 /**
  * SyncController - Encapsulates all sync functionality for WarpGraph.
  *
- * Extracted from sync.methods.js to centralise sync logic in a single
- * service class. Each public method previously lived on WarpGraph.prototype
- * via wireWarpMethods(); now the thin delegation stubs in sync.methods.js
- * forward to this controller.
+ * Extracted from the original sync.methods.js free functions into a
+ * service class. WarpGraph.prototype delegates directly to this controller
+ * via defineProperty loops — no intermediate stub file.
  *
  * @module domain/services/SyncController
  */
@@ -28,6 +27,30 @@ import { signSyncRequest, canonicalizePath } from './SyncAuthService.js';
 import { isError } from '../types/WarpErrors.js';
 
 /** @typedef {import('../types/WarpPersistence.js').CorePersistence} CorePersistence */
+
+/**
+ * The host interface that SyncController depends on.
+ *
+ * Documents the exact WarpGraph surface the controller accesses,
+ * making the coupling explicit and enabling lightweight mock hosts
+ * in unit tests.
+ *
+ * @typedef {Object} SyncHost
+ * @property {import('../services/JoinReducer.js').WarpStateV5|null} _cachedState
+ * @property {Map<string, string>|null} _lastFrontier
+ * @property {boolean} _stateDirty
+ * @property {number} _patchesSinceGC
+ * @property {string} _graphName
+ * @property {CorePersistence} _persistence
+ * @property {import('../../ports/ClockPort.js').default} _clock
+ * @property {import('../../ports/CodecPort.js').default} _codec
+ * @property {import('../../ports/CryptoPort.js').default} _crypto
+ * @property {import('../../ports/LoggerPort.js').default|null} _logger
+ * @property {number} _patchesSinceCheckpoint
+ * @property {(op: string, t0: number, opts?: {metrics?: string, error?: Error}) => void} _logTiming
+ * @property {() => Promise<void>} materialize
+ * @property {() => Promise<string[]>} discoverWriters
+ */
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
@@ -89,10 +112,10 @@ async function buildSyncAuthHeaders({ auth, bodyStr, targetUrl, crypto }) {
  */
 export default class SyncController {
   /**
-   * @param {import('../WarpGraph.js').default} host - The WarpGraph instance
+   * @param {SyncHost} host - The WarpGraph instance (or any object satisfying SyncHost)
    */
   constructor(host) {
-    /** @type {import('../WarpGraph.js').default} */
+    /** @type {SyncHost} */
     this._host = host;
   }
 

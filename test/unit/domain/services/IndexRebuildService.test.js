@@ -7,12 +7,9 @@ const crypto = new NodeCryptoAdapter();
 
 describe('IndexRebuildService', () => {
   /** @type {any} */
-  /** @type {any} */
   let service;
   /** @type {any} */
-  /** @type {any} */
   let mockStorage;
-  /** @type {any} */
   /** @type {any} */
   let mockGraphService;
 
