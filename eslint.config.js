@@ -203,7 +203,7 @@ export default tseslint.config(
       "src/domain/warp/subscribe.methods.js",
       "src/domain/warp/provenance.methods.js",
       "src/domain/warp/fork.methods.js",
-      "src/domain/warp/sync.methods.js",
+      "src/domain/services/SyncController.js",
       "src/domain/warp/checkpoint.methods.js",
       "src/domain/warp/patch.methods.js",
       "src/domain/warp/materialize.methods.js",

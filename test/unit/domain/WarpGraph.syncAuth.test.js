@@ -13,6 +13,10 @@ async function createGraph(writerId = 'writer-1') {
   return WarpGraph.open({ persistence: mockPersistence, graphName: 'test', writerId });
 }
 
+/**
+ * Mocks on _syncController — syncWith calls createSyncRequest/applySyncResponse
+ * as this.method() inside SyncController, so instance-level mocks won't intercept.
+ */
 function mockClientGraph(/** @type {WarpGraph} */ graph) {
   const g = /** @type {Record<string, unknown>} */ (/** @type {unknown} */ (graph));
   g._cachedState = {};
@@ -21,6 +25,10 @@ function mockClientGraph(/** @type {WarpGraph} */ graph) {
   sc.createSyncRequest = vi.fn().mockResolvedValue({ type: 'sync-request', frontier: {} });
 }
 
+/**
+ * Mocks on _syncController — processSyncRequest is called by HttpSyncServer
+ * via the host reference, which delegates to the controller.
+ */
 function mockServerGraph(/** @type {WarpGraph} */ graph) {
   const g = /** @type {Record<string, unknown>} */ (/** @type {unknown} */ (graph));
   const sc = /** @type {Record<string, unknown>} */ (g._syncController);

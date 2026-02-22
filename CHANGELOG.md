@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`applySyncResponse` frontier source** — now uses `_lastFrontier` (SHA map) instead of `observedFrontier` (VersionVector) as the 3rd arg to `applySyncResponseImpl`, eliminating a double-cast bug (B56).
+- **`syncWith` infinite delegation guard** — `syncWith` now calls `this.createSyncRequest()` / `this.applySyncResponse()` directly instead of `this._host.*`, preventing infinite delegation when the host delegates back to the controller.
+- **`BitmapIndexReader` strict default** — changed from `false` to `true`; shard OID validation errors now throw `ShardCorruptionError` by default instead of silently skipping. All existing callers already pass `strict: true` explicitly.
 - **`mockServerGraph` asymmetry** — `syncAuth` test helper now mocks on `_syncController.processSyncRequest` (matching `mockClientGraph` pattern) instead of shadowing the prototype with an own-property mock.
 - **Stale comment** — `BitmapIndexReader.test.js` comment corrected from "default" to "explicit override" for `strict: false` reader.
 - **OID length standardization** — all 25 short 8-char OIDs in `BitmapIndexReader.test.js` extended to 40-char zero-padded hex, matching real Git SHA-1 length and eliminating non-hex characters (`eeffgghh` → `eeff00dd…`).
@@ -181,8 +184,6 @@ to prevent regressions.
 - **SyncAuthService** — `_validateKeys` now typed as assertion function for proper post-validation narrowing.
 - **WarpPersistence types** — Added `IndexStorage` typedef (`BlobPort & TreePort & RefPort`).
 - **Policy checker upgrade** — `ts-policy-check.js` now enforces 4 rules: (1) ban `@ts-ignore`, (2) ban `@type {*}`/`@type {any}`, (3) ban embedded wildcards in JSDoc generics, (4) ban `z.any()`.
-
-## [Unreleased]
 
 ## [11.3.0] — 2026-02-17 — DX-HAMMER: Read-Path CLI Improvements
 

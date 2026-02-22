@@ -10,7 +10,7 @@
 
 import SyncError from '../errors/SyncError.js';
 import OperationAbortedError from '../errors/OperationAbortedError.js';
-import QueryError from '../errors/QueryError.js';
+import { QueryError, E_NO_STATE_MSG } from '../warp/_internal.js';
 import {
   createSyncRequest as createSyncRequestImpl,
   processSyncRequest as processSyncRequestImpl,
@@ -54,7 +54,6 @@ import { isError } from '../types/WarpErrors.js';
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
-const E_NO_STATE_MSG = 'No materialized state. Call materialize() before querying, or use autoMaterialize: true (the default). See https://github.com/git-stunts/git-warp#materialization';
 const DEFAULT_SYNC_SERVER_MAX_BYTES = 4 * 1024 * 1024;
 const DEFAULT_SYNC_WITH_RETRIES = 3;
 const DEFAULT_SYNC_WITH_BASE_DELAY_MS = 250;
