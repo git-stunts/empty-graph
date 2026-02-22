@@ -201,27 +201,29 @@ describe('BitmapIndexReader', () => {
       await expect(reader.getParents('abcd1234')).rejects.toThrow(ShardLoadError);
     });
 
-    it('returns empty array when shard contains invalid JSON', async () => {
+    it('returns empty array when shard contains invalid JSON (non-strict)', async () => {
+      const lenient = new BitmapIndexReader(/** @type {any} */ ({ storage: mockStorage, strict: false }));
       mockStorage.readBlob.mockResolvedValue(Buffer.from('not valid json {{{'));
 
-      reader.setup({
+      lenient.setup({
         'meta_ab.json': 'eee5fff6',
         'shards_rev_ab.json': 'eee5fff6'
       });
 
-      const parents = await reader.getParents('abcd1234');
+      const parents = await lenient.getParents('abcd1234');
       expect(parents).toEqual([]);
     });
 
-    it('returns empty array when shard contains wrong data type', async () => {
+    it('returns empty array when shard contains wrong data type (non-strict)', async () => {
+      const lenient = new BitmapIndexReader(/** @type {any} */ ({ storage: mockStorage, strict: false }));
       // Valid JSON but wrong structure (array instead of object)
       mockStorage.readBlob.mockResolvedValue(Buffer.from('[1,2,3]'));
 
-      reader.setup({
+      lenient.setup({
         'shards_rev_ab.json': 'fff6aaa1'
       });
 
-      const parents = await reader.getParents('abcd1234');
+      const parents = await lenient.getParents('abcd1234');
       expect(parents).toEqual([]);
     });
 

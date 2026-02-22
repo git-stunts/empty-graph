@@ -58,14 +58,14 @@ const computeChecksum = async (data, version, crypto) => {
  * {@link ShardLoadError} regardless of strict mode.
  *
  * @example
- * // Non-strict mode (default) - graceful degradation on validation errors
+ * // Strict mode (default) - throws on any validation failure
  * const reader = new BitmapIndexReader({ storage });
  * reader.setup(shardOids);
  * const parents = await reader.getParents('abc123...');
  *
  * @example
- * // Strict mode - throws on any validation failure
- * const strictReader = new BitmapIndexReader({ storage, strict: true });
+ * // Non-strict mode - graceful degradation on validation errors
+ * const lenientReader = new BitmapIndexReader({ storage, strict: false });
  * strictReader.setup(shardOids);
  * try {
  *   const parents = await strictReader.getParents('abc123...');
@@ -84,14 +84,14 @@ export default class BitmapIndexReader {
    * Creates a BitmapIndexReader instance.
    * @param {Object} options
    * @param {IndexStoragePort} options.storage - Storage adapter for reading index data
-   * @param {boolean} [options.strict=false] - If true, throw errors on validation failures; if false, log warnings and return empty shards
+   * @param {boolean} [options.strict=true] - If true, throw errors on validation failures; if false, log warnings and return empty shards
    * @param {import('../../ports/LoggerPort.js').default} [options.logger] - Logger for structured logging.
    *   Defaults to NoOpLogger (no logging).
    * @param {number} [options.maxCachedShards=100] - Maximum number of shards to keep in the LRU cache.
    *   When exceeded, least recently used shards are evicted to free memory.
    * @param {import('../../ports/CryptoPort.js').default} [options.crypto] - CryptoPort instance for checksum verification.
    */
-  constructor({ storage, strict = false, logger = nullLogger, maxCachedShards = DEFAULT_MAX_CACHED_SHARDS, crypto } = /** @type {{ storage: IndexStoragePort, strict?: boolean, logger?: LoggerPort, maxCachedShards?: number, crypto?: CryptoPort }} */ ({})) {
+  constructor({ storage, strict = true, logger = nullLogger, maxCachedShards = DEFAULT_MAX_CACHED_SHARDS, crypto } = /** @type {{ storage: IndexStoragePort, strict?: boolean, logger?: LoggerPort, maxCachedShards?: number, crypto?: CryptoPort }} */ ({})) {
     if (!storage) {
       throw new Error('BitmapIndexReader requires a storage adapter');
     }
