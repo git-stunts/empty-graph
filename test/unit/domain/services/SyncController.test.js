@@ -706,7 +706,7 @@ describe('SyncController', () => {
 
     it('TimeoutError throws SyncError with E_SYNC_TIMEOUT', async () => {
       const { TimeoutError } = await import('@git-stunts/alfred');
-      timeoutMock.mockRejectedValue(new TimeoutError(10000));
+      timeoutMock.mockRejectedValue(new TimeoutError(10000, 10001));
 
       await expect(ctrl.syncWith('http://peer:3000/sync'))
         .rejects.toMatchObject({
@@ -733,8 +733,8 @@ describe('SyncController', () => {
       // Capture shouldRetry from retry mock
       /** @type {((err: unknown) => boolean) | undefined} */
       let capturedShouldRetry;
-      retryMock.mockImplementation(async (fn, opts) => {
-        capturedShouldRetry = /** @type {*} */ (opts).shouldRetry;
+      /** @type {*} */ (retryMock).mockImplementation(async (/** @type {Function} */ fn, /** @type {*} */ opts) => {
+        capturedShouldRetry = opts.shouldRetry;
         return await fn();
       });
 
