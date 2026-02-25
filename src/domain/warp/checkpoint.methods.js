@@ -63,8 +63,16 @@ export async function createCheckpoint() {
     // 4. Reuse cached index tree or rebuild from view service
     let indexTree = this._cachedIndexTree;
     if (!indexTree && this._viewService) {
-      const { tree } = this._viewService.build(state);
-      indexTree = tree;
+      try {
+        const { tree } = this._viewService.build(state);
+        indexTree = tree;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        this._logger?.warn('[warp] checkpoint index build failed; saving checkpoint without index', {
+          error: message,
+        });
+        indexTree = null;
+      }
     }
 
     // 5. Create checkpoint commit with provenance index + index tree
