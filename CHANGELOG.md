@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Deterministic node/label ID assignment** — OR-Set iteration order is non-deterministic, causing node globalIds and label IDs to vary across builds of the same state. `LogicalIndexBuildService.build()` now sorts alive nodes and unique edge labels before registration.
 - **Deterministic property index output** — `PropertyIndexBuilder.serialize()` now sorts entries by nodeId before CBOR encoding, ensuring identical output regardless of patch arrival order.
 - **No-`Buffer` runtime regression coverage** — added a regression test that sets `globalThis.Buffer = undefined` and verifies full index build, index read, and incremental shard updates still succeed.
+- **Traversal and verification regressions** — fixed `topologicalSort()` false cycle detection when output is truncated by `maxNodes`; `commonAncestors()` now reports aggregate stats across all internal BFS runs instead of only the last run; `verifyIndex()` now flags alive-bit mismatches even for isolated nodes with empty edge signatures.
+- **Fixture DSL Lamport fidelity** — `fixtureToState()` now honors explicit `props[].lamport` ticks, preventing fixture-order artifacts in property precedence tests.
 
 ### Changed
 
@@ -21,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`LogicalBitmapIndexBuilder.serialize()` O(N×S) elimination** — meta shard serialization scanned the full `_nodeToGlobal` map for every shard. Added per-shard node list (`_shardNodes`) populated during `registerNode()`/`loadExistingMeta()`, reducing cost to O(N).
 - **`ObserverView` batched provider calls** — `buildAdjacencyViaProvider()` now batches `getNeighbors()` calls in chunks of 64 via `Promise.all` instead of sequential awaits.
 - **Backlog reconciliation** — absorbed all 39 BACKLOG.md items into ROADMAP.md with B-numbers B66–B104. Added Milestone 12 (SCALPEL) for algorithmic performance audit fixes. Expanded Standalone Lane from 20 to 52 items across 11 priority tiers. Added cross-reference table and inventory. BACKLOG.md cleared to skeleton.
+- **Seek cache contract alignment** — synchronized `ARCHITECTURE.md` and `index.d.ts` `SeekCachePort` signatures with runtime behavior: key-based methods and optional `indexTreeOid` metadata on cache entries.
 
 ## [12.0.0] — 2026-02-25
 
@@ -73,13 +76,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **`PropertyIndexBuilder`** (`src/domain/services/PropertyIndexBuilder.js`) — builds `props_XX.cbor` shards from node properties. Proto-safe array-of-pairs serialization.
   - **`PropertyIndexReader`** (`src/domain/services/PropertyIndexReader.js`) — lazy property reader with LRU shard cache via `IndexStoragePort.readBlob`.
   - **`LogicalIndexBuildService`** (`src/domain/services/LogicalIndexBuildService.js`) — orchestrates full index build from `WarpStateV5`: extracts visible projection, delegates to builder + property builder, returns serialized tree + receipt.
-  - **Cross-provider equivalence tests** — 18 tests verifying BFS, DFS, shortestPath, Dijkstra, A*, topologicalSort produce identical results across `AdjacencyNeighborProvider` and `LogicalBitmapNeighborProvider`.
+- **Cross-provider equivalence tests** — 18 tests verifying BFS, DFS, shortestPath, Dijkstra, A*, topologicalSort produce identical results across `AdjacencyNeighborProvider` and `BitmapNeighborProvider`.
   - **Benchmark** (`test/benchmark/logicalIndex.benchmark.js`) — index build time at 1K/10K/100K nodes, single-node `getNeighbors` latency, `getNodeProps` latency.
 
 ### Changed (Provider integration & fixtures)
 
 - **`BitmapNeighborProvider`** — dual-mode: commit DAG (`indexReader` param, existing) + logical graph (`logicalIndex` param, new). Logical mode supports per-label bitmap filtering, alive bitmap checks, and `'both'` direction dedup.
-- **Contract tests** — added `LogicalBitmapNeighborProvider` as third provider to both `contractSuite` (unlabeled) and `labelContractSuite` (labeled). All 44 contract assertions pass.
+- **Contract tests** — added `BitmapNeighborProvider` as third provider to both `contractSuite` (unlabeled) and `labelContractSuite` (labeled). All 44 contract assertions pass.
 - **Fixture DSL** — added `makeLogicalBitmapProvider(fixture)`: builds `WarpStateV5` from fixture → `LogicalIndexBuildService` → in-memory `LogicalIndex` adapter → `BitmapNeighborProvider`.
 
 - **`NeighborProviderPort`** (`src/ports/NeighborProviderPort.js`) — abstract interface for neighbor lookups on any graph. Methods: `getNeighbors(nodeId, direction, options)`, `hasNode(nodeId)`, `latencyClass` getter. Direction: `'out' | 'in' | 'both'`. Edges sorted by `(neighborId, label)` via strict codepoint comparison.
