@@ -26,6 +26,7 @@ import BitmapNeighborProvider from '../../src/domain/services/BitmapNeighborProv
  * This lets us run contract tests against BitmapNeighborProvider
  * without a real Git repo.
  */
+/** @param {*} fixture */
 function makeMockBitmapProvider(fixture) {
   const fwd = new Map(); // nodeId → children (Set)
   const rev = new Map(); // nodeId → parents (Set)
@@ -39,16 +40,17 @@ function makeMockBitmapProvider(fixture) {
   }
 
   const mockReader = {
-    getChildren: async (sha) => [...(fwd.get(sha) || [])].sort(),
-    getParents: async (sha) => [...(rev.get(sha) || [])].sort(),
-    lookupId: async (sha) => allNodes.has(sha) ? 1 : undefined,
+    getChildren: async (/** @type {string} */ sha) => [...(fwd.get(sha) || [])].sort(),
+    getParents: async (/** @type {string} */ sha) => [...(rev.get(sha) || [])].sort(),
+    lookupId: async (/** @type {string} */ sha) => allNodes.has(sha) ? 1 : undefined,
   };
 
-  return new BitmapNeighborProvider({ indexReader: mockReader });
+  return new BitmapNeighborProvider({ indexReader: /** @type {*} */ (mockReader) });
 }
 
 // ── Contract suite factory ──────────────────────────────────────────────────
 
+/** @param {string} providerName @param {(fixture: *) => *} makeProvider */
 function contractSuite(providerName, makeProvider) {
   describe(`NeighborProviderPort contract: ${providerName}`, () => {
     // ── Sorting contract ──────────────────────────────────────────────
@@ -66,7 +68,7 @@ function contractSuite(providerName, makeProvider) {
         const provider = makeProvider(fixture);
         const result = await provider.getNeighbors('root', 'out');
 
-        const ids = result.map((e) => e.neighborId);
+        const ids = result.map((/** @type {*} */ e) => e.neighborId);
         expect(ids).toEqual(['a', 'm', 'z']);
       });
 
@@ -75,7 +77,7 @@ function contractSuite(providerName, makeProvider) {
         const result = await provider.getNeighbors('S', 'out');
 
         // A (65) < a (97) < ä (228)
-        const ids = result.map((e) => e.neighborId);
+        const ids = result.map((/** @type {*} */ e) => e.neighborId);
         expect(ids).toEqual(['A', 'a', 'ä']);
       });
     });
@@ -93,7 +95,7 @@ function contractSuite(providerName, makeProvider) {
         });
         const provider = makeProvider(fixture);
         const out = await provider.getNeighbors('A', 'out');
-        expect(out.map((e) => e.neighborId)).toEqual(['B']);
+        expect(out.map((/** @type {*} */ e) => e.neighborId)).toEqual(['B']);
       });
 
       it('"in" returns only incoming edges', async () => {
@@ -106,7 +108,7 @@ function contractSuite(providerName, makeProvider) {
         });
         const provider = makeProvider(fixture);
         const inc = await provider.getNeighbors('A', 'in');
-        expect(inc.map((e) => e.neighborId)).toEqual(['C']);
+        expect(inc.map((/** @type {*} */ e) => e.neighborId)).toEqual(['C']);
       });
 
       it('"both" returns union deduped by (neighborId, label)', async () => {
@@ -187,7 +189,7 @@ function contractSuite(providerName, makeProvider) {
         expect(out[0].neighborId).toBe('__proto__');
 
         // Object.prototype not mutated
-        expect(({}).polluted).toBeUndefined();
+        expect((/** @type {Record<string, unknown>} */ ({})).polluted).toBeUndefined();
         expect(({}).constructor).toBe(Object);
       });
     });
@@ -196,6 +198,7 @@ function contractSuite(providerName, makeProvider) {
 
 // ── Label-specific contract (only for label-aware providers) ────────────────
 
+/** @param {string} providerName @param {(fixture: *) => *} makeProvider */
 function labelContractSuite(providerName, makeProvider) {
   describe(`NeighborProviderPort label contract: ${providerName}`, () => {
     it('label filter with undefined returns all edges', async () => {
@@ -285,13 +288,13 @@ function bitmapLabelFilterSuite() {
 // ── Run suites ──────────────────────────────────────────────────────────────
 
 // All providers must pass the base contract (unlabeled fixtures only)
-contractSuite('AdjacencyNeighborProvider', (fixture) => makeAdjacencyProvider(fixture));
-contractSuite('BitmapNeighborProvider (mock)', (fixture) => makeMockBitmapProvider(fixture));
-contractSuite('LogicalBitmapNeighborProvider', (fixture) => makeLogicalBitmapProvider(fixture));
+contractSuite('AdjacencyNeighborProvider', (/** @type {*} */ fixture) => makeAdjacencyProvider(fixture));
+contractSuite('BitmapNeighborProvider (mock)', (/** @type {*} */ fixture) => makeMockBitmapProvider(fixture));
+contractSuite('LogicalBitmapNeighborProvider', (/** @type {*} */ fixture) => makeLogicalBitmapProvider(fixture));
 
 // Only label-aware providers run the label contract
-labelContractSuite('AdjacencyNeighborProvider', (fixture) => makeAdjacencyProvider(fixture));
-labelContractSuite('LogicalBitmapNeighborProvider', (fixture) => makeLogicalBitmapProvider(fixture));
+labelContractSuite('AdjacencyNeighborProvider', (/** @type {*} */ fixture) => makeAdjacencyProvider(fixture));
+labelContractSuite('LogicalBitmapNeighborProvider', (/** @type {*} */ fixture) => makeLogicalBitmapProvider(fixture));
 
 // Bitmap-specific label filter behavior
 bitmapLabelFilterSuite();

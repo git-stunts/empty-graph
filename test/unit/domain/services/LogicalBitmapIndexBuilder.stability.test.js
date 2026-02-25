@@ -11,6 +11,7 @@ describe('LogicalBitmapIndexBuilder ID stability (F12)', () => {
 
     // Build 1: register initial nodes
     const builder1 = new LogicalBitmapIndexBuilder();
+    /** @type {Record<string, number>} */
     const initialIds = {};
     for (const node of initialNodes) {
       initialIds[node] = builder1.registerNode(node);
@@ -18,6 +19,7 @@ describe('LogicalBitmapIndexBuilder ID stability (F12)', () => {
     const tree1 = builder1.serialize();
 
     // Extract meta shards for each shardKey used (proto-safe decode)
+    /** @type {Record<string, *>} */
     const metaShards = {};
     for (const [path, buf] of Object.entries(tree1)) {
       if (path.startsWith('meta_') && path.endsWith('.cbor')) {
@@ -64,7 +66,8 @@ describe('LogicalBitmapIndexBuilder ID stability (F12)', () => {
     expect(() => builder.registerNode(testNode)).toThrow(ShardIdOverflowError);
     try {
       builder.registerNode(testNode);
-    } catch (err) {
+    } catch (_e) {
+      const err = /** @type {*} */ (_e);
       expect(err.code).toBe('E_SHARD_ID_OVERFLOW');
       expect(err.context.shardKey).toBe(shardKey);
     }
@@ -78,7 +81,7 @@ describe('LogicalBitmapIndexBuilder ID stability (F12)', () => {
     expect(ownsId).toBe(1);
 
     const tree1 = builder1.serialize();
-    const labelRegistry = defaultCodec.decode(tree1['labels.cbor']);
+    const labelRegistry = /** @type {Record<string, number>} */ (defaultCodec.decode(tree1['labels.cbor']));
 
     // Build 2: seed existing labels, add new
     const builder2 = new LogicalBitmapIndexBuilder();

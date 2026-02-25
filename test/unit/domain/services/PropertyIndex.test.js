@@ -7,8 +7,10 @@ import { F10_PROTO_POLLUTION } from '../../../helpers/fixtureDsl.js';
 /**
  * Creates an in-memory mock storage from serialized tree.
  */
+/** @param {Record<string, Buffer>} tree */
 function mockStorageFromTree(tree) {
   const blobs = new Map();
+  /** @type {Record<string, string>} */
   const oids = {};
   let oidCounter = 0;
 
@@ -19,7 +21,7 @@ function mockStorageFromTree(tree) {
   }
 
   return {
-    storage: { readBlob: async (oid) => blobs.get(oid) },
+    storage: { readBlob: async (/** @type {string} */ oid) => blobs.get(oid) },
     oids,
   };
 }
@@ -99,7 +101,7 @@ describe('PropertyIndex', () => {
 
   it('proto pollution safety (F10): __proto__ node props do not leak', async () => {
     const builder = new PropertyIndexBuilder();
-    for (const { nodeId, key, value } of F10_PROTO_POLLUTION.props) {
+    for (const { nodeId, key, value } of /** @type {*} */ (F10_PROTO_POLLUTION.props)) {
       builder.addProperty(nodeId, key, value);
     }
 
@@ -111,6 +113,6 @@ describe('PropertyIndex', () => {
 
     const props = await reader.getNodeProps('__proto__');
     expect(props).toEqual({ polluted: true });
-    expect(({}).polluted).toBeUndefined();
+    expect((/** @type {Record<string, unknown>} */ ({})).polluted).toBeUndefined();
   });
 });

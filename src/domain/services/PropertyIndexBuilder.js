@@ -37,10 +37,10 @@ export default class PropertyIndexBuilder {
     }
     let nodeProps = shard.get(nodeId);
     if (!nodeProps) {
-      nodeProps = Object.create(null);
+      nodeProps = /** @type {Record<string, unknown>} */ (Object.create(null));
       shard.set(nodeId, nodeProps);
     }
-    nodeProps[key] = value;
+    /** @type {Record<string, unknown>} */ (nodeProps)[key] = value;
   }
 
   /**

@@ -8,6 +8,7 @@ import computeShardKey from '../../../../src/domain/utils/shardKey.js';
 /**
  * Helper: build an index from a fixture.
  */
+/** @param {*} fixture */
 function buildFromFixture(fixture) {
   const builder = new LogicalBitmapIndexBuilder();
   for (const node of fixture.nodes) {
@@ -31,7 +32,7 @@ describe('LogicalBitmapIndexBuilder', () => {
     // Should have fwd shard(s) and labels
     expect(tree['labels.cbor']).toBeDefined();
 
-    const labels = defaultCodec.decode(tree['labels.cbor']);
+    const labels = /** @type {Record<string, *>} */ (defaultCodec.decode(tree['labels.cbor']));
     expect(labels).toHaveProperty('manages');
     expect(labels).toHaveProperty('owns');
 
@@ -61,7 +62,7 @@ describe('LogicalBitmapIndexBuilder', () => {
     const shardKeyA = computeShardKey('A');
     const fwdShardKey = `fwd_${shardKeyA}.cbor`;
     expect(tree[fwdShardKey]).toBeDefined();
-    const fwdShard = defaultCodec.decode(tree[fwdShardKey]);
+    const fwdShard = /** @type {Record<string, *>} */ (defaultCodec.decode(tree[fwdShardKey]));
 
     // The 'all' bitmap for A (by globalA) should contain B's globalId
     const RoaringBitmap32 = getRoaringBitmap32();
@@ -78,12 +79,12 @@ describe('LogicalBitmapIndexBuilder', () => {
   });
 
   it('proto pollution safety (F10): builds without mutating Object.prototype', () => {
-    const beforeProto = ({}).polluted;
+    const beforeProto = (/** @type {Record<string, unknown>} */ ({})).polluted;
     const beforeConstructor = ({}).constructor;
 
     buildFromFixture(F10_PROTO_POLLUTION);
 
-    expect(({}).polluted).toBe(beforeProto);
+    expect((/** @type {Record<string, unknown>} */ ({})).polluted).toBe(beforeProto);
     expect(({}).constructor).toBe(beforeConstructor);
   });
 
@@ -94,7 +95,7 @@ describe('LogicalBitmapIndexBuilder', () => {
     expect(tree['labels.cbor']).toBeDefined();
     expect(tree['receipt.cbor']).toBeDefined();
 
-    const receipt = defaultCodec.decode(tree['receipt.cbor']);
+    const receipt = /** @type {Record<string, *>} */ (defaultCodec.decode(tree['receipt.cbor']));
     expect(receipt.nodeCount).toBe(0);
     expect(receipt.labelCount).toBe(0);
   });
@@ -102,7 +103,7 @@ describe('LogicalBitmapIndexBuilder', () => {
   it('receipt has deterministic fields and no timestamps', () => {
     const builder = buildFromFixture(F7_MULTILABEL_SAME_NEIGHBOR);
     const tree = builder.serialize();
-    const receipt = defaultCodec.decode(tree['receipt.cbor']);
+    const receipt = /** @type {Record<string, *>} */ (defaultCodec.decode(tree['receipt.cbor']));
 
     expect(receipt).toHaveProperty('version', 1);
     expect(receipt).toHaveProperty('nodeCount', 2);
@@ -119,7 +120,7 @@ describe('LogicalBitmapIndexBuilder', () => {
     // Decode all meta shards and verify node mappings
     for (const [path, buf] of Object.entries(tree)) {
       if (path.startsWith('meta_') && path.endsWith('.cbor')) {
-        const meta = defaultCodec.decode(buf);
+        const meta = /** @type {Record<string, *>} */ (defaultCodec.decode(buf));
         expect(meta).toHaveProperty('nodeToGlobal');
         expect(meta).toHaveProperty('nextLocalId');
         expect(meta).toHaveProperty('alive');

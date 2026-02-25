@@ -2,7 +2,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import BitmapNeighborProvider from '../../../../src/domain/services/BitmapNeighborProvider.js';
 
 describe('BitmapNeighborProvider', () => {
+  /** @type {*} */
   let mockReader;
+  /** @type {*} */
   let provider;
 
   beforeEach(() => {
@@ -11,7 +13,7 @@ describe('BitmapNeighborProvider', () => {
       getParents: vi.fn().mockResolvedValue([]),
       lookupId: vi.fn().mockResolvedValue(undefined),
     };
-    provider = new BitmapNeighborProvider({ indexReader: mockReader });
+    provider = new BitmapNeighborProvider({ indexReader: /** @type {*} */ (mockReader) });
   });
 
   it('returns outgoing neighbors with empty label', async () => {

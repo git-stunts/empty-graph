@@ -27,6 +27,7 @@ const RUNS = 3;
 /**
  * Generates a random graph fixture with N nodes and ~avgDegree edges per node.
  */
+/** @param {number} nodeCount @param {number} [avgDegree] */
 function generateFixture(nodeCount, avgDegree = 5) {
   const nodes = [];
   const edges = [];
@@ -54,6 +55,7 @@ function generateFixture(nodeCount, avgDegree = 5) {
 /**
  * Builds a WarpStateV5 from a generated fixture for benchmarking.
  */
+/** @param {{ nodes: string[], edges: Array<{from: string, to: string, label: string}> }} generated */
 function buildStateFromGenerated({ nodes, edges }) {
   const state = createEmptyStateV5();
   const writer = 'bench';
@@ -131,6 +133,7 @@ describe('Logical Index Benchmarks', () => {
 
       // Create mock storage
       const blobs = new Map();
+      /** @type {Record<string, string>} */
       const oids = {};
       let oidCounter = 0;
       for (const [path, buf] of Object.entries(tree)) {
@@ -138,7 +141,7 @@ describe('Logical Index Benchmarks', () => {
         blobs.set(oid, buf);
         oids[path] = oid;
       }
-      const storage = { readBlob: async (oid) => blobs.get(oid) };
+      const storage = { readBlob: async (/** @type {string} */ oid) => blobs.get(oid) };
       const reader = new PropertyIndexReader({ storage });
       reader.setup(oids);
 

@@ -45,7 +45,8 @@ describe('GraphTraversal.topologicalSort', () => {
       try {
         await engine.topologicalSort({ start: 'A', throwOnCycle: true });
         expect.fail('should have thrown');
-      } catch (err) {
+      } catch (_e) {
+        const err = /** @type {*} */ (_e);
         expect(err.code).toBe('ERR_GRAPH_HAS_CYCLES');
         expect(err.context.nodesInCycle).toBeGreaterThan(0);
         // Cycle witness provided

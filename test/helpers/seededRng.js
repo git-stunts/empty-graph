@@ -23,14 +23,17 @@ export function createRng(seed) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   }
 
+  /** @param {number} min @param {number} max */
   function nextInt(min, max) {
     return min + Math.floor(next() * (max - min));
   }
 
+  /** @template T @param {T[]} arr */
   function pick(arr) {
     return arr[nextInt(0, arr.length)];
   }
 
+  /** @template T @param {T[]} arr */
   function shuffle(arr) {
     const copy = [...arr];
     for (let i = copy.length - 1; i > 0; i--) {

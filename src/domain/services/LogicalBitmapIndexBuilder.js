@@ -33,7 +33,7 @@ export default class LogicalBitmapIndexBuilder {
     /** @type {Map<string, number>} nodeId → globalId */
     this._nodeToGlobal = new Map();
 
-    /** @type {Map<string, number>} nodeId → globalId (reverse for id→node) */
+    /** @type {Map<string, string>} globalId(string) → nodeId */
     this._globalToNode = new Map();
 
     /** Per-shard next local ID counters. @type {Map<string, number>} */

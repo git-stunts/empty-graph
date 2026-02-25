@@ -84,7 +84,7 @@ export default class LogicalIndexBuildService {
     const propTree = propBuilder.serialize();
     const tree = { ...indexTree, ...propTree };
 
-    const receipt = this._codec.decode(indexTree['receipt.cbor']);
+    const receipt = /** @type {Record<string, unknown>} */ (this._codec.decode(indexTree['receipt.cbor']));
 
     return { tree, receipt };
   }

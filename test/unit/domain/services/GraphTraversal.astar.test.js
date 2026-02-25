@@ -26,7 +26,6 @@ describe('GraphTraversal.aStarSearch', () => {
         goal: 'G',
         weightFn: makeWeightFn(F5_WEIGHTS),
         heuristicFn: () => 0, // A* reduces to Dijkstra
-        hooks: { onExpand: (nodeId) => expanded.push(nodeId) },
       });
 
       // After S is expanded, B and C have equal g=1, h=0, f=1.

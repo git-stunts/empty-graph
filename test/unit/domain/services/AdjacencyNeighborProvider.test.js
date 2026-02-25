@@ -5,6 +5,7 @@ import AdjacencyNeighborProvider from '../../../../src/domain/services/Adjacency
  * Helper: build adjacency maps from a list of edges.
  * Each edge: { from, to, label }
  */
+/** @param {Array<{from: string, to: string, label: string}>} edges */
 function buildMaps(edges) {
   const outgoing = new Map();
   const incoming = new Map();

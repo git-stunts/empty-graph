@@ -27,6 +27,7 @@ const PROVIDERS = [
   { name: 'LogicalBitmap', make: makeLogicalBitmapProvider },
 ];
 
+/** @param {*} fixture @param {(engine: *) => Promise<void>} fn */
 function forEachProvider(fixture, fn) {
   for (const { name, make } of PROVIDERS) {
     it(`[${name}]`, async () => {
@@ -39,28 +40,28 @@ function forEachProvider(fixture, fn) {
 
 describe('Cross-provider equivalence', () => {
   describe('BFS: F1 level-sort trap', () => {
-    forEachProvider(F1_BFS_LEVEL_SORT_TRAP, async (engine) => {
+    forEachProvider(F1_BFS_LEVEL_SORT_TRAP, async (/** @type {*} */ engine) => {
       const { nodes } = await engine.bfs({ start: 'A' });
       expect(nodes).toEqual(['A', 'B', 'C', 'D', 'Z']);
     });
   });
 
   describe('BFS: F9 unicode codepoint order', () => {
-    forEachProvider(F9_UNICODE_CODEPOINT_ORDER, async (engine) => {
+    forEachProvider(F9_UNICODE_CODEPOINT_ORDER, async (/** @type {*} */ engine) => {
       const { nodes } = await engine.bfs({ start: 'S' });
       expect(nodes).toEqual(['S', 'A', 'a', 'ä']);
     });
   });
 
   describe('DFS: F2 leftmost reverse push', () => {
-    forEachProvider(F2_DFS_LEFTMOST_REVERSE_PUSH, async (engine) => {
+    forEachProvider(F2_DFS_LEFTMOST_REVERSE_PUSH, async (/** @type {*} */ engine) => {
       const { nodes } = await engine.dfs({ start: 'A' });
       expect(nodes).toEqual(['A', 'B', 'D', 'C', 'E']);
     });
   });
 
   describe('shortestPath: F3 diamond', () => {
-    forEachProvider(F3_DIAMOND_EQUAL_PATHS, async (engine) => {
+    forEachProvider(F3_DIAMOND_EQUAL_PATHS, async (/** @type {*} */ engine) => {
       const result = await engine.shortestPath({ start: 'A', goal: 'D' });
       expect(result.found).toBe(true);
       expect(result.path).toEqual(['A', 'B', 'D']);
@@ -68,7 +69,7 @@ describe('Cross-provider equivalence', () => {
   });
 
   describe('Dijkstra: F4 equal cost predecessor update', () => {
-    forEachProvider(F4_DIJKSTRA_EQUAL_COST_PREDECESSOR, async (engine) => {
+    forEachProvider(F4_DIJKSTRA_EQUAL_COST_PREDECESSOR, async (/** @type {*} */ engine) => {
       const weightFn = makeWeightFn(F4_WEIGHTS);
       const result = await engine.weightedShortestPath({ start: 'S', goal: 'G', weightFn });
       expect(result.totalCost).toBe(5);
@@ -77,7 +78,7 @@ describe('Cross-provider equivalence', () => {
   });
 
   describe('A*: F5 tie-break expansion', () => {
-    forEachProvider(F5_ASTAR_TIE_BREAK, async (engine) => {
+    forEachProvider(F5_ASTAR_TIE_BREAK, async (/** @type {*} */ engine) => {
       const weightFn = makeWeightFn(F5_WEIGHTS);
       const result = await engine.aStarSearch({
         start: 'S',
@@ -91,14 +92,14 @@ describe('Cross-provider equivalence', () => {
   });
 
   describe('topologicalSort: F3 diamond', () => {
-    forEachProvider(F3_DIAMOND_EQUAL_PATHS, async (engine) => {
+    forEachProvider(F3_DIAMOND_EQUAL_PATHS, async (/** @type {*} */ engine) => {
       const { sorted } = await engine.topologicalSort({ start: 'A' });
       expect(sorted).toEqual(['A', 'B', 'C', 'D']);
     });
   });
 
   describe('topologicalSort: F8 cycle detection', () => {
-    forEachProvider(F8_TOPO_CYCLE_3, async (engine) => {
+    forEachProvider(F8_TOPO_CYCLE_3, async (/** @type {*} */ engine) => {
       const { sorted } = await engine.topologicalSort({ start: 'A' });
       // Cycle → topoSort returns only acyclic prefix
       expect(sorted.length).toBeLessThan(3);
@@ -106,7 +107,7 @@ describe('Cross-provider equivalence', () => {
   });
 
   describe('BFS: direction "in" on F3', () => {
-    forEachProvider(F3_DIAMOND_EQUAL_PATHS, async (engine) => {
+    forEachProvider(F3_DIAMOND_EQUAL_PATHS, async (/** @type {*} */ engine) => {
       const { nodes } = await engine.bfs({ start: 'D', direction: 'in' });
       expect(nodes).toEqual(['D', 'B', 'C', 'A']);
     });

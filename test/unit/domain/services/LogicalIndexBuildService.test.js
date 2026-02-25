@@ -8,6 +8,7 @@ import defaultCodec from '../../../../src/domain/utils/defaultCodec.js';
 /**
  * Helper: builds a WarpStateV5 from a simple fixture definition.
  */
+/** @param {{ nodes: string[], edges: Array<{from: string, to: string, label: string}>, props?: Array<{nodeId: string, key: string, value: *}> }} params */
 function buildState({ nodes, edges, props }) {
   const state = createEmptyStateV5();
   const writer = 'w1';
@@ -76,6 +77,7 @@ describe('LogicalIndexBuildService', () => {
     const { tree: tree1 } = service.build(state1);
 
     // Extract existing meta + labels for seeding (array-of-pairs format)
+    /** @type {Record<string, *>} */
     const existingMeta = {};
     for (const [path, buf] of Object.entries(tree1)) {
       if (path.startsWith('meta_') && path.endsWith('.cbor')) {
@@ -83,7 +85,7 @@ describe('LogicalIndexBuildService', () => {
         existingMeta[shardKey] = defaultCodec.decode(buf);
       }
     }
-    const existingLabels = defaultCodec.decode(tree1['labels.cbor']);
+    const existingLabels = /** @type {Record<string, number>} */ (defaultCodec.decode(tree1['labels.cbor']));
 
     // Build 2: add node C
     const state2 = buildState({
@@ -95,13 +97,13 @@ describe('LogicalIndexBuildService', () => {
       props: [],
     });
 
-    const { tree: tree2 } = service.build(state2, { existingMeta, existingLabels });
+    const { tree: tree2 } = service.build(state2, /** @type {*} */ ({ existingMeta, existingLabels }));
 
     // Verify A and B still have same globalIds
     for (const [path, buf] of Object.entries(tree2)) {
       if (path.startsWith('meta_') && path.endsWith('.cbor')) {
         const shardKey = path.slice(5, 7);
-        const meta2 = defaultCodec.decode(buf);
+        const meta2 = /** @type {Record<string, *>} */ (defaultCodec.decode(buf));
         const meta1 = existingMeta[shardKey];
         if (meta1) {
           // nodeToGlobal is array of [nodeId, globalId] pairs
@@ -135,7 +137,7 @@ describe('LogicalIndexBuildService', () => {
     const allProps = new Map();
     for (const [path, buf] of Object.entries(tree)) {
       if (path.startsWith('props_')) {
-        const entries = defaultCodec.decode(buf);
+        const entries = /** @type {Array<[string, *]>} */ (defaultCodec.decode(buf));
         for (const [nodeId, props] of entries) {
           allProps.set(nodeId, props);
         }

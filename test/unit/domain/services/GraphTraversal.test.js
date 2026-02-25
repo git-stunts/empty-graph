@@ -6,6 +6,7 @@ import AdjacencyNeighborProvider from '../../../../src/domain/services/Adjacency
  * Helper: build adjacency maps + provider from edge list.
  * Each edge: { from, to, label? }
  */
+/** @param {Array<{from: string, to: string, label?: string}>} edges */
 function buildProvider(edges) {
   const outgoing = new Map();
   const incoming = new Map();
@@ -421,8 +422,8 @@ describe('GraphTraversal.topologicalSort', () => {
       await engine.topologicalSort({ start: 'a', throwOnCycle: true });
       expect.fail('should have thrown');
     } catch (err) {
-      expect(err.code).toBe('ERR_GRAPH_HAS_CYCLES');
-      expect(err.context.cycleWitness).toBeDefined();
+      expect(/** @type {*} */ (err).code).toBe('ERR_GRAPH_HAS_CYCLES');
+      expect(/** @type {*} */ (err).context.cycleWitness).toBeDefined();
     }
   });
 
@@ -553,9 +554,10 @@ describe('GraphTraversal stats', () => {
   it('tracks cache hits/misses for async providers', async () => {
     // Create a mock async provider
     const inner = diamondProvider();
+    /** @type {*} */
     const asyncProvider = {
-      getNeighbors: (...args) => inner.getNeighbors(...args),
-      hasNode: (...args) => inner.hasNode(...args),
+      getNeighbors: (/** @type {string} */ nodeId, /** @type {*} */ opts) => inner.getNeighbors(nodeId, opts),
+      hasNode: (/** @type {string} */ nodeId) => inner.hasNode(nodeId),
       get latencyClass() { return 'async-local'; },
     };
 
@@ -577,6 +579,7 @@ describe('GraphTraversal stats', () => {
 
 describe('GraphTraversal hooks', () => {
   it('calls onVisit for each visited node', async () => {
+    /** @type {Array<{nodeId: string, depth: number}>} */
     const visited = [];
     const engine = new GraphTraversal({ provider: chainProvider() });
     await engine.bfs({
@@ -589,6 +592,7 @@ describe('GraphTraversal hooks', () => {
   });
 
   it('calls onExpand with neighbors', async () => {
+    /** @type {Array<{nodeId: string, count: number}>} */
     const expanded = [];
     const engine = new GraphTraversal({ provider: diamondProvider() });
     await engine.bfs({

@@ -88,7 +88,7 @@ export default class PropertyIndexReader {
       return null;
     }
 
-    const buffer = await this._storage.readBlob(oid);
+    const buffer = await /** @type {{ readBlob(oid: string): Promise<Buffer> }} */ (this._storage).readBlob(oid);
     const decoded = this._codec.decode(buffer);
 
     // Shards are stored as array of [nodeId, props] pairs (proto-safe)

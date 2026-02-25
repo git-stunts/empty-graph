@@ -398,13 +398,13 @@ export async function runCrossProvider({ fixture, providers, run, assert }) {
       try {
         assert(error);
       } catch {
-        throw new Error(`Provider '${name}' threw unexpectedly: ${error.message}`);
+        throw new Error(`Provider '${name}' threw unexpectedly: ${/** @type {Error} */ (error).message}`);
       }
     } else {
       try {
         assert(result);
       } catch (e) {
-        throw new Error(`Provider '${name}' failed assertion: ${e.message}`);
+        throw new Error(`Provider '${name}' failed assertion: ${/** @type {Error} */ (e).message}`);
       }
     }
   }
@@ -459,7 +459,7 @@ function _fixtureToState(fixture) {
     const dots = state.nodeAlive.entries.get(nodeId);
     if (dots) {
       const eventId = createEventId(lamport, writer, sha, opIdx++);
-      applyOpV2(state, { type: 'NodeRemove', observedDots: new Set(dots) }, eventId);
+      applyOpV2(state, /** @type {*} */ ({ type: 'NodeRemove', observedDots: new Set(dots) }), eventId);
       lamport++;
     }
   }
@@ -477,7 +477,7 @@ function _fixtureToState(fixture) {
     const dots = state.edgeAlive.entries.get(edgeKey);
     if (dots) {
       const eventId = createEventId(lamport, writer, sha, opIdx++);
-      applyOpV2(state, { type: 'EdgeRemove', observedDots: new Set(dots) }, eventId);
+      applyOpV2(state, /** @type {*} */ ({ type: 'EdgeRemove', observedDots: new Set(dots) }), eventId);
       lamport++;
     }
   }
@@ -508,7 +508,7 @@ function _createLogicalIndexFromTree(tree) {
   for (const [path, buf] of Object.entries(tree)) {
     if (path.startsWith('meta_') && path.endsWith('.cbor')) {
       const shardKey = path.slice(5, 7);
-      const meta = defaultCodec.decode(buf);
+      const meta = /** @type {Record<string, *>} */ (defaultCodec.decode(buf));
       // nodeToGlobal is array of [nodeId, globalId] pairs (proto-safe)
       const entries = Array.isArray(meta.nodeToGlobal)
         ? meta.nodeToGlobal
@@ -529,7 +529,7 @@ function _createLogicalIndexFromTree(tree) {
   const labelRegistry = new Map();
   const idToLabel = new Map();
   if (tree['labels.cbor']) {
-    const labels = defaultCodec.decode(tree['labels.cbor']);
+    const labels = /** @type {Record<string, *>} */ (defaultCodec.decode(tree['labels.cbor']));
     for (const [label, id] of Object.entries(labels)) {
       labelRegistry.set(label, id);
       idToLabel.set(/** @type {number} */ (id), label);
@@ -537,11 +537,12 @@ function _createLogicalIndexFromTree(tree) {
   }
 
   // Decode fwd/rev edge shards → per-node bitmaps by bucket
+  /** @type {Record<string, Map<string, *>>} */
   const edgeShards = { fwd: new Map(), rev: new Map() };
   for (const [path, buf] of Object.entries(tree)) {
-    for (const dir of ['fwd', 'rev']) {
+    for (const dir of /** @type {const} */ (['fwd', 'rev'])) {
       if (path.startsWith(`${dir}_`) && path.endsWith('.cbor')) {
-        const decoded = defaultCodec.decode(buf);
+        const decoded = /** @type {Record<string, Record<string, *>>} */ (defaultCodec.decode(buf));
         // decoded: { bucketName: { globalIdStr: Uint8Array } }
         for (const [bucket, entries] of Object.entries(decoded)) {
           for (const [gidStr, bitmapBytes] of Object.entries(entries)) {
