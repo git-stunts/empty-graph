@@ -478,6 +478,17 @@ describe('GraphTraversal.topologicalSort', () => {
     const { sorted } = await engine.topologicalSort({ start: ['a', 'b', 'c', 'd', 'e'] });
     expect(sorted).toEqual(['a', 'b', 'c', 'd', 'e', 'z']);
   });
+
+  it('throws INVALID_START when any multi-start node is missing', async () => {
+    const provider = buildProvider([
+      { from: 'a', to: 'b' },
+      { from: 'b', to: 'c' },
+    ]);
+    const engine = new GraphTraversal({ provider });
+    await expect(
+      engine.topologicalSort({ start: ['a', 'missing'] }),
+    ).rejects.toMatchObject({ code: 'INVALID_START' });
+  });
 });
 
 // ==== commonAncestors Tests ====
@@ -597,6 +608,42 @@ describe('GraphTraversal stats', () => {
     const { stats } = await engine.bfs({ start: 'a' });
     expect(stats.cacheHits).toBe(0);
     expect(stats.cacheMisses).toBe(0);
+  });
+
+  it('uses collision-safe label cache keys when labels contain commas', async () => {
+    const provider = {
+      async getNeighbors(_nodeId, _direction, options) {
+        const labels = options?.labels ?? new Set();
+        const hasAB = labels.has('a,b') && labels.has('c');
+        const hasBC = labels.has('a') && labels.has('b,c');
+        if (hasAB) {
+          return [{ neighborId: 'x', label: 'rel' }];
+        }
+        if (hasBC) {
+          return [{ neighborId: 'y', label: 'rel' }];
+        }
+        return [];
+      },
+      async hasNode(nodeId) {
+        return nodeId === 's' || nodeId === 'x' || nodeId === 'y';
+      },
+      get latencyClass() { return 'async-local'; },
+    };
+
+    const engine = new GraphTraversal({ provider, neighborCacheSize: 16 });
+    const first = await engine.bfs({
+      start: 's',
+      options: { labels: new Set(['a,b', 'c']) },
+      maxDepth: 1,
+    });
+    const second = await engine.bfs({
+      start: 's',
+      options: { labels: new Set(['a', 'b,c']) },
+      maxDepth: 1,
+    });
+
+    expect(first.nodes).toEqual(['s', 'x']);
+    expect(second.nodes).toEqual(['s', 'y']);
   });
 });
 

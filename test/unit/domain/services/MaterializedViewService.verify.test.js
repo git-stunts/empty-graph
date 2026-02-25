@@ -84,6 +84,36 @@ describe('MaterializedViewService.verifyIndex', () => {
     expect(result.errors.length).toBeGreaterThan(0);
   });
 
+  it('detects label mismatches for the same neighbor set', () => {
+    const service = new MaterializedViewService();
+    const state = buildTestState();
+    const { logicalIndex } = service.build(state);
+
+    const corruptedIndex = {
+      ...logicalIndex,
+      getEdges(nodeId, direction, filterLabelIds) {
+        const edges = logicalIndex.getEdges(nodeId, direction, filterLabelIds);
+        if (nodeId === 'A' && direction === 'out') {
+          return edges.map((edge) => (
+            edge.neighborId === 'B'
+              ? { ...edge, label: 'wrong-label' }
+              : edge
+          ));
+        }
+        return edges;
+      },
+    };
+
+    const result = service.verifyIndex({
+      state,
+      logicalIndex: /** @type {any} */ (corruptedIndex),
+      options: { sampleRate: 1.0, seed: 777 },
+    });
+
+    expect(result.failed).toBeGreaterThan(0);
+    expect(result.errors.some((e) => e.nodeId === 'A' && e.direction === 'out')).toBe(true);
+  });
+
   it('produces reproducible results with the same seed', () => {
     const service = new MaterializedViewService();
     const state = buildTestState();
@@ -98,6 +128,20 @@ describe('MaterializedViewService.verifyIndex', () => {
     expect(r1.failed).toBe(r2.failed);
     expect(r1.seed).toBe(r2.seed);
     expect(r1.errors).toEqual(r2.errors);
+  });
+
+  it('verifies at least one node when sampleRate is positive on non-empty state', () => {
+    const service = new MaterializedViewService();
+    const state = buildTestState();
+    const { logicalIndex } = service.build(state);
+
+    const result = service.verifyIndex({
+      state,
+      logicalIndex,
+      options: { sampleRate: 0.001, seed: 42 },
+    });
+
+    expect(result.passed + result.failed).toBeGreaterThan(0);
   });
 
   it('uses default seed and sampleRate when options omitted', () => {

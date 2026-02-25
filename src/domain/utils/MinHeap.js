@@ -12,7 +12,7 @@ class MinHeap {
    * @param {Object} [options] - Configuration options
    * @param {((a: T, b: T) => number)} [options.tieBreaker] - Comparator invoked when two
    *   entries have equal priority. Negative return = a wins (comes out first).
-   *   When omitted, equal-priority items are returned in insertion order (heap-natural).
+   *   When omitted, equal-priority extraction order is unspecified (heap-natural).
    */
   constructor({ tieBreaker } = {}) {
     /** @type {Array<{item: T, priority: number}>} */

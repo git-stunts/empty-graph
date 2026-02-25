@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { createTestRepo } from './helpers/setup.js';
+import BitmapNeighborProvider from '../../../src/domain/services/BitmapNeighborProvider.js';
 
 describe('API: MaterializedView', () => {
   /** @type {any} */
@@ -27,7 +28,7 @@ describe('API: MaterializedView', () => {
     await graph.materialize();
 
     expect(graph._materializedGraph).not.toBeNull();
-    expect(graph._materializedGraph.provider).toBeDefined();
+    expect(graph._materializedGraph.provider).toBeInstanceOf(BitmapNeighborProvider);
     expect(typeof graph._materializedGraph.provider.getNeighbors).toBe('function');
   });
 

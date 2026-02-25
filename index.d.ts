@@ -244,6 +244,12 @@ export interface TraverseFacadeOptions {
   labelFilter?: string | string[];
 }
 
+export type EdgeWeightFn = (from: string, to: string, label: string) => number | Promise<number>;
+export type NodeWeightFn = (nodeId: string) => number | Promise<number>;
+export type WeightedCostSelector =
+  | { weightFn?: EdgeWeightFn; nodeWeightFn?: never }
+  | { nodeWeightFn?: NodeWeightFn; weightFn?: never };
+
 export interface LogicalTraversal {
   bfs(start: string, options?: TraverseFacadeOptions): Promise<string[]>;
   dfs(start: string, options?: TraverseFacadeOptions): Promise<string[]>;
@@ -255,25 +261,19 @@ export interface LogicalTraversal {
   isReachable(from: string, to: string, options?: TraverseFacadeOptions & {
     signal?: AbortSignal;
   }): Promise<{ reachable: boolean }>;
-  weightedShortestPath(from: string, to: string, options?: {
+  weightedShortestPath(from: string, to: string, options?: WeightedCostSelector & {
     dir?: 'out' | 'in' | 'both';
     labelFilter?: string | string[];
-    weightFn?: (from: string, to: string, label: string) => number | Promise<number>;
-    nodeWeightFn?: (nodeId: string) => number | Promise<number>;
     signal?: AbortSignal;
   }): Promise<{ path: string[]; totalCost: number }>;
-  aStarSearch(from: string, to: string, options?: {
+  aStarSearch(from: string, to: string, options?: WeightedCostSelector & {
     dir?: 'out' | 'in' | 'both';
     labelFilter?: string | string[];
-    weightFn?: (from: string, to: string, label: string) => number | Promise<number>;
-    nodeWeightFn?: (nodeId: string) => number | Promise<number>;
     heuristicFn?: (nodeId: string, goalId: string) => number;
     signal?: AbortSignal;
   }): Promise<{ path: string[]; totalCost: number; nodesExplored: number }>;
-  bidirectionalAStar(from: string, to: string, options?: {
+  bidirectionalAStar(from: string, to: string, options?: WeightedCostSelector & {
     labelFilter?: string | string[];
-    weightFn?: (from: string, to: string, label: string) => number | Promise<number>;
-    nodeWeightFn?: (nodeId: string) => number | Promise<number>;
     forwardHeuristic?: (nodeId: string, goalId: string) => number;
     backwardHeuristic?: (nodeId: string, goalId: string) => number;
     signal?: AbortSignal;
@@ -290,11 +290,9 @@ export interface LogicalTraversal {
     maxResults?: number;
     signal?: AbortSignal;
   }): Promise<{ ancestors: string[] }>;
-  weightedLongestPath(from: string, to: string, options?: {
+  weightedLongestPath(from: string, to: string, options?: WeightedCostSelector & {
     dir?: 'out' | 'in' | 'both';
     labelFilter?: string | string[];
-    weightFn?: (from: string, to: string, label: string) => number | Promise<number>;
-    nodeWeightFn?: (nodeId: string) => number | Promise<number>;
     signal?: AbortSignal;
   }): Promise<{ path: string[]; totalCost: number }>;
 }

@@ -9,6 +9,7 @@ import {
 import { createEmptyStateV5, applyOpV2 } from '../../../../src/domain/services/JoinReducer.js';
 import { createDot } from '../../../../src/domain/crdt/Dot.js';
 import { createEventId } from '../../../../src/domain/utils/EventId.js';
+import defaultCodec from '../../../../src/domain/utils/defaultCodec.js';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -95,6 +96,30 @@ describe('LogicalIndexReader', () => {
       expect(idx.getGlobalId('Z')).toBeUndefined();
       expect(idx.getEdges('Z', 'out')).toEqual([]);
     });
+
+    it('resets decoded state when reusing the same reader instance', () => {
+      const service = new LogicalIndexBuildService();
+      const state1 = fixtureToState(makeFixture({
+        nodes: ['A', 'B'],
+        edges: [{ from: 'A', to: 'B', label: 'knows' }],
+      }));
+      const state2 = fixtureToState(makeFixture({
+        nodes: ['X', 'Y'],
+        edges: [{ from: 'X', to: 'Y', label: 'owns' }],
+      }));
+
+      const tree1 = service.build(state1).tree;
+      const tree2 = service.build(state2).tree;
+
+      const reader = new LogicalIndexReader();
+      reader.loadFromTree(tree1);
+      reader.loadFromTree(tree2);
+      const idx = reader.toLogicalIndex();
+
+      expect(idx.isAlive('A')).toBe(false);
+      expect(idx.isAlive('X')).toBe(true);
+      expect(idx.getEdges('X', 'out')).toEqual([{ neighborId: 'Y', label: 'owns' }]);
+    });
   });
 
   describe('loadFromOids', () => {
@@ -154,6 +179,26 @@ describe('LogicalIndexReader', () => {
       // Object.prototype not mutated
       const protoAfter = Object.getOwnPropertyNames(Object.prototype).sort();
       expect(protoAfter).toEqual(protoBefore);
+    });
+  });
+
+  describe('labels format compatibility', () => {
+    it('accepts legacy object-form labels.cbor', () => {
+      const state = fixtureToState(F7_MULTILABEL_SAME_NEIGHBOR);
+      const service = new LogicalIndexBuildService();
+      const { tree } = service.build(state);
+
+      const modern = /** @type {Array<[string, number]>} */ (defaultCodec.decode(tree['labels.cbor']));
+      const legacyLabels = Object.fromEntries(modern);
+      const legacyTree = {
+        ...tree,
+        'labels.cbor': defaultCodec.encode(legacyLabels).slice(),
+      };
+
+      const idx = new LogicalIndexReader().loadFromTree(legacyTree).toLogicalIndex();
+      const registry = idx.getLabelRegistry();
+      expect(registry.has('manages')).toBe(true);
+      expect(registry.has('owns')).toBe(true);
     });
   });
 

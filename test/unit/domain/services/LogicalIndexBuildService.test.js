@@ -4,6 +4,7 @@ import { createEmptyStateV5, applyOpV2 } from '../../../../src/domain/services/J
 import { createDot } from '../../../../src/domain/crdt/Dot.js';
 import { createEventId } from '../../../../src/domain/utils/EventId.js';
 import defaultCodec from '../../../../src/domain/utils/defaultCodec.js';
+import { encodeEdgePropKey } from '../../../../src/domain/services/KeyCodec.js';
 
 /**
  * Helper: builds a WarpStateV5 from a simple fixture definition.
@@ -85,7 +86,7 @@ describe('LogicalIndexBuildService', () => {
         existingMeta[shardKey] = defaultCodec.decode(buf);
       }
     }
-    const existingLabels = /** @type {Record<string, number>} */ (defaultCodec.decode(tree1['labels.cbor']));
+    const existingLabels = /** @type {Record<string, number>|Array<[string, number]>} */ (defaultCodec.decode(tree1['labels.cbor']));
 
     // Build 2: add node C
     const state2 = buildState({
@@ -156,5 +157,31 @@ describe('LogicalIndexBuildService', () => {
     expect(receipt.nodeCount).toBe(0);
     expect(tree['labels.cbor']).toBeDefined();
     expect(tree['receipt.cbor']).toBeDefined();
+  });
+
+  it('skips edge-property entries when building node property index', () => {
+    const state = buildState({
+      nodes: ['A', 'B'],
+      edges: [{ from: 'A', to: 'B', label: 'knows' }],
+      props: [{ nodeId: 'A', key: 'name', value: 'Alice' }],
+    });
+
+    const edgePropKey = encodeEdgePropKey('A', 'B', 'knows', 'weight');
+    state.prop.set(edgePropKey, /** @type {any} */ ({ value: 99 }));
+
+    const service = new LogicalIndexBuildService();
+    const { tree } = service.build(state);
+
+    const allProps = new Map();
+    for (const [path, buf] of Object.entries(tree)) {
+      if (path.startsWith('props_')) {
+        const entries = /** @type {Array<[string, Record<string, unknown>]>} */ (defaultCodec.decode(buf));
+        for (const [nodeId, props] of entries) {
+          allProps.set(nodeId, props);
+        }
+      }
+    }
+
+    expect(allProps.get('A')).toEqual({ name: 'Alice' });
   });
 });

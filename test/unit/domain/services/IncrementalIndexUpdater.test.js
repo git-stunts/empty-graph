@@ -447,6 +447,44 @@ describe('IncrementalIndexUpdater', () => {
       expect(proto.x).toBe(1);
       expect(/** @type {Record<string, unknown>} */ ({}).x).toBeUndefined();
     });
+
+    it('normalizes legacy prop bags before writing arbitrary keys', () => {
+      const state = buildState({
+        nodes: ['A'],
+        edges: [],
+        props: [{ nodeId: 'A', key: 'name', value: 'Alice' }],
+      });
+      const tree1 = buildTree(state);
+      const shardKey = computeShardKey('A');
+
+      // Simulate legacy shard with a plain-object prop bag (prototype != null)
+      const legacyEntries = [['A', { name: 'Alice' }]];
+      tree1[`props_${shardKey}.cbor`] = defaultCodec.encode(legacyEntries).slice();
+
+      const diff = {
+        nodesAdded: [],
+        nodesRemoved: [],
+        edgesAdded: [],
+        edgesRemoved: [],
+        propsChanged: [{ nodeId: 'A', key: '__proto__', value: { polluted: true }, prevValue: undefined }],
+      };
+
+      const updater = new IncrementalIndexUpdater();
+      const dirtyShards = updater.computeDirtyShards({
+        diff,
+        state,
+        loadShard: (path) => tree1[path],
+      });
+
+      const tree2 = { ...tree1, ...dirtyShards };
+      const propsMap = decodeProps(tree2, shardKey);
+      if (!propsMap) { throw new Error('expected propsMap'); }
+      const aProps = /** @type {Record<string, unknown>} */ (propsMap.get('A'));
+
+      expect(aProps.name).toBe('Alice');
+      expect(Reflect.get(Object.getPrototypeOf(aProps), 'polluted')).toBeUndefined();
+      expect(/** @type {Record<string, unknown>} */ ({}).polluted).toBeUndefined();
+    });
   });
 
   describe('empty diff', () => {

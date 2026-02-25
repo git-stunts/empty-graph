@@ -1,10 +1,10 @@
 /**
  * Checkpoint Service for WARP multi-writer graph database.
  *
- * Provides functionality for creating and loading schema:2 and schema:3
+ * Provides functionality for creating and loading schema:2, schema:3, and schema:4
  * checkpoints, as well as incremental state materialization from checkpoints.
  *
- * This service supports schema:2 and schema:3 (V5) checkpoints. Schema:1 (V4)
+ * This service supports schema:2, schema:3, and schema:4 (V5) checkpoints. Schema:1 (V4)
  * checkpoints must be migrated before use.
  *
  * @module CheckpointService

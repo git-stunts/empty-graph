@@ -45,8 +45,12 @@ export async function getNodeProps(nodeId) {
 
   // ── Indexed fast path (positive results only; stale index falls through) ──
   if (this._propertyReader && this._logicalIndex?.isAlive(nodeId)) {
-    const record = await this._propertyReader.getNodeProps(nodeId);
-    return record ? new Map(Object.entries(record)) : new Map();
+    try {
+      const record = await this._propertyReader.getNodeProps(nodeId);
+      return record ? new Map(Object.entries(record)) : new Map();
+    } catch {
+      // Fall through to linear scan on index read failures.
+    }
   }
 
   // ── Linear scan fallback ─────────────────────────────────────────────
@@ -138,8 +142,12 @@ export async function neighbors(nodeId, direction = 'both', edgeLabel = undefine
   // ── Indexed fast path (only when node is in index; stale falls through) ──
   const provider = this._materializedGraph?.provider;
   if (provider && this._logicalIndex?.isAlive(nodeId)) {
-    const opts = edgeLabel ? { labels: new Set([edgeLabel]) } : undefined;
-    return await _indexedNeighbors(provider, nodeId, direction, opts);
+    try {
+      const opts = edgeLabel ? { labels: new Set([edgeLabel]) } : undefined;
+      return await _indexedNeighbors(provider, nodeId, direction, opts);
+    } catch {
+      // Fall through to linear scan on index/provider failures.
+    }
   }
 
   // ── Linear scan fallback ─────────────────────────────────────────────

@@ -88,7 +88,10 @@ export default class PropertyIndexReader {
       return null;
     }
 
-    const buffer = await /** @type {{ readBlob(oid: string): Promise<Buffer> }} */ (this._storage).readBlob(oid);
+    const buffer = await /** @type {{ readBlob(oid: string): Promise<Buffer|Uint8Array|undefined|null> }} */ (this._storage).readBlob(oid);
+    if (buffer === null || buffer === undefined) {
+      throw new Error(`PropertyIndexReader: missing blob for OID '${oid}' (${path})`);
+    }
     const decoded = this._codec.decode(buffer);
 
     // Shards are stored as array of [nodeId, props] pairs (proto-safe)

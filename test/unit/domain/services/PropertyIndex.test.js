@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import PropertyIndexBuilder from '../../../../src/domain/services/PropertyIndexBuilder.js';
 import PropertyIndexReader from '../../../../src/domain/services/PropertyIndexReader.js';
 import defaultCodec from '../../../../src/domain/utils/defaultCodec.js';
+import computeShardKey from '../../../../src/domain/utils/shardKey.js';
 import { F10_PROTO_POLLUTION } from '../../../helpers/fixtureDsl.js';
 
 /**
@@ -62,9 +63,21 @@ describe('PropertyIndex', () => {
 
   it('multiple nodes in same shard are correctly isolated', async () => {
     const builder = new PropertyIndexBuilder();
-    // These will likely share a shard key (both are short non-hex strings)
-    builder.addProperty('a', 'x', 1);
-    builder.addProperty('b', 'y', 2);
+    const first = 'a';
+    const shardKey = computeShardKey(first);
+    let second = null;
+    for (let i = 0; i < 10000; i++) {
+      const candidate = `node:${i}`;
+      if (candidate !== first && computeShardKey(candidate) === shardKey) {
+        second = candidate;
+        break;
+      }
+    }
+    if (!second) {
+      throw new Error('failed to find a same-shard node for test');
+    }
+    builder.addProperty(first, 'x', 1);
+    builder.addProperty(second, 'y', 2);
 
     const tree = builder.serialize();
     const { storage, oids } = mockStorageFromTree(tree);
@@ -72,8 +85,8 @@ describe('PropertyIndex', () => {
     const reader = new PropertyIndexReader({ storage });
     reader.setup(oids);
 
-    expect(await reader.getNodeProps('a')).toEqual({ x: 1 });
-    expect(await reader.getNodeProps('b')).toEqual({ y: 2 });
+    expect(await reader.getNodeProps(first)).toEqual({ x: 1 });
+    expect(await reader.getNodeProps(second)).toEqual({ y: 2 });
   });
 
   it('round-trip: build → serialize → reader → values match', async () => {
@@ -114,5 +127,15 @@ describe('PropertyIndex', () => {
     const props = await reader.getNodeProps('__proto__');
     expect(props).toEqual({ polluted: true });
     expect((/** @type {Record<string, unknown>} */ ({})).polluted).toBeUndefined();
+  });
+
+  it('throws a descriptive error when a shard OID is missing', async () => {
+    const reader = new PropertyIndexReader({
+      storage: { readBlob: async () => undefined },
+    });
+    reader.setup({ 'props_ab.cbor': 'oid_missing' });
+    const abNodeId = `ab${'0'.repeat(38)}`;
+
+    await expect(reader.getNodeProps(abNodeId)).rejects.toThrow(/missing blob.*oid_missing/i);
   });
 });

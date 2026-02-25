@@ -8,6 +8,7 @@
  * @module test/helpers/fixtureDsl
  */
 
+import { deepStrictEqual } from 'node:assert/strict';
 import AdjacencyNeighborProvider from '../../src/domain/services/AdjacencyNeighborProvider.js';
 import BitmapNeighborProvider from '../../src/domain/services/BitmapNeighborProvider.js';
 import LogicalIndexBuildService from '../../src/domain/services/LogicalIndexBuildService.js';
@@ -82,6 +83,16 @@ export function toAdjacencyMaps(fixture) {
     if (!incoming.has(to)) incoming.set(to, []);
     incoming.get(to).push({ neighborId: from, label });
   }
+
+  const cmp = (a, b) => {
+    if (a.neighborId < b.neighborId) return -1;
+    if (a.neighborId > b.neighborId) return 1;
+    if (a.label < b.label) return -1;
+    if (a.label > b.label) return 1;
+    return 0;
+  };
+  for (const arr of outgoing.values()) arr.sort(cmp);
+  for (const arr of incoming.values()) arr.sort(cmp);
 
   return { outgoing, incoming, aliveNodes };
 }
@@ -455,6 +466,37 @@ export async function runCrossProvider({ fixture, providers, run, assert }) {
       results.push({ name, result, error: null });
     } catch (err) {
       results.push({ name, result: null, error: err });
+    }
+  }
+
+  // Enforce provider-to-provider equivalence before running per-provider assertions.
+  if (results.length > 1) {
+    const baseline = results[0];
+    for (const current of results.slice(1)) {
+      const baselineErrored = Boolean(baseline.error);
+      const currentErrored = Boolean(current.error);
+      if (baselineErrored !== currentErrored) {
+        throw new Error(
+          `Provider mismatch: '${baseline.name}' ${baselineErrored ? 'threw' : 'returned'} but '${current.name}' ${currentErrored ? 'threw' : 'returned'}`
+        );
+      }
+      if (baselineErrored && currentErrored) {
+        const baseErr = /** @type {Error} */ (baseline.error);
+        const curErr = /** @type {Error} */ (current.error);
+        if (baseErr.name !== curErr.name || baseErr.message !== curErr.message) {
+          throw new Error(
+            `Provider mismatch: '${baseline.name}' and '${current.name}' threw different errors`
+          );
+        }
+        continue;
+      }
+      try {
+        deepStrictEqual(current.result, baseline.result);
+      } catch {
+        throw new Error(
+          `Provider mismatch: '${baseline.name}' and '${current.name}' returned different results`
+        );
+      }
     }
   }
 

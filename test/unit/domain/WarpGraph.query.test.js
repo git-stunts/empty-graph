@@ -100,6 +100,26 @@ describe('WarpGraph Query API', () => {
       expect(props.get('name')).toBe('Alice');
       expect(props.get('age')).toBe(30);
     });
+
+    it('falls back to linear scan when indexed property read throws', async () => {
+      await graph.materialize();
+      const state = /** @type {any} */ (graph)._cachedState;
+
+      orsetAdd(state.nodeAlive, 'user:alice', createDot('w1', 1));
+      const propKey = encodePropKey('user:alice', 'name');
+      state.prop.set(propKey, { value: 'Alice', lamport: 1, writerId: 'w1' });
+
+      /** @type {any} */ (graph)._logicalIndex = { isAlive: () => true };
+      /** @type {any} */ (graph)._propertyReader = {
+        getNodeProps: async () => {
+          throw new Error('simulated index failure');
+        },
+      };
+
+      const props = await graph.getNodeProps('user:alice');
+      expect(props).toBeInstanceOf(Map);
+      expect(props.get('name')).toBe('Alice');
+    });
   });
 
   describe('neighbors()', () => {
@@ -209,6 +229,31 @@ describe('WarpGraph Query API', () => {
       // Should not return bob since it doesn't exist
       const neighbors = await graph.neighbors('user:alice', 'outgoing');
       expect(neighbors).toHaveLength(0);
+    });
+
+    it('falls back to linear scan when indexed neighbor lookup throws', async () => {
+      await graph.materialize();
+      const state = /** @type {any} */ (graph)._cachedState;
+
+      orsetAdd(state.nodeAlive, 'user:alice', createDot('w1', 1));
+      orsetAdd(state.nodeAlive, 'user:bob', createDot('w1', 2));
+      orsetAdd(state.edgeAlive, encodeEdgeKey('user:alice', 'user:bob', 'follows'), createDot('w1', 3));
+
+      /** @type {any} */ (graph)._logicalIndex = { isAlive: () => true };
+      /** @type {any} */ (graph)._materializedGraph = {
+        provider: {
+          getNeighbors: async () => {
+            throw new Error('simulated provider failure');
+          },
+        },
+      };
+
+      const result = await graph.neighbors('user:alice', 'outgoing');
+      expect(result).toEqual([{
+        nodeId: 'user:bob',
+        label: 'follows',
+        direction: 'outgoing',
+      }]);
     });
   });
 

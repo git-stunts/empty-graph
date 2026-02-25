@@ -89,10 +89,10 @@ describe('AdjacencyNeighborProvider', () => {
     expect(await provider.hasNode('z')).toBe(false);
   });
 
-  it('hasNode fallback without aliveNodes', async () => {
-    const provider = new AdjacencyNeighborProvider({ outgoing, incoming });
-    expect(await provider.hasNode('a')).toBe(true);
-    expect(await provider.hasNode('z')).toBe(false);
+  it('throws when aliveNodes is omitted', () => {
+    expect(() => new AdjacencyNeighborProvider({ outgoing, incoming })).toThrow(
+      /aliveNodes is required/i,
+    );
   });
 
   it('latencyClass is sync', () => {
@@ -136,7 +136,7 @@ describe('AdjacencyNeighborProvider', () => {
       const originalOutA = outA.map((e) => ({ ...e }));
 
       // Construction triggers sortAdjacencyMap internally
-      new AdjacencyNeighborProvider({ outgoing, incoming });
+      new AdjacencyNeighborProvider({ outgoing, incoming, aliveNodes: new Set(['a', 'b', 'c']) });
 
       // Caller's original arrays must be unmodified
       expect(outgoing.get('a')).toEqual(originalOutA);

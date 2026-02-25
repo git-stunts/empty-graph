@@ -6,6 +6,16 @@ import { F7_MULTILABEL_SAME_NEIGHBOR, F10_PROTO_POLLUTION } from '../../../helpe
 import computeShardKey from '../../../../src/domain/utils/shardKey.js';
 
 /**
+ * @param {Uint8Array} buf
+ * @returns {Map<string, number>}
+ */
+function decodeLabelRegistry(buf) {
+  const decoded = /** @type {Record<string, number>|Array<[string, number]>} */ (defaultCodec.decode(buf));
+  const entries = Array.isArray(decoded) ? decoded : Object.entries(decoded);
+  return new Map(entries);
+}
+
+/**
  * Helper: build an index from a fixture.
  */
 /** @param {*} fixture */
@@ -32,9 +42,9 @@ describe('LogicalBitmapIndexBuilder', () => {
     // Should have fwd shard(s) and labels
     expect(tree['labels.cbor']).toBeDefined();
 
-    const labels = /** @type {Record<string, *>} */ (defaultCodec.decode(tree['labels.cbor']));
-    expect(labels).toHaveProperty('manages');
-    expect(labels).toHaveProperty('owns');
+    const labels = decodeLabelRegistry(tree['labels.cbor']);
+    expect(labels.has('manages')).toBe(true);
+    expect(labels.has('owns')).toBe(true);
 
     // Find the fwd shard for node A
     const shardKeyA = computeShardKey('A');
@@ -45,8 +55,8 @@ describe('LogicalBitmapIndexBuilder', () => {
     // 'all' bucket should exist
     expect(decoded).toHaveProperty('all');
     // Per-label buckets should exist (labelId 0 and 1)
-    expect(decoded).toHaveProperty(String(labels.manages));
-    expect(decoded).toHaveProperty(String(labels.owns));
+    expect(decoded).toHaveProperty(String(labels.get('manages')));
+    expect(decoded).toHaveProperty(String(labels.get('owns')));
   });
 
   it('delete correctness: same neighbor via two labels, remove one, all bitmap still has neighbor', () => {

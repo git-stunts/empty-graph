@@ -5,6 +5,21 @@ import { F12_STABLE_IDS } from '../../../helpers/fixtureDsl.js';
 import computeShardKey from '../../../../src/domain/utils/shardKey.js';
 import defaultCodec from '../../../../src/domain/utils/defaultCodec.js';
 
+/**
+ * @param {Uint8Array} buf
+ * @returns {Record<string, number>}
+ */
+function decodeLabelRegistry(buf) {
+  const decoded = /** @type {Record<string, number>|Array<[string, number]>} */ (defaultCodec.decode(buf));
+  const entries = Array.isArray(decoded) ? decoded : Object.entries(decoded);
+  /** @type {Record<string, number>} */
+  const out = {};
+  for (const [label, id] of entries) {
+    out[label] = id;
+  }
+  return out;
+}
+
 describe('LogicalBitmapIndexBuilder ID stability (F12)', () => {
   it('existing node IDs are preserved across rebuild', () => {
     const { initialNodes, addedNodes } = F12_STABLE_IDS;
@@ -81,7 +96,7 @@ describe('LogicalBitmapIndexBuilder ID stability (F12)', () => {
     expect(ownsId).toBe(1);
 
     const tree1 = builder1.serialize();
-    const labelRegistry = /** @type {Record<string, number>} */ (defaultCodec.decode(tree1['labels.cbor']));
+    const labelRegistry = decodeLabelRegistry(tree1['labels.cbor']);
 
     // Build 2: seed existing labels, add new
     const builder2 = new LogicalBitmapIndexBuilder();

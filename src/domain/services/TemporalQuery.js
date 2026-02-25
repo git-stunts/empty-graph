@@ -84,6 +84,68 @@ function extractNodeSnapshot(state, nodeId) {
 }
 
 /**
+ * Evaluates checkpoint boundary semantics for `always()`.
+ *
+ * @param {Object} params
+ * @param {import('./JoinReducer.js').WarpStateV5} params.state
+ * @param {string} params.nodeId
+ * @param {Function} params.predicate
+ * @param {number} params.startIdx
+ * @param {number|null} params.checkpointMaxLamport
+ * @param {number} params.since
+ * @returns {{ nodeEverExisted: boolean, shouldReturn: boolean, returnValue: boolean }}
+ * @private
+ */
+function evaluateAlwaysCheckpointBoundary({
+  state,
+  nodeId,
+  predicate,
+  startIdx,
+  checkpointMaxLamport,
+  since,
+}) {
+  if (!(startIdx > 0 && checkpointMaxLamport === since)) {
+    return { nodeEverExisted: false, shouldReturn: false, returnValue: false };
+  }
+  const snapshot = extractNodeSnapshot(state, nodeId);
+  if (!snapshot.exists) {
+    return { nodeEverExisted: false, shouldReturn: false, returnValue: false };
+  }
+  if (!predicate(snapshot)) {
+    return { nodeEverExisted: true, shouldReturn: true, returnValue: false };
+  }
+  return { nodeEverExisted: true, shouldReturn: false, returnValue: false };
+}
+
+/**
+ * Evaluates checkpoint boundary semantics for `eventually()`.
+ *
+ * @param {Object} params
+ * @param {import('./JoinReducer.js').WarpStateV5} params.state
+ * @param {string} params.nodeId
+ * @param {Function} params.predicate
+ * @param {number} params.startIdx
+ * @param {number|null} params.checkpointMaxLamport
+ * @param {number} params.since
+ * @returns {boolean}
+ * @private
+ */
+function evaluateEventuallyCheckpointBoundary({
+  state,
+  nodeId,
+  predicate,
+  startIdx,
+  checkpointMaxLamport,
+  since,
+}) {
+  if (!(startIdx > 0 && checkpointMaxLamport === since)) {
+    return false;
+  }
+  const snapshot = extractNodeSnapshot(state, nodeId);
+  return snapshot.exists && predicate(snapshot);
+}
+
+/**
  * TemporalQuery provides temporal logic operators over graph history.
  *
  * Constructed by WarpGraph and exposed via `graph.temporal`.
@@ -132,8 +194,19 @@ export class TemporalQuery {
     const since = options.since ?? 0;
     const allPatches = await this._loadAllPatches();
 
-    const { state, startIdx } = await this._resolveStart(allPatches, since);
-    let nodeEverExisted = false;
+    const { state, startIdx, checkpointMaxLamport } = await this._resolveStart(allPatches, since);
+    const boundary = evaluateAlwaysCheckpointBoundary({
+      state,
+      nodeId,
+      predicate,
+      startIdx,
+      checkpointMaxLamport,
+      since,
+    });
+    if (boundary.shouldReturn) {
+      return boundary.returnValue;
+    }
+    let { nodeEverExisted } = boundary;
 
     for (let i = startIdx; i < allPatches.length; i++) {
       const { patch, sha } = allPatches[i];
@@ -182,7 +255,18 @@ export class TemporalQuery {
     const since = options.since ?? 0;
     const allPatches = await this._loadAllPatches();
 
-    const { state, startIdx } = await this._resolveStart(allPatches, since);
+    const { state, startIdx, checkpointMaxLamport } = await this._resolveStart(allPatches, since);
+
+    if (evaluateEventuallyCheckpointBoundary({
+      state,
+      nodeId,
+      predicate,
+      startIdx,
+      checkpointMaxLamport,
+      since,
+    })) {
+      return true;
+    }
 
     for (let i = startIdx; i < allPatches.length; i++) {
       const { patch, sha } = allPatches[i];
@@ -221,7 +305,7 @@ export class TemporalQuery {
    *
    * @param {Array<{patch: {lamport: number, [k: string]: unknown}, sha: string}>} allPatches
    * @param {number} since - Minimum Lamport tick
-   * @returns {Promise<{state: import('./JoinReducer.js').WarpStateV5, startIdx: number}>}
+   * @returns {Promise<{state: import('./JoinReducer.js').WarpStateV5, startIdx: number, checkpointMaxLamport: number|null}>}
    * @private
    */
   async _resolveStart(allPatches, since) {
@@ -232,9 +316,9 @@ export class TemporalQuery {
           ({ patch }) => patch.lamport > ck.maxLamport,
         );
         const startIdx = idx < 0 ? allPatches.length : idx;
-        return { state: ck.state, startIdx };
+        return { state: ck.state, startIdx, checkpointMaxLamport: ck.maxLamport };
       }
     }
-    return { state: createEmptyStateV5(), startIdx: 0 };
+    return { state: createEmptyStateV5(), startIdx: 0, checkpointMaxLamport: null };
   }
 }

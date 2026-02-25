@@ -126,7 +126,7 @@ export function decodeCheckpointMessage(message) {
     throw new Error(`Invalid checkpoint message: eg-schema must be a positive integer, got '${schemaStr}'`);
   }
 
-  // Extract optional checkpoint version (v5 for schema:2)
+  // Extract optional checkpoint version (v5 for schema:2/3/4)
   const checkpointVersion = trailers[TRAILER_KEYS.checkpointVersion] || null;
 
   return {

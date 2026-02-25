@@ -514,6 +514,10 @@ export default class IncrementalIndexUpdater {
       if (!nodeProps) {
         nodeProps = Object.create(null);
         shard.set(prop.nodeId, /** @type {Record<string, unknown>} */ (nodeProps));
+      } else if (Object.getPrototypeOf(nodeProps) !== null) {
+        const safeProps = Object.assign(Object.create(null), nodeProps);
+        shard.set(prop.nodeId, safeProps);
+        nodeProps = safeProps;
       }
       /** @type {Record<string, unknown>} */ (nodeProps)[prop.key] = prop.value;
     }
@@ -666,7 +670,14 @@ export default class IncrementalIndexUpdater {
     if (!buf) {
       return Object.create(null);
     }
-    return /** @type {Record<string, number>} */ (Object.assign(Object.create(null), this._codec.decode(buf)));
+    const decoded = /** @type {Record<string, number>|Array<[string, number]>} */ (this._codec.decode(buf));
+    /** @type {Record<string, number>} */
+    const labels = Object.create(null);
+    const entries = Array.isArray(decoded) ? decoded : Object.entries(decoded);
+    for (const [label, id] of entries) {
+      labels[label] = id;
+    }
+    return labels;
   }
 
   /**
@@ -675,7 +686,8 @@ export default class IncrementalIndexUpdater {
    * @private
    */
   _saveLabels(labels) {
-    return this._codec.encode(labels).slice();
+    const entries = Object.entries(labels).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+    return this._codec.encode(entries).slice();
   }
 
   // ── Props I/O ─────────────────────────────────────────────────────────────
@@ -696,7 +708,11 @@ export default class IncrementalIndexUpdater {
     const decoded = this._codec.decode(buf);
     if (Array.isArray(decoded)) {
       for (const [nodeId, props] of decoded) {
-        map.set(nodeId, props);
+        const safeProps = Object.assign(
+          Object.create(null),
+          (props && typeof props === 'object') ? props : {},
+        );
+        map.set(nodeId, safeProps);
       }
     }
     return map;

@@ -199,11 +199,12 @@ export default class LogicalBitmapIndexBuilder {
   /**
    * Seeds the label registry from a previous build for append-only stability.
    *
-   * @param {Record<string, number>} registry - label → labelId
+   * @param {Record<string, number>|Array<[string, number]>} registry - label → labelId
    */
   loadExistingLabels(registry) {
+    const entries = Array.isArray(registry) ? registry : Object.entries(registry);
     let maxId = this._nextLabelId;
-    for (const [label, id] of Object.entries(registry)) {
+    for (const [label, id] of entries) {
       this._labelToId.set(label, id);
       if (id >= maxId) {
         maxId = id + 1;
@@ -247,10 +248,10 @@ export default class LogicalBitmapIndexBuilder {
     }
 
     // Labels registry
-    /** @type {Record<string, number>} */
-    const labelRegistry = {};
+    /** @type {Array<[string, number]>} */
+    const labelRegistry = [];
     for (const [label, id] of this._labelToId) {
-      labelRegistry[label] = id;
+      labelRegistry.push([label, id]);
     }
     tree['labels.cbor'] = this._codec.encode(labelRegistry).slice();
 

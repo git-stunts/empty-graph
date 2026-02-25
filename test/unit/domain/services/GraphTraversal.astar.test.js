@@ -16,21 +16,17 @@ import {
 describe('GraphTraversal.aStarSearch', () => {
   // F5 — expansion order with equal f-scores
   describe('F5 — ASTAR_TIE_BREAK_EXPANSION_ORDER', () => {
-    it('expands B before C on equal f-score (B < C)', async () => {
+    it('chooses B before C on equal f-score (B < C)', async () => {
       const provider = makeAdjacencyProvider(F5_ASTAR_TIE_BREAK);
       const engine = new GraphTraversal({ provider });
-      const expanded = [];
-
-      await engine.aStarSearch({
+      const result = await engine.aStarSearch({
         start: 'S',
         goal: 'G',
         weightFn: makeWeightFn(F5_WEIGHTS),
         heuristicFn: () => 0, // A* reduces to Dijkstra
       });
-
-      // After S is expanded, B and C have equal g=1, h=0, f=1.
-      // B < C → B expanded first.
-      // Note: hooks are on BFS/DFS only in current impl, so we check path instead
+      expect(result.path).toEqual(['S', 'B', 'G']);
+      expect(result.totalCost).toBe(11);
     });
 
     it('path is S→B→G (lex tie-break)', async () => {

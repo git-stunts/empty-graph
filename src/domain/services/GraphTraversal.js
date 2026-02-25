@@ -145,7 +145,7 @@ export default class GraphTraversal {
       return await this._provider.getNeighbors(nodeId, direction, options);
     }
 
-    const labelsKey = options?.labels ? [...options.labels].sort().join(',') : '*';
+    const labelsKey = options?.labels ? JSON.stringify([...options.labels].sort()) : '*';
     const key = `${nodeId}\0${direction}\0${labelsKey}`;
     const cached = cache.get(key);
     if (cached !== undefined) {
@@ -762,7 +762,10 @@ export default class GraphTraversal {
     _returnAdjList = false,
   }) {
     this._resetStats();
-    const starts = Array.isArray(start) ? start : [start];
+    const starts = [...new Set(Array.isArray(start) ? start : [start])];
+    for (const s of starts) {
+      await this._validateStart(s);
+    }
 
     // Phase 1: Discover all reachable nodes + compute in-degrees
     /** @type {Map<string, string[]>} */

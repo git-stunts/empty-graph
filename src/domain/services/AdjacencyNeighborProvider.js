@@ -89,15 +89,18 @@ export default class AdjacencyNeighborProvider extends NeighborProviderPort {
    * @param {Object} params
    * @param {Map<string, Array<{neighborId: string, label: string}>>} params.outgoing
    * @param {Map<string, Array<{neighborId: string, label: string}>>} params.incoming
-   * @param {Set<string>} [params.aliveNodes] - Set of alive nodeIds for hasNode()
+   * @param {Set<string>} params.aliveNodes - Set of alive nodeIds for hasNode()
    */
   constructor({ outgoing, incoming, aliveNodes }) {
     super();
+    if (!aliveNodes) {
+      throw new Error('AdjacencyNeighborProvider: aliveNodes is required');
+    }
     /** @type {Map<string, Array<{neighborId: string, label: string}>>} */
     this._outgoing = sortAdjacencyMap(outgoing);
     /** @type {Map<string, Array<{neighborId: string, label: string}>>} */
     this._incoming = sortAdjacencyMap(incoming);
-    /** @type {Set<string>|undefined} */
+    /** @type {Set<string>} */
     this._aliveNodes = aliveNodes;
   }
 
@@ -127,10 +130,7 @@ export default class AdjacencyNeighborProvider extends NeighborProviderPort {
    * @returns {Promise<boolean>}
    */
   hasNode(nodeId) {
-    if (this._aliveNodes) {
-      return Promise.resolve(this._aliveNodes.has(nodeId));
-    }
-    return Promise.resolve(this._outgoing.has(nodeId) || this._incoming.has(nodeId));
+    return Promise.resolve(this._aliveNodes.has(nodeId));
   }
 
   /** @returns {'sync'} */

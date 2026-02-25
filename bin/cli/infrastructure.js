@@ -92,7 +92,7 @@ Verify-audit options:
 
 Verify-index options:
   --seed <n>              PRNG seed for reproducible sampling
-  --sample-rate <rate>    Fraction of nodes to verify (0-1, default 0.1)
+  --sample-rate <rate>    Fraction of nodes to verify (>0 and <=1, default 0.1)
 
 Trust options:
   --mode <warn|enforce> Override trust evaluation mode
@@ -353,4 +353,3 @@ export function parseCommandArgs(args, config, schema, { allowPositionals = fals
 
   return { values: result.data, positionals: parsed.positionals || [] };
 }
-

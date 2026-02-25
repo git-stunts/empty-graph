@@ -122,6 +122,7 @@ export default class LogicalIndexReader {
    * @returns {this}
    */
   loadFromTree(tree) {
+    this._resetState();
     const items = Object.entries(tree).map(([path, buf]) => ({ path, buf }));
     this._processShards(items);
     return this;
@@ -135,6 +136,7 @@ export default class LogicalIndexReader {
    * @returns {Promise<this>}
    */
   async loadFromOids(shardOids, storage) {
+    this._resetState();
     const entries = Object.entries(shardOids);
     const items = await Promise.all(
       entries.map(async ([path, oid]) => ({ path, buf: await storage.readBlob(oid) }))
@@ -246,11 +248,29 @@ export default class LogicalIndexReader {
    * @private
    */
   _decodeLabels(buf) {
-    const labels = /** @type {Record<string, number>} */ (this._codec.decode(buf));
-    for (const [label, id] of Object.entries(labels)) {
+    const decoded = /** @type {Record<string, number>|Array<[string, number]>} */ (this._codec.decode(buf));
+    const entries = Array.isArray(decoded) ? decoded : Object.entries(decoded);
+    for (const [label, id] of entries) {
       this._labelRegistry.set(label, id);
       this._idToLabel.set(id, label);
     }
+  }
+
+  /**
+   * Clears all decoded state so the reader can be reused safely.
+   *
+   * @private
+   */
+  _resetState() {
+    this._nodeToGlobal.clear();
+    this._globalToNode.clear();
+    this._aliveBitmaps.clear();
+    this._labelRegistry.clear();
+    this._idToLabel.clear();
+    this._edgeFwd.clear();
+    this._edgeRev.clear();
+    this._edgeByOwnerFwd.clear();
+    this._edgeByOwnerRev.clear();
   }
 
   /**

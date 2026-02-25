@@ -432,5 +432,70 @@ describe('TemporalQuery checkpoint acceleration', () => {
       // loadCheckpoint was called but its result was not used (maxLamport > since)
       expect(loadCheckpoint).toHaveBeenCalledOnce();
     });
+
+    it('always() evaluates predicate at checkpoint boundary when maxLamport === since', async () => {
+      const patches = [
+        createNodeWithPropPatch({
+          nodeId: 'X', writer: 'W', lamport: 1,
+          propKey: 'status', propValue: 'draft',
+          sha: 'a'.repeat(40),
+        }),
+        createPropOnlyPatch({
+          nodeId: 'X', writer: 'W', lamport: 2,
+          propKey: 'status', propValue: 'active',
+          sha: 'b'.repeat(40),
+        }),
+      ];
+
+      const loadCheckpoint = vi.fn().mockResolvedValue({
+        state: buildStateFromPatches(patches.slice(0, 1)),
+        maxLamport: 1,
+      });
+
+      const tq = new TemporalQuery({
+        loadAllPatches: async () => patches,
+        loadCheckpoint,
+      });
+
+      const result = await tq.always(
+        'X',
+        (/** @type {any} */ n) => n.props.status === 'active',
+        { since: 1 },
+      );
+
+      expect(result).toBe(false);
+      expect(loadCheckpoint).toHaveBeenCalledOnce();
+    });
+
+    it('eventually() evaluates checkpoint boundary state when maxLamport === since', async () => {
+      const patches = [
+        createNodeWithPropPatch({
+          nodeId: 'X', writer: 'W', lamport: 1,
+          propKey: 'status', propValue: 'draft',
+          sha: 'a'.repeat(40),
+        }),
+        createPropOnlyPatch({
+          nodeId: 'X', writer: 'W', lamport: 2,
+          propKey: 'status', propValue: 'active',
+          sha: 'b'.repeat(40),
+        }),
+      ];
+
+      const tq = new TemporalQuery({
+        loadAllPatches: async () => patches,
+        loadCheckpoint: async () => ({
+          state: buildStateFromPatches(patches.slice(0, 1)),
+          maxLamport: 1,
+        }),
+      });
+
+      const result = await tq.eventually(
+        'X',
+        (/** @type {any} */ n) => n.props.status === 'draft',
+        { since: 1 },
+      );
+
+      expect(result).toBe(true);
+    });
   });
 });

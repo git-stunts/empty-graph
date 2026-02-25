@@ -38,9 +38,11 @@ export default async function handleVerifyIndex({ options, args }) {
   let result;
   try {
     result = await graph.verifyIndex({ seed: values.seed, sampleRate: values.sampleRate });
-  } catch {
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    const noIndex = /no bitmap index|cannot verify index|index not built/i.test(message);
     return {
-      payload: { error: 'No bitmap index available after materialization' },
+      payload: { error: noIndex ? 'No bitmap index available after materialization' : message },
       exitCode: EXIT_CODES.INTERNAL,
     };
   }

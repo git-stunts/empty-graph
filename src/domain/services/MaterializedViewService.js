@@ -121,7 +121,7 @@ function mulberry32(seed) {
  * Selects a deterministic sample of nodes using a seeded PRNG.
  *
  * @param {string[]} allNodes
- * @param {number} sampleRate - Fraction of nodes to select (0-1)
+ * @param {number} sampleRate - Fraction of nodes to select (>0 and <=1)
  * @param {number} seed
  * @returns {string[]}
  */
@@ -129,36 +129,66 @@ function sampleNodes(allNodes, sampleRate, seed) {
   if (sampleRate >= 1) {
     return allNodes;
   }
+  if (sampleRate <= 0 || allNodes.length === 0) {
+    return [];
+  }
   const rng = mulberry32(seed);
-  return allNodes.filter(() => rng() < sampleRate);
+  const sampled = allNodes.filter(() => rng() < sampleRate);
+  if (sampled.length === 0) {
+    sampled.push(allNodes[Math.floor(rng() * allNodes.length)]);
+  }
+  return sampled;
 }
 
 /**
  * Builds adjacency maps from state for ground-truth verification.
  *
  * @param {import('../services/JoinReducer.js').WarpStateV5} state
- * @returns {{ outgoing: Map<string, string[]>, incoming: Map<string, string[]> }}
+ * @returns {{ outgoing: Map<string, Array<{neighborId: string, label: string}>>, incoming: Map<string, Array<{neighborId: string, label: string}>> }}
  */
 function buildGroundTruthAdjacency(state) {
   const outgoing = new Map();
   const incoming = new Map();
 
   for (const edgeKey of orsetElements(state.edgeAlive)) {
-    const { from, to } = decodeEdgeKey(edgeKey);
+    const { from, to, label } = decodeEdgeKey(edgeKey);
     if (!orsetContains(state.nodeAlive, from) || !orsetContains(state.nodeAlive, to)) {
       continue;
     }
     if (!outgoing.has(from)) {
       outgoing.set(from, []);
     }
-    outgoing.get(from).push(to);
+    outgoing.get(from).push({ neighborId: to, label });
     if (!incoming.has(to)) {
       incoming.set(to, []);
     }
-    incoming.get(to).push(from);
+    incoming.get(to).push({ neighborId: from, label });
   }
 
   return { outgoing, incoming };
+}
+
+/**
+ * Canonicalizes neighbor edges into deterministic, label-aware signatures.
+ *
+ * @param {Array<{neighborId: string, label: string}>} edges
+ * @returns {string[]}
+ */
+function canonicalizeNeighborSignatures(edges) {
+  /** @type {Map<string, string[]>} */
+  const byNeighbor = new Map();
+  for (const { neighborId, label } of edges) {
+    if (!byNeighbor.has(neighborId)) {
+      byNeighbor.set(neighborId, []);
+    }
+    byNeighbor.get(neighborId).push(label);
+  }
+  const signatures = [];
+  for (const [neighborId, labels] of byNeighbor) {
+    signatures.push(JSON.stringify([neighborId, labels.slice().sort()]));
+  }
+  signatures.sort();
+  return signatures;
 }
 
 /**
@@ -168,13 +198,13 @@ function buildGroundTruthAdjacency(state) {
  * @param {string} params.nodeId
  * @param {string} params.direction
  * @param {LogicalIndex} params.logicalIndex
- * @param {Map<string, string[]>} params.truthMap
+ * @param {Map<string, Array<{neighborId: string, label: string}>>} params.truthMap
  * @returns {VerifyError|null}
  */
 function compareNodeDirection({ nodeId, direction, logicalIndex, truthMap }) {
   const bitmapEdges = logicalIndex.getEdges(nodeId, direction);
-  const actual = bitmapEdges.map((e) => e.neighborId).sort();
-  const expected = (truthMap.get(nodeId) || []).slice().sort();
+  const actual = canonicalizeNeighborSignatures(bitmapEdges);
+  const expected = canonicalizeNeighborSignatures(truthMap.get(nodeId) || []);
 
   if (actual.length !== expected.length) {
     return { nodeId, direction, expected, actual };
@@ -243,7 +273,7 @@ export default class MaterializedViewService {
    * Hydrates a LogicalIndex + PropertyIndexReader from blob OIDs.
    *
    * @param {Record<string, string>} shardOids - path to blob OID
-   * @param {{ readBlob(oid: string): Promise<Buffer> }} storage
+   * @param {{ readBlob(oid: string): Promise<Uint8Array> }} storage
    * @returns {Promise<LoadResult>}
    */
   async loadFromOids(shardOids, storage) {
@@ -307,7 +337,7 @@ export default class MaterializedViewService {
    * @param {LogicalIndex} params.logicalIndex
    * @param {Object} [params.options]
    * @param {number} [params.options.seed] - PRNG seed for reproducible sampling
-   * @param {number} [params.options.sampleRate] - Fraction of nodes to check (0-1, default 0.1)
+   * @param {number} [params.options.sampleRate] - Fraction of nodes to check (>0 and <=1, default 0.1)
    * @returns {VerifyResult}
    */
   verifyIndex({ state, logicalIndex, options = {} }) {

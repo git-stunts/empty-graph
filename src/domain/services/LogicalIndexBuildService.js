@@ -12,7 +12,7 @@ import nullLogger from '../utils/nullLogger.js';
 import LogicalBitmapIndexBuilder from './LogicalBitmapIndexBuilder.js';
 import PropertyIndexBuilder from './PropertyIndexBuilder.js';
 import { orsetElements } from '../crdt/ORSet.js';
-import { decodeEdgeKey, decodePropKey } from './KeyCodec.js';
+import { decodeEdgeKey, decodePropKey, isEdgePropKey } from './KeyCodec.js';
 import { nodeVisibleV5, edgeVisibleV5 } from './StateSerializerV5.js';
 
 export default class LogicalIndexBuildService {
@@ -32,7 +32,7 @@ export default class LogicalIndexBuildService {
    * @param {import('./JoinReducer.js').WarpStateV5} state
    * @param {Object} [options]
    * @param {Record<string, { nodeToGlobal: Record<string, number>, nextLocalId: number }>} [options.existingMeta] - Prior meta shards for ID stability
-   * @param {Record<string, number>} [options.existingLabels] - Prior label registry for append-only stability
+   * @param {Record<string, number>|Array<[string, number]>} [options.existingLabels] - Prior label registry for append-only stability
    * @returns {{ tree: Record<string, Uint8Array>, receipt: Record<string, unknown> }}
    */
   build(state, options = {}) {
@@ -75,6 +75,9 @@ export default class LogicalIndexBuildService {
 
     // 4. Build property index from visible props
     for (const [propKey, register] of state.prop) {
+      if (isEdgePropKey(propKey)) {
+        continue;
+      }
       const { nodeId, propKey: key } = decodePropKey(propKey);
       if (nodeVisibleV5(state, nodeId)) {
         propBuilder.addProperty(nodeId, key, register.value);
