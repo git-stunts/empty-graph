@@ -196,7 +196,7 @@ describe('CasSeekCacheAdapter', () => {
 
       const result = await adapter.get(SAMPLE_KEY);
 
-      expect(result).toBe(stateBuffer);
+      expect(result).toEqual({ buffer: stateBuffer });
       expect(mockReadManifest).toHaveBeenCalledWith({ treeOid });
       expect(mockRestore).toHaveBeenCalledWith({ manifest });
     });

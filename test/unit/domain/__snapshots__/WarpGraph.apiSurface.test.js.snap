@@ -97,12 +97,22 @@ exports[`WarpGraph API surface > all prototype methods have correct property des
     "enumerable": false,
     "type": "method",
   },
+  "_persistSeekCacheEntry": {
+    "configurable": true,
+    "enumerable": false,
+    "type": "method",
+  },
   "_relationToCheckpointHead": {
     "configurable": true,
     "enumerable": false,
     "type": "method",
   },
   "_resolveCeiling": {
+    "configurable": true,
+    "enumerable": false,
+    "type": "method",
+  },
+  "_restoreIndexFromCache": {
     "configurable": true,
     "enumerable": false,
     "type": "method",
@@ -405,7 +415,7 @@ exports[`WarpGraph API surface > all prototype methods have correct property des
 }
 `;
 
-exports[`WarpGraph API surface > prototype method count matches snapshot 1`] = `80`;
+exports[`WarpGraph API surface > prototype method count matches snapshot 1`] = `82`;
 
 exports[`WarpGraph API surface > prototype methods match snapshot 1`] = `
 [
@@ -428,8 +438,10 @@ exports[`WarpGraph API surface > prototype methods match snapshot 1`] = `
   "_nextLamport",
   "_notifySubscribers",
   "_onPatchCommitted",
+  "_persistSeekCacheEntry",
   "_relationToCheckpointHead",
   "_resolveCeiling",
+  "_restoreIndexFromCache",
   "_setMaterializedState",
   "_sortPatchesCausally",
   "_validateMigrationBoundary",
