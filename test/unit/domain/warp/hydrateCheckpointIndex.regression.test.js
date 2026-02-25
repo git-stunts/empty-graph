@@ -1,84 +1,113 @@
 import { describe, it, expect } from 'vitest';
+import { materialize } from '../../../../src/domain/warp/materialize.methods.js';
 import { createEmptyStateV5, applyOpV2 } from '../../../../src/domain/services/JoinReducer.js';
 import { createDot } from '../../../../src/domain/crdt/Dot.js';
 import { createEventId } from '../../../../src/domain/utils/EventId.js';
 import LogicalIndexBuildService from '../../../../src/domain/services/LogicalIndexBuildService.js';
 import LogicalIndexReader from '../../../../src/domain/services/LogicalIndexReader.js';
-import BitmapNeighborProvider from '../../../../src/domain/services/BitmapNeighborProvider.js';
+import MaterializedViewService from '../../../../src/domain/services/MaterializedViewService.js';
 
 /**
- * Regression test: after materialize(), the bitmap index must reflect the
- * latest state, NOT a stale checkpoint index.
- *
- * Previously, `hydrateCheckpointIndex` overwrote the freshly built index
- * with the checkpoint's stale one. This test ensures that neighbors()
- * returns edges from the latest state after materialization.
+ * @param {string[]} nodes
+ * @param {Array<[string, string, string]>} edges
  */
-describe('No stale index after materialize', () => {
-  it('index reflects S1 edges, not stale S0 checkpoint index', async () => {
-    // -- Build S0: A -> B
-    const sha = 'a'.repeat(40);
-    const writer = 'w1';
-    let lamport = 1;
-    let opIdx = 0;
+function buildState(nodes, edges) {
+  const state = createEmptyStateV5();
+  const writer = 'w1';
+  const sha = 'a'.repeat(40);
+  let lamport = 1;
+  let opIdx = 0;
 
-    const s0 = createEmptyStateV5();
-    for (const nodeId of ['A', 'B']) {
-      applyOpV2(s0, { type: 'NodeAdd', node: nodeId, dot: createDot(writer, lamport) },
-        createEventId(lamport, writer, sha, opIdx++));
-      lamport++;
-    }
-    applyOpV2(s0, { type: 'EdgeAdd', from: 'A', to: 'B', label: 'knows', dot: createDot(writer, lamport) },
-      createEventId(lamport, writer, sha, opIdx++));
+  for (const nodeId of nodes) {
+    applyOpV2(
+      state,
+      { type: 'NodeAdd', node: nodeId, dot: createDot(writer, lamport) },
+      createEventId(lamport, writer, sha, opIdx++),
+    );
     lamport++;
+  }
+  for (const [from, to, label] of edges) {
+    applyOpV2(
+      state,
+      { type: 'EdgeAdd', from, to, label, dot: createDot(writer, lamport) },
+      createEventId(lamport, writer, sha, opIdx++),
+    );
+    lamport++;
+  }
+  return state;
+}
 
-    // Build S0 index (this is the "checkpoint" index)
-    const buildService = new LogicalIndexBuildService();
-    const { tree: s0Tree } = buildService.build(s0);
+/**
+ * @param {import('../../../../src/domain/services/JoinReducer.js').WarpStateV5} state
+ */
+function buildLogicalIndex(state) {
+  const { tree } = new LogicalIndexBuildService().build(state);
+  return new LogicalIndexReader().loadFromTree(tree).toLogicalIndex();
+}
 
-    const s0Reader = new LogicalIndexReader();
-    s0Reader.loadFromTree(s0Tree);
-    const s0Index = s0Reader.toLogicalIndex();
-    const s0Provider = new BitmapNeighborProvider({ logicalIndex: s0Index });
+describe('materialize stale-checkpoint regression', () => {
+  it('does not overwrite freshly built index with stale checkpoint index data', async () => {
+    const staleCheckpointState = buildState(
+      ['A', 'B'],
+      [['A', 'B', 'knows']],
+    );
+    const latestState = buildState(
+      ['A', 'B', 'C'],
+      [['A', 'B', 'knows'], ['A', 'C', 'manages']],
+    );
+    const staleIndex = buildLogicalIndex(staleCheckpointState);
 
-    // Verify S0 provider sees A->B
-    const s0Edges = await s0Provider.getNeighbors('A', 'out');
-    expect(s0Edges).toHaveLength(1);
-    expect(s0Edges[0].neighborId).toBe('B');
+    let hydrateCalled = false;
+    /** @type {any} */
+    const context = {
+      _clock: { now: () => 0 },
+      _resolveCeiling: () => null,
+      _materializeWithCeiling: async () => {
+        throw new Error('ceiling path should not be used');
+      },
+      _loadLatestCheckpoint: async () => ({
+        schema: 4,
+        state: latestState,
+        frontier: new Map(),
+        indexShardOids: { 'meta_stale.cbor': 'oid_stale' },
+      }),
+      _loadPatchesSince: async () => [],
+      _maxObservedLamport: 0,
+      _cachedIndexTree: null,
+      _viewService: new MaterializedViewService(),
+      async _setMaterializedState(/** @type {import('../../../../src/domain/services/JoinReducer.js').WarpStateV5} */ state) {
+        const result = this._viewService.build(state);
+        this._cachedState = state;
+        this._logicalIndex = result.logicalIndex;
+        this._cachedIndexTree = result.tree;
+      },
+      // Old buggy path invoked this and replaced the fresh index with stale checkpoint data.
+      async hydrateCheckpointIndex() {
+        hydrateCalled = true;
+        this._logicalIndex = staleIndex;
+      },
+      getFrontier: async () => new Map(),
+      _checkpointPolicy: null,
+      _checkpointing: false,
+      _maybeRunGC: () => {},
+      _subscribers: [],
+      _lastNotifiedState: createEmptyStateV5(),
+      _notifySubscribers: () => {},
+      _logTiming: () => {},
+      _provenanceDegraded: false,
+      _cachedCeiling: null,
+      _cachedFrontier: null,
+      _lastFrontier: new Map(),
+      _patchesSinceCheckpoint: 0,
+    };
 
-    // -- Build S1: A -> B, A -> C, C -> A (add node C and two edges)
-    const s1 = createEmptyStateV5();
-    lamport = 1;
-    opIdx = 0;
-    for (const nodeId of ['A', 'B', 'C']) {
-      applyOpV2(s1, { type: 'NodeAdd', node: nodeId, dot: createDot(writer, lamport) },
-        createEventId(lamport, writer, sha, opIdx++));
-      lamport++;
-    }
-    for (const [from, to, label] of [['A', 'B', 'knows'], ['A', 'C', 'manages'], ['C', 'A', 'reports']]) {
-      applyOpV2(s1, { type: 'EdgeAdd', from, to, label, dot: createDot(writer, lamport) },
-        createEventId(lamport, writer, sha, opIdx++));
-      lamport++;
-    }
+    await /** @type {any} */ (materialize).call(context);
 
-    // Build S1 index (this is what _buildView produces)
-    const { tree: s1Tree } = buildService.build(s1);
-    const s1Reader = new LogicalIndexReader();
-    s1Reader.loadFromTree(s1Tree);
-    const s1Index = s1Reader.toLogicalIndex();
-    const s1Provider = new BitmapNeighborProvider({ logicalIndex: s1Index });
-
-    // S1 provider must see A -> B AND A -> C
-    const s1Edges = await s1Provider.getNeighbors('A', 'out');
-    expect(s1Edges).toHaveLength(2);
-    const neighbors = s1Edges.map(e => e.neighborId).sort();
+    expect(hydrateCalled).toBe(false);
+    const neighbors = context._logicalIndex
+      .getEdges('A', 'out')
+      .map((/** @type {{neighborId: string}} */ e) => e.neighborId)
+      .sort();
     expect(neighbors).toEqual(['B', 'C']);
-
-    // If we accidentally used the S0 provider (stale checkpoint), we'd only see B
-    const staleEdges = await s0Provider.getNeighbors('A', 'out');
-    expect(staleEdges).toHaveLength(1); // S0 only had A -> B
-
-    // This is the key assertion: S1's index must NOT equal S0's
-    expect(s1Edges.length).toBeGreaterThan(staleEdges.length);
   });
 });

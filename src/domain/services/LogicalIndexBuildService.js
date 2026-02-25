@@ -63,6 +63,18 @@ export default class LogicalIndexBuildService {
         visibleEdges.push(decodeEdgeKey(edgeKey));
       }
     }
+    visibleEdges.sort((a, b) => {
+      if (a.from !== b.from) {
+        return a.from < b.from ? -1 : 1;
+      }
+      if (a.to !== b.to) {
+        return a.to < b.to ? -1 : 1;
+      }
+      if (a.label !== b.label) {
+        return a.label < b.label ? -1 : 1;
+      }
+      return 0;
+    });
     const uniqueLabels = [...new Set(visibleEdges.map(e => e.label))].sort();
     for (const label of uniqueLabels) {
       indexBuilder.registerLabel(label);
