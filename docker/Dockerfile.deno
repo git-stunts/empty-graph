@@ -3,6 +3,7 @@
 # CLI and unit tests are excluded — they depend on vitest / node: built-ins.
 # Build context is the parent monorepo directory (context: ..).
 FROM denoland/deno:2.1.9
+ARG DENO_ALLOW_SCRIPTS="npm:roaring,npm:cbor-extract"
 USER root
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
@@ -21,14 +22,19 @@ RUN git init -q \
   && git commit --allow-empty -m "seed git-warp" >/dev/null
 # Install npm dependencies for Deno test entrypoints and allow native addon
 # lifecycle scripts so roaring/cbor-extract are prepared before test execution.
-RUN deno install \
-  --allow-scripts=npm:roaring@2.7.0,npm:cbor-extract@2.2.0 \
+RUN printf '%s\n' \
+  "import 'npm:roaring';" \
+  "import 'npm:cbor-extract';" \
+  > /tmp/deno-npm-bootstrap.ts \
+  && deno install \
+  --allow-scripts=${DENO_ALLOW_SCRIPTS} \
   --node-modules-dir=auto \
-  --entrypoint test/runtime/deno/lifecycle.test.ts \
-  test/runtime/deno/checkpoint.test.ts
+  --entrypoint /tmp/deno-npm-bootstrap.ts \
+  && rm /tmp/deno-npm-bootstrap.ts
 # Run tests as non-root to mirror CI and catch permission issues.
 # Also chown Deno's global cache so the deno user can fetch npm packages at runtime.
 RUN chown -R deno:deno /app /deno-dir
 USER deno
 ENV GIT_STUNTS_DOCKER=1
-CMD ["deno", "test", "--allow-all", "--allow-scripts=npm:roaring@2.7.0,npm:cbor-extract@2.2.0", "--node-modules-dir=auto", "test/runtime/deno/"]
+ENV DENO_ALLOW_SCRIPTS=${DENO_ALLOW_SCRIPTS}
+CMD ["sh", "-lc", "deno test --allow-all --allow-scripts=${DENO_ALLOW_SCRIPTS} --node-modules-dir=auto test/runtime/deno/"]
