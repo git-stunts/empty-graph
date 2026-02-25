@@ -14,8 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Deterministic node/label ID assignment** — OR-Set iteration order is non-deterministic, causing node globalIds and label IDs to vary across builds of the same state. `LogicalIndexBuildService.build()` now sorts alive nodes and unique edge labels before registration.
 - **Deterministic property index output** — `PropertyIndexBuilder.serialize()` now sorts entries by nodeId before CBOR encoding, ensuring identical output regardless of patch arrival order.
 - **No-`Buffer` runtime regression coverage** — added a regression test that sets `globalThis.Buffer = undefined` and verifies full index build, index read, and incremental shard updates still succeed.
+- **Deno runtime native-addon bootstrap** — `docker/Dockerfile.deno` now runs `deno install --entrypoint ... --node-modules-dir=auto --allow-scripts=...` so npm lifecycle scripts for `roaring` and `cbor-extract` execute during image build, preventing CI from running with uninitialized native addons.
 - **Traversal and verification regressions** — fixed `topologicalSort()` false cycle detection when output is truncated by `maxNodes`; `commonAncestors()` now reports aggregate stats across all internal BFS runs instead of only the last run; `verifyIndex()` now flags alive-bit mismatches even for isolated nodes with empty edge signatures.
 - **Fixture DSL Lamport fidelity** — `fixtureToState()` now honors explicit `props[].lamport` ticks, preventing fixture-order artifacts in property precedence tests.
+- **Determinism/regression test hardening** — added tests ensuring `LogicalBitmapIndexBuilder` does not duplicate shard mappings when re-registering nodes after `loadExistingMeta`, `LogicalIndexReader` unfiltered edges equal filtered-label unions with deterministic `(neighborId, label)` ordering, and `PropertyIndexBuilder` serializes equivalent property sets identically across operation orders.
 
 ### Changed
 
