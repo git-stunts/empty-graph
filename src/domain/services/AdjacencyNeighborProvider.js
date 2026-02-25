@@ -1,0 +1,136 @@
+/**
+ * NeighborProvider backed by in-memory adjacency maps.
+ *
+ * Wraps the { outgoing, incoming } Maps produced by _buildAdjacency().
+ * Adjacency lists are pre-sorted at construction by (neighborId, label)
+ * using strict codepoint comparison. Label filtering via Set.has() in-memory.
+ *
+ * @module domain/services/AdjacencyNeighborProvider
+ */
+
+import NeighborProviderPort from '../../ports/NeighborProviderPort.js';
+
+/**
+ * Comparator for (neighborId, label) sorting.
+ * Strict codepoint comparison — never localeCompare.
+ *
+ * @param {{ neighborId: string, label: string }} a
+ * @param {{ neighborId: string, label: string }} b
+ * @returns {number}
+ */
+function edgeCmp(a, b) {
+  if (a.neighborId < b.neighborId) { return -1; }
+  if (a.neighborId > b.neighborId) { return 1; }
+  if (a.label < b.label) { return -1; }
+  if (a.label > b.label) { return 1; }
+  return 0;
+}
+
+/**
+ * Pre-sorts all adjacency lists and freezes the result.
+ *
+ * @param {Map<string, Array<{neighborId: string, label: string}>>} adjMap
+ * @returns {Map<string, Array<{neighborId: string, label: string}>>}
+ */
+function sortAdjacencyMap(adjMap) {
+  for (const [, edges] of adjMap) {
+    edges.sort(edgeCmp);
+  }
+  return adjMap;
+}
+
+/**
+ * Filters an edge list by a label set. Returns the original array when
+ * no filter is provided.
+ *
+ * @param {Array<{neighborId: string, label: string}>} edges
+ * @param {Set<string>|undefined} labels
+ * @returns {Array<{neighborId: string, label: string}>}
+ */
+function filterByLabels(edges, labels) {
+  if (!labels) {
+    return edges;
+  }
+  return edges.filter((e) => labels.has(e.label));
+}
+
+/**
+ * Merges two pre-sorted edge lists, deduplicating by (neighborId, label).
+ *
+ * @param {Array<{neighborId: string, label: string}>} a
+ * @param {Array<{neighborId: string, label: string}>} b
+ * @returns {Array<{neighborId: string, label: string}>}
+ */
+function mergeSorted(a, b) {
+  const result = [];
+  let i = 0;
+  let j = 0;
+  while (i < a.length && j < b.length) {
+    const cmp = edgeCmp(a[i], b[j]);
+    if (cmp < 0) {
+      result.push(a[i++]);
+    } else if (cmp > 0) {
+      result.push(b[j++]);
+    } else {
+      // Duplicate — take one, skip both
+      result.push(a[i++]);
+      j++;
+    }
+  }
+  while (i < a.length) { result.push(a[i++]); }
+  while (j < b.length) { result.push(b[j++]); }
+  return result;
+}
+
+export default class AdjacencyNeighborProvider extends NeighborProviderPort {
+  /**
+   * @param {Object} params
+   * @param {Map<string, Array<{neighborId: string, label: string}>>} params.outgoing
+   * @param {Map<string, Array<{neighborId: string, label: string}>>} params.incoming
+   * @param {Set<string>} [params.aliveNodes] - Set of alive nodeIds for hasNode()
+   */
+  constructor({ outgoing, incoming, aliveNodes }) {
+    super();
+    /** @type {Map<string, Array<{neighborId: string, label: string}>>} */
+    this._outgoing = sortAdjacencyMap(outgoing);
+    /** @type {Map<string, Array<{neighborId: string, label: string}>>} */
+    this._incoming = sortAdjacencyMap(incoming);
+    /** @type {Set<string>|undefined} */
+    this._aliveNodes = aliveNodes;
+  }
+
+  /**
+   * @param {string} nodeId
+   * @param {import('../../ports/NeighborProviderPort.js').Direction} direction
+   * @param {import('../../ports/NeighborProviderPort.js').NeighborOptions} [options]
+   * @returns {Promise<import('../../ports/NeighborProviderPort.js').NeighborEdge[]>}
+   */
+  async getNeighbors(nodeId, direction, options) {
+    const labels = options?.labels;
+    const outEdges = filterByLabels(this._outgoing.get(nodeId) || [], labels);
+    const inEdges = filterByLabels(this._incoming.get(nodeId) || [], labels);
+
+    if (direction === 'out') {
+      return await Promise.resolve(outEdges);
+    }
+    if (direction === 'in') {
+      return await Promise.resolve(inEdges);
+    }
+    // 'both': merge two pre-sorted lists, dedup by (neighborId, label)
+    return await Promise.resolve(mergeSorted(outEdges, inEdges));
+  }
+
+  /** @param {string} nodeId */
+  async hasNode(nodeId) {
+    if (this._aliveNodes) {
+      return await Promise.resolve(this._aliveNodes.has(nodeId));
+    }
+    // Fallback: node has edges
+    return await Promise.resolve(this._outgoing.has(nodeId) || this._incoming.has(nodeId));
+  }
+
+  /** @returns {'sync'} */
+  get latencyClass() {
+    return 'sync';
+  }
+}

@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`NeighborProviderPort`** (`src/ports/NeighborProviderPort.js`) — abstract interface for neighbor lookups on any graph. Methods: `getNeighbors(nodeId, direction, options)`, `hasNode(nodeId)`, `latencyClass` getter. Direction: `'out' | 'in' | 'both'`. Edges sorted by `(neighborId, label)` via strict codepoint comparison.
+- **`AdjacencyNeighborProvider`** (`src/domain/services/AdjacencyNeighborProvider.js`) — in-memory provider wrapping `{ outgoing, incoming }` adjacency maps. Pre-sorts at construction. `latencyClass: 'sync'`. Deduplicates `'both'` direction by `(neighborId, label)`.
+- **`GraphTraversal`** (`src/domain/services/GraphTraversal.js`) — unified traversal engine accepting any `NeighborProviderPort`. 11 algorithms: BFS, DFS, shortestPath, isReachable, weightedShortestPath (Dijkstra), aStarSearch, bidirectionalAStar, topologicalSort, connectedComponent, commonAncestors, weightedLongestPath. All methods accept `AbortSignal`, `maxNodes`, `maxDepth`, `hooks`, and return `stats`. Deterministic: BFS level-sorted lex, DFS reverse-push lex, PQ tie-break by lex nodeId, Kahn zero-indegree sorted lex. Equal-cost predecessor update rule enforced.
+- **`BitmapNeighborProvider`** (`src/domain/services/BitmapNeighborProvider.js`) — commit DAG provider wrapping `BitmapIndexReader`. Commit DAG edges use `label = ''` (empty string sentinel). `latencyClass: 'async-local'`.
+- **`MinHeap` tie-breaking** — optional `tieBreaker` comparator in constructor. Used by Dijkstra/A* for deterministic lex nodeId ordering on equal priority. Backward compatible.
+
+### Changed
+
+- **`LogicalTraversal`** — deprecated; now delegates to `GraphTraversal + AdjacencyNeighborProvider` internally. Public API unchanged. New code should use `GraphTraversal` directly.
+
 ## [11.5.3] — 2026-02-22 — Mermaid Diagram Migration
 
 ### Changed
