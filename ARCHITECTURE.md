@@ -311,9 +311,9 @@ Neighbor lookup abstraction:
 
 Persistent seek-cache abstraction used by `materializeAt` and cursor-bound materialization:
 
-- `get(graphName, key)` — returns `{ buffer, indexTreeOid? } | null` for a cached state snapshot
-- `set(graphName, key, buffer, { indexTreeOid? })` — stores a snapshot with optional index-tree metadata
-- `delete(graphName, key)` / `clear(graphName)` — invalidates stale seek-cache entries
+- `get(key)` — returns `{ buffer, indexTreeOid? } | null` for a cached state snapshot
+- `set(key, buffer, { indexTreeOid? })` — stores a snapshot with optional index-tree metadata
+- `delete(key)` / `clear()` — invalidates stale seek-cache entries
 
 Implementations must preserve the optional `indexTreeOid` metadata so index hydration can skip full rebuilds on cache hits.
 
