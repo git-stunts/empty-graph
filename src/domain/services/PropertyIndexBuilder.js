@@ -53,8 +53,10 @@ export default class PropertyIndexBuilder {
     const tree = {};
     for (const [shardKey, shard] of this._shards) {
       // Encode as array of [nodeId, props] pairs to avoid __proto__ key issues
-      // when CBOR decodes into plain objects.
-      const entries = [...shard.entries()].map(([nodeId, props]) => [nodeId, props]);
+      // when CBOR decodes into plain objects. Sorted by nodeId for determinism.
+      const entries = [...shard.entries()]
+        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+        .map(([nodeId, props]) => [nodeId, props]);
       tree[`props_${shardKey}.cbor`] = Buffer.from(this._codec.encode(entries));
     }
     return tree;
