@@ -1,0 +1,129 @@
+import { describe, it, expect } from 'vitest';
+import MaterializedViewService from '../../../../src/domain/services/MaterializedViewService.js';
+import { createEmptyStateV5, applyOpV2 } from '../../../../src/domain/services/JoinReducer.js';
+import { createDot } from '../../../../src/domain/crdt/Dot.js';
+import { createEventId } from '../../../../src/domain/utils/EventId.js';
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function buildTestState() {
+  const state = createEmptyStateV5();
+  const writer = 'w1';
+  const sha = 'a'.repeat(40);
+  let opIdx = 0;
+  let lamport = 1;
+
+  for (const nodeId of ['A', 'B', 'C', 'D']) {
+    const dot = createDot(writer, lamport);
+    const eventId = createEventId(lamport, writer, sha, opIdx++);
+    applyOpV2(state, { type: 'NodeAdd', node: nodeId, dot }, eventId);
+    lamport++;
+  }
+
+  for (const { from, to, label } of [
+    { from: 'A', to: 'B', label: 'manages' },
+    { from: 'A', to: 'C', label: 'owns' },
+    { from: 'B', to: 'D', label: 'uses' },
+    { from: 'C', to: 'D', label: 'refs' },
+  ]) {
+    const dot = createDot(writer, lamport);
+    const eventId = createEventId(lamport, writer, sha, opIdx++);
+    applyOpV2(state, { type: 'EdgeAdd', from, to, label, dot }, eventId);
+    lamport++;
+  }
+
+  return state;
+}
+
+// ── Tests ────────────────────────────────────────────────────────────────────
+
+describe('MaterializedViewService.verifyIndex', () => {
+  it('reports all passed for a correct index', () => {
+    const service = new MaterializedViewService();
+    const state = buildTestState();
+    const { logicalIndex } = service.build(state);
+
+    const result = service.verifyIndex({
+      state,
+      logicalIndex,
+      options: { sampleRate: 1.0, seed: 42 },
+    });
+
+    expect(result.failed).toBe(0);
+    expect(result.passed).toBeGreaterThan(0);
+    expect(result.errors).toEqual([]);
+    expect(result.seed).toBe(42);
+  });
+
+  it('detects mismatch when index is built from different state', () => {
+    const service = new MaterializedViewService();
+    const state = buildTestState();
+
+    // Build index from a smaller state (only 2 nodes, no edges)
+    const smallState = createEmptyStateV5();
+    const writer = 'w1';
+    const sha = 'b'.repeat(40);
+    let opIdx = 0;
+    let lamport = 1;
+    for (const nodeId of ['A', 'B']) {
+      const dot = createDot(writer, lamport);
+      const eventId = createEventId(lamport, writer, sha, opIdx++);
+      applyOpV2(smallState, { type: 'NodeAdd', node: nodeId, dot }, eventId);
+      lamport++;
+    }
+    const { logicalIndex } = service.build(smallState);
+
+    // Verify against the full state — bitmap has no edges for A, B
+    const result = service.verifyIndex({
+      state,
+      logicalIndex,
+      options: { sampleRate: 1.0, seed: 99 },
+    });
+
+    expect(result.failed).toBeGreaterThan(0);
+    expect(result.errors.length).toBeGreaterThan(0);
+  });
+
+  it('produces reproducible results with the same seed', () => {
+    const service = new MaterializedViewService();
+    const state = buildTestState();
+    const { logicalIndex } = service.build(state);
+
+    const opts = { sampleRate: 0.5, seed: 12345 };
+
+    const r1 = service.verifyIndex({ state, logicalIndex, options: opts });
+    const r2 = service.verifyIndex({ state, logicalIndex, options: opts });
+
+    expect(r1.passed).toBe(r2.passed);
+    expect(r1.failed).toBe(r2.failed);
+    expect(r1.seed).toBe(r2.seed);
+    expect(r1.errors).toEqual(r2.errors);
+  });
+
+  it('uses default seed and sampleRate when options omitted', () => {
+    const service = new MaterializedViewService();
+    const state = buildTestState();
+    const { logicalIndex } = service.build(state);
+
+    const result = service.verifyIndex({ state, logicalIndex });
+
+    expect(typeof result.seed).toBe('number');
+    expect(result.passed + result.failed).toBeGreaterThanOrEqual(0);
+  });
+
+  it('handles empty state without errors', () => {
+    const service = new MaterializedViewService();
+    const state = createEmptyStateV5();
+    const { logicalIndex } = service.build(state);
+
+    const result = service.verifyIndex({
+      state,
+      logicalIndex,
+      options: { sampleRate: 1.0, seed: 1 },
+    });
+
+    expect(result.passed).toBe(0);
+    expect(result.failed).toBe(0);
+    expect(result.errors).toEqual([]);
+  });
+});

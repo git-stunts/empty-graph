@@ -11,6 +11,8 @@
 import defaultCodec from '../utils/defaultCodec.js';
 import computeShardKey from '../utils/shardKey.js';
 import { getRoaringBitmap32 } from '../utils/roaring.js';
+import { orsetContains, orsetElements } from '../crdt/ORSet.js';
+import { decodeEdgeKey } from './KeyCodec.js';
 
 /**
  * @typedef {Object} MetaShard
@@ -42,7 +44,7 @@ export default class IncrementalIndexUpdater {
    * @param {(path: string) => Buffer|undefined} params.loadShard
    * @returns {Record<string, Buffer>} dirty shard buffers (path -> Buffer)
    */
-  computeDirtyShards({ diff, state: _state, loadShard }) {
+  computeDirtyShards({ diff, state, loadShard }) {
     const dirtyKeys = this._collectDirtyShardKeys(diff);
     if (dirtyKeys.size === 0) {
       return {};
@@ -68,12 +70,49 @@ export default class IncrementalIndexUpdater {
     /** @type {Map<string, EdgeShardData>} */
     const revCache = new Map();
 
+    // Purge edge bitmaps for removed nodes (dangling edge elimination).
+    // An edge whose endpoint is dead must not appear in the index, even
+    // if the edge itself is still alive in the ORSet.
+    for (const nodeId of diff.nodesRemoved) {
+      this._purgeNodeEdges(nodeId, metaCache, fwdCache, revCache, labels, loadShard);
+    }
+
+    // Filter edgesAdded by endpoint alive-ness (matches edgeVisibleV5).
     for (const edge of diff.edgesAdded) {
+      if (!orsetContains(state.nodeAlive, edge.from) || !orsetContains(state.nodeAlive, edge.to)) {
+        continue;
+      }
       labelsDirty = this._ensureLabel(edge.label, labels) || labelsDirty;
       this._handleEdgeAdd(edge, labels, metaCache, fwdCache, revCache, loadShard);
     }
     for (const edge of diff.edgesRemoved) {
       this._handleEdgeRemove(edge, labels, metaCache, fwdCache, revCache, loadShard);
+    }
+
+    // Restore edges for re-added nodes. When a node transitions
+    // not-alive -> alive, edges touching it that are alive in the ORSet
+    // become visible again. The diff only tracks explicit EdgeAdd ops,
+    // not these implicit visibility transitions.
+    if (diff.nodesAdded.length > 0) {
+      const addedSet = new Set(diff.nodesAdded);
+      const diffEdgeSet = new Set(
+        diff.edgesAdded.map((e) => `${e.from}\0${e.to}\0${e.label}`),
+      );
+      for (const edgeKey of orsetElements(state.edgeAlive)) {
+        const { from, to, label } = decodeEdgeKey(edgeKey);
+        if (!addedSet.has(from) && !addedSet.has(to)) {
+          continue;
+        }
+        if (!orsetContains(state.nodeAlive, from) || !orsetContains(state.nodeAlive, to)) {
+          continue;
+        }
+        const diffKey = `${from}\0${to}\0${label}`;
+        if (diffEdgeSet.has(diffKey)) {
+          continue;
+        }
+        labelsDirty = this._ensureLabel(label, labels) || labelsDirty;
+        this._handleEdgeAdd({ from, to, label }, labels, metaCache, fwdCache, revCache, loadShard);
+      }
     }
 
     this._flushMeta(metaCache, out);
@@ -158,6 +197,127 @@ export default class IncrementalIndexUpdater {
     if (gid !== undefined) {
       meta.aliveBitmap.remove(gid);
     }
+  }
+
+  /**
+   * Purges all edge bitmap entries that reference a removed node.
+   *
+   * When a node is removed, edges that touch it become invisible (even if the
+   * edge itself is still alive in the ORSet). The full rebuild skips these via
+   * edgeVisibleV5; the incremental path must explicitly purge them.
+   *
+   * Scans the alive edges in the ORSet for any that reference the dead node,
+   * then removes those entries from the forward and reverse edge bitmaps.
+   *
+   * @param {string} deadNodeId
+   * @param {Map<string, MetaShard>} metaCache
+   * @param {Map<string, EdgeShardData>} fwdCache
+   * @param {Map<string, EdgeShardData>} revCache
+   * @param {Record<string, number>} labels
+   * @param {(path: string) => Buffer|undefined} loadShard
+   * @private
+   */
+  _purgeNodeEdges(deadNodeId, metaCache, fwdCache, revCache, labels, loadShard) {
+    const deadMeta = this._getOrLoadMeta(computeShardKey(deadNodeId), metaCache, loadShard);
+    const deadGid = this._findGlobalId(deadMeta, deadNodeId);
+    if (deadGid === undefined) {
+      return;
+    }
+
+    // Purge the dead node's own fwd/rev shard entries by zeroing out its
+    // bitmap rows and clearing its globalId from peer bitmaps.
+    const shardKey = computeShardKey(deadNodeId);
+    const RoaringBitmap32 = getRoaringBitmap32();
+
+    // Clear the dead node's own outgoing edges (forward shard)
+    const fwdData = this._getOrLoadEdgeShard(fwdCache, 'fwd', shardKey, loadShard);
+    for (const bucket of Object.keys(fwdData)) {
+      const gidStr = String(deadGid);
+      if (fwdData[bucket] && fwdData[bucket][gidStr]) {
+        // Before clearing, find the targets so we can clean reverse bitmaps
+        const targets = RoaringBitmap32.deserialize(
+          Buffer.from(fwdData[bucket][gidStr]),
+          true,
+        ).toArray();
+
+        // Clear this node's outgoing bitmap
+        const empty = new RoaringBitmap32();
+        fwdData[bucket][gidStr] = empty.serialize(true);
+
+        // Remove deadGid from each target's reverse bitmap
+        for (const targetGid of targets) {
+          const targetNodeId = this._findNodeIdByGlobal(targetGid, metaCache, loadShard);
+          if (targetNodeId) {
+            const targetShard = computeShardKey(targetNodeId);
+            const revData = this._getOrLoadEdgeShard(revCache, 'rev', targetShard, loadShard);
+            const targetGidStr = String(targetGid);
+            if (revData[bucket] && revData[bucket][targetGidStr]) {
+              const bm = RoaringBitmap32.deserialize(
+                Buffer.from(revData[bucket][targetGidStr]),
+                true,
+              );
+              bm.remove(deadGid);
+              revData[bucket][targetGidStr] = bm.serialize(true);
+            }
+          }
+        }
+      }
+    }
+
+    // Clear the dead node's own incoming edges (reverse shard)
+    const revData = this._getOrLoadEdgeShard(revCache, 'rev', shardKey, loadShard);
+    for (const bucket of Object.keys(revData)) {
+      const gidStr = String(deadGid);
+      if (revData[bucket] && revData[bucket][gidStr]) {
+        const sources = RoaringBitmap32.deserialize(
+          Buffer.from(revData[bucket][gidStr]),
+          true,
+        ).toArray();
+
+        const empty = new RoaringBitmap32();
+        revData[bucket][gidStr] = empty.serialize(true);
+
+        // Remove deadGid from each source's forward bitmap
+        for (const sourceGid of sources) {
+          const sourceNodeId = this._findNodeIdByGlobal(sourceGid, metaCache, loadShard);
+          if (sourceNodeId) {
+            const sourceShard = computeShardKey(sourceNodeId);
+            const fwdDataPeer = this._getOrLoadEdgeShard(fwdCache, 'fwd', sourceShard, loadShard);
+            const sourceGidStr = String(sourceGid);
+            if (fwdDataPeer[bucket] && fwdDataPeer[bucket][sourceGidStr]) {
+              const bm = RoaringBitmap32.deserialize(
+                Buffer.from(fwdDataPeer[bucket][sourceGidStr]),
+                true,
+              );
+              bm.remove(deadGid);
+              fwdDataPeer[bucket][sourceGidStr] = bm.serialize(true);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * Reverse-looks up a nodeId from a globalId by scanning all loaded meta shards.
+   *
+   * @param {number} globalId
+   * @param {Map<string, MetaShard>} metaCache
+   * @param {(path: string) => Buffer|undefined} loadShard
+   * @returns {string|undefined}
+   * @private
+   */
+  _findNodeIdByGlobal(globalId, metaCache, loadShard) {
+    // The shard key is encoded in the upper byte of the globalId
+    const shardByte = (globalId >>> 24) & 0xff;
+    const shardKey = shardByte.toString(16).padStart(2, '0');
+    const meta = this._getOrLoadMeta(shardKey, metaCache, loadShard);
+    for (const [nodeId, gid] of meta.nodeToGlobal) {
+      if (gid === globalId) {
+        return nodeId;
+      }
+    }
+    return undefined;
   }
 
   // ── Label operations ──────────────────────────────────────────────────────

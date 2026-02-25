@@ -2,11 +2,12 @@
  * Orchestrates building, persisting, and loading a MaterializedView
  * composed of a LogicalIndex + PropertyIndexReader.
  *
- * Four entry points:
+ * Five entry points:
  * - `build(state)` — from a WarpStateV5 (in-memory)
  * - `persistIndexTree(tree, persistence)` — write shards to Git storage
  * - `loadFromOids(shardOids, storage)` — hydrate from blob OIDs
  * - `applyDiff(existingTree, diff, state)` — incremental update from PatchDiff
+ * - `verifyIndex({ state, logicalIndex, options })` — cross-provider verification
  *
  * @module domain/services/MaterializedViewService
  */
@@ -17,6 +18,8 @@ import LogicalIndexBuildService from './LogicalIndexBuildService.js';
 import LogicalIndexReader from './LogicalIndexReader.js';
 import PropertyIndexReader from './PropertyIndexReader.js';
 import IncrementalIndexUpdater from './IncrementalIndexUpdater.js';
+import { orsetElements, orsetContains } from '../crdt/ORSet.js';
+import { decodeEdgeKey } from './KeyCodec.js';
 
 /**
  * @typedef {import('./BitmapNeighborProvider.js').LogicalIndex} LogicalIndex
@@ -34,6 +37,22 @@ import IncrementalIndexUpdater from './IncrementalIndexUpdater.js';
  * @typedef {Object} LoadResult
  * @property {LogicalIndex} logicalIndex
  * @property {PropertyIndexReader} propertyReader
+ */
+
+/**
+ * @typedef {Object} VerifyError
+ * @property {string} nodeId
+ * @property {string} direction
+ * @property {string[]} expected
+ * @property {string[]} actual
+ */
+
+/**
+ * @typedef {Object} VerifyResult
+ * @property {number} passed
+ * @property {number} failed
+ * @property {VerifyError[]} errors
+ * @property {number} seed
  */
 
 /**
@@ -81,6 +100,91 @@ function partitionShardOids(shardOids) {
     }
   }
   return { indexOids, propOids };
+}
+
+/**
+ * Mulberry32 PRNG — deterministic 32-bit generator from a seed.
+ *
+ * @param {number} seed
+ * @returns {() => number} Returns values in [0, 1)
+ */
+function mulberry32(seed) {
+  let t = (seed | 0) + 0x6D2B79F5;
+  return () => {
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * Selects a deterministic sample of nodes using a seeded PRNG.
+ *
+ * @param {string[]} allNodes
+ * @param {number} sampleRate - Fraction of nodes to select (0-1)
+ * @param {number} seed
+ * @returns {string[]}
+ */
+function sampleNodes(allNodes, sampleRate, seed) {
+  if (sampleRate >= 1) {
+    return allNodes;
+  }
+  const rng = mulberry32(seed);
+  return allNodes.filter(() => rng() < sampleRate);
+}
+
+/**
+ * Builds adjacency maps from state for ground-truth verification.
+ *
+ * @param {import('../services/JoinReducer.js').WarpStateV5} state
+ * @returns {{ outgoing: Map<string, string[]>, incoming: Map<string, string[]> }}
+ */
+function buildGroundTruthAdjacency(state) {
+  const outgoing = new Map();
+  const incoming = new Map();
+
+  for (const edgeKey of orsetElements(state.edgeAlive)) {
+    const { from, to } = decodeEdgeKey(edgeKey);
+    if (!orsetContains(state.nodeAlive, from) || !orsetContains(state.nodeAlive, to)) {
+      continue;
+    }
+    if (!outgoing.has(from)) {
+      outgoing.set(from, []);
+    }
+    outgoing.get(from).push(to);
+    if (!incoming.has(to)) {
+      incoming.set(to, []);
+    }
+    incoming.get(to).push(from);
+  }
+
+  return { outgoing, incoming };
+}
+
+/**
+ * Compares bitmap index neighbors against ground-truth adjacency for one node.
+ *
+ * @param {Object} params
+ * @param {string} params.nodeId
+ * @param {string} params.direction
+ * @param {LogicalIndex} params.logicalIndex
+ * @param {Map<string, string[]>} params.truthMap
+ * @returns {VerifyError|null}
+ */
+function compareNodeDirection({ nodeId, direction, logicalIndex, truthMap }) {
+  const bitmapEdges = logicalIndex.getEdges(nodeId, direction);
+  const actual = bitmapEdges.map((e) => e.neighborId).sort();
+  const expected = (truthMap.get(nodeId) || []).slice().sort();
+
+  if (actual.length !== expected.length) {
+    return { nodeId, direction, expected, actual };
+  }
+  for (let i = 0; i < actual.length; i++) {
+    if (actual[i] !== expected[i]) {
+      return { nodeId, direction, expected, actual };
+    }
+  }
+  return null;
 }
 
 export default class MaterializedViewService {
@@ -187,5 +291,43 @@ export default class MaterializedViewService {
       propertyReader,
       receipt: /** @type {Record<string, unknown>} */ (receipt),
     };
+  }
+
+  /**
+   * Verifies index integrity by sampling alive nodes and comparing
+   * bitmap neighbor queries against adjacency-based ground truth.
+   *
+   * @param {Object} params
+   * @param {import('./JoinReducer.js').WarpStateV5} params.state
+   * @param {LogicalIndex} params.logicalIndex
+   * @param {Object} [params.options]
+   * @param {number} [params.options.seed] - PRNG seed for reproducible sampling
+   * @param {number} [params.options.sampleRate] - Fraction of nodes to check (0-1, default 0.1)
+   * @returns {VerifyResult}
+   */
+  verifyIndex({ state, logicalIndex, options = {} }) {
+    const seed = options.seed ?? (Date.now() & 0x7FFFFFFF);
+    const sampleRate = options.sampleRate ?? 0.1;
+    const allNodes = orsetElements(state.nodeAlive);
+    const sampled = sampleNodes(allNodes, sampleRate, seed);
+    const truth = buildGroundTruthAdjacency(state);
+
+    /** @type {VerifyError[]} */
+    const errors = [];
+    let passed = 0;
+
+    for (const nodeId of sampled) {
+      for (const direction of ['out', 'in']) {
+        const map = direction === 'out' ? truth.outgoing : truth.incoming;
+        const err = compareNodeDirection({ nodeId, direction, logicalIndex, truthMap: map });
+        if (err) {
+          errors.push(err);
+        } else {
+          passed++;
+        }
+      }
+    }
+
+    return { passed, failed: errors.length, errors, seed };
   }
 }
