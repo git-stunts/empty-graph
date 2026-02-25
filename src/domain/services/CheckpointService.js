@@ -29,6 +29,53 @@ import { encodeEdgeKey, encodePropKey, CONTENT_PROPERTY_KEY, decodePropKey, isEd
 import { ProvenanceIndex } from './ProvenanceIndex.js';
 
 // ============================================================================
+// Internal Helpers
+// ============================================================================
+
+/**
+ * Writes index tree shards as blobs and creates a subtree.
+ *
+ * @param {Record<string, Buffer>} indexTree - path → buffer mapping
+ * @param {{ writeBlob(buf: Buffer): Promise<string>, writeTree(entries: string[]): Promise<string> }} persistence
+ * @returns {Promise<string>} subtree OID
+ */
+async function writeIndexSubtree(indexTree, persistence) {
+  const paths = Object.keys(indexTree).sort();
+  const oids = await Promise.all(
+    paths.map((p) => persistence.writeBlob(indexTree[p]))
+  );
+
+  const entries = paths.map(
+    (path, i) => `100644 blob ${oids[i]}\t${path}`
+  );
+  return await persistence.writeTree(entries);
+}
+
+/**
+ * Partitions readTreeOids output into core entries and index shard OIDs.
+ *
+ * Entries prefixed with `index/` are stripped and collected separately.
+ *
+ * @param {Record<string, string>} rawOids
+ * @returns {{ treeOids: Record<string, string>, indexShardOids: Record<string, string> }}
+ */
+function partitionTreeOids(rawOids) {
+  /** @type {Record<string, string>} */
+  const treeOids = {};
+  /** @type {Record<string, string>} */
+  const indexShardOids = {};
+
+  for (const [path, oid] of Object.entries(rawOids)) {
+    if (path.startsWith('index/')) {
+      indexShardOids[path.slice(6)] = oid;
+    } else {
+      treeOids[path] = oid;
+    }
+  }
+  return { treeOids, indexShardOids };
+}
+
+// ============================================================================
 // Checkpoint Creation (WARP spec Section 10)
 // ============================================================================
 
@@ -57,8 +104,8 @@ import { ProvenanceIndex } from './ProvenanceIndex.js';
  * @param {import('../../ports/CryptoPort.js').default} [options.crypto] - CryptoPort for state hash computation
  * @returns {Promise<string>} The checkpoint commit SHA
  */
-export async function create({ persistence, graphName, state, frontier, parents = [], compact = true, provenanceIndex, codec, crypto }) {
-  return await createV5({ persistence, graphName, state, frontier, parents, compact, provenanceIndex, codec, crypto });
+export async function create({ persistence, graphName, state, frontier, parents = [], compact = true, provenanceIndex, codec, crypto, indexTree }) {
+  return await createV5({ persistence, graphName, state, frontier, parents, compact, provenanceIndex, codec, crypto, indexTree });
 }
 
 /**
@@ -84,6 +131,7 @@ export async function create({ persistence, graphName, state, frontier, parents 
  * @param {import('./ProvenanceIndex.js').ProvenanceIndex} [options.provenanceIndex] - Optional provenance index to persist
  * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for CBOR serialization
  * @param {import('../../ports/CryptoPort.js').default} [options.crypto] - CryptoPort for state hash computation
+ * @param {Record<string, Buffer>} [options.indexTree] - Optional materialized view index tree (triggers schema 4)
  * @returns {Promise<string>} The checkpoint commit SHA
  */
 export async function createV5({
@@ -96,6 +144,7 @@ export async function createV5({
   provenanceIndex,
   codec,
   crypto,
+  indexTree,
 }) {
   // 1. Compute appliedVV from actual state dots
   const appliedVV = computeAppliedVV(state);
@@ -132,7 +181,13 @@ export async function createV5({
     provenanceIndexBlobOid = await persistence.writeBlob(/** @type {Buffer} */ (provenanceIndexBuffer));
   }
 
-  // 6c. Collect content blob OIDs from state properties for GC anchoring.
+  // 6c. Optionally write index subtree (schema 4)
+  let indexSubtreeOid = null;
+  if (indexTree) {
+    indexSubtreeOid = await writeIndexSubtree(indexTree, persistence);
+  }
+
+  // 6d. Collect content blob OIDs from state properties for GC anchoring.
   // If patch commits are ever pruned, content blobs remain reachable via
   // the checkpoint tree. Without this, git gc would nuke content blobs
   // whose only anchor was the (now-pruned) patch commit tree.
@@ -159,6 +214,11 @@ export async function createV5({
     treeEntries.push(`100644 blob ${provenanceIndexBlobOid}\tprovenanceIndex.cbor`);
   }
 
+  // Add index subtree if present (schema 4)
+  if (indexSubtreeOid) {
+    treeEntries.push(`040000 tree ${indexSubtreeOid}\tindex`);
+  }
+
   // Add content blob anchors
   for (const oid of contentOids) {
     treeEntries.push(`100644 blob ${oid}\t_content_${oid}`);
@@ -179,7 +239,7 @@ export async function createV5({
     stateHash,
     frontierOid: frontierBlobOid,
     indexOid: treeOid,
-    schema: 2,
+    schema: indexTree ? 4 : 2,
   });
 
   // 9. Create the checkpoint commit
@@ -212,7 +272,7 @@ export async function createV5({
  * @param {string} checkpointSha - The checkpoint commit SHA to load
  * @param {Object} [options] - Load options
  * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for CBOR deserialization
- * @returns {Promise<{state: import('./JoinReducer.js').WarpStateV5, frontier: import('./Frontier.js').Frontier, stateHash: string, schema: number, appliedVV: Map<string, number>|null, provenanceIndex?: import('./ProvenanceIndex.js').ProvenanceIndex}>} The loaded checkpoint data
+ * @returns {Promise<{state: import('./JoinReducer.js').WarpStateV5, frontier: import('./Frontier.js').Frontier, stateHash: string, schema: number, appliedVV: Map<string, number>|null, provenanceIndex?: import('./ProvenanceIndex.js').ProvenanceIndex, indexShardOids: Record<string, string>|null}>} The loaded checkpoint data
  * @throws {Error} If checkpoint is schema:1 (migration required)
  */
 export async function loadCheckpoint(persistence, checkpointSha, { codec } = {}) {
@@ -220,16 +280,19 @@ export async function loadCheckpoint(persistence, checkpointSha, { codec } = {})
   const message = await persistence.showNode(checkpointSha);
   const decoded = /** @type {{ schema: number, stateHash: string, indexOid: string }} */ (decodeCheckpointMessage(message));
 
-  // 2. Reject schema:1 checkpoints - migration required
-  if (decoded.schema !== 2 && decoded.schema !== 3) {
+  // 2. Reject unsupported schemas - migration required for schema:1
+  if (decoded.schema !== 2 && decoded.schema !== 3 && decoded.schema !== 4) {
     throw new Error(
       `Checkpoint ${checkpointSha} is schema:${decoded.schema}. ` +
-        `Only schema:2 and schema:3 checkpoints are supported. Please migrate using MigrationService.`
+        `Only schema:2, schema:3, and schema:4 checkpoints are supported. Please migrate using MigrationService.`
     );
   }
 
   // 3. Read tree entries via the indexOid from the message (points to the tree)
-  const treeOids = await persistence.readTreeOids(decoded.indexOid);
+  const rawTreeOids = await persistence.readTreeOids(decoded.indexOid);
+
+  // 3b. Partition: entries with 'index/' prefix are bitmap index shards
+  const { treeOids, indexShardOids } = partitionTreeOids(rawTreeOids);
 
   // 4. Read frontier.cbor blob
   const frontierOid = treeOids['frontier.cbor'];
@@ -272,6 +335,7 @@ export async function loadCheckpoint(persistence, checkpointSha, { codec } = {})
     schema: decoded.schema,
     appliedVV,
     provenanceIndex: provenanceIndex || undefined,
+    indexShardOids: Object.keys(indexShardOids).length > 0 ? indexShardOids : null,
   };
 }
 

@@ -60,8 +60,8 @@ export function encodeCheckpointMessage({ graph, stateHash, frontierOid, indexOi
     [TRAILER_KEYS.schema]: String(schema),
   };
 
-  // Add checkpoint version marker for V5 format (schema:2 and schema:3)
-  if (schema === 2 || schema === 3) {
+  // Add checkpoint version marker for V5 format (schema:2, schema:3, schema:4)
+  if (schema === 2 || schema === 3 || schema === 4) {
     trailers[TRAILER_KEYS.checkpointVersion] = 'v5';
   }
 

@@ -1014,4 +1014,163 @@ describe('CheckpointService', () => {
       });
     });
   });
+
+  describe('schema 4 (index subtree)', () => {
+    it('creates schema:4 checkpoint when indexTree is provided', async () => {
+      const state = createEmptyStateV5();
+      const dot = createDot('writer1', 1);
+      orsetAdd(state.nodeAlive, 'x', dot);
+
+      const frontier = createFrontier();
+      updateFrontier(frontier, 'writer1', makeOid('aaa'));
+
+      const blobStore = new Map();
+      let blobCounter = 0;
+      mockPersistence.writeBlob.mockImplementation((buf) => {
+        const oid = makeOid(`b${String(blobCounter++).padStart(3, '0')}`);
+        blobStore.set(oid, buf);
+        return Promise.resolve(oid);
+      });
+
+      const treeOids = new Map();
+      let treeCounter = 0;
+      mockPersistence.writeTree.mockImplementation((entries) => {
+        const oid = makeOid(`t${String(treeCounter++).padStart(3, '0')}`);
+        treeOids.set(oid, entries);
+        return Promise.resolve(oid);
+      });
+
+      mockPersistence.commitNodeWithTree.mockResolvedValue(makeOid('ccc'));
+
+      // Simulate an index tree with a few shards
+      const indexTree = {
+        'meta_ab.cbor': Buffer.from('meta-data'),
+        'fwd_cd.cbor': Buffer.from('fwd-data'),
+      };
+
+      await createV5({
+        persistence: mockPersistence,
+        graphName: 'test',
+        state,
+        frontier,
+        codec: undefined,
+        crypto,
+        indexTree,
+      });
+
+      // writeTree called twice: once for index subtree, once for main tree
+      expect(mockPersistence.writeTree).toHaveBeenCalledTimes(2);
+
+      // First call = index subtree
+      const subtreeEntries = mockPersistence.writeTree.mock.calls[0][0];
+      expect(subtreeEntries.length).toBe(2);
+      for (const entry of subtreeEntries) {
+        expect(entry).toMatch(/^100644 blob/);
+      }
+
+      // Second call = main tree containing 040000 tree entry for index
+      const mainEntries = mockPersistence.writeTree.mock.calls[1][0];
+      const indexEntry = mainEntries.find((e) => e.includes('\tindex'));
+      expect(indexEntry).toBeDefined();
+      expect(indexEntry).toMatch(/^040000 tree/);
+
+      // Commit message has schema:4
+      const commitArgs = mockPersistence.commitNodeWithTree.mock.calls[0][0];
+      expect(commitArgs.message).toContain('eg-schema: 4');
+    });
+
+    it('loads schema:4 checkpoint with indexShardOids', async () => {
+      const state = createEmptyStateV5();
+      const dot = createDot('writer1', 1);
+      orsetAdd(state.nodeAlive, 'x', dot);
+
+      const frontier = createFrontier();
+      updateFrontier(frontier, 'writer1', makeOid('aaa'));
+
+      // Encode checkpoint message with schema:4
+      const stateHash = await computeStateHashV5(state, { crypto });
+      const message = encodeCheckpointMessage({
+        graph: 'test',
+        stateHash,
+        frontierOid: makeOid('frontier'),
+        indexOid: makeOid('tree'),
+        schema: 4,
+      });
+
+      mockPersistence.showNode.mockResolvedValue(message);
+
+      // readTreeOids returns flat entries — ls-tree -r recurses into subtrees
+      const stateBlob = serializeFullStateV5(state);
+      const frontierBlob = serializeFrontier(frontier);
+      const appliedVVBlob = serializeAppliedVV(computeAppliedVV(state));
+      const visibleBlob = serializeStateV5(state);
+
+      mockPersistence.readTreeOids.mockResolvedValue({
+        'state.cbor': makeOid('state'),
+        'visible.cbor': makeOid('visible'),
+        'frontier.cbor': makeOid('frontier'),
+        'appliedVV.cbor': makeOid('appliedvv'),
+        'index/meta_ab.cbor': makeOid('idxmeta'),
+        'index/fwd_cd.cbor': makeOid('idxfwd'),
+      });
+
+      mockPersistence.readBlob.mockImplementation((oid) => {
+        if (oid === makeOid('state')) { return Promise.resolve(stateBlob); }
+        if (oid === makeOid('frontier')) { return Promise.resolve(frontierBlob); }
+        if (oid === makeOid('appliedvv')) { return Promise.resolve(appliedVVBlob); }
+        if (oid === makeOid('visible')) { return Promise.resolve(visibleBlob); }
+        return Promise.resolve(Buffer.alloc(0));
+      });
+
+      const result = await loadCheckpoint(mockPersistence, makeOid('checkpoint'));
+
+      expect(result.schema).toBe(4);
+      expect(result.indexShardOids).not.toBeNull();
+      expect(result.indexShardOids['meta_ab.cbor']).toBe(makeOid('idxmeta'));
+      expect(result.indexShardOids['fwd_cd.cbor']).toBe(makeOid('idxfwd'));
+    });
+
+    it('returns null indexShardOids for schema:2 checkpoints', async () => {
+      const state = createEmptyStateV5();
+      const dot = createDot('writer1', 1);
+      orsetAdd(state.nodeAlive, 'x', dot);
+
+      const frontier = createFrontier();
+      updateFrontier(frontier, 'writer1', makeOid('aaa'));
+
+      const stateHash = await computeStateHashV5(state, { crypto });
+      const message = encodeCheckpointMessage({
+        graph: 'test',
+        stateHash,
+        frontierOid: makeOid('frontier'),
+        indexOid: makeOid('tree'),
+        schema: 2,
+      });
+
+      mockPersistence.showNode.mockResolvedValue(message);
+
+      const stateBlob = serializeFullStateV5(state);
+      const frontierBlob = serializeFrontier(frontier);
+      const appliedVVBlob = serializeAppliedVV(computeAppliedVV(state));
+
+      mockPersistence.readTreeOids.mockResolvedValue({
+        'state.cbor': makeOid('state'),
+        'visible.cbor': makeOid('visible'),
+        'frontier.cbor': makeOid('frontier'),
+        'appliedVV.cbor': makeOid('appliedvv'),
+      });
+
+      mockPersistence.readBlob.mockImplementation((oid) => {
+        if (oid === makeOid('state')) { return Promise.resolve(stateBlob); }
+        if (oid === makeOid('frontier')) { return Promise.resolve(frontierBlob); }
+        if (oid === makeOid('appliedvv')) { return Promise.resolve(appliedVVBlob); }
+        return Promise.resolve(Buffer.alloc(0));
+      });
+
+      const result = await loadCheckpoint(mockPersistence, makeOid('checkpoint'));
+
+      expect(result.schema).toBe(2);
+      expect(result.indexShardOids).toBeNull();
+    });
+  });
 });
