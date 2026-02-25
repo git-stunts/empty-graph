@@ -151,6 +151,7 @@ interface CheckpointData {
   stateHash: string;
   schema: number;
   provenanceIndex?: unknown;
+  indexShardOids?: Record<string, string>;
 }
 
 export {};
@@ -247,7 +248,8 @@ declare module '../WarpGraph.js' {
     // ── materializeAdvanced.methods.js ────────────────────────────────────
     _resolveCeiling(options?: { ceiling?: number | null }): number | null;
     _buildAdjacency(state: WarpStateV5): { outgoing: Map<string, Array<{ neighborId: string; label: string }>>; incoming: Map<string, Array<{ neighborId: string; label: string }>> };
-    _setMaterializedState(state: WarpStateV5): Promise<{ state: WarpStateV5; stateHash: string; adjacency: unknown }>;
+    _buildView(state: WarpStateV5, stateHash: string, diff?: import('../types/PatchDiff.js').PatchDiff): void;
+    _setMaterializedState(state: WarpStateV5, diff?: import('../types/PatchDiff.js').PatchDiff): Promise<{ state: WarpStateV5; stateHash: string; adjacency: unknown }>;
     _materializeWithCeiling(ceiling: number, collectReceipts: boolean, t0: number): Promise<WarpStateV5 | { state: WarpStateV5; receipts: TickReceipt[] }>;
     _persistSeekCacheEntry(cacheKey: string, buf: Buffer, state: WarpStateV5): Promise<void>;
     _restoreIndexFromCache(indexTreeOid: string): Promise<void>;

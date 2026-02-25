@@ -79,7 +79,7 @@ export async function createCheckpoint() {
       provenanceIndex: this._provenanceIndex || undefined,
       crypto: this._crypto,
       codec: this._codec,
-      indexTree,
+      indexTree: indexTree || undefined,
     });
 
     // 6. Update checkpoint ref

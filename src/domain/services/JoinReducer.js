@@ -429,18 +429,31 @@ function aliveElementsForDots(orset, observedDots) {
 }
 
 /**
+ * @typedef {Object} SnapshotBeforeOp
+ * @property {boolean} [nodeWasAlive]
+ * @property {boolean} [edgeWasAlive]
+ * @property {string} [edgeKey]
+ * @property {unknown} [prevPropValue]
+ * @property {string} [propKey]
+ * @property {Set<string>} [aliveBeforeNodes]
+ * @property {Set<string>} [aliveBeforeEdges]
+ */
+
+/**
  * Snapshots alive-ness of a node or edge before an op is applied.
  *
  * @param {WarpStateV5} state
- * @param {Object} op
- * @returns {{ nodeWasAlive?: boolean, edgeWasAlive?: boolean, edgeKey?: string, prevPropValue?: unknown, propKey?: string }}
+ * @param {import('../types/WarpTypesV2.js').OpV2} op
+ * @returns {SnapshotBeforeOp}
  */
 function snapshotBeforeOp(state, op) {
   switch (op.type) {
     case 'NodeAdd':
       return { nodeWasAlive: orsetContains(state.nodeAlive, op.node) };
     case 'NodeRemove': {
-      const nodeDots = op.observedDots instanceof Set ? op.observedDots : new Set(op.observedDots);
+      const rawDots = /** @type {Iterable<string>} */ (op.observedDots);
+      /** @type {Set<string>} */
+      const nodeDots = rawDots instanceof Set ? rawDots : new Set(rawDots);
       const aliveBeforeNodes = aliveElementsForDots(state.nodeAlive, nodeDots);
       return { aliveBeforeNodes };
     }
@@ -449,7 +462,9 @@ function snapshotBeforeOp(state, op) {
       return { edgeWasAlive: orsetContains(state.edgeAlive, ek), edgeKey: ek };
     }
     case 'EdgeRemove': {
-      const edgeDots = op.observedDots instanceof Set ? op.observedDots : new Set(op.observedDots);
+      const rawEdgeDots = /** @type {Iterable<string>} */ (op.observedDots);
+      /** @type {Set<string>} */
+      const edgeDots = rawEdgeDots instanceof Set ? rawEdgeDots : new Set(rawEdgeDots);
       const aliveBeforeEdges = aliveElementsForDots(state.edgeAlive, edgeDots);
       return { aliveBeforeEdges };
     }
@@ -468,8 +483,8 @@ function snapshotBeforeOp(state, op) {
  *
  * @param {import('../types/PatchDiff.js').PatchDiff} diff
  * @param {WarpStateV5} state
- * @param {Object} op
- * @param {Object} before - snapshot from snapshotBeforeOp
+ * @param {import('../types/WarpTypesV2.js').OpV2} op
+ * @param {SnapshotBeforeOp} before
  */
 function accumulateOpDiff(diff, state, op, before) {
   switch (op.type) {
@@ -484,7 +499,7 @@ function accumulateOpDiff(diff, state, op, before) {
       break;
     }
     case 'EdgeAdd': {
-      if (!before.edgeWasAlive && orsetContains(state.edgeAlive, before.edgeKey)) {
+      if (!before.edgeWasAlive && orsetContains(state.edgeAlive, /** @type {string} */ (before.edgeKey))) {
         const { from, to, label } = op;
         diff.edgesAdded.push({ from, to, label });
       }
@@ -495,7 +510,7 @@ function accumulateOpDiff(diff, state, op, before) {
       break;
     }
     case 'PropSet': {
-      const reg = state.prop.get(before.propKey);
+      const reg = state.prop.get(/** @type {string} */ (before.propKey));
       const newVal = reg ? reg.value : undefined;
       if (newVal !== before.prevPropValue) {
         diff.propsChanged.push({
@@ -517,9 +532,10 @@ function accumulateOpDiff(diff, state, op, before) {
  *
  * @param {import('../types/PatchDiff.js').PatchDiff} diff
  * @param {WarpStateV5} state
- * @param {{ aliveBeforeNodes: Set<string> }} before
+ * @param {SnapshotBeforeOp} before
  */
 function collectNodeRemovals(diff, state, before) {
+  if (!before.aliveBeforeNodes) { return; }
   for (const element of before.aliveBeforeNodes) {
     if (!orsetContains(state.nodeAlive, element)) {
       diff.nodesRemoved.push(element);
@@ -532,9 +548,10 @@ function collectNodeRemovals(diff, state, before) {
  *
  * @param {import('../types/PatchDiff.js').PatchDiff} diff
  * @param {WarpStateV5} state
- * @param {{ aliveBeforeEdges: Set<string> }} before
+ * @param {SnapshotBeforeOp} before
  */
 function collectEdgeRemovals(diff, state, before) {
+  if (!before.aliveBeforeEdges) { return; }
   for (const edgeKey of before.aliveBeforeEdges) {
     if (!orsetContains(state.edgeAlive, edgeKey)) {
       diff.edgesRemoved.push(decodeEdgeKey(edgeKey));
@@ -564,9 +581,10 @@ export function applyWithDiff(state, patch, patchSha) {
   for (let i = 0; i < patch.ops.length; i++) {
     const op = patch.ops[i];
     const eventId = createEventId(patch.lamport, patch.writer, patchSha, i);
-    const before = snapshotBeforeOp(state, op);
-    applyOpV2(state, op, eventId);
-    accumulateOpDiff(diff, state, op, before);
+    const typedOp = /** @type {import('../types/WarpTypesV2.js').OpV2} */ (op);
+    const before = snapshotBeforeOp(state, typedOp);
+    applyOpV2(state, typedOp, eventId);
+    accumulateOpDiff(diff, state, typedOp, before);
   }
 
   updateFrontierFromPatch(state, patch);

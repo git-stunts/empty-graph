@@ -50,6 +50,7 @@ const NOT_CHECKED = Symbol('NOT_CHECKED');
  * @typedef {Object} RoaringBitmapSubset
  * @property {number} size
  * @property {function(number): void} add
+ * @property {function(number): void} remove
  * @property {function(number): boolean} has
  * @property {function(Iterable<number>): void} orInPlace
  * @property {function(boolean): Uint8Array} serialize

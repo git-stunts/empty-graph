@@ -219,14 +219,14 @@ export class TemporalQuery {
    * the remaining same-tick patches. Checkpoint creators MUST guarantee the
    * all-or-nothing inclusion property for any given Lamport tick.
    *
-   * @param {Array<{patch: Object, sha: string}>} allPatches
+   * @param {Array<{patch: {lamport: number, [k: string]: unknown}, sha: string}>} allPatches
    * @param {number} since - Minimum Lamport tick
    * @returns {Promise<{state: import('./JoinReducer.js').WarpStateV5, startIdx: number}>}
    * @private
    */
   async _resolveStart(allPatches, since) {
     if (since > 0 && this._loadCheckpoint) {
-      const ck = await this._loadCheckpoint();
+      const ck = /** @type {{ state: import('./JoinReducer.js').WarpStateV5, maxLamport: number } | null} */ (await this._loadCheckpoint());
       if (ck && ck.state && ck.maxLamport <= since) {
         const idx = allPatches.findIndex(
           ({ patch }) => patch.lamport > ck.maxLamport,

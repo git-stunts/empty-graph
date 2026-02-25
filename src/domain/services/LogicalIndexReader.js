@@ -41,6 +41,7 @@ function expandBitmap(bitmap, label, ctx) {
 function resolveAllLabels(store, ctx) {
   const { dir, gid, i2l, g2n } = ctx;
   const prefix = `${dir}:`;
+  /** @type {import('../../ports/NeighborProviderPort.js').NeighborEdge[]} */
   const out = [];
   for (const [key, bitmap] of store) {
     if (!key.startsWith(prefix)) {
@@ -176,6 +177,7 @@ export default class LogicalIndexReader {
         if (!filterLabelIds) {
           return resolveAllLabels(store, { dir, gid, i2l, g2n });
         }
+        /** @type {import('../../ports/NeighborProviderPort.js').NeighborEdge[]} */
         const out = [];
         for (const labelId of filterLabelIds) {
           const bitmap = store.get(`${dir}:${labelId}:${gid}`);

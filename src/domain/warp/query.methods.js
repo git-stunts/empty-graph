@@ -112,16 +112,6 @@ export async function getEdgeProps(from, to, label) {
 }
 
 /**
- * Gets neighbors of a node from the materialized state.
- *
- * @this {import('../WarpGraph.js').default}
- * @param {string} nodeId - The node ID to get neighbors for
- * @param {'outgoing' | 'incoming' | 'both'} [direction='both'] - Edge direction to follow
- * @param {string} [edgeLabel] - Optional edge label filter
- * @returns {Promise<Array<{nodeId: string, label: string, direction: 'outgoing' | 'incoming'}>>} Array of neighbor info
- * @throws {import('../errors/QueryError.js').default} If no cached state exists (code: `E_NO_STATE`)
- */
-/**
  * Converts NeighborEdge[] to the query-method shape with a direction tag.
  *
  * @param {Array<{neighborId: string, label: string}>} edges
@@ -132,6 +122,16 @@ function tagDirection(edges, dir) {
   return edges.map((e) => ({ nodeId: e.neighborId, label: e.label, direction: dir }));
 }
 
+/**
+ * Gets neighbors of a node from the materialized state.
+ *
+ * @this {import('../WarpGraph.js').default}
+ * @param {string} nodeId - The node ID to get neighbors for
+ * @param {'outgoing' | 'incoming' | 'both'} [direction='both'] - Edge direction to follow
+ * @param {string} [edgeLabel] - Optional edge label filter
+ * @returns {Promise<Array<{nodeId: string, label: string, direction: 'outgoing' | 'incoming'}>>} Array of neighbor info
+ * @throws {import('../errors/QueryError.js').default} If no cached state exists (code: `E_NO_STATE`)
+ */
 export async function neighbors(nodeId, direction = 'both', edgeLabel = undefined) {
   await this._ensureFreshState();
 
@@ -143,7 +143,7 @@ export async function neighbors(nodeId, direction = 'both', edgeLabel = undefine
   }
 
   // ── Linear scan fallback ─────────────────────────────────────────────
-  return _linearNeighbors(this._cachedState, nodeId, direction, edgeLabel);
+  return _linearNeighbors(/** @type {import('../services/JoinReducer.js').WarpStateV5} */ (this._cachedState), nodeId, direction, edgeLabel);
 }
 
 /**

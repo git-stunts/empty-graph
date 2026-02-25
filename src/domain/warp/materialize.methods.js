@@ -57,7 +57,7 @@ function scanPatchesForMaxLamport(graph, patches) {
  * Non-fatal: falls back silently if hydration fails (index was already built by _buildView).
  *
  * @param {import('../WarpGraph.js').default} graph
- * @param {Object|null|undefined} checkpoint
+ * @param {{ indexShardOids?: Record<string, string> } | null | undefined} checkpoint
  */
 async function hydrateCheckpointIndex(graph, checkpoint) {
   if (!checkpoint?.indexShardOids || !graph._viewService || !graph._persistence) {
@@ -68,7 +68,9 @@ async function hydrateCheckpointIndex(graph, checkpoint) {
       await graph._viewService.loadFromOids(checkpoint.indexShardOids, graph._persistence);
     graph._logicalIndex = logicalIndex;
     graph._propertyReader = propertyReader;
-    graph._materializedGraph.provider = new BitmapNeighborProvider({ logicalIndex });
+    if (graph._materializedGraph) {
+      graph._materializedGraph.provider = new BitmapNeighborProvider({ logicalIndex });
+    }
   } catch {
     // Non-fatal — _buildView already attempted a full build
   }

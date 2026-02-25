@@ -169,7 +169,9 @@ export function _buildView(state, stateHash, diff) {
     this._cachedIndexTree = result.tree;
 
     const provider = new BitmapNeighborProvider({ logicalIndex: result.logicalIndex });
-    this._materializedGraph.provider = provider;
+    if (this._materializedGraph) {
+      this._materializedGraph.provider = provider;
+    }
   } catch (err) {
     this._logger?.warn('[warp] index build failed, falling back to linear scan', {
       error: /** @type {Error} */ (err).message,
@@ -350,7 +352,9 @@ export async function _persistSeekCacheEntry(cacheKey, buf, state) {
   } catch {
     // Non-fatal — cache the state without the index
   }
-  await this._seekCache.set(cacheKey, buf, opts);
+  if (this._seekCache) {
+    await this._seekCache.set(cacheKey, buf, opts);
+  }
 }
 
 /**

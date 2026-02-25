@@ -273,7 +273,7 @@ export default class MaterializedViewService {
    */
   applyDiff({ existingTree, diff, state }) {
     const updater = new IncrementalIndexUpdater({ codec: this._codec });
-    const loadShard = (path) => existingTree[path];
+    const loadShard = (/** @type {string} */ path) => existingTree[path];
     const dirtyShards = updater.computeDirtyShards({ diff, state, loadShard });
     const tree = { ...existingTree, ...dirtyShards };
 

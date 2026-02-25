@@ -37,7 +37,7 @@ export default async function handleVerifyIndex({ options, args }) {
 
   let result;
   try {
-    result = graph.verifyIndex({ seed: values.seed, sampleRate: values.sampleRate });
+    result = await graph.verifyIndex({ seed: values.seed, sampleRate: values.sampleRate });
   } catch {
     return {
       payload: { error: 'No bitmap index available after materialization' },

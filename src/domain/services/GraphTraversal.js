@@ -858,11 +858,12 @@ export default class GraphTraversal {
       });
     }
 
-    const topoResult = { sorted, hasCycle, stats: this._stats(sorted.length) };
-    if (_returnAdjList) {
-      topoResult._neighborEdgeMap = neighborEdgeMap;
-    }
-    return topoResult;
+    return {
+      sorted,
+      hasCycle,
+      stats: this._stats(sorted.length),
+      _neighborEdgeMap: _returnAdjList ? neighborEdgeMap : undefined,
+    };
   }
 
   /**

@@ -560,7 +560,7 @@ export default class IncrementalIndexUpdater {
         nodeToGlobalMap: new Map(),
       };
     }
-    const raw = this._codec.decode(buf);
+    const raw = /** @type {{ nodeToGlobal: Array<[string, number]> | Record<string, number>, alive: Uint8Array | number[], nextLocalId: number }} */ (this._codec.decode(buf));
     const entries = Array.isArray(raw.nodeToGlobal)
       ? raw.nodeToGlobal
       : Object.entries(raw.nodeToGlobal);
@@ -574,8 +574,8 @@ export default class IncrementalIndexUpdater {
     /** @type {Map<string, number>} */
     const nodeToGlobalMap = new Map();
     for (const [nodeId, gid] of entries) {
-      globalToNode.set(gid, nodeId);
-      nodeToGlobalMap.set(nodeId, gid);
+      globalToNode.set(Number(gid), nodeId);
+      nodeToGlobalMap.set(nodeId, Number(gid));
     }
 
     return { nodeToGlobal: entries, nextLocalId: raw.nextLocalId, aliveBitmap: alive, globalToNode, nodeToGlobalMap };
