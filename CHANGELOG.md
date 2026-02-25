@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Bare `Buffer` in MaterializedView domain files** — `LogicalBitmapIndexBuilder`, `LogicalIndexReader`, `PropertyIndexBuilder`, and `IncrementalIndexUpdater` used the Node.js `Buffer` global without importing it. Deno doesn't provide `Buffer` on `globalThis`, causing `_buildView()` to silently fall back to null indexes — the entire O(1) bitmap index subsystem was non-functional in Deno. Replaced all `Buffer.from()` calls with `Uint8Array`-safe `.slice()` and `Uint8Array.from()`. Updated JSDoc types from `Record<string, Buffer>` to `Record<string, Uint8Array>` across builders, readers, and downstream consumers (`MaterializedViewService`, `LogicalIndexBuildService`).
 - **`hydrateCheckpointIndex` stale-overwrite bug** — `materialize()` called `hydrateCheckpointIndex()` after `_setMaterializedState()`, overwriting the freshly built bitmap index with the checkpoint's stale one. Removed the function entirely; `_buildView` already builds the correct index.
 - **Deterministic node/label ID assignment** — OR-Set iteration order is non-deterministic, causing node globalIds and label IDs to vary across builds of the same state. `LogicalIndexBuildService.build()` now sorts alive nodes and unique edge labels before registration.
 - **Deterministic property index output** — `PropertyIndexBuilder.serialize()` now sorts entries by nodeId before CBOR encoding, ensuring identical output regardless of patch arrival order.

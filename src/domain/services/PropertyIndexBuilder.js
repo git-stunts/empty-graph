@@ -46,10 +46,10 @@ export default class PropertyIndexBuilder {
   /**
    * Serializes all property shards.
    *
-   * @returns {Record<string, Buffer>}
+   * @returns {Record<string, Uint8Array>}
    */
   serialize() {
-    /** @type {Record<string, Buffer>} */
+    /** @type {Record<string, Uint8Array>} */
     const tree = {};
     for (const [shardKey, shard] of this._shards) {
       // Encode as array of [nodeId, props] pairs to avoid __proto__ key issues
@@ -57,7 +57,7 @@ export default class PropertyIndexBuilder {
       const entries = [...shard.entries()]
         .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
         .map(([nodeId, props]) => [nodeId, props]);
-      tree[`props_${shardKey}.cbor`] = Buffer.from(this._codec.encode(entries));
+      tree[`props_${shardKey}.cbor`] = this._codec.encode(entries).slice();
     }
     return tree;
   }

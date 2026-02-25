@@ -27,7 +27,7 @@ import { decodeEdgeKey } from './KeyCodec.js';
 
 /**
  * @typedef {Object} BuildResult
- * @property {Record<string, Buffer>} tree
+ * @property {Record<string, Uint8Array>} tree
  * @property {LogicalIndex} logicalIndex
  * @property {PropertyIndexReader} propertyReader
  * @property {Record<string, unknown>} receipt
@@ -58,7 +58,7 @@ import { decodeEdgeKey } from './KeyCodec.js';
 /**
  * Creates a PropertyIndexReader backed by an in-memory tree map.
  *
- * @param {Record<string, Buffer>} tree
+ * @param {Record<string, Uint8Array>} tree
  * @param {import('../../ports/CodecPort.js').default} codec
  * @returns {PropertyIndexReader}
  */
@@ -71,7 +71,7 @@ function buildInMemoryPropertyReader(tree, codec) {
     }
   }
 
-  const storage = /** @type {{ readBlob(oid: string): Promise<Buffer> }} */ ({
+  const storage = /** @type {{ readBlob(oid: string): Promise<Uint8Array> }} */ ({
     readBlob: (oid) => Promise.resolve(tree[oid]),
   });
 
@@ -223,8 +223,8 @@ export default class MaterializedViewService {
   /**
    * Writes each shard as a blob and creates a Git tree object.
    *
-   * @param {Record<string, Buffer>} tree
-   * @param {{ writeBlob(buf: Buffer): Promise<string>, writeTree(entries: string[]): Promise<string> }} persistence
+   * @param {Record<string, Uint8Array>} tree
+   * @param {{ writeBlob(buf: Uint8Array): Promise<string>, writeTree(entries: string[]): Promise<string> }} persistence
    * @returns {Promise<string>} tree OID
    */
   async persistIndexTree(tree, persistence) {
@@ -266,7 +266,7 @@ export default class MaterializedViewService {
    * Applies a PatchDiff incrementally to an existing index tree.
    *
    * @param {Object} params
-   * @param {Record<string, Buffer>} params.existingTree
+   * @param {Record<string, Uint8Array>} params.existingTree
    * @param {import('../types/PatchDiff.js').PatchDiff} params.diff
    * @param {import('./JoinReducer.js').WarpStateV5} params.state
    * @returns {BuildResult}

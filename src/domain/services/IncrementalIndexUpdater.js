@@ -47,8 +47,8 @@ export default class IncrementalIndexUpdater {
    * @param {Object} params
    * @param {import('../types/PatchDiff.js').PatchDiff} params.diff
    * @param {import('./JoinReducer.js').WarpStateV5} params.state
-   * @param {(path: string) => Buffer|undefined} params.loadShard
-   * @returns {Record<string, Buffer>} dirty shard buffers (path -> Buffer)
+   * @param {(path: string) => Uint8Array|undefined} params.loadShard
+   * @returns {Record<string, Uint8Array>} dirty shard buffers (path -> Uint8Array)
    */
   computeDirtyShards({ diff, state, loadShard }) {
     const dirtyKeys = this._collectDirtyShardKeys(diff);
@@ -58,7 +58,7 @@ export default class IncrementalIndexUpdater {
 
     /** @type {Map<string, MetaShard>} */
     const metaCache = new Map();
-    /** @type {Record<string, Buffer>} */
+    /** @type {Record<string, Uint8Array>} */
     const out = {};
 
     const labels = this._loadLabels(loadShard);
@@ -177,7 +177,7 @@ export default class IncrementalIndexUpdater {
    *
    * @param {string} nodeId
    * @param {Map<string, MetaShard>} metaCache
-   * @param {(path: string) => Buffer|undefined} loadShard
+   * @param {(path: string) => Uint8Array|undefined} loadShard
    * @private
    */
   _handleNodeAdd(nodeId, metaCache, loadShard) {
@@ -208,7 +208,7 @@ export default class IncrementalIndexUpdater {
    *
    * @param {string} nodeId
    * @param {Map<string, MetaShard>} metaCache
-   * @param {(path: string) => Buffer|undefined} loadShard
+   * @param {(path: string) => Uint8Array|undefined} loadShard
    * @private
    */
   _handleNodeRemove(nodeId, metaCache, loadShard) {
@@ -234,7 +234,7 @@ export default class IncrementalIndexUpdater {
    * @param {Map<string, EdgeShardData>} fwdCache
    * @param {Map<string, EdgeShardData>} revCache
    * @param {Record<string, number>} labels
-   * @param {(path: string) => Buffer|undefined} loadShard
+   * @param {(path: string) => Uint8Array|undefined} loadShard
    * @private
    */
   _purgeNodeEdges(deadNodeId, metaCache, fwdCache, revCache, labels, loadShard) {
@@ -256,7 +256,7 @@ export default class IncrementalIndexUpdater {
       if (fwdData[bucket] && fwdData[bucket][gidStr]) {
         // Before clearing, find the targets so we can clean reverse bitmaps
         const targets = RoaringBitmap32.deserialize(
-          Buffer.from(fwdData[bucket][gidStr]),
+          fwdData[bucket][gidStr].slice(),
           true,
         ).toArray();
 
@@ -273,7 +273,7 @@ export default class IncrementalIndexUpdater {
             const targetGidStr = String(targetGid);
             if (revData[bucket] && revData[bucket][targetGidStr]) {
               const bm = RoaringBitmap32.deserialize(
-                Buffer.from(revData[bucket][targetGidStr]),
+                revData[bucket][targetGidStr].slice(),
                 true,
               );
               bm.remove(deadGid);
@@ -290,7 +290,7 @@ export default class IncrementalIndexUpdater {
       const gidStr = String(deadGid);
       if (revData[bucket] && revData[bucket][gidStr]) {
         const sources = RoaringBitmap32.deserialize(
-          Buffer.from(revData[bucket][gidStr]),
+          revData[bucket][gidStr].slice(),
           true,
         ).toArray();
 
@@ -306,7 +306,7 @@ export default class IncrementalIndexUpdater {
             const sourceGidStr = String(sourceGid);
             if (fwdDataPeer[bucket] && fwdDataPeer[bucket][sourceGidStr]) {
               const bm = RoaringBitmap32.deserialize(
-                Buffer.from(fwdDataPeer[bucket][sourceGidStr]),
+                fwdDataPeer[bucket][sourceGidStr].slice(),
                 true,
               );
               bm.remove(deadGid);
@@ -323,7 +323,7 @@ export default class IncrementalIndexUpdater {
    *
    * @param {number} globalId
    * @param {Map<string, MetaShard>} metaCache
-   * @param {(path: string) => Buffer|undefined} loadShard
+   * @param {(path: string) => Uint8Array|undefined} loadShard
    * @returns {string|undefined}
    * @private
    */
@@ -367,7 +367,7 @@ export default class IncrementalIndexUpdater {
    * @param {Map<string, MetaShard>} metaCache
    * @param {Map<string, EdgeShardData>} fwdCache
    * @param {Map<string, EdgeShardData>} revCache
-   * @param {(path: string) => Buffer|undefined} loadShard
+   * @param {(path: string) => Uint8Array|undefined} loadShard
    * @private
    */
   _handleEdgeAdd(edge, labels, metaCache, fwdCache, revCache, loadShard) {
@@ -395,7 +395,7 @@ export default class IncrementalIndexUpdater {
    * @param {Map<string, MetaShard>} metaCache
    * @param {Map<string, EdgeShardData>} fwdCache
    * @param {Map<string, EdgeShardData>} revCache
-   * @param {(path: string) => Buffer|undefined} loadShard
+   * @param {(path: string) => Uint8Array|undefined} loadShard
    * @private
    */
   _handleEdgeRemove(edge, labels, metaCache, fwdCache, revCache, loadShard) {
@@ -427,7 +427,7 @@ export default class IncrementalIndexUpdater {
   /**
    * @param {Map<string, EdgeShardData>} cache
    * @param {{ shardKey: string, bucket: string, owner: number, target: number, dir: string }} opts
-   * @param {(path: string) => Buffer|undefined} loadShard
+   * @param {(path: string) => Uint8Array|undefined} loadShard
    * @private
    */
   _addToEdgeBitmap(cache, opts, loadShard) {
@@ -442,7 +442,7 @@ export default class IncrementalIndexUpdater {
   /**
    * @param {Map<string, EdgeShardData>} cache
    * @param {{ shardKey: string, bucket: string, owner: number, target: number, dir: string }} opts
-   * @param {(path: string) => Buffer|undefined} loadShard
+   * @param {(path: string) => Uint8Array|undefined} loadShard
    * @private
    */
   _removeFromEdgeBitmap(cache, opts, loadShard) {
@@ -461,7 +461,7 @@ export default class IncrementalIndexUpdater {
    * @param {string} shardKey
    * @param {number} owner
    * @param {Record<string, number>} labels
-   * @param {(path: string) => Buffer|undefined} loadShard
+   * @param {(path: string) => Uint8Array|undefined} loadShard
    * @param {string} dir
    * @private
    */
@@ -475,7 +475,7 @@ export default class IncrementalIndexUpdater {
       const bucket = String(labelId);
       if (data[bucket] && data[bucket][ownerStr]) {
         const bm = RoaringBitmap32.deserialize(
-          Buffer.from(data[bucket][ownerStr]),
+          data[bucket][ownerStr].slice(),
           true,
         );
         merged.orInPlace(bm);
@@ -492,8 +492,8 @@ export default class IncrementalIndexUpdater {
    * Handles PropSet entries and flushes dirty props shards.
    *
    * @param {import('../types/PatchDiff.js').PropDiffEntry[]} propsChanged
-   * @param {(path: string) => Buffer|undefined} loadShard
-   * @param {Record<string, Buffer>} out
+   * @param {(path: string) => Uint8Array|undefined} loadShard
+   * @param {Record<string, Uint8Array>} out
    * @private
    */
   _handleProps(propsChanged, loadShard, out) {
@@ -528,7 +528,7 @@ export default class IncrementalIndexUpdater {
   /**
    * @param {string} shardKey
    * @param {Map<string, MetaShard>} cache
-   * @param {(path: string) => Buffer|undefined} loadShard
+   * @param {(path: string) => Uint8Array|undefined} loadShard
    * @returns {MetaShard}
    * @private
    */
@@ -544,7 +544,7 @@ export default class IncrementalIndexUpdater {
 
   /**
    * @param {string} shardKey
-   * @param {(path: string) => Buffer|undefined} loadShard
+   * @param {(path: string) => Uint8Array|undefined} loadShard
    * @returns {MetaShard}
    * @private
    */
@@ -565,7 +565,7 @@ export default class IncrementalIndexUpdater {
       ? raw.nodeToGlobal
       : Object.entries(raw.nodeToGlobal);
     const alive = raw.alive && raw.alive.length > 0
-      ? RoaringBitmap32.deserialize(Buffer.from(raw.alive), true)
+      ? RoaringBitmap32.deserialize(Uint8Array.from(raw.alive), true)
       : new RoaringBitmap32();
 
     // Build O(1) lookup maps from the entries array
@@ -585,7 +585,7 @@ export default class IncrementalIndexUpdater {
    * Serialises and flushes all dirty meta shards into `out`.
    *
    * @param {Map<string, MetaShard>} metaCache
-   * @param {Record<string, Buffer>} out
+   * @param {Record<string, Uint8Array>} out
    * @private
    */
   _flushMeta(metaCache, out) {
@@ -595,7 +595,7 @@ export default class IncrementalIndexUpdater {
         nextLocalId: meta.nextLocalId,
         alive: meta.aliveBitmap.serialize(true),
       };
-      out[`meta_${shardKey}.cbor`] = Buffer.from(this._codec.encode(shard));
+      out[`meta_${shardKey}.cbor`] = this._codec.encode(shard).slice();
     }
   }
 
@@ -605,7 +605,7 @@ export default class IncrementalIndexUpdater {
    * @param {Map<string, EdgeShardData>} cache
    * @param {string} dir
    * @param {string} shardKey
-   * @param {(path: string) => Buffer|undefined} loadShard
+   * @param {(path: string) => Uint8Array|undefined} loadShard
    * @returns {EdgeShardData}
    * @private
    */
@@ -623,7 +623,7 @@ export default class IncrementalIndexUpdater {
   /**
    * @param {string} dir
    * @param {string} shardKey
-   * @param {(path: string) => Buffer|undefined} loadShard
+   * @param {(path: string) => Uint8Array|undefined} loadShard
    * @returns {EdgeShardData}
    * @private
    */
@@ -640,7 +640,7 @@ export default class IncrementalIndexUpdater {
    *
    * @param {Map<string, EdgeShardData>} cache
    * @param {string} dir
-   * @param {Record<string, Buffer>} out
+   * @param {Record<string, Uint8Array>} out
    * @private
    */
   _flushEdgeShards(cache, dir, out) {
@@ -650,14 +650,14 @@ export default class IncrementalIndexUpdater {
         continue;
       }
       const path = `${cacheKey}.cbor`;
-      out[path] = Buffer.from(this._codec.encode(data));
+      out[path] = this._codec.encode(data).slice();
     }
   }
 
   // ── Labels I/O ────────────────────────────────────────────────────────────
 
   /**
-   * @param {(path: string) => Buffer|undefined} loadShard
+   * @param {(path: string) => Uint8Array|undefined} loadShard
    * @returns {Record<string, number>}
    * @private
    */
@@ -671,18 +671,18 @@ export default class IncrementalIndexUpdater {
 
   /**
    * @param {Record<string, number>} labels
-   * @returns {Buffer}
+   * @returns {Uint8Array}
    * @private
    */
   _saveLabels(labels) {
-    return Buffer.from(this._codec.encode(labels));
+    return this._codec.encode(labels).slice();
   }
 
   // ── Props I/O ─────────────────────────────────────────────────────────────
 
   /**
    * @param {string} shardKey
-   * @param {(path: string) => Buffer|undefined} loadShard
+   * @param {(path: string) => Uint8Array|undefined} loadShard
    * @returns {Map<string, Record<string, unknown>>}
    * @private
    */
@@ -704,12 +704,12 @@ export default class IncrementalIndexUpdater {
 
   /**
    * @param {Map<string, Record<string, unknown>>} shard
-   * @returns {Buffer}
+   * @returns {Uint8Array}
    * @private
    */
   _saveProps(shard) {
     const entries = [...shard.entries()];
-    return Buffer.from(this._codec.encode(entries));
+    return this._codec.encode(entries).slice();
   }
 
   // ── Utility ───────────────────────────────────────────────────────────────
@@ -739,7 +739,7 @@ export default class IncrementalIndexUpdater {
     const RoaringBitmap32 = getRoaringBitmap32();
     if (data[bucket] && data[bucket][ownerStr]) {
       return RoaringBitmap32.deserialize(
-        Buffer.from(data[bucket][ownerStr]),
+        data[bucket][ownerStr].slice(),
         true,
       );
     }

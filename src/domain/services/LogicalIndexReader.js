@@ -53,19 +53,19 @@ function resolveAllLabels(byOwner, ctx) {
 }
 
 /**
- * @typedef {{ path: string, buf: Buffer }} ShardItem
+ * @typedef {{ path: string, buf: Uint8Array }} ShardItem
  */
 
 /**
  * Classifies loaded path/buf pairs into meta, labels, and edge buckets.
  *
  * @param {ShardItem[]} items
- * @returns {{ meta: ShardItem[], labels: Buffer|null, edges: ShardItem[] }}
+ * @returns {{ meta: ShardItem[], labels: Uint8Array|null, edges: ShardItem[] }}
  */
 function classifyShards(items) {
   /** @type {ShardItem[]} */
   const meta = [];
-  /** @type {Buffer|null} */
+  /** @type {Uint8Array|null} */
   let labels = null;
   /** @type {ShardItem[]} */
   const edges = [];
@@ -116,9 +116,9 @@ export default class LogicalIndexReader {
   }
 
   /**
-   * Eagerly decodes all shards from an in-memory tree (Record<path, Buffer>).
+   * Eagerly decodes all shards from an in-memory tree (Record<path, Uint8Array>).
    *
-   * @param {Record<string, Buffer>} tree
+   * @param {Record<string, Uint8Array>} tree
    * @returns {this}
    */
   loadFromTree(tree) {
@@ -131,7 +131,7 @@ export default class LogicalIndexReader {
    * Loads all shards from OID→blob storage (async).
    *
    * @param {Record<string, string>} shardOids - path → blob OID
-   * @param {{ readBlob(oid: string): Promise<Buffer> }} storage
+   * @param {{ readBlob(oid: string): Promise<Uint8Array> }} storage
    * @returns {Promise<this>}
    */
   async loadFromOids(shardOids, storage) {
@@ -217,7 +217,7 @@ export default class LogicalIndexReader {
 
   /**
    * @param {string} path
-   * @param {Buffer} buf
+   * @param {Uint8Array} buf
    * @param {RoaringCtor} Ctor
    * @private
    */
@@ -236,16 +236,13 @@ export default class LogicalIndexReader {
     if (meta.alive && meta.alive.length > 0) {
       this._aliveBitmaps.set(
         shardKey,
-        Ctor.deserialize(
-          Buffer.from(meta.alive.buffer, meta.alive.byteOffset, meta.alive.byteLength),
-          true
-        )
+        Ctor.deserialize(meta.alive.slice(), true)
       );
     }
   }
 
   /**
-   * @param {Buffer} buf
+   * @param {Uint8Array} buf
    * @private
    */
   _decodeLabels(buf) {
@@ -258,7 +255,7 @@ export default class LogicalIndexReader {
 
   /**
    * @param {string} dir - 'fwd' or 'rev'
-   * @param {Buffer} buf
+   * @param {Uint8Array} buf
    * @param {RoaringCtor} Ctor
    * @private
    */
@@ -268,10 +265,7 @@ export default class LogicalIndexReader {
     const decoded = /** @type {Record<string, Record<string, Uint8Array>>} */ (this._codec.decode(buf));
     for (const [bucket, entries] of Object.entries(decoded)) {
       for (const [gidStr, bitmapBytes] of Object.entries(entries)) {
-        const bitmap = Ctor.deserialize(
-          Buffer.from(bitmapBytes.buffer, bitmapBytes.byteOffset, bitmapBytes.byteLength),
-          true
-        );
+        const bitmap = Ctor.deserialize(bitmapBytes.slice(), true);
         store.set(`${dir}:${bucket}:${gidStr}`, bitmap);
         this._indexByOwner(byOwner, { bucket, gidStr, bitmap });
       }

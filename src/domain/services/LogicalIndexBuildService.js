@@ -33,7 +33,7 @@ export default class LogicalIndexBuildService {
    * @param {Object} [options]
    * @param {Record<string, { nodeToGlobal: Record<string, number>, nextLocalId: number }>} [options.existingMeta] - Prior meta shards for ID stability
    * @param {Record<string, number>} [options.existingLabels] - Prior label registry for append-only stability
-   * @returns {{ tree: Record<string, Buffer>, receipt: Record<string, unknown> }}
+   * @returns {{ tree: Record<string, Uint8Array>, receipt: Record<string, unknown> }}
    */
   build(state, options = {}) {
     const indexBuilder = new LogicalBitmapIndexBuilder({ codec: this._codec });

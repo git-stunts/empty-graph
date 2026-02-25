@@ -213,12 +213,12 @@ export default class LogicalBitmapIndexBuilder {
   }
 
   /**
-   * Serializes the full index to a Record<string, Buffer>.
+   * Serializes the full index to a Record<string, Uint8Array>.
    *
-   * @returns {Record<string, Buffer>}
+   * @returns {Record<string, Uint8Array>}
    */
   serialize() {
-    /** @type {Record<string, Buffer>} */
+    /** @type {Record<string, Uint8Array>} */
     const tree = {};
 
     // Collect all shard keys that have any data
@@ -243,7 +243,7 @@ export default class LogicalBitmapIndexBuilder {
         alive: aliveBytes,
       };
 
-      tree[`meta_${shardKey}.cbor`] = Buffer.from(this._codec.encode(shard));
+      tree[`meta_${shardKey}.cbor`] = this._codec.encode(shard).slice();
     }
 
     // Labels registry
@@ -252,7 +252,7 @@ export default class LogicalBitmapIndexBuilder {
     for (const [label, id] of this._labelToId) {
       labelRegistry[label] = id;
     }
-    tree['labels.cbor'] = Buffer.from(this._codec.encode(labelRegistry));
+    tree['labels.cbor'] = this._codec.encode(labelRegistry).slice();
 
     // Forward/reverse edge shards
     this._serializeEdgeShards(tree, 'fwd', this._fwdBitmaps);
@@ -265,13 +265,13 @@ export default class LogicalBitmapIndexBuilder {
       labelCount: this._labelToId.size,
       shardCount: allShardKeys.size,
     };
-    tree['receipt.cbor'] = Buffer.from(this._codec.encode(receipt));
+    tree['receipt.cbor'] = this._codec.encode(receipt).slice();
 
     return tree;
   }
 
   /**
-   * @param {Record<string, Buffer>} tree
+   * @param {Record<string, Uint8Array>} tree
    * @param {string} direction - 'fwd' or 'rev'
    * @param {Map<string, import('../utils/roaring.js').RoaringBitmapSubset>} bitmaps
    * @private
@@ -300,7 +300,7 @@ export default class LogicalBitmapIndexBuilder {
     }
 
     for (const [shardKey, shardData] of byShardKey) {
-      tree[`${direction}_${shardKey}.cbor`] = Buffer.from(this._codec.encode(shardData));
+      tree[`${direction}_${shardKey}.cbor`] = this._codec.encode(shardData).slice();
     }
   }
 
