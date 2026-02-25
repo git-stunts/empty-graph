@@ -35,12 +35,14 @@ describe('fixtureDsl helpers', () => {
       edges: [],
     });
 
+    /** @type {Array<{name: string, provider: import('../../../src/ports/NeighborProviderPort.js').default}>} */
     const providers = [
       {
         name: 'returns',
         provider: {
           async getNeighbors() { return []; },
           async hasNode() { return true; },
+          /** @returns {'async-local'} */
           get latencyClass() { return 'async-local'; },
         },
       },
@@ -49,6 +51,7 @@ describe('fixtureDsl helpers', () => {
         provider: {
           async getNeighbors() { throw new Error('boom'); },
           async hasNode() { return true; },
+          /** @returns {'async-local'} */
           get latencyClass() { return 'async-local'; },
         },
       },

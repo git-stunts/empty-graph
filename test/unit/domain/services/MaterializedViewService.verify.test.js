@@ -91,7 +91,11 @@ describe('MaterializedViewService.verifyIndex', () => {
 
     const corruptedIndex = {
       ...logicalIndex,
-      getEdges(nodeId, direction, filterLabelIds) {
+      getEdges(
+        /** @type {string} */ nodeId,
+        /** @type {'out'|'in'|'both'} */ direction,
+        /** @type {number[]|undefined} */ filterLabelIds,
+      ) {
         const edges = logicalIndex.getEdges(nodeId, direction, filterLabelIds);
         if (nodeId === 'A' && direction === 'out') {
           return edges.map((edge) => (

@@ -178,10 +178,12 @@ function canonicalizeNeighborSignatures(edges) {
   /** @type {Map<string, string[]>} */
   const byNeighbor = new Map();
   for (const { neighborId, label } of edges) {
-    if (!byNeighbor.has(neighborId)) {
-      byNeighbor.set(neighborId, []);
+    let labels = byNeighbor.get(neighborId);
+    if (!labels) {
+      labels = [];
+      byNeighbor.set(neighborId, labels);
     }
-    byNeighbor.get(neighborId).push(label);
+    labels.push(label);
   }
   const signatures = [];
   for (const [neighborId, labels] of byNeighbor) {

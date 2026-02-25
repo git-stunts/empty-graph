@@ -90,7 +90,7 @@ describe('AdjacencyNeighborProvider', () => {
   });
 
   it('throws when aliveNodes is omitted', () => {
-    expect(() => new AdjacencyNeighborProvider({ outgoing, incoming })).toThrow(
+    expect(() => new AdjacencyNeighborProvider(/** @type {any} */ ({ outgoing, incoming }))).toThrow(
       /aliveNodes is required/i,
     );
   });

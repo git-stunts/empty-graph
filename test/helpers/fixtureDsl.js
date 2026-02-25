@@ -84,7 +84,10 @@ export function toAdjacencyMaps(fixture) {
     incoming.get(to).push({ neighborId: from, label });
   }
 
-  const cmp = (a, b) => {
+  const cmp = (
+    /** @type {{neighborId: string, label: string}} */ a,
+    /** @type {{neighborId: string, label: string}} */ b,
+  ) => {
     if (a.neighborId < b.neighborId) return -1;
     if (a.neighborId > b.neighborId) return 1;
     if (a.label < b.label) return -1;

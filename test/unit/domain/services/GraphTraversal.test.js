@@ -611,8 +611,13 @@ describe('GraphTraversal stats', () => {
   });
 
   it('uses collision-safe label cache keys when labels contain commas', async () => {
+    /** @type {import('../../../../src/ports/NeighborProviderPort.js').default} */
     const provider = {
-      async getNeighbors(_nodeId, _direction, options) {
+      async getNeighbors(
+        /** @type {string} */ _nodeId,
+        /** @type {'out'|'in'|'both'} */ _direction,
+        /** @type {import('../../../../src/ports/NeighborProviderPort.js').NeighborOptions|undefined} */ options,
+      ) {
         const labels = options?.labels ?? new Set();
         const hasAB = labels.has('a,b') && labels.has('c');
         const hasBC = labels.has('a') && labels.has('b,c');
@@ -624,9 +629,10 @@ describe('GraphTraversal stats', () => {
         }
         return [];
       },
-      async hasNode(nodeId) {
+      async hasNode(/** @type {string} */ nodeId) {
         return nodeId === 's' || nodeId === 'x' || nodeId === 'y';
       },
+      /** @returns {'async-local'} */
       get latencyClass() { return 'async-local'; },
     };
 
