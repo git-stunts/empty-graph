@@ -65,6 +65,9 @@ export default class BitmapNeighborProvider extends NeighborProviderPort {
    */
   constructor({ indexReader, logicalIndex }) {
     super();
+    if (!indexReader && !logicalIndex) {
+      throw new Error('BitmapNeighborProvider requires either indexReader or logicalIndex');
+    }
     this._reader = indexReader ?? null;
     this._logical = logicalIndex ?? null;
   }

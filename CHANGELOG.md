@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **CLI verify-index/reindex: public API** — CLI commands now use public `verifyIndex()` and `invalidateIndex()` methods instead of accessing private underscore-prefixed properties. Both commands now include proper try/catch error handling.
 - **`_buildView` index failure logging** — `_buildView` now logs a warning via `this._logger?.warn()` when the index build fails, instead of silently nulling all index state.
 - **`createCheckpoint` index tree cache reuse** — `createCheckpoint()` now reuses `_cachedIndexTree` from a prior `materialize()` instead of unconditionally calling `_viewService.build()`, avoiding a redundant O(N) full rebuild.
+- **CheckpointService: codepoint sort** — tree entry sorting now uses codepoint comparison instead of `localeCompare`, matching Git's byte-order requirement.
+- **BitmapNeighborProvider: constructor guard** — throws when neither `indexReader` nor `logicalIndex` is provided, preventing silent empty-result misconfiguration.
+- **fixtureDsl: complete op fields** — `NodeRemove` ops now include `node` field, `EdgeRemove` ops include `from`, `to`, `label` fields, matching the contract expected by `accumulateOpDiff`.
 
 ### Added
 

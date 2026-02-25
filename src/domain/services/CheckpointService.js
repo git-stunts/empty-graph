@@ -228,7 +228,7 @@ export async function createV5({
   treeEntries.sort((a, b) => {
     const filenameA = a.split('\t')[1];
     const filenameB = b.split('\t')[1];
-    return filenameA.localeCompare(filenameB);
+    return filenameA < filenameB ? -1 : filenameA > filenameB ? 1 : 0;
   });
 
   const treeOid = await persistence.writeTree(treeEntries);

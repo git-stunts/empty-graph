@@ -457,7 +457,7 @@ function _fixtureToState(fixture) {
     const dots = state.nodeAlive.entries.get(nodeId);
     if (dots) {
       const eventId = createEventId(lamport, writer, sha, opIdx++);
-      applyOpV2(state, /** @type {*} */ ({ type: 'NodeRemove', observedDots: new Set(dots) }), eventId);
+      applyOpV2(state, /** @type {*} */ ({ type: 'NodeRemove', node: nodeId, observedDots: new Set(dots) }), eventId);
       lamport++;
     }
   }
@@ -474,8 +474,9 @@ function _fixtureToState(fixture) {
   for (const edgeKey of tombEdges) {
     const dots = state.edgeAlive.entries.get(edgeKey);
     if (dots) {
+      const [from, to, label] = edgeKey.split('\0');
       const eventId = createEventId(lamport, writer, sha, opIdx++);
-      applyOpV2(state, /** @type {*} */ ({ type: 'EdgeRemove', observedDots: new Set(dots) }), eventId);
+      applyOpV2(state, /** @type {*} */ ({ type: 'EdgeRemove', from, to, label, observedDots: new Set(dots) }), eventId);
       lamport++;
     }
   }

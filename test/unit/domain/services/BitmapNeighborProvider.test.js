@@ -81,4 +81,10 @@ describe('BitmapNeighborProvider', () => {
   it('latencyClass is async-local', () => {
     expect(provider.latencyClass).toBe('async-local');
   });
+
+  it('throws when neither indexReader nor logicalIndex is provided (M10)', () => {
+    expect(() => new BitmapNeighborProvider({})).toThrow(
+      'BitmapNeighborProvider requires either indexReader or logicalIndex',
+    );
+  });
 });
