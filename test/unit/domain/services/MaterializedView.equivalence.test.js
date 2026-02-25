@@ -38,10 +38,12 @@ const PROP_VALUES = ['Alice', 'Bob', 42, true, null, 'active', 'red', 0, ''];
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
+/** @template T @param {() => number} nextFn @param {T[]} arr @returns {T} */
 function pick(nextFn, arr) {
   return arr[Math.floor(nextFn() * arr.length)];
 }
 
+/** @param {number} seed @param {number} lamport @returns {string} */
 function makeSha(seed, lamport) {
   const hex = ((seed * 1000000 + lamport) >>> 0).toString(16);
   return hex.padStart(8, '0').slice(0, 8).padEnd(40, '0');
@@ -51,6 +53,7 @@ function makeSha(seed, lamport) {
  * Generates a random sequence of patches for a given PRNG seed.
  * Also applies ops to a tracking state so removals target real alive entities.
  */
+/** @param {number} seed */
 function generatePatches(seed) {
   const rng = createRng(seed).next;
   const patchCount = 10 + Math.floor(rng() * 41); // 10-50
@@ -83,7 +86,7 @@ function generatePatches(seed) {
           ops.push({
             type: 'NodeRemove',
             node: nodeId,
-            observedDots: new Set(dots),
+            observedDots: [...dots],
           });
         }
       } else if (roll < 0.7 && aliveNodes.length >= 2) {
@@ -104,7 +107,7 @@ function generatePatches(seed) {
             from,
             to,
             label,
-            observedDots: new Set(dots),
+            observedDots: [...dots],
           });
         }
       } else if (aliveNodes.length > 0) {
@@ -147,6 +150,7 @@ function generatePatches(seed) {
  * Builds adjacency maps from CRDT state for AdjacencyNeighborProvider.
  * Only includes edges where both endpoints are alive (matches edgeVisibleV5).
  */
+/** @param {import('../../../../src/domain/services/JoinReducer.js').WarpStateV5} state */
 function buildAdjacency(state) {
   const outgoing = new Map();
   const incoming = new Map();
@@ -173,8 +177,9 @@ function buildAdjacency(state) {
 /**
  * Collects LWW-winning properties for a node from state.
  */
+/** @param {import('../../../../src/domain/services/JoinReducer.js').WarpStateV5} state @param {string} nodeId @returns {Record<string, unknown>} */
 function getPropsFromState(state, nodeId) {
-  const props = {};
+  /** @type {Record<string, unknown>} */ const props = {};
   const prefix = nodeId + '\0';
   for (const [key, reg] of state.prop) {
     if (key.startsWith(prefix)) {
@@ -188,6 +193,7 @@ function getPropsFromState(state, nodeId) {
 /**
  * Sorts neighbor arrays for deterministic comparison.
  */
+/** @param {Array<{neighborId: string, label: string}>} arr @returns {Array<{neighborId: string, label: string}>} */
 function sortNeighbors(arr) {
   return [...arr].sort((a, b) => {
     if (a.neighborId < b.neighborId) {
@@ -223,7 +229,7 @@ describe('MaterializedView equivalence', () => {
       const service = new MaterializedViewService();
 
       // ── Full rebuild ──────────────────────────────────────────────
-      const fullState = reduceV5(patches);
+      const fullState = /** @type {import('../../../../src/domain/services/JoinReducer.js').WarpStateV5} */ (reduceV5(patches));
       const fullBuild = service.build(fullState);
       const fullBitmapProvider = new BitmapNeighborProvider({
         logicalIndex: fullBuild.logicalIndex,
@@ -267,7 +273,7 @@ describe('MaterializedView equivalence', () => {
       const service = new MaterializedViewService();
 
       // ── Full rebuild ──────────────────────────────────────────────
-      const fullState = reduceV5(patches);
+      const fullState = /** @type {import('../../../../src/domain/services/JoinReducer.js').WarpStateV5} */ (reduceV5(patches));
       const fullBuild = service.build(fullState);
       const fullBitmapProvider = new BitmapNeighborProvider({
         logicalIndex: fullBuild.logicalIndex,
@@ -288,6 +294,7 @@ describe('MaterializedView equivalence', () => {
         currentTree = lastResult.tree;
       }
 
+      if (!lastResult) { throw new Error('expected lastResult'); }
       const incrProvider = new BitmapNeighborProvider({
         logicalIndex: lastResult.logicalIndex,
       });
@@ -392,7 +399,7 @@ describe('MaterializedView equivalence', () => {
       },
     ];
 
-    const fullState = reduceV5(patches);
+    const fullState = /** @type {import('../../../../src/domain/services/JoinReducer.js').WarpStateV5} */ (reduceV5(patches));
     const build = service.build(fullState);
 
     // Object.prototype must be untouched

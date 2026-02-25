@@ -362,8 +362,9 @@ describe('GraphTraversal.bidirectionalAStar', () => {
     ]);
     const engine = new GraphTraversal({ provider });
 
+    /** @type {Record<string, number>} */
     const weights = { 'a|b': 10, 'b|a': 999, 'b|c': 5, 'c|b': 999 };
-    const weightFn = (from, to) => weights[`${from}|${to}`] ?? 1;
+    const weightFn = (/** @type {string} */ from, /** @type {string} */ to) => weights[`${from}|${to}`] ?? 1;
 
     const result = await engine.bidirectionalAStar({
       start: 'a',

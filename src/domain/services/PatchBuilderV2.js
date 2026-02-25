@@ -221,7 +221,7 @@ export class PatchBuilderV2 {
       const { edges } = findAttachedData(state, nodeId);
       for (const edgeKey of edges) {
         const [from, to, label] = edgeKey.split('\0');
-        const edgeDots = /** @type {import('../crdt/Dot.js').Dot[]} */ (/** @type {unknown} */ ([...orsetGetDots(state.edgeAlive, edgeKey)]));
+        const edgeDots = [...orsetGetDots(state.edgeAlive, edgeKey)];
         this._ops.push(createEdgeRemoveV2(from, to, label, edgeDots));
         // Provenance: cascade-generated EdgeRemove reads the edge key (to observe its dots)
         this._reads.add(edgeKey);
@@ -258,7 +258,7 @@ export class PatchBuilderV2 {
       }
     }
 
-    const observedDots = /** @type {import('../crdt/Dot.js').Dot[]} */ (/** @type {unknown} */ (state ? [...orsetGetDots(state.nodeAlive, nodeId)] : []));
+    const observedDots = state ? [...orsetGetDots(state.nodeAlive, nodeId)] : [];
     this._ops.push(createNodeRemoveV2(nodeId, observedDots));
     // Provenance: NodeRemove reads the node (to observe its dots)
     this._reads.add(nodeId);
@@ -332,7 +332,7 @@ export class PatchBuilderV2 {
     // Get observed dots from current state (orsetGetDots returns already-encoded dot strings)
     const state = this._getCurrentState();
     const edgeKey = encodeEdgeKey(from, to, label);
-    const observedDots = /** @type {import('../crdt/Dot.js').Dot[]} */ (/** @type {unknown} */ (state ? [...orsetGetDots(state.edgeAlive, edgeKey)] : []));
+    const observedDots = state ? [...orsetGetDots(state.edgeAlive, edgeKey)] : [];
     this._ops.push(createEdgeRemoveV2(from, to, label, observedDots));
     // Provenance: EdgeRemove reads the edge key (to observe its dots)
     this._reads.add(edgeKey);

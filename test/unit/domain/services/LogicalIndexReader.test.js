@@ -14,6 +14,7 @@ import { createEventId } from '../../../../src/domain/utils/EventId.js';
 
 /**
  * Builds a WarpStateV5 from a fixture (mirrors fixtureDsl._fixtureToState).
+ * @param {{nodes: string[], edges: Array<{from: string, to: string, label: string}>, props?: Array<{nodeId: string, key: string, value: unknown}>}} fixture
  */
 function fixtureToState(fixture) {
   const state = createEmptyStateV5();
@@ -66,6 +67,7 @@ describe('LogicalIndexReader', () => {
       // getGlobalId round-trips
       const gidA = idx.getGlobalId('A');
       expect(typeof gidA).toBe('number');
+      if (gidA === undefined) { throw new Error('expected gidA'); }
       expect(idx.getNodeId(gidA)).toBe('A');
 
       // getEdges returns both labels sorted
@@ -102,7 +104,7 @@ describe('LogicalIndexReader', () => {
       const { tree } = service.build(state);
 
       // Simulate OID→buffer mapping
-      const shardOids = {};
+      /** @type {Record<string, string>} */ const shardOids = {};
       const blobStore = new Map();
       let oidCounter = 0;
       for (const [path, buf] of Object.entries(tree)) {
@@ -146,6 +148,7 @@ describe('LogicalIndexReader', () => {
       expect(idx.isAlive('__proto__')).toBe(true);
       const gid = idx.getGlobalId('__proto__');
       expect(typeof gid).toBe('number');
+      if (gid === undefined) { throw new Error('expected gid'); }
       expect(idx.getNodeId(gid)).toBe('__proto__');
 
       // Object.prototype not mutated
@@ -185,6 +188,7 @@ describe('LogicalIndexReader', () => {
       const registry = idx.getLabelRegistry();
       const managesId = registry.get('manages');
       expect(managesId).toBeDefined();
+      if (managesId === undefined) { throw new Error('expected managesId'); }
 
       const filtered = idx.getEdges('A', 'out', [managesId]);
       expect(filtered.length).toBe(1);

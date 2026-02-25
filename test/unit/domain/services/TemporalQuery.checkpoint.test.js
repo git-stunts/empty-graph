@@ -10,6 +10,10 @@ import {
 } from '../../../helpers/warpGraphTestUtils.js';
 
 /**
+ * @typedef {{writer: string, lamport: number, ops: Array<{type: string, node?: string, dot?: import('../../../../src/domain/crdt/Dot.js').Dot, observedDots?: string[], from?: string, to?: string, label?: string, key?: string, value?: unknown}>, context: Map<string, number> | {[x: string]: number}}} TestPatch
+ */
+
+/**
  * Creates a patch that adds a node and sets a property on it.
  *
  * @param {Object} options
@@ -20,7 +24,7 @@ import {
  * @param {unknown} options.propValue - Property value
  * @param {string} options.sha - Patch SHA
  * @param {boolean} [options.addNode] - Whether to include a NodeAdd op
- * @returns {{patch: Object, sha: string}}
+ * @returns {{patch: TestPatch, sha: string}}
  */
 function createNodeWithPropPatch({
   nodeId,
@@ -52,7 +56,7 @@ function createNodeWithPropPatch({
  * @param {string} options.propKey
  * @param {unknown} options.propValue
  * @param {string} options.sha
- * @returns {{patch: Object, sha: string}}
+ * @returns {{patch: TestPatch, sha: string}}
  */
 function createPropOnlyPatch({ nodeId, writer, lamport, propKey, propValue, sha }) {
   return {
@@ -68,7 +72,7 @@ function createPropOnlyPatch({ nodeId, writer, lamport, propKey, propValue, sha 
 /**
  * Builds a checkpoint state by replaying patches through JoinReducer.
  *
- * @param {Array<{patch: Object, sha: string}>} patches - Patches to replay
+ * @param {Array<{patch: TestPatch, sha: string}>} patches - Patches to replay
  * @returns {import('../../../../src/domain/services/JoinReducer.js').WarpStateV5}
  */
 function buildStateFromPatches(patches) {

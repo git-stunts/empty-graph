@@ -150,8 +150,9 @@ describe('GraphTraversal.bfs', () => {
         await engine.bfs({ start: 'NONEXISTENT' });
         expect.unreachable('should have thrown');
       } catch (err) {
-        expect(err.code).toBe('INVALID_START');
-        expect(err.context.nodeId).toBe('NONEXISTENT');
+        const e = /** @type {{code: string, context: {nodeId: string}}} */ (err);
+        expect(e.code).toBe('INVALID_START');
+        expect(e.context.nodeId).toBe('NONEXISTENT');
       }
     });
 

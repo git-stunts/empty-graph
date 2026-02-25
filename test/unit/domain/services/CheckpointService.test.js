@@ -1070,7 +1070,7 @@ describe('CheckpointService', () => {
 
       // Second call = main tree containing 040000 tree entry for index
       const mainEntries = mockPersistence.writeTree.mock.calls[1][0];
-      const indexEntry = mainEntries.find((e) => e.includes('\tindex'));
+      const indexEntry = mainEntries.find((/** @type {string} */ e) => e.includes('\tindex'));
       expect(indexEntry).toBeDefined();
       expect(indexEntry).toMatch(/^040000 tree/);
 
@@ -1114,7 +1114,7 @@ describe('CheckpointService', () => {
         'index/fwd_cd.cbor': makeOid('idxfwd'),
       });
 
-      mockPersistence.readBlob.mockImplementation((oid) => {
+      mockPersistence.readBlob.mockImplementation((/** @type {string} */ oid) => {
         if (oid === makeOid('state')) { return Promise.resolve(stateBlob); }
         if (oid === makeOid('frontier')) { return Promise.resolve(frontierBlob); }
         if (oid === makeOid('appliedvv')) { return Promise.resolve(appliedVVBlob); }
@@ -1126,6 +1126,7 @@ describe('CheckpointService', () => {
 
       expect(result.schema).toBe(4);
       expect(result.indexShardOids).not.toBeNull();
+      if (!result.indexShardOids) { throw new Error('expected indexShardOids'); }
       expect(result.indexShardOids['meta_ab.cbor']).toBe(makeOid('idxmeta'));
       expect(result.indexShardOids['fwd_cd.cbor']).toBe(makeOid('idxfwd'));
     });
@@ -1160,7 +1161,7 @@ describe('CheckpointService', () => {
         'appliedVV.cbor': makeOid('appliedvv'),
       });
 
-      mockPersistence.readBlob.mockImplementation((oid) => {
+      mockPersistence.readBlob.mockImplementation((/** @type {string} */ oid) => {
         if (oid === makeOid('state')) { return Promise.resolve(stateBlob); }
         if (oid === makeOid('frontier')) { return Promise.resolve(frontierBlob); }
         if (oid === makeOid('appliedvv')) { return Promise.resolve(appliedVVBlob); }

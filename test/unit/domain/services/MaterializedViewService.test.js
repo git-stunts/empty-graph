@@ -128,7 +128,8 @@ describe('MaterializedViewService', () => {
       expect(treeOid).toBe('tree_oid_' + '0'.repeat(31));
 
       // Tree entries are sorted and have correct format
-      const treeEntries = mockPersistence.writeTree.mock.calls[0][0];
+      const treeEntries = /** @type {string[][]} */ (mockPersistence.writeTree.mock.calls)[0][0];
+      if (!treeEntries) { throw new Error('expected treeEntries'); }
       for (const entry of treeEntries) {
         expect(entry).toMatch(/^100644 blob [^\s]+\t/);
       }
@@ -142,7 +143,7 @@ describe('MaterializedViewService', () => {
       const { tree } = service.build(state);
 
       // Simulate OID→buffer mapping (only index shards, not props)
-      const shardOids = {};
+      /** @type {Record<string, string>} */ const shardOids = {};
       const blobStore = new Map();
       let oidCounter = 0;
       for (const [path, buf] of Object.entries(tree)) {
@@ -189,8 +190,8 @@ describe('MaterializedViewService', () => {
       await service.persistIndexTree(tree, mockPersistence);
 
       // Build shardOids from writeBlob calls
-      const shardOids = {};
-      const treeEntries = mockPersistence.writeTree.mock.calls[0][0];
+      /** @type {Record<string, string>} */ const shardOids = {};
+      const treeEntries = /** @type {string[][]} */ (mockPersistence.writeTree.mock.calls)[0][0];
       for (const entry of treeEntries) {
         const match = entry.match(/^100644 blob ([^\s]+)\t(.+)$/);
         if (match) {

@@ -131,7 +131,9 @@ describe('AdjacencyNeighborProvider', () => {
       ]);
 
       // Snapshot the original order before construction
-      const originalOutA = outgoing.get('a').map((e) => ({ ...e }));
+      const outA = outgoing.get('a');
+      if (!outA) { throw new Error('expected outA'); }
+      const originalOutA = outA.map((e) => ({ ...e }));
 
       // Construction triggers sortAdjacencyMap internally
       new AdjacencyNeighborProvider({ outgoing, incoming });
@@ -139,7 +141,7 @@ describe('AdjacencyNeighborProvider', () => {
       // Caller's original arrays must be unmodified
       expect(outgoing.get('a')).toEqual(originalOutA);
       // Specifically: 'c' was first in the original, if sorted in-place 'b' would be first
-      expect(outgoing.get('a')[0].neighborId).toBe('c');
+      expect(outA[0].neighborId).toBe('c');
     });
 
     it('two providers from same source data are independent', async () => {

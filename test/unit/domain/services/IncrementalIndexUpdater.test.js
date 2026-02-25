@@ -13,7 +13,7 @@ import { ShardIdOverflowError } from '../../../../src/domain/errors/index.js';
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
-/** Builds a WarpStateV5 from a simple fixture definition. */
+/** @param {{nodes: string[], edges: Array<{from: string, to: string, label: string}>, props?: Array<{nodeId: string, key: string, value: unknown}>}} fixture */
 function buildState({ nodes, edges, props }) {
   const state = createEmptyStateV5();
   const writer = 'w1';
@@ -44,25 +44,25 @@ function buildState({ nodes, edges, props }) {
   return state;
 }
 
-/** Builds a full index tree and returns it. */
+/** @param {import('../../../../src/domain/services/JoinReducer.js').WarpStateV5} state */
 function buildTree(state) {
   const svc = new LogicalIndexBuildService();
   return svc.build(state).tree;
 }
 
-/** Hydrates a LogicalIndex from a tree for assertions. */
+/** @param {Record<string, Buffer>} tree */
 function readIndex(tree) {
   return new LogicalIndexReader().loadFromTree(tree).toLogicalIndex();
 }
 
-/** Decodes a meta shard from the tree. */
+/** @param {Record<string, Uint8Array>} tree @param {string} shardKey */
 function decodeMeta(tree, shardKey) {
   const buf = tree[`meta_${shardKey}.cbor`];
   if (!buf) return null;
   return defaultCodec.decode(buf);
 }
 
-/** Decodes props shard from the tree. */
+/** @param {Record<string, Uint8Array>} tree @param {string} shardKey */
 function decodeProps(tree, shardKey) {
   const buf = tree[`props_${shardKey}.cbor`];
   if (!buf) return null;
@@ -180,14 +180,16 @@ describe('IncrementalIndexUpdater', () => {
         }
       }
 
+      if (!nodeB) { throw new Error('no shard collision found'); }
+
       const state = buildState({ nodes: [nodeA], edges: [], props: [] });
       const tree = buildTree(state);
 
       // Tamper with the meta shard: push nextLocalId to the limit
       const metaBuf = tree[`meta_${shardKey}.cbor`];
-      const meta = defaultCodec.decode(metaBuf);
+      const meta = /** @type {{nextLocalId: number, nodeToGlobal: Array<[string, number]>, alive: Uint8Array}} */ (defaultCodec.decode(metaBuf));
       meta.nextLocalId = (1 << 24);
-      tree[`meta_${shardKey}.cbor`] = defaultCodec.encode(meta);
+      tree[`meta_${shardKey}.cbor`] = Buffer.from(defaultCodec.encode(meta));
 
       // Attempting to add a new node in the same shard should overflow
       const diff = {
@@ -404,7 +406,9 @@ describe('IncrementalIndexUpdater', () => {
 
       const tree2 = { ...tree1, ...dirtyShards };
       const propsMap = decodeProps(tree2, shardKey);
-      expect(propsMap.get('A').name).toBe('Bob');
+      if (!propsMap) { throw new Error('expected propsMap'); }
+      const aProps = /** @type {Record<string, unknown>} */ (propsMap.get('A'));
+      expect(aProps.name).toBe('Bob');
     });
   });
 
@@ -438,8 +442,10 @@ describe('IncrementalIndexUpdater', () => {
       const propsMap = decodeProps(tree2, shardKey);
 
       // Should be safe — no prototype poisoning
-      expect(propsMap.get('__proto__').x).toBe(1);
-      expect({}.x).toBeUndefined();
+      if (!propsMap) { throw new Error('expected propsMap'); }
+      const proto = /** @type {Record<string, unknown>} */ (propsMap.get('__proto__'));
+      expect(proto.x).toBe(1);
+      expect(/** @type {Record<string, unknown>} */ ({}).x).toBeUndefined();
     });
   });
 
@@ -516,6 +522,7 @@ describe('IncrementalIndexUpdater', () => {
 
       // Verify property reader
       const cProps = await result.propertyReader.getNodeProps('C');
+      if (!cProps) { throw new Error('expected cProps'); }
       expect(cProps.role).toBe('dev');
     });
   });

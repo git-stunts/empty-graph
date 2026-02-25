@@ -84,12 +84,14 @@ describe('PatchDiff', () => {
       const n1Color = merged.propsChanged.find(
         (p) => p.nodeId === 'n1' && p.key === 'color',
       );
+      if (!n1Color) { throw new Error('expected n1Color'); }
       expect(n1Color.value).toBe('blue');
       expect(n1Color.prevValue).toBe('red');
       // n2/size should be present
       const n2Size = merged.propsChanged.find(
         (p) => p.nodeId === 'n2' && p.key === 'size',
       );
+      if (!n2Size) { throw new Error('expected n2Size'); }
       expect(n2Size.value).toBe(10);
     });
 

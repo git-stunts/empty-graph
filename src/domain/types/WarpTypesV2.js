@@ -50,7 +50,7 @@
  * @typedef {Object} OpV2NodeRemove
  * @property {'NodeRemove'} type - Operation type discriminator
  * @property {NodeId} node - Node ID to remove
- * @property {Dot[]} observedDots - Dots being removed (add events observed)
+ * @property {string[]} observedDots - Encoded dot strings being removed (add events observed)
  */
 
 /**
@@ -70,7 +70,7 @@
  * @property {NodeId} from - Source node ID
  * @property {NodeId} to - Target node ID
  * @property {string} label - Edge label/type
- * @property {Dot[]} observedDots - Dots being removed (add events observed)
+ * @property {string[]} observedDots - Encoded dot strings being removed (add events observed)
  */
 
 /**
@@ -121,7 +121,7 @@ export function createNodeAddV2(node, dot) {
 /**
  * Creates a NodeRemove operation with observed dots
  * @param {NodeId} node - Node ID to remove
- * @param {Dot[]} observedDots - Dots being removed
+ * @param {string[]} observedDots - Encoded dot strings being removed
  * @returns {OpV2NodeRemove} NodeRemove operation
  */
 export function createNodeRemoveV2(node, observedDots) {
@@ -145,7 +145,7 @@ export function createEdgeAddV2(from, to, label, dot) {
  * @param {NodeId} from - Source node ID
  * @param {NodeId} to - Target node ID
  * @param {string} label - Edge label
- * @param {Dot[]} observedDots - Dots being removed
+ * @param {string[]} observedDots - Encoded dot strings being removed
  * @returns {OpV2EdgeRemove} EdgeRemove operation
  */
 export function createEdgeRemoveV2(from, to, label, observedDots) {
