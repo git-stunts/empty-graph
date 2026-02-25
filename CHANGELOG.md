@@ -7,7 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`graph.traverse` — 7 new facade methods** — `isReachable`, `weightedShortestPath`, `aStarSearch`, `bidirectionalAStar`, `topologicalSort`, `commonAncestors`, and `weightedLongestPath` are now accessible via the public `graph.traverse.*` API, matching the full `GraphTraversal` engine surface. Previously these required constructing `GraphTraversal` + `NeighborProvider` directly.
+
 ### Fixed
+
+- **`AdjacencyNeighborProvider`: isolated node visibility** — `LogicalTraversal` now passes `aliveNodes` from the materialized OR-Set when constructing the provider, so `hasNode()` correctly reports isolated nodes (no edges) as alive.
+
 
 - **IncrementalIndexUpdater: overflow guard** — `_handleNodeAdd` now throws `ShardIdOverflowError` when a shard's `nextLocalId` reaches 2^24, matching the full-build path and preventing silent globalId collisions across shards.
 - **IncrementalIndexUpdater: undefined label guard** — `_handleEdgeRemove` now returns early when the edge label is not in the label registry, preventing a `"undefined"` bucket from being targeted.

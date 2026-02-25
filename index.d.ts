@@ -238,26 +238,52 @@ export class QueryBuilder {
 /**
  * Logical graph traversal module.
  */
+export interface TraverseFacadeOptions {
+  maxDepth?: number;
+  dir?: 'out' | 'in' | 'both';
+  labelFilter?: string | string[];
+}
+
 export interface LogicalTraversal {
-  bfs(start: string, options?: {
-    maxDepth?: number;
-    dir?: 'out' | 'in' | 'both';
-    labelFilter?: string | string[];
-  }): Promise<string[]>;
-  dfs(start: string, options?: {
-    maxDepth?: number;
-    dir?: 'out' | 'in' | 'both';
-    labelFilter?: string | string[];
-  }): Promise<string[]>;
-  shortestPath(from: string, to: string, options?: {
-    maxDepth?: number;
-    dir?: 'out' | 'in' | 'both';
-    labelFilter?: string | string[];
-  }): Promise<{ found: boolean; path: string[]; length: number }>;
+  bfs(start: string, options?: TraverseFacadeOptions): Promise<string[]>;
+  dfs(start: string, options?: TraverseFacadeOptions): Promise<string[]>;
+  shortestPath(from: string, to: string, options?: TraverseFacadeOptions): Promise<{ found: boolean; path: string[]; length: number }>;
   connectedComponent(start: string, options?: {
     maxDepth?: number;
     labelFilter?: string | string[];
   }): Promise<string[]>;
+  isReachable(from: string, to: string, options?: TraverseFacadeOptions): Promise<{ reachable: boolean }>;
+  weightedShortestPath(from: string, to: string, options?: TraverseFacadeOptions & {
+    weightFn?: (from: string, to: string, label: string) => number | Promise<number>;
+  }): Promise<{ path: string[]; totalCost: number }>;
+  aStarSearch(from: string, to: string, options?: TraverseFacadeOptions & {
+    weightFn?: (from: string, to: string, label: string) => number | Promise<number>;
+    heuristicFn?: (nodeId: string, goalId: string) => number;
+  }): Promise<{ path: string[]; totalCost: number; nodesExplored: number }>;
+  bidirectionalAStar(from: string, to: string, options?: {
+    labelFilter?: string | string[];
+    weightFn?: (from: string, to: string, label: string) => number | Promise<number>;
+    forwardHeuristic?: (nodeId: string, goalId: string) => number;
+    backwardHeuristic?: (nodeId: string, goalId: string) => number;
+  }): Promise<{ path: string[]; totalCost: number; nodesExplored: number }>;
+  topologicalSort(start: string | string[], options?: {
+    dir?: 'out' | 'in' | 'both';
+    labelFilter?: string | string[];
+    throwOnCycle?: boolean;
+    signal?: AbortSignal;
+  }): Promise<{ sorted: string[]; hasCycle: boolean }>;
+  commonAncestors(nodes: string[], options?: {
+    maxDepth?: number;
+    labelFilter?: string | string[];
+    maxResults?: number;
+    signal?: AbortSignal;
+  }): Promise<{ ancestors: string[] }>;
+  weightedLongestPath(from: string, to: string, options?: {
+    dir?: 'out' | 'in' | 'both';
+    labelFilter?: string | string[];
+    weightFn?: (from: string, to: string, label: string) => number | Promise<number>;
+    signal?: AbortSignal;
+  }): Promise<{ path: string[]; totalCost: number }>;
 }
 
 /**
