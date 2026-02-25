@@ -29,8 +29,9 @@ export default async function handleVerifyIndex({ options, args }) {
   try {
     await graph.materialize();
   } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
     return {
-      payload: { error: /** @type {Error} */ (err).message },
+      payload: { error: message },
       exitCode: EXIT_CODES.INTERNAL,
     };
   }

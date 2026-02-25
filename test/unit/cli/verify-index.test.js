@@ -67,6 +67,24 @@ describe('verify-index command', () => {
     });
   });
 
+  it('stringifies non-Error throws from materialize()', async () => {
+    openGraph.mockResolvedValue({
+      graphName: 'demo',
+      persistence: {},
+      graph: {
+        materialize: vi.fn().mockRejectedValue('boom'),
+        verifyIndex: vi.fn(),
+      },
+    });
+
+    const result = await handleVerifyIndex({ options: CLI_OPTIONS, args: [] });
+
+    expect(result.exitCode).toBe(EXIT_CODES.INTERNAL);
+    expect(result.payload).toEqual({
+      error: 'boom',
+    });
+  });
+
   it('returns OK when all sampled checks pass', async () => {
     openGraph.mockResolvedValue({
       graphName: 'demo',

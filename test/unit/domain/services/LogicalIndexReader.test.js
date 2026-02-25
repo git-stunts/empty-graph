@@ -215,6 +215,30 @@ describe('LogicalIndexReader', () => {
       expect(registry.has('manages')).toBe(true);
       expect(registry.has('owns')).toBe(true);
     });
+
+    it('accepts meta.alive encoded as a plain number array', () => {
+      const state = fixtureToState(F7_MULTILABEL_SAME_NEIGHBOR);
+      const service = new LogicalIndexBuildService();
+      const { tree } = service.build(state);
+
+      /** @type {Record<string, Uint8Array>} */
+      const legacyTree = { ...tree };
+      for (const path of Object.keys(tree)) {
+        if (!path.startsWith('meta_') || !path.endsWith('.cbor')) {
+          continue;
+        }
+        const meta = /** @type {{ nodeToGlobal: Array<[string, number]>, nextLocalId: number, alive: Uint8Array }} */ (defaultCodec.decode(tree[path]));
+        legacyTree[path] = defaultCodec.encode({
+          nodeToGlobal: meta.nodeToGlobal,
+          nextLocalId: meta.nextLocalId,
+          alive: Array.from(meta.alive),
+        }).slice();
+      }
+
+      const idx = new LogicalIndexReader().loadFromTree(legacyTree).toLogicalIndex();
+      expect(idx.isAlive('A')).toBe(true);
+      expect(idx.isAlive('B')).toBe(true);
+    });
   });
 
   describe('toLogicalIndex returns a proper LogicalIndex interface', () => {

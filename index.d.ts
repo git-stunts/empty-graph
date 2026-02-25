@@ -523,9 +523,9 @@ export class GlobalClockAdapter extends ClockPort {
  */
 export abstract class SeekCachePort {
   /** Retrieves a cached state buffer by key, or null on miss. */
-  abstract get(key: string): Promise<{ buffer: Buffer; indexTreeOid?: string } | null>;
+  abstract get(key: string): Promise<{ buffer: Buffer | Uint8Array; indexTreeOid?: string } | null>;
   /** Stores a state buffer under the given key. */
-  abstract set(key: string, buffer: Buffer, options?: { indexTreeOid?: string }): Promise<void>;
+  abstract set(key: string, buffer: Buffer | Uint8Array, options?: { indexTreeOid?: string }): Promise<void>;
   /** Checks whether a key exists in the cache index. */
   abstract has(key: string): Promise<boolean>;
   /** Lists all keys currently in the cache index. */

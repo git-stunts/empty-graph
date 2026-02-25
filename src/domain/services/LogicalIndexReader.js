@@ -16,6 +16,19 @@ import { getRoaringBitmap32 } from '../utils/roaring.js';
 /** @typedef {import('../utils/roaring.js').RoaringBitmapSubset} Bitmap */
 
 /**
+ * Normalizes decoded binary payloads to Uint8Array.
+ *
+ * Decoders may yield Buffer, Uint8Array, or plain number arrays depending on
+ * runtime and codec implementation.
+ *
+ * @param {Uint8Array|ArrayLike<number>} value
+ * @returns {Uint8Array}
+ */
+function toBytes(value) {
+  return Uint8Array.from(value);
+}
+
+/**
  * Expands a bitmap into neighbor entries, pushing into `out`.
  *
  * @param {Bitmap} bitmap
@@ -225,7 +238,7 @@ export default class LogicalIndexReader {
    */
   _decodeMeta(path, buf, Ctor) {
     const shardKey = path.slice(5, 7);
-    const meta = /** @type {{ nodeToGlobal: Array<[string, number]>|Record<string, number>, alive: Uint8Array }} */ (this._codec.decode(buf));
+    const meta = /** @type {{ nodeToGlobal: Array<[string, number]>|Record<string, number>, alive: Uint8Array|ArrayLike<number> }} */ (this._codec.decode(buf));
 
     const entries = Array.isArray(meta.nodeToGlobal)
       ? meta.nodeToGlobal
@@ -238,7 +251,7 @@ export default class LogicalIndexReader {
     if (meta.alive && meta.alive.length > 0) {
       this._aliveBitmaps.set(
         shardKey,
-        Ctor.deserialize(meta.alive.slice(), true)
+        Ctor.deserialize(toBytes(meta.alive), true)
       );
     }
   }
@@ -282,10 +295,10 @@ export default class LogicalIndexReader {
   _decodeEdgeShard(dir, buf, Ctor) {
     const store = dir === 'fwd' ? this._edgeFwd : this._edgeRev;
     const byOwner = dir === 'fwd' ? this._edgeByOwnerFwd : this._edgeByOwnerRev;
-    const decoded = /** @type {Record<string, Record<string, Uint8Array>>} */ (this._codec.decode(buf));
+    const decoded = /** @type {Record<string, Record<string, Uint8Array|ArrayLike<number>>>} */ (this._codec.decode(buf));
     for (const [bucket, entries] of Object.entries(decoded)) {
       for (const [gidStr, bitmapBytes] of Object.entries(entries)) {
-        const bitmap = Ctor.deserialize(bitmapBytes.slice(), true);
+        const bitmap = Ctor.deserialize(toBytes(bitmapBytes), true);
         store.set(`${dir}:${bucket}:${gidStr}`, bitmap);
         this._indexByOwner(byOwner, { bucket, gidStr, bitmap });
       }

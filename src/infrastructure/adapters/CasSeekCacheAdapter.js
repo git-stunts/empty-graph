@@ -215,7 +215,7 @@ export default class CasSeekCacheAdapter extends SeekCachePort {
    *
    * @override
    * @param {string} key
-   * @returns {Promise<{ buffer: Buffer, indexTreeOid?: string } | null>}
+   * @returns {Promise<{ buffer: Buffer|Uint8Array, indexTreeOid?: string } | null>}
    */
   async get(key) {
     const cas = await this._getCas();
@@ -235,7 +235,7 @@ export default class CasSeekCacheAdapter extends SeekCachePort {
         }
         return idx;
       });
-      /** @type {{ buffer: Buffer, indexTreeOid?: string }} */
+      /** @type {{ buffer: Buffer|Uint8Array, indexTreeOid?: string }} */
       const result = { buffer };
       if (entry.indexTreeOid) {
         result.indexTreeOid = entry.indexTreeOid;
@@ -254,7 +254,7 @@ export default class CasSeekCacheAdapter extends SeekCachePort {
   /**
    * @override
    * @param {string} key
-   * @param {Buffer} buffer
+   * @param {Buffer|Uint8Array} buffer
    * @param {{ indexTreeOid?: string }} [options]
    * @returns {Promise<void>}
    */
