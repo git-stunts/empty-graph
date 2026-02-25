@@ -779,6 +779,8 @@ git warp reindex --repo ./team-repo --graph team
 
 The output shows the number of nodes and edges indexed and the time taken.
 
+Exits with code 0 on success, or code 3 if the index could not be built.
+
 **Flags:** None beyond [global options](#global-options).
 
 ---

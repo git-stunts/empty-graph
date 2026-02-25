@@ -257,7 +257,7 @@ Orchestrates the full materialized view lifecycle — build, persist, and load:
 
 Abstract interface for neighbor lookups, decoupling traversal algorithms from storage:
 
-- `getNeighbors(nodeId, direction, labelFilter)` — returns neighbor node IDs
+- `getNeighbors(nodeId, direction, options?)` — returns neighbor edges; `options.labels` (a `Set`) filters by label
 - Two implementations:
   - `AdjacencyNeighborProvider` — builds adjacency lists from materialized state (in-memory, O(E) build)
   - `BitmapNeighborProvider` — delegates to `LogicalIndexReader` for O(1) bitmap lookups
@@ -304,7 +304,7 @@ Timing abstraction:
 
 Neighbor lookup abstraction:
 
-- `getNeighbors(nodeId, direction, labelFilter)` — returns adjacent node IDs
+- `getNeighbors(nodeId, direction, options?)` — returns neighbor edges; `options.labels` (a `Set`) filters by label
 - Implementations: `AdjacencyNeighborProvider` (in-memory), `BitmapNeighborProvider` (bitmap-backed)
 
 #### SeekCachePort

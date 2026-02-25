@@ -10,23 +10,11 @@
 
 import defaultCodec from '../utils/defaultCodec.js';
 import computeShardKey from '../utils/shardKey.js';
+import toBytes from '../utils/toBytes.js';
 import { getRoaringBitmap32 } from '../utils/roaring.js';
 
 /** @typedef {import('./BitmapNeighborProvider.js').LogicalIndex} LogicalIndex */
 /** @typedef {import('../utils/roaring.js').RoaringBitmapSubset} Bitmap */
-
-/**
- * Normalizes decoded binary payloads to Uint8Array.
- *
- * Decoders may yield Buffer, Uint8Array, or plain number arrays depending on
- * runtime and codec implementation.
- *
- * @param {Uint8Array|ArrayLike<number>} value
- * @returns {Uint8Array}
- */
-function toBytes(value) {
-  return Uint8Array.from(value);
-}
 
 /**
  * Expands a bitmap into neighbor entries, pushing into `out`.

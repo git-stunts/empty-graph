@@ -189,7 +189,7 @@ describe('IncrementalIndexUpdater', () => {
       const metaBuf = tree[`meta_${shardKey}.cbor`];
       const meta = /** @type {{nextLocalId: number, nodeToGlobal: Array<[string, number]>, alive: Uint8Array}} */ (defaultCodec.decode(metaBuf));
       meta.nextLocalId = (1 << 24);
-      tree[`meta_${shardKey}.cbor`] = Buffer.from(defaultCodec.encode(meta));
+      tree[`meta_${shardKey}.cbor`] = new Uint8Array(defaultCodec.encode(meta));
 
       // Attempting to add a new node in the same shard should overflow
       const diff = {

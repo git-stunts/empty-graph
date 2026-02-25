@@ -10,6 +10,7 @@
 
 import defaultCodec from '../utils/defaultCodec.js';
 import computeShardKey from '../utils/shardKey.js';
+import toBytes from '../utils/toBytes.js';
 import { getRoaringBitmap32 } from '../utils/roaring.js';
 import { orsetContains, orsetElements } from '../crdt/ORSet.js';
 import { decodeEdgeKey } from './KeyCodec.js';
@@ -256,7 +257,7 @@ export default class IncrementalIndexUpdater {
       if (fwdData[bucket] && fwdData[bucket][gidStr]) {
         // Before clearing, find the targets so we can clean reverse bitmaps
         const targets = RoaringBitmap32.deserialize(
-          fwdData[bucket][gidStr].slice(),
+          toBytes(fwdData[bucket][gidStr]),
           true,
         ).toArray();
 
@@ -273,7 +274,7 @@ export default class IncrementalIndexUpdater {
             const targetGidStr = String(targetGid);
             if (revData[bucket] && revData[bucket][targetGidStr]) {
               const bm = RoaringBitmap32.deserialize(
-                revData[bucket][targetGidStr].slice(),
+                toBytes(revData[bucket][targetGidStr]),
                 true,
               );
               bm.remove(deadGid);
@@ -290,7 +291,7 @@ export default class IncrementalIndexUpdater {
       const gidStr = String(deadGid);
       if (revData[bucket] && revData[bucket][gidStr]) {
         const sources = RoaringBitmap32.deserialize(
-          revData[bucket][gidStr].slice(),
+          toBytes(revData[bucket][gidStr]),
           true,
         ).toArray();
 
@@ -306,7 +307,7 @@ export default class IncrementalIndexUpdater {
             const sourceGidStr = String(sourceGid);
             if (fwdDataPeer[bucket] && fwdDataPeer[bucket][sourceGidStr]) {
               const bm = RoaringBitmap32.deserialize(
-                fwdDataPeer[bucket][sourceGidStr].slice(),
+                toBytes(fwdDataPeer[bucket][sourceGidStr]),
                 true,
               );
               bm.remove(deadGid);
@@ -475,7 +476,7 @@ export default class IncrementalIndexUpdater {
       const bucket = String(labelId);
       if (data[bucket] && data[bucket][ownerStr]) {
         const bm = RoaringBitmap32.deserialize(
-          data[bucket][ownerStr].slice(),
+          toBytes(data[bucket][ownerStr]),
           true,
         );
         merged.orInPlace(bm);
@@ -569,7 +570,7 @@ export default class IncrementalIndexUpdater {
       ? raw.nodeToGlobal
       : Object.entries(raw.nodeToGlobal);
     const alive = raw.alive && raw.alive.length > 0
-      ? RoaringBitmap32.deserialize(Uint8Array.from(raw.alive), true)
+      ? RoaringBitmap32.deserialize(toBytes(raw.alive), true)
       : new RoaringBitmap32();
 
     // Build O(1) lookup maps from the entries array
@@ -755,7 +756,7 @@ export default class IncrementalIndexUpdater {
     const RoaringBitmap32 = getRoaringBitmap32();
     if (data[bucket] && data[bucket][ownerStr]) {
       return RoaringBitmap32.deserialize(
-        data[bucket][ownerStr].slice(),
+        toBytes(data[bucket][ownerStr]),
         true,
       );
     }
