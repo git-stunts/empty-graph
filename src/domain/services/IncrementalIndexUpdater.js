@@ -23,6 +23,8 @@ const MAX_LOCAL_ID = 1 << 24;
  * @property {Array<[string, number]>} nodeToGlobal
  * @property {number} nextLocalId
  * @property {import('../utils/roaring.js').RoaringBitmapSubset} aliveBitmap
+ * @property {Map<number, string>} globalToNode - Reverse lookup: globalId → nodeId (O(1))
+ * @property {Map<string, number>} nodeToGlobalMap - Forward lookup: nodeId → globalId (O(1))
  */
 
 /**
@@ -196,6 +198,8 @@ export default class IncrementalIndexUpdater {
     const globalId = ((shardByte << 24) | meta.nextLocalId) >>> 0;
     meta.nextLocalId++;
     meta.nodeToGlobal.push([nodeId, globalId]);
+    meta.globalToNode.set(globalId, nodeId);
+    meta.nodeToGlobalMap.set(nodeId, globalId);
     meta.aliveBitmap.add(globalId);
   }
 
@@ -315,7 +319,7 @@ export default class IncrementalIndexUpdater {
   }
 
   /**
-   * Reverse-looks up a nodeId from a globalId by scanning all loaded meta shards.
+   * Reverse-looks up a nodeId from a globalId using the pre-built reverse map.
    *
    * @param {number} globalId
    * @param {Map<string, MetaShard>} metaCache
@@ -328,12 +332,7 @@ export default class IncrementalIndexUpdater {
     const shardByte = (globalId >>> 24) & 0xff;
     const shardKey = shardByte.toString(16).padStart(2, '0');
     const meta = this._getOrLoadMeta(shardKey, metaCache, loadShard);
-    for (const [nodeId, gid] of meta.nodeToGlobal) {
-      if (gid === globalId) {
-        return nodeId;
-      }
-    }
-    return undefined;
+    return meta.globalToNode.get(globalId);
   }
 
   // ── Label operations ──────────────────────────────────────────────────────
@@ -557,6 +556,8 @@ export default class IncrementalIndexUpdater {
         nodeToGlobal: [],
         nextLocalId: 0,
         aliveBitmap: new RoaringBitmap32(),
+        globalToNode: new Map(),
+        nodeToGlobalMap: new Map(),
       };
     }
     const raw = this._codec.decode(buf);
@@ -566,7 +567,18 @@ export default class IncrementalIndexUpdater {
     const alive = raw.alive && raw.alive.length > 0
       ? RoaringBitmap32.deserialize(Buffer.from(raw.alive), true)
       : new RoaringBitmap32();
-    return { nodeToGlobal: entries, nextLocalId: raw.nextLocalId, aliveBitmap: alive };
+
+    // Build O(1) lookup maps from the entries array
+    /** @type {Map<number, string>} */
+    const globalToNode = new Map();
+    /** @type {Map<string, number>} */
+    const nodeToGlobalMap = new Map();
+    for (const [nodeId, gid] of entries) {
+      globalToNode.set(gid, nodeId);
+      nodeToGlobalMap.set(nodeId, gid);
+    }
+
+    return { nodeToGlobal: entries, nextLocalId: raw.nextLocalId, aliveBitmap: alive, globalToNode, nodeToGlobalMap };
   }
 
   /**
@@ -654,7 +666,7 @@ export default class IncrementalIndexUpdater {
     if (!buf) {
       return Object.create(null);
     }
-    return /** @type {Record<string, number>} */ (this._codec.decode(buf));
+    return /** @type {Record<string, number>} */ (Object.assign(Object.create(null), this._codec.decode(buf)));
   }
 
   /**
@@ -696,14 +708,14 @@ export default class IncrementalIndexUpdater {
    * @private
    */
   _saveProps(shard) {
-    const entries = [...shard.entries()].map(([nodeId, props]) => [nodeId, props]);
+    const entries = [...shard.entries()];
     return Buffer.from(this._codec.encode(entries));
   }
 
   // ── Utility ───────────────────────────────────────────────────────────────
 
   /**
-   * Finds the globalId for a nodeId in a MetaShard.
+   * Finds the globalId for a nodeId in a MetaShard via the O(1) forward map.
    *
    * @param {MetaShard} meta
    * @param {string} nodeId
@@ -711,12 +723,7 @@ export default class IncrementalIndexUpdater {
    * @private
    */
   _findGlobalId(meta, nodeId) {
-    for (const [nid, gid] of meta.nodeToGlobal) {
-      if (nid === nodeId) {
-        return gid;
-      }
-    }
-    return undefined;
+    return meta.nodeToGlobalMap.get(nodeId);
   }
 
   /**

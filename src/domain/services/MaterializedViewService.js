@@ -281,6 +281,11 @@ export default class MaterializedViewService {
       .loadFromTree(tree)
       .toLogicalIndex();
     const propertyReader = buildInMemoryPropertyReader(tree, this._codec);
+
+    // Note: receipt.cbor is written only by the full build (LogicalIndexBuildService).
+    // IncrementalIndexUpdater never writes a receipt, so the receipt returned here
+    // reflects the state at the time of the original full build, not the current
+    // incremental update. Consumers should not rely on it for incremental accuracy.
     const receipt = tree['receipt.cbor']
       ? this._codec.decode(tree['receipt.cbor'])
       : {};

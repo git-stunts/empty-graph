@@ -6,6 +6,11 @@ import IndexError from './IndexError.js';
  * Each shard byte supports up to 2^24 local IDs. When this limit
  * is reached, no more nodes can be registered in that shard.
  *
+ * The `code` property is set to `'E_SHARD_ID_OVERFLOW'` and is correctly
+ * forwarded through the IndexError -> WarpError chain: IndexError passes
+ * the options object to WarpError, which prefers `options.code` over its
+ * default code (`'INDEX_ERROR'`).
+ *
  * @class ShardIdOverflowError
  * @extends IndexError
  */

@@ -2,9 +2,10 @@ import { describe, it, expect } from 'vitest';
 import IncrementalIndexUpdater from '../../../../src/domain/services/IncrementalIndexUpdater.js';
 import LogicalIndexBuildService from '../../../../src/domain/services/LogicalIndexBuildService.js';
 import LogicalIndexReader from '../../../../src/domain/services/LogicalIndexReader.js';
-import { createEmptyStateV5, applyOpV2 } from '../../../../src/domain/services/JoinReducer.js';
+import { createEmptyStateV5, applyOpV2, encodeEdgeKey } from '../../../../src/domain/services/JoinReducer.js';
 import { createDot } from '../../../../src/domain/crdt/Dot.js';
 import { createEventId } from '../../../../src/domain/utils/EventId.js';
+import { orsetGetDots, orsetRemove } from '../../../../src/domain/crdt/ORSet.js';
 import defaultCodec from '../../../../src/domain/utils/defaultCodec.js';
 import computeShardKey from '../../../../src/domain/utils/shardKey.js';
 import { getRoaringBitmap32 } from '../../../../src/domain/utils/roaring.js';
@@ -122,7 +123,10 @@ describe('IncrementalIndexUpdater', () => {
       const index1 = readIndex(tree1);
       const originalGid = index1.getGlobalId('A');
 
-      // Simulate A removed
+      // Simulate A removed — apply removal to state so state and diff agree
+      const aDots = orsetGetDots(state1.nodeAlive, 'A');
+      orsetRemove(state1.nodeAlive, aDots);
+
       const removeDiff = {
         nodesAdded: [],
         nodesRemoved: ['A'],
@@ -138,7 +142,11 @@ describe('IncrementalIndexUpdater', () => {
       });
       const tree2 = { ...tree1, ...removed };
 
-      // Now re-add A
+      // Re-add A — apply add to state so state and diff agree
+      const readdDot = createDot('w1', 100);
+      const readdEventId = createEventId(100, 'w1', 'a'.repeat(40), 99);
+      applyOpV2(state1, { type: 'NodeAdd', node: 'A', dot: readdDot }, readdEventId);
+
       const readdDiff = {
         nodesAdded: ['A'],
         nodesRemoved: [],
@@ -299,7 +307,11 @@ describe('IncrementalIndexUpdater', () => {
       });
       const tree1 = buildTree(state);
 
-      // Remove only 'knows' edge
+      // Remove only 'knows' edge — apply removal to state so state and diff agree
+      const knowsKey = encodeEdgeKey('A', 'B', 'knows');
+      const knowsDots = orsetGetDots(state.edgeAlive, knowsKey);
+      orsetRemove(state.edgeAlive, knowsDots);
+
       const diff = {
         nodesAdded: [],
         nodesRemoved: [],

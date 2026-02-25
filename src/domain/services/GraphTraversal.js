@@ -25,6 +25,14 @@
  *    within a traversal run, or determinism is impossible.
  * 8. **Never** rely on JS Map/Set iteration order — always explicit sort.
  *
+ * ## Error Handling Convention
+ *
+ * - `shortestPath` returns `{ found: false, path: [], length: -1 }` on no path.
+ * - `weightedShortestPath`, `aStarSearch`, and `bidirectionalAStar` throw
+ *   `TraversalError` with code `'NO_PATH'` when no path exists.
+ * - All start-node methods throw `TraversalError` with code `'INVALID_START'`
+ *   when the start node does not exist in the provider.
+ *
  * @module domain/services/GraphTraversal
  */
 
@@ -165,6 +173,7 @@ export default class GraphTraversal {
     signal, hooks,
   }) {
     this._resetStats();
+    await this._validateStart(start);
     const visited = new Set();
     /** @type {Array<{nodeId: string, depth: number}>} */
     let currentLevel = [{ nodeId: start, depth: 0 }];
@@ -231,6 +240,7 @@ export default class GraphTraversal {
     signal, hooks,
   }) {
     this._resetStats();
+    await this._validateStart(start);
     const visited = new Set();
     /** @type {Array<{nodeId: string, depth: number}>} */
     const stack = [{ nodeId: start, depth: 0 }];
@@ -287,6 +297,7 @@ export default class GraphTraversal {
     signal,
   }) {
     this._resetStats();
+    await this._validateStart(start);
     if (start === goal) {
       return { found: true, path: [start], length: 0, stats: this._stats(1) };
     }
@@ -408,6 +419,7 @@ export default class GraphTraversal {
     signal,
   }) {
     this._resetStats();
+    await this._validateStart(start);
     /** @type {Map<string, number>} */
     const dist = new Map([[start, 0]]);
     /** @type {Map<string, string>} */
@@ -475,6 +487,7 @@ export default class GraphTraversal {
     signal,
   }) {
     this._resetStats();
+    await this._validateStart(start);
     /** @type {Map<string, number>} */
     const gScore = new Map([[start, 0]]);
     /** @type {Map<string, string>} */
@@ -527,6 +540,12 @@ export default class GraphTraversal {
   /**
    * Bidirectional A* search.
    *
+   * **Direction is fixed:** forward expansion uses `'out'` edges, backward
+   * expansion uses `'in'` edges. Unlike other pathfinding methods, this one
+   * does not accept a `direction` parameter. This is inherent to the
+   * bidirectional algorithm — forward always means outgoing, backward always
+   * means incoming.
+   *
    * @param {Object} params
    * @param {string} params.start
    * @param {string} params.goal
@@ -548,6 +567,7 @@ export default class GraphTraversal {
     signal,
   }) {
     this._resetStats();
+    await this._validateStart(start);
     if (start === goal) {
       return { path: [start], totalCost: 0, nodesExplored: 1, stats: this._stats(1) };
     }
@@ -712,7 +732,8 @@ export default class GraphTraversal {
    * @param {number} [params.maxNodes]
    * @param {boolean} [params.throwOnCycle]
    * @param {AbortSignal} [params.signal]
-   * @returns {Promise<{sorted: string[], hasCycle: boolean, stats: TraversalStats}>}
+   * @param {boolean} [params._returnAdjList] - Private: return neighbor edge map alongside sorted (for internal reuse)
+   * @returns {Promise<{sorted: string[], hasCycle: boolean, stats: TraversalStats, _neighborEdgeMap?: Map<string, NeighborEdge[]>}>}
    * @throws {TraversalError} code 'ERR_GRAPH_HAS_CYCLES' if throwOnCycle is true and cycle found
    */
   async topologicalSort({
@@ -720,6 +741,7 @@ export default class GraphTraversal {
     maxNodes = DEFAULT_MAX_NODES,
     throwOnCycle = false,
     signal,
+    _returnAdjList = false,
   }) {
     this._resetStats();
     const starts = Array.isArray(start) ? start : [start];
@@ -727,6 +749,8 @@ export default class GraphTraversal {
     // Phase 1: Discover all reachable nodes + compute in-degrees
     /** @type {Map<string, string[]>} */
     const adjList = new Map();
+    /** @type {Map<string, NeighborEdge[]>} — populated when _returnAdjList is true */
+    const neighborEdgeMap = new Map();
     /** @type {Map<string, number>} */
     const inDegree = new Map();
     const discovered = new Set();
@@ -754,6 +778,7 @@ export default class GraphTraversal {
         }
       }
       adjList.set(nodeId, neighborIds);
+      neighborEdgeMap.set(nodeId, neighbors);
     }
 
     // Ensure starts have in-degree entries
@@ -833,11 +858,25 @@ export default class GraphTraversal {
       });
     }
 
-    return { sorted, hasCycle, stats: this._stats(sorted.length) };
+    const topoResult = { sorted, hasCycle, stats: this._stats(sorted.length) };
+    if (_returnAdjList) {
+      topoResult._neighborEdgeMap = neighborEdgeMap;
+    }
+    return topoResult;
   }
 
   /**
    * Common ancestors — multi-source ancestor intersection.
+   *
+   * For each input node, performs a BFS backward ('in') to collect its
+   * ancestor set. The result is the intersection of all ancestor sets.
+   *
+   * **Self-inclusion:** The BFS from each node includes the node itself
+   * (depth 0). Therefore, the result may include the input nodes themselves
+   * if they are reachable from all other input nodes via backward edges.
+   * For example, if A has backward edges to B and C, and you pass
+   * `[A, B, C]`, then B and C may appear in the result because A's BFS
+   * reaches them and their own BFS includes themselves at depth 0.
    *
    * @param {Object} params
    * @param {string[]} params.nodes - Nodes to find common ancestors of
@@ -872,12 +911,8 @@ export default class GraphTraversal {
         maxDepth,
         signal,
       });
-      const seen = new Set();
       for (const a of ancestors) {
-        if (!seen.has(a)) {
-          seen.add(a);
-          ancestorCounts.set(a, (ancestorCounts.get(a) || 0) + 1);
-        }
+        ancestorCounts.set(a, (ancestorCounts.get(a) || 0) + 1);
       }
     }
 
@@ -918,14 +953,18 @@ export default class GraphTraversal {
     maxNodes = DEFAULT_MAX_NODES,
     signal,
   }) {
-    // Run topo sort first — will throw on cycles
-    const { sorted } = await this.topologicalSort({
+    await this._validateStart(start);
+    // Run topo sort first — will throw on cycles.
+    // Request the neighbor edge map so the DP phase can reuse it
+    // instead of re-fetching neighbors from the provider.
+    const { sorted, _neighborEdgeMap } = await this.topologicalSort({
       start,
       direction,
       options,
       maxNodes,
       throwOnCycle: true,
       signal,
+      _returnAdjList: true,
     });
 
     this._resetStats();
@@ -938,7 +977,10 @@ export default class GraphTraversal {
 
     for (const nodeId of sorted) {
       if (!dist.has(nodeId)) { continue; }
-      const neighbors = await this._getNeighbors(nodeId, direction, options);
+      // Reuse neighbor data from topo sort's discovery phase
+      const neighbors = _neighborEdgeMap
+        ? (_neighborEdgeMap.get(nodeId) || [])
+        : await this._getNeighbors(nodeId, direction, options);
       this._edgesTraversed += neighbors.length;
 
       for (const { neighborId, label } of neighbors) {
@@ -965,6 +1007,24 @@ export default class GraphTraversal {
   }
 
   // ==== Private Helpers ====
+
+  /**
+   * Validates that a start node exists in the provider.
+   * Throws INVALID_START if the node is not alive.
+   *
+   * @param {string} nodeId
+   * @returns {Promise<void>}
+   * @private
+   */
+  async _validateStart(nodeId) {
+    const exists = await this._provider.hasNode(nodeId);
+    if (!exists) {
+      throw new TraversalError(`Start node '${nodeId}' does not exist in the graph`, {
+        code: 'INVALID_START',
+        context: { nodeId },
+      });
+    }
+  }
 
   /**
    * Reconstructs a path by walking backward through a predecessor map.

@@ -204,6 +204,15 @@ export default class CasSeekCacheAdapter extends SeekCachePort {
   // ---------------------------------------------------------------------------
 
   /**
+   * Retrieves a cached state buffer by key.
+   *
+   * Note: This method reads the index twice — once here for the entry lookup,
+   * and again inside `_mutateIndex` for the `lastAccessedAt` update. The
+   * double-read is a known trade-off: `_mutateIndex` re-reads to provide
+   * CAS-safe retry semantics, and deduplicating the reads would complicate
+   * the retry logic without meaningful performance impact (the index is a
+   * single small JSON blob).
+   *
    * @override
    * @param {string} key
    * @returns {Promise<{ buffer: Buffer, indexTreeOid?: string } | null>}

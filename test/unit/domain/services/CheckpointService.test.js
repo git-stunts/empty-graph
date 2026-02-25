@@ -1026,7 +1026,7 @@ describe('CheckpointService', () => {
 
       const blobStore = new Map();
       let blobCounter = 0;
-      mockPersistence.writeBlob.mockImplementation((buf) => {
+      mockPersistence.writeBlob.mockImplementation((/** @type {any} */ buf) => {
         const oid = makeOid(`b${String(blobCounter++).padStart(3, '0')}`);
         blobStore.set(oid, buf);
         return Promise.resolve(oid);
@@ -1034,7 +1034,7 @@ describe('CheckpointService', () => {
 
       const treeOids = new Map();
       let treeCounter = 0;
-      mockPersistence.writeTree.mockImplementation((entries) => {
+      mockPersistence.writeTree.mockImplementation((/** @type {any} */ entries) => {
         const oid = makeOid(`t${String(treeCounter++).padStart(3, '0')}`);
         treeOids.set(oid, entries);
         return Promise.resolve(oid);

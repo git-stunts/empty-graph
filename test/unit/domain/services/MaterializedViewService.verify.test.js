@@ -108,7 +108,8 @@ describe('MaterializedViewService.verifyIndex', () => {
     const result = service.verifyIndex({ state, logicalIndex });
 
     expect(typeof result.seed).toBe('number');
-    expect(result.passed + result.failed).toBeGreaterThanOrEqual(0);
+    expect(result.failed).toBe(0);
+    expect(result.errors).toEqual([]);
   });
 
   it('handles empty state without errors', () => {

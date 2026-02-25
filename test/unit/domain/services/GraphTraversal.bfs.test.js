@@ -134,4 +134,37 @@ describe('GraphTraversal.bfs', () => {
       expect(stats.edgesTraversed).toBeGreaterThan(0);
     });
   });
+
+  // M18 — start node validation
+  describe('start node validation (M18)', () => {
+    it('throws INVALID_START for a nonexistent start node', async () => {
+      const provider = makeAdjacencyProvider(F1_BFS_LEVEL_SORT_TRAP);
+      const engine = new GraphTraversal({ provider });
+      await expect(engine.bfs({ start: 'NONEXISTENT' })).rejects.toThrow(/does not exist/);
+    });
+
+    it('INVALID_START error has correct code', async () => {
+      const provider = makeAdjacencyProvider(F1_BFS_LEVEL_SORT_TRAP);
+      const engine = new GraphTraversal({ provider });
+      try {
+        await engine.bfs({ start: 'NONEXISTENT' });
+        expect.unreachable('should have thrown');
+      } catch (err) {
+        expect(err.code).toBe('INVALID_START');
+        expect(err.context.nodeId).toBe('NONEXISTENT');
+      }
+    });
+
+    it('dfs throws INVALID_START for a nonexistent start node', async () => {
+      const provider = makeAdjacencyProvider(F1_BFS_LEVEL_SORT_TRAP);
+      const engine = new GraphTraversal({ provider });
+      await expect(engine.dfs({ start: 'GHOST' })).rejects.toThrow(/does not exist/);
+    });
+
+    it('shortestPath throws INVALID_START for a nonexistent start node', async () => {
+      const provider = makeAdjacencyProvider(F1_BFS_LEVEL_SORT_TRAP);
+      const engine = new GraphTraversal({ provider });
+      await expect(engine.shortestPath({ start: 'GHOST', goal: 'A' })).rejects.toThrow(/does not exist/);
+    });
+  });
 });

@@ -1,6 +1,6 @@
 import fnv1a from './fnv1a.js';
 
-const HEX_RE = /^[0-9a-fA-F]{40,64}$/;
+const HEX_RE = /^[0-9a-fA-F]{40}$|^[0-9a-fA-F]{64}$/;
 
 /**
  * Computes a 2-character hex shard key for a given ID.

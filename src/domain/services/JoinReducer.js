@@ -380,6 +380,55 @@ export function applyFast(state, patch, patchSha) {
 }
 
 /**
+ * Builds a reverse map from dot string → element ID for an OR-Set.
+ *
+ * Only includes mappings for dots that appear in the given targetDots set,
+ * allowing early termination once all target dots are accounted for.
+ *
+ * @param {import('../crdt/ORSet.js').ORSet} orset
+ * @param {Set<string>} targetDots - The dots we care about
+ * @returns {Map<string, string>} dot → elementId
+ */
+function buildDotToElement(orset, targetDots) {
+  const dotToElement = new Map();
+  let remaining = targetDots.size;
+  for (const [element, dots] of orset.entries) {
+    if (remaining === 0) { break; }
+    for (const d of dots) {
+      if (targetDots.has(d)) {
+        dotToElement.set(d, element);
+        remaining--;
+        if (remaining === 0) { break; }
+      }
+    }
+  }
+  return dotToElement;
+}
+
+/**
+ * Collects the set of alive elements that own at least one of the target dots.
+ *
+ * Uses a reverse-index from dot → element to avoid scanning every entry in the
+ * OR-Set. Complexity: O(total_dots_in_orset) for index build (with early exit)
+ * + O(|targetDots|) for lookups, vs the previous O(N * |targetDots|) full scan.
+ *
+ * @param {import('../crdt/ORSet.js').ORSet} orset
+ * @param {Set<string>} observedDots
+ * @returns {Set<string>} element IDs that were alive and own at least one observed dot
+ */
+function aliveElementsForDots(orset, observedDots) {
+  const result = new Set();
+  const dotToElement = buildDotToElement(orset, observedDots);
+  for (const d of observedDots) {
+    const element = dotToElement.get(d);
+    if (element !== undefined && !result.has(element) && orsetContains(orset, element)) {
+      result.add(element);
+    }
+  }
+  return result;
+}
+
+/**
  * Snapshots alive-ness of a node or edge before an op is applied.
  *
  * @param {WarpStateV5} state
@@ -391,16 +440,8 @@ function snapshotBeforeOp(state, op) {
     case 'NodeAdd':
       return { nodeWasAlive: orsetContains(state.nodeAlive, op.node) };
     case 'NodeRemove': {
-      const aliveBeforeNodes = new Set();
-      for (const [element, dots] of state.nodeAlive.entries) {
-        if (!orsetContains(state.nodeAlive, element)) { continue; }
-        for (const d of op.observedDots) {
-          if (dots.has(d)) {
-            aliveBeforeNodes.add(element);
-            break;
-          }
-        }
-      }
+      const nodeDots = op.observedDots instanceof Set ? op.observedDots : new Set(op.observedDots);
+      const aliveBeforeNodes = aliveElementsForDots(state.nodeAlive, nodeDots);
       return { aliveBeforeNodes };
     }
     case 'EdgeAdd': {
@@ -408,16 +449,8 @@ function snapshotBeforeOp(state, op) {
       return { edgeWasAlive: orsetContains(state.edgeAlive, ek), edgeKey: ek };
     }
     case 'EdgeRemove': {
-      const aliveBeforeEdges = new Set();
-      for (const [edgeKey, dots] of state.edgeAlive.entries) {
-        if (!orsetContains(state.edgeAlive, edgeKey)) { continue; }
-        for (const d of op.observedDots) {
-          if (dots.has(d)) {
-            aliveBeforeEdges.add(edgeKey);
-            break;
-          }
-        }
-      }
+      const edgeDots = op.observedDots instanceof Set ? op.observedDots : new Set(op.observedDots);
+      const aliveBeforeEdges = aliveElementsForDots(state.edgeAlive, edgeDots);
       return { aliveBeforeEdges };
     }
     case 'PropSet': {

@@ -4,6 +4,12 @@
  * Delegates to defaultCodec which already sorts keys recursively
  * and handles Maps, null-prototype objects, and arrays.
  *
+ * Deterministic output relies on cbor-x's key-sorting behaviour,
+ * which approximates RFC 7049 Section 3.9 (Canonical CBOR) by sorting
+ * map keys in length-first lexicographic order. This is sufficient for
+ * content-addressed equality within the WARP system but should not be
+ * assumed to match other canonical CBOR implementations byte-for-byte.
+ *
  * @module domain/utils/canonicalCbor
  */
 

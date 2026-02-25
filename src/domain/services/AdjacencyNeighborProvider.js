@@ -107,28 +107,30 @@ export default class AdjacencyNeighborProvider extends NeighborProviderPort {
    * @param {import('../../ports/NeighborProviderPort.js').NeighborOptions} [options]
    * @returns {Promise<import('../../ports/NeighborProviderPort.js').NeighborEdge[]>}
    */
-  async getNeighbors(nodeId, direction, options) {
+  // Not async — returns synchronously. Callers await the result,
+  // which works for both Promises and plain values.
+  getNeighbors(nodeId, direction, options) {
     const labels = options?.labels;
     const outEdges = filterByLabels(this._outgoing.get(nodeId) || [], labels);
     const inEdges = filterByLabels(this._incoming.get(nodeId) || [], labels);
 
     if (direction === 'out') {
-      return await Promise.resolve(outEdges);
+      return outEdges;
     }
     if (direction === 'in') {
-      return await Promise.resolve(inEdges);
+      return inEdges;
     }
     // 'both': merge two pre-sorted lists, dedup by (neighborId, label)
-    return await Promise.resolve(mergeSorted(outEdges, inEdges));
+    return mergeSorted(outEdges, inEdges);
   }
 
   /** @param {string} nodeId */
-  async hasNode(nodeId) {
+  hasNode(nodeId) {
     if (this._aliveNodes) {
-      return await Promise.resolve(this._aliveNodes.has(nodeId));
+      return this._aliveNodes.has(nodeId);
     }
     // Fallback: node has edges
-    return await Promise.resolve(this._outgoing.has(nodeId) || this._incoming.has(nodeId));
+    return this._outgoing.has(nodeId) || this._incoming.has(nodeId);
   }
 
   /** @returns {'sync'} */

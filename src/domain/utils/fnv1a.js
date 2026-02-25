@@ -4,6 +4,9 @@
  * Used for shard key computation when the input is not a hex SHA.
  * Uses Math.imul for correct 32-bit multiplication semantics.
  *
+ * @note Callers with non-ASCII node IDs should normalize to NFC before
+ * hashing to ensure consistent shard placement.
+ *
  * @param {string} str - Input string
  * @returns {number} Unsigned 32-bit FNV-1a hash
  */

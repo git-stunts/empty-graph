@@ -14,6 +14,9 @@ import LogicalTraversal from './LogicalTraversal.js';
 import { orsetContains, orsetElements } from '../crdt/ORSet.js';
 import { decodeEdgeKey } from './KeyCodec.js';
 
+/** @type {Map<string, RegExp>} Module-level cache for compiled glob regexes. */
+const globRegexCache = new Map();
+
 /**
  * Tests whether a string matches a glob-style pattern.
  *
@@ -31,8 +34,12 @@ function matchGlob(pattern, str) {
   if (!pattern.includes('*')) {
     return pattern === str;
   }
-  const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
-  const regex = new RegExp(`^${escaped.replace(/\*/g, '.*')}$`);
+  let regex = globRegexCache.get(pattern);
+  if (!regex) {
+    const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
+    regex = new RegExp(`^${escaped.replace(/\*/g, '.*')}$`);
+    globRegexCache.set(pattern, regex);
+  }
   return regex.test(str);
 }
 

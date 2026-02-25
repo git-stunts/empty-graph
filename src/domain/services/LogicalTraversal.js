@@ -91,6 +91,9 @@ export default class LogicalTraversal {
    * @throws {TraversalError} If the labelFilter is invalid (INVALID_LABEL_FILTER)
    */
   async _prepare(start, { dir, labelFilter, maxDepth }) {
+    // Private access: _materializeGraph is a WarpGraph internal.
+    // This coupling will be removed when the LogicalTraversal facade is sunset
+    // and callers migrate to GraphTraversal + NeighborProvider directly.
     const materialized = await /** @type {{ _materializeGraph: () => Promise<{adjacency: {outgoing: Map<string, Array<{neighborId: string, label: string}>>, incoming: Map<string, Array<{neighborId: string, label: string}>>}}> }} */ (this._graph)._materializeGraph();
 
     if (!(await this._graph.hasNode(start))) {

@@ -15,9 +15,9 @@ function buildProvider(edges) {
   for (const { from, to, label = '' } of edges) {
     allNodes.add(from);
     allNodes.add(to);
-    if (!outgoing.has(from)) outgoing.set(from, []);
+    if (!outgoing.has(from)) { outgoing.set(from, []); }
     outgoing.get(from).push({ neighborId: to, label });
-    if (!incoming.has(to)) incoming.set(to, []);
+    if (!incoming.has(to)) { incoming.set(to, []); }
     incoming.get(to).push({ neighborId: from, label });
   }
   return new AdjacencyNeighborProvider({ outgoing, incoming, aliveNodes: allNodes });
@@ -386,7 +386,7 @@ describe('GraphTraversal.connectedComponent', () => {
     expect(nodes.sort()).toEqual(['a', 'b', 'c', 'd']);
   });
 
-  it('isolated node returns just itself', async () => {
+  it('returns all nodes reachable via undirected edges', async () => {
     const provider = buildProvider([{ from: 'x', to: 'y' }]);
     const engine = new GraphTraversal({ provider });
     const { nodes } = await engine.connectedComponent({ start: 'x' });

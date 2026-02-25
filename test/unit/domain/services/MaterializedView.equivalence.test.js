@@ -83,7 +83,7 @@ function generatePatches(seed) {
           ops.push({
             type: 'NodeRemove',
             node: nodeId,
-            observedDots: [...dots],
+            observedDots: new Set(dots),
           });
         }
       } else if (roll < 0.7 && aliveNodes.length >= 2) {
@@ -104,7 +104,7 @@ function generatePatches(seed) {
             from,
             to,
             label,
-            observedDots: [...dots],
+            observedDots: new Set(dots),
           });
         }
       } else if (aliveNodes.length > 0) {
@@ -218,9 +218,7 @@ describe('MaterializedView equivalence', () => {
   describe.each(seeds)('seed %d', (seed) => {
     it('full rebuild matches adjacency ground truth', async () => {
       const patches = generatePatches(seed);
-      if (patches.length === 0) {
-        return;
-      }
+      expect(patches.length).toBeGreaterThan(0);
 
       const service = new MaterializedViewService();
 
@@ -264,9 +262,7 @@ describe('MaterializedView equivalence', () => {
 
     it('incremental matches full rebuild', async () => {
       const patches = generatePatches(seed);
-      if (patches.length === 0) {
-        return;
-      }
+      expect(patches.length).toBeGreaterThan(0);
 
       const service = new MaterializedViewService();
 
