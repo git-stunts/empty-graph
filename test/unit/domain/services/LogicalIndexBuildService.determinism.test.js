@@ -39,7 +39,7 @@ function buildState(nodes, edges) {
 
 /**
  * Extracts nodeToGlobal mappings from all meta shards in a serialized tree.
- * @param {Record<string, Buffer>} tree
+ * @param {Record<string, Uint8Array>} tree
  */
 function extractNodeMappings(tree) {
   const mappings = new Map();
@@ -56,7 +56,7 @@ function extractNodeMappings(tree) {
 
 /**
  * Extracts label registry from a serialized tree.
- * @param {Record<string, Buffer>} tree
+ * @param {Record<string, Uint8Array>} tree
  */
 function extractLabelRegistry(tree) {
   return defaultCodec.decode(tree['labels.cbor']);

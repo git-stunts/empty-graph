@@ -7,7 +7,7 @@ import { F10_PROTO_POLLUTION } from '../../../helpers/fixtureDsl.js';
 /**
  * Creates an in-memory mock storage from serialized tree.
  */
-/** @param {Record<string, Buffer>} tree */
+/** @param {Record<string, Uint8Array>} tree */
 function mockStorageFromTree(tree) {
   const blobs = new Map();
   /** @type {Record<string, string>} */

@@ -193,7 +193,7 @@ export default class WarpGraph {
     /** @type {string|null} */
     this._cachedViewHash = null;
 
-    /** @type {Record<string, Buffer>|null} */
+    /** @type {Record<string, Uint8Array>|null} */
     this._cachedIndexTree = null;
   }
 

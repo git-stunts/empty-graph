@@ -35,8 +35,8 @@ import { ProvenanceIndex } from './ProvenanceIndex.js';
 /**
  * Writes index tree shards as blobs and creates a subtree.
  *
- * @param {Record<string, Buffer>} indexTree - path → buffer mapping
- * @param {{ writeBlob(buf: Buffer): Promise<string>, writeTree(entries: string[]): Promise<string> }} persistence
+ * @param {Record<string, Uint8Array>} indexTree - path → buffer mapping
+ * @param {{ writeBlob(buf: Uint8Array): Promise<string>, writeTree(entries: string[]): Promise<string> }} persistence
  * @returns {Promise<string>} subtree OID
  */
 async function writeIndexSubtree(indexTree, persistence) {
@@ -102,7 +102,7 @@ function partitionTreeOids(rawOids) {
  * @param {import('./ProvenanceIndex.js').ProvenanceIndex} [options.provenanceIndex] - Optional provenance index to persist
  * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for CBOR serialization
  * @param {import('../../ports/CryptoPort.js').default} [options.crypto] - CryptoPort for state hash computation
- * @param {Record<string, Buffer>} [options.indexTree] - Optional materialized view index tree (triggers schema 4)
+ * @param {Record<string, Uint8Array>} [options.indexTree] - Optional materialized view index tree (triggers schema 4)
  * @returns {Promise<string>} The checkpoint commit SHA
  */
 export async function create({ persistence, graphName, state, frontier, parents = [], compact = true, provenanceIndex, codec, crypto, indexTree }) {
@@ -132,7 +132,7 @@ export async function create({ persistence, graphName, state, frontier, parents 
  * @param {import('./ProvenanceIndex.js').ProvenanceIndex} [options.provenanceIndex] - Optional provenance index to persist
  * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for CBOR serialization
  * @param {import('../../ports/CryptoPort.js').default} [options.crypto] - CryptoPort for state hash computation
- * @param {Record<string, Buffer>} [options.indexTree] - Optional materialized view index tree (triggers schema 4)
+ * @param {Record<string, Uint8Array>} [options.indexTree] - Optional materialized view index tree (triggers schema 4)
  * @returns {Promise<string>} The checkpoint commit SHA
  */
 export async function createV5({

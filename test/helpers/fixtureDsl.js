@@ -563,7 +563,7 @@ function _fixtureToState(fixture) {
  * Creates a LogicalIndex object from serialized index tree (in-memory).
  * Delegates to LogicalIndexReader (production code).
  *
- * @param {Record<string, Buffer>} tree
+ * @param {Record<string, Uint8Array>} tree
  * @returns {import('../../src/domain/services/BitmapNeighborProvider.js').LogicalIndex}
  * @private
  */

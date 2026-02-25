@@ -50,7 +50,7 @@ function buildTree(state) {
   return svc.build(state).tree;
 }
 
-/** @param {Record<string, Buffer>} tree */
+/** @param {Record<string, Uint8Array>} tree */
 function readIndex(tree) {
   return new LogicalIndexReader().loadFromTree(tree).toLogicalIndex();
 }
