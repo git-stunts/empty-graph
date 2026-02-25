@@ -196,4 +196,49 @@ describe('LogicalIndexReader', () => {
       expect(filtered[0].neighborId).toBe('B');
     });
   });
+
+  describe('per-owner edge lookup (resolveAllLabels via byOwner index)', () => {
+    it('returns correct neighbors for a 100-node graph', () => {
+      // Build a state with 100 nodes, each node i -> node i+1 via "next", node i -> node 0 via "loop"
+      const nodes = Array.from({ length: 100 }, (_, i) => `n${String(i).padStart(3, '0')}`);
+      const edges = [];
+      for (let i = 0; i < 99; i++) {
+        edges.push({ from: nodes[i], to: nodes[i + 1], label: 'next' });
+      }
+      for (let i = 1; i < 100; i++) {
+        edges.push({ from: nodes[i], to: nodes[0], label: 'loop' });
+      }
+
+      const state = fixtureToState({ nodes, edges });
+      const service = new LogicalIndexBuildService();
+      const { tree } = service.build(state);
+
+      const reader = new LogicalIndexReader();
+      reader.loadFromTree(tree);
+      const idx = reader.toLogicalIndex();
+
+      // n000 should have 1 outgoing edge (next -> n001)
+      const n0Out = idx.getEdges('n000', 'out');
+      expect(n0Out).toHaveLength(1);
+      expect(n0Out[0].neighborId).toBe('n001');
+      expect(n0Out[0].label).toBe('next');
+
+      // n050 should have 2 outgoing edges (next -> n051, loop -> n000)
+      const n50Out = idx.getEdges('n050', 'out');
+      expect(n50Out).toHaveLength(2);
+      const n50Labels = n50Out.map(e => e.label).sort();
+      expect(n50Labels).toEqual(['loop', 'next']);
+
+      // n000 should have 99 incoming "loop" edges
+      const n0In = idx.getEdges('n000', 'in');
+      const loopEdges = n0In.filter(e => e.label === 'loop');
+      expect(loopEdges).toHaveLength(99);
+
+      // n099 should have 0 outgoing "next" edges but 1 "loop" edge
+      const n99Out = idx.getEdges('n099', 'out');
+      expect(n99Out).toHaveLength(1);
+      expect(n99Out[0].label).toBe('loop');
+      expect(n99Out[0].neighborId).toBe('n000');
+    });
+  });
 });
