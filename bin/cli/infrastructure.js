@@ -42,6 +42,8 @@ Commands:
   check            Report graph health/GC status
   doctor           Diagnose structural issues and suggest fixes
   verify-audit     Verify audit receipt chain integrity
+  verify-index     Verify bitmap index integrity by sampling
+  reindex          Force full index rebuild
   trust            Evaluate writer trust from signed evidence
   materialize      Materialize and checkpoint all graphs
   seek             Time-travel: step through graph history by Lamport tick
@@ -87,6 +89,10 @@ Verify-audit options:
   --since <commit>      Verify from tip down to this commit (inclusive)
   --trust-mode <mode>   Trust evaluation mode (warn, enforce)
   --trust-pin <sha>     Pin trust evaluation to a specific record chain commit
+
+Verify-index options:
+  --seed <n>              PRNG seed for reproducible sampling
+  --sample-rate <0.1>     Fraction of nodes to verify (0-1)
 
 Trust options:
   --mode <warn|enforce> Override trust evaluation mode
@@ -144,7 +150,7 @@ export function notFoundError(message) {
   return new CliError(message, { code: 'E_NOT_FOUND', exitCode: EXIT_CODES.NOT_FOUND });
 }
 
-export const KNOWN_COMMANDS = ['info', 'query', 'path', 'history', 'check', 'doctor', 'materialize', 'seek', 'verify-audit', 'trust', 'patch', 'tree', 'install-hooks', 'view'];
+export const KNOWN_COMMANDS = ['info', 'query', 'path', 'history', 'check', 'doctor', 'materialize', 'seek', 'verify-audit', 'verify-index', 'reindex', 'trust', 'patch', 'tree', 'install-hooks', 'view'];
 
 const BASE_OPTIONS = {
   repo:   { type: 'string', short: 'r' },

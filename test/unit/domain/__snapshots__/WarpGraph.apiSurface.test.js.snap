@@ -77,6 +77,11 @@ exports[`WarpGraph API surface > all prototype methods have correct property des
     "enumerable": false,
     "type": "method",
   },
+  "_maxLamportFromState": {
+    "configurable": true,
+    "enumerable": false,
+    "type": "method",
+  },
   "_maybeRunGC": {
     "configurable": true,
     "enumerable": false,
@@ -415,7 +420,7 @@ exports[`WarpGraph API surface > all prototype methods have correct property des
 }
 `;
 
-exports[`WarpGraph API surface > prototype method count matches snapshot 1`] = `82`;
+exports[`WarpGraph API surface > prototype method count matches snapshot 1`] = `83`;
 
 exports[`WarpGraph API surface > prototype methods match snapshot 1`] = `
 [
@@ -434,6 +439,7 @@ exports[`WarpGraph API surface > prototype methods match snapshot 1`] = `
   "_logTiming",
   "_materializeGraph",
   "_materializeWithCeiling",
+  "_maxLamportFromState",
   "_maybeRunGC",
   "_nextLamport",
   "_notifySubscribers",

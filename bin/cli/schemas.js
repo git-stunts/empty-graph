@@ -175,3 +175,21 @@ export const seekSchema = z.object({
     diffLimit: val['diff-limit'],
   };
 });
+
+// ============================================================================
+// Verify-index
+// ============================================================================
+
+export const verifyIndexSchema = z.object({
+  seed: z.coerce.number().int().optional(),
+  'sample-rate': z.coerce.number().min(0).max(1).optional().default(0.1),
+}).strict().transform((val) => ({
+  seed: val.seed,
+  sampleRate: val['sample-rate'],
+}));
+
+// ============================================================================
+// Reindex
+// ============================================================================
+
+export const reindexSchema = z.object({}).strict();
