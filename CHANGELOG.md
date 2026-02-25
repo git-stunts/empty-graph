@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`hydrateCheckpointIndex` stale-overwrite bug** — `materialize()` called `hydrateCheckpointIndex()` after `_setMaterializedState()`, overwriting the freshly built bitmap index with the checkpoint's stale one. Removed the function entirely; `_buildView` already builds the correct index.
 - **Deterministic node/label ID assignment** — OR-Set iteration order is non-deterministic, causing node globalIds and label IDs to vary across builds of the same state. `LogicalIndexBuildService.build()` now sorts alive nodes and unique edge labels before registration.
 - **Deterministic property index output** — `PropertyIndexBuilder.serialize()` now sorts entries by nodeId before CBOR encoding, ensuring identical output regardless of patch arrival order.
+- **No-`Buffer` runtime regression coverage** — added a regression test that sets `globalThis.Buffer = undefined` and verifies full index build, index read, and incremental shard updates still succeed.
 
 ### Changed
 
