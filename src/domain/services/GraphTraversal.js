@@ -81,6 +81,23 @@ const DEFAULT_WEIGHT_FN = (_from, _to, _label) => 1;
  */
 const lexTieBreaker = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 
+/**
+ * Distinguishes true topological cycles from maxNodes truncation.
+ *
+ * @param {Object} params
+ * @param {number} params.sortedLength
+ * @param {number} params.discoveredSize
+ * @param {number} params.maxNodes
+ * @param {boolean} params.readyRemaining
+ * @returns {boolean}
+ */
+function computeTopoHasCycle({
+  sortedLength, discoveredSize, maxNodes, readyRemaining,
+}) {
+  const stoppedByLimit = sortedLength >= maxNodes && readyRemaining;
+  return !stoppedByLimit && sortedLength < discoveredSize;
+}
+
 // ==== Section 1: Configuration & Neighbor Cache ====
 
 export default class GraphTraversal {
@@ -850,7 +867,12 @@ export default class GraphTraversal {
       }
     }
 
-    const hasCycle = sorted.length < discovered.size;
+    const hasCycle = computeTopoHasCycle({
+      sortedLength: sorted.length,
+      discoveredSize: discovered.size,
+      maxNodes,
+      readyRemaining: rHead < ready.length,
+    });
     if (hasCycle && throwOnCycle) {
       // Find a back-edge as witness
       const inSorted = new Set(sorted);
@@ -923,16 +945,27 @@ export default class GraphTraversal {
     /** @type {Map<string, number>} */
     const ancestorCounts = new Map();
     const requiredCount = nodes.length;
+    /** @type {TraversalStats} */
+    const totalStats = {
+      nodesVisited: 0,
+      edgesTraversed: 0,
+      cacheHits: 0,
+      cacheMisses: 0,
+    };
 
     for (const nodeId of nodes) {
       checkAborted(signal, 'commonAncestors');
-      const { nodes: ancestors } = await this.bfs({
+      const { nodes: ancestors, stats } = await this.bfs({
         start: nodeId,
         direction: 'in',
         options,
         maxDepth,
         signal,
       });
+      totalStats.nodesVisited += stats.nodesVisited;
+      totalStats.edgesTraversed += stats.edgesTraversed;
+      totalStats.cacheHits += stats.cacheHits;
+      totalStats.cacheMisses += stats.cacheMisses;
       for (const a of ancestors) {
         ancestorCounts.set(a, (ancestorCounts.get(a) || 0) + 1);
       }
@@ -949,7 +982,7 @@ export default class GraphTraversal {
       if (common.length >= maxResults) { break; }
     }
 
-    return { ancestors: common, stats: this._stats(ancestorCounts.size) };
+    return { ancestors: common, stats: totalStats };
   }
 
   /**

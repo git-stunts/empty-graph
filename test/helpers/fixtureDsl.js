@@ -533,7 +533,7 @@ export async function runCrossProvider({ fixture, providers, run, assert }) {
  */
 export function makeLogicalBitmapProvider(fixture) {
   // Build WarpStateV5 from fixture
-  const state = _fixtureToState(fixture);
+  const state = fixtureToState(fixture);
 
   // Build logical index
   const service = new LogicalIndexBuildService();
@@ -549,9 +549,8 @@ export function makeLogicalBitmapProvider(fixture) {
  * Converts a fixture to WarpStateV5.
  * @param {GraphFixture} fixture
  * @returns {import('../../src/domain/services/JoinReducer.js').WarpStateV5}
- * @private
  */
-function _fixtureToState(fixture) {
+export function fixtureToState(fixture) {
   const state = createEmptyStateV5();
   const writer = 'w1';
   const sha = 'a'.repeat(40);
@@ -595,10 +594,11 @@ function _fixtureToState(fixture) {
     }
   }
 
-  for (const { nodeId, key, value } of (fixture.props || [])) {
-    const eventId = createEventId(lamport, writer, sha, opIdx++);
+  for (const { nodeId, key, value, lamport: propLamport } of (fixture.props || [])) {
+    const tick = propLamport ?? lamport;
+    const eventId = createEventId(tick, writer, sha, opIdx++);
     applyOpV2(state, { type: 'PropSet', node: nodeId, key, value }, eventId);
-    lamport++;
+    lamport = Math.max(lamport, tick) + 1;
   }
 
   return state;

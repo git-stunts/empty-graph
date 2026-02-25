@@ -15,7 +15,7 @@ import { orsetContains, orsetElements } from '../crdt/ORSet.js';
 import { decodeEdgeKey } from './KeyCodec.js';
 import { ShardIdOverflowError } from '../errors/index.js';
 
-/** Maximum local IDs per shard byte (2^24). */
+/** Maximum local IDs per shard (2^24). */
 const MAX_LOCAL_ID = 1 << 24;
 
 /**
@@ -181,20 +181,20 @@ export default class IncrementalIndexUpdater {
    * @private
    */
   _handleNodeAdd(nodeId, metaCache, loadShard) {
-    const meta = this._getOrLoadMeta(computeShardKey(nodeId), metaCache, loadShard);
+    const sk = computeShardKey(nodeId);
+    const meta = this._getOrLoadMeta(sk, metaCache, loadShard);
     const existing = this._findGlobalId(meta, nodeId);
     if (existing !== undefined) {
       meta.aliveBitmap.add(existing);
       return;
     }
     if (meta.nextLocalId >= MAX_LOCAL_ID) {
-      const sk = computeShardKey(nodeId);
       throw new ShardIdOverflowError(
         `Shard ${sk} exceeded 2^24 local IDs`,
         { shardKey: sk, nextLocalId: meta.nextLocalId },
       );
     }
-    const shardByte = parseInt(computeShardKey(nodeId), 16);
+    const shardByte = parseInt(sk, 16);
     const globalId = ((shardByte << 24) | meta.nextLocalId) >>> 0;
     meta.nextLocalId++;
     meta.nodeToGlobal.push([nodeId, globalId]);

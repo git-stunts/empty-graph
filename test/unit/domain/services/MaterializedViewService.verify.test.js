@@ -175,4 +175,39 @@ describe('MaterializedViewService.verifyIndex', () => {
     expect(result.failed).toBe(0);
     expect(result.errors).toEqual([]);
   });
+
+  it('detects missing alive nodes even when edge signatures are empty', () => {
+    const service = new MaterializedViewService();
+    const state = createEmptyStateV5();
+    const writer = 'w1';
+    const sha = 'c'.repeat(40);
+    let opIdx = 0;
+    let lamport = 1;
+    for (const nodeId of ['ISO']) {
+      const dot = createDot(writer, lamport);
+      const eventId = createEventId(lamport, writer, sha, opIdx++);
+      applyOpV2(state, { type: 'NodeAdd', node: nodeId, dot }, eventId);
+      lamport++;
+    }
+
+    const { logicalIndex } = service.build(state);
+    const corruptedIndex = {
+      ...logicalIndex,
+      isAlive(/** @type {string} */ nodeId) {
+        if (nodeId === 'ISO') {
+          return false;
+        }
+        return logicalIndex.isAlive(nodeId);
+      },
+    };
+
+    const result = service.verifyIndex({
+      state,
+      logicalIndex: /** @type {any} */ (corruptedIndex),
+      options: { sampleRate: 1.0, seed: 123 },
+    });
+
+    expect(result.failed).toBeGreaterThan(0);
+    expect(result.errors.some((e) => e.nodeId === 'ISO' && e.direction === 'alive')).toBe(true);
+  });
 });

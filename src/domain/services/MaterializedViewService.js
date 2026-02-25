@@ -345,7 +345,7 @@ export default class MaterializedViewService {
   verifyIndex({ state, logicalIndex, options = {} }) {
     const seed = options.seed ?? (Date.now() & 0x7FFFFFFF);
     const sampleRate = options.sampleRate ?? 0.1;
-    const allNodes = orsetElements(state.nodeAlive);
+    const allNodes = [...orsetElements(state.nodeAlive)].sort();
     const sampled = sampleNodes(allNodes, sampleRate, seed);
     const truth = buildGroundTruthAdjacency(state);
 
@@ -354,6 +354,15 @@ export default class MaterializedViewService {
     let passed = 0;
 
     for (const nodeId of sampled) {
+      if (!logicalIndex.isAlive(nodeId)) {
+        errors.push({
+          nodeId,
+          direction: 'alive',
+          expected: ['true'],
+          actual: ['false'],
+        });
+        continue;
+      }
       for (const direction of ['out', 'in']) {
         const map = direction === 'out' ? truth.outgoing : truth.incoming;
         const err = compareNodeDirection({ nodeId, direction, logicalIndex, truthMap: map });

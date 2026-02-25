@@ -489,6 +489,21 @@ describe('GraphTraversal.topologicalSort', () => {
       engine.topologicalSort({ start: ['a', 'missing'] }),
     ).rejects.toMatchObject({ code: 'INVALID_START' });
   });
+
+  it('does not report a cycle when maxNodes truncates a DAG', async () => {
+    const provider = buildProvider([
+      { from: 'a', to: 'b' },
+      { from: 'b', to: 'c' },
+    ]);
+    const engine = new GraphTraversal({ provider });
+    const { sorted, hasCycle } = await engine.topologicalSort({
+      start: 'a',
+      maxNodes: 1,
+      throwOnCycle: true,
+    });
+    expect(hasCycle).toBe(false);
+    expect(sorted).toEqual(['a']);
+  });
 });
 
 // ==== commonAncestors Tests ====
@@ -527,6 +542,19 @@ describe('GraphTraversal.commonAncestors', () => {
     const engine = new GraphTraversal({ provider: diamondProvider() });
     const { ancestors } = await engine.commonAncestors({ nodes: [] });
     expect(ancestors).toEqual([]);
+  });
+
+  it('aggregates stats across all internal BFS runs', async () => {
+    const provider = buildProvider([
+      { from: 'a', to: 'b' },
+      { from: 'a', to: 'c' },
+    ]);
+    const engine = new GraphTraversal({ provider });
+    const { stats } = await engine.commonAncestors({ nodes: ['b', 'c'] });
+    expect(stats.nodesVisited).toBe(4);
+    expect(stats.edgesTraversed).toBe(2);
+    expect(stats.cacheHits).toBe(0);
+    expect(stats.cacheMisses).toBe(0);
   });
 });
 

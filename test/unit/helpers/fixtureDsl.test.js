@@ -3,7 +3,9 @@ import {
   makeFixture,
   toAdjacencyMaps,
   runCrossProvider,
+  fixtureToState,
 } from '../../helpers/fixtureDsl.js';
+import MaterializedViewService from '../../../src/domain/services/MaterializedViewService.js';
 
 describe('fixtureDsl helpers', () => {
   it('toAdjacencyMaps sorts adjacency lists deterministically', () => {
@@ -63,5 +65,22 @@ describe('fixtureDsl helpers', () => {
       run: (engine) => engine.bfs({ start: 'A' }),
       assert: () => {},
     })).rejects.toThrow(/Provider mismatch/);
+  });
+
+  it('fixtureToState honors explicit lamport ticks for prop events', async () => {
+    const fixture = makeFixture({
+      nodes: ['A'],
+      edges: [],
+      props: [
+        { nodeId: 'A', key: 'status', value: 'newer', lamport: 10 },
+        { nodeId: 'A', key: 'status', value: 'older', lamport: 2 },
+      ],
+    });
+
+    const state = fixtureToState(fixture);
+    const service = new MaterializedViewService();
+    const { propertyReader } = service.build(state);
+    const props = await propertyReader.getNodeProps('A');
+    expect(props).toEqual({ status: 'newer' });
   });
 });
