@@ -90,7 +90,6 @@ function extractNodeSnapshot(state, nodeId) {
  * @param {import('./JoinReducer.js').WarpStateV5} params.state
  * @param {string} params.nodeId
  * @param {Function} params.predicate
- * @param {number} params.startIdx
  * @param {number|null} params.checkpointMaxLamport
  * @param {number} params.since
  * @returns {{ nodeEverExisted: boolean, shouldReturn: boolean, returnValue: boolean }}
@@ -100,11 +99,10 @@ function evaluateAlwaysCheckpointBoundary({
   state,
   nodeId,
   predicate,
-  startIdx,
   checkpointMaxLamport,
   since,
 }) {
-  if (!(startIdx > 0 && checkpointMaxLamport === since)) {
+  if (checkpointMaxLamport !== since) {
     return { nodeEverExisted: false, shouldReturn: false, returnValue: false };
   }
   const snapshot = extractNodeSnapshot(state, nodeId);
@@ -124,7 +122,6 @@ function evaluateAlwaysCheckpointBoundary({
  * @param {import('./JoinReducer.js').WarpStateV5} params.state
  * @param {string} params.nodeId
  * @param {Function} params.predicate
- * @param {number} params.startIdx
  * @param {number|null} params.checkpointMaxLamport
  * @param {number} params.since
  * @returns {boolean}
@@ -134,11 +131,10 @@ function evaluateEventuallyCheckpointBoundary({
   state,
   nodeId,
   predicate,
-  startIdx,
   checkpointMaxLamport,
   since,
 }) {
-  if (!(startIdx > 0 && checkpointMaxLamport === since)) {
+  if (checkpointMaxLamport !== since) {
     return false;
   }
   const snapshot = extractNodeSnapshot(state, nodeId);
@@ -199,7 +195,6 @@ export class TemporalQuery {
       state,
       nodeId,
       predicate,
-      startIdx,
       checkpointMaxLamport,
       since,
     });
@@ -261,7 +256,6 @@ export class TemporalQuery {
       state,
       nodeId,
       predicate,
-      startIdx,
       checkpointMaxLamport,
       since,
     })) {

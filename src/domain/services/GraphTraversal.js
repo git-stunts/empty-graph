@@ -61,6 +61,14 @@ import { checkAborted } from '../utils/cancellation.js';
  * @property {((nodeId: string, neighbors: NeighborEdge[]) => void)} [onExpand]
  */
 
+/**
+ * Per-run stats accumulator — avoids shared mutable state on the instance.
+ * @typedef {Object} RunStats
+ * @property {number} cacheHits
+ * @property {number} cacheMisses
+ * @property {number} edgesTraversed
+ */
+
 const DEFAULT_MAX_NODES = 100000;
 const DEFAULT_MAX_DEPTH = 1000;
 
@@ -114,36 +122,30 @@ export default class GraphTraversal {
     this._neighborCache = provider.latencyClass === 'sync'
       ? null
       : new LRUCache(neighborCacheSize);
-    /** @type {number} */
-    this._cacheHits = 0;
-    /** @type {number} */
-    this._cacheMisses = 0;
-    /** @type {number} */
-    this._edgesTraversed = 0;
   }
 
   /**
-   * Resets per-run stats counters.
+   * Creates a fresh per-run stats accumulator.
+   * @returns {RunStats}
    * @private
    */
-  _resetStats() {
-    this._cacheHits = 0;
-    this._cacheMisses = 0;
-    this._edgesTraversed = 0;
+  _newRunStats() {
+    return { cacheHits: 0, cacheMisses: 0, edgesTraversed: 0 };
   }
 
   /**
-   * Builds a stats snapshot.
+   * Builds a stats snapshot from a per-run accumulator.
    * @param {number} nodesVisited
+   * @param {RunStats} rs
    * @returns {TraversalStats}
    * @private
    */
-  _stats(nodesVisited) {
+  _stats(nodesVisited, rs) {
     return {
       nodesVisited,
-      edgesTraversed: this._edgesTraversed,
-      cacheHits: this._cacheHits,
-      cacheMisses: this._cacheMisses,
+      edgesTraversed: rs.edgesTraversed,
+      cacheHits: rs.cacheHits,
+      cacheMisses: rs.cacheMisses,
     };
   }
 
@@ -152,11 +154,12 @@ export default class GraphTraversal {
    *
    * @param {string} nodeId
    * @param {Direction} direction
+   * @param {RunStats} rs - Per-run stats accumulator
    * @param {NeighborOptions} [options]
    * @returns {Promise<NeighborEdge[]>}
    * @private
    */
-  async _getNeighbors(nodeId, direction, options) {
+  async _getNeighbors(nodeId, direction, rs, options) {
     const cache = this._neighborCache;
     if (!cache) {
       return await this._provider.getNeighbors(nodeId, direction, options);
@@ -166,10 +169,10 @@ export default class GraphTraversal {
     const key = `${nodeId}\0${direction}\0${labelsKey}`;
     const cached = cache.get(key);
     if (cached !== undefined) {
-      this._cacheHits++;
+      rs.cacheHits++;
       return cached;
     }
-    this._cacheMisses++;
+    rs.cacheMisses++;
     const result = await this._provider.getNeighbors(nodeId, direction, options);
     cache.set(key, result);
     return result;
@@ -198,7 +201,7 @@ export default class GraphTraversal {
     maxDepth = DEFAULT_MAX_DEPTH,
     signal, hooks,
   }) {
-    this._resetStats();
+    const rs = this._newRunStats();
     await this._validateStart(start);
     const visited = new Set();
     /** @type {Array<{nodeId: string, depth: number}>} */
@@ -227,8 +230,8 @@ export default class GraphTraversal {
         if (hooks?.onVisit) { hooks.onVisit(nodeId, depth); }
 
         if (depth < maxDepth) {
-          const neighbors = await this._getNeighbors(nodeId, direction, options);
-          this._edgesTraversed += neighbors.length;
+          const neighbors = await this._getNeighbors(nodeId, direction, rs, options);
+          rs.edgesTraversed += neighbors.length;
           if (hooks?.onExpand) { hooks.onExpand(nodeId, neighbors); }
           for (const { neighborId } of neighbors) {
             if (!visited.has(neighborId) && !queued.has(neighborId)) {
@@ -241,7 +244,7 @@ export default class GraphTraversal {
       currentLevel = nextLevel;
     }
 
-    return { nodes: result, stats: this._stats(visited.size) };
+    return { nodes: result, stats: this._stats(visited.size, rs) };
   }
 
   /**
@@ -265,7 +268,7 @@ export default class GraphTraversal {
     maxDepth = DEFAULT_MAX_DEPTH,
     signal, hooks,
   }) {
-    this._resetStats();
+    const rs = this._newRunStats();
     await this._validateStart(start);
     const visited = new Set();
     /** @type {Array<{nodeId: string, depth: number}>} */
@@ -286,8 +289,8 @@ export default class GraphTraversal {
       if (hooks?.onVisit) { hooks.onVisit(nodeId, depth); }
 
       if (depth < maxDepth) {
-        const neighbors = await this._getNeighbors(nodeId, direction, options);
-        this._edgesTraversed += neighbors.length;
+        const neighbors = await this._getNeighbors(nodeId, direction, rs, options);
+        rs.edgesTraversed += neighbors.length;
         if (hooks?.onExpand) { hooks.onExpand(nodeId, neighbors); }
         // Reverse-push so first neighbor (lex smallest) is popped first
         for (let i = neighbors.length - 1; i >= 0; i -= 1) {
@@ -298,7 +301,7 @@ export default class GraphTraversal {
       }
     }
 
-    return { nodes: result, stats: this._stats(visited.size) };
+    return { nodes: result, stats: this._stats(visited.size, rs) };
   }
 
   // ==== Section 3: Path-Finding (shortestPath, Dijkstra, A*, bidirectional A*) ====
@@ -322,10 +325,10 @@ export default class GraphTraversal {
     maxDepth = DEFAULT_MAX_DEPTH,
     signal,
   }) {
-    this._resetStats();
+    const rs = this._newRunStats();
     await this._validateStart(start);
     if (start === goal) {
-      return { found: true, path: [start], length: 0, stats: this._stats(1) };
+      return { found: true, path: [start], length: 0, stats: this._stats(1, rs) };
     }
 
     const visited = new Set([start]);
@@ -345,8 +348,8 @@ export default class GraphTraversal {
           checkAborted(signal, 'shortestPath');
         }
 
-        const neighbors = await this._getNeighbors(nodeId, direction, options);
-        this._edgesTraversed += neighbors.length;
+        const neighbors = await this._getNeighbors(nodeId, direction, rs, options);
+        rs.edgesTraversed += neighbors.length;
 
         for (const { neighborId } of neighbors) {
           if (visited.has(neighborId)) { continue; }
@@ -355,7 +358,7 @@ export default class GraphTraversal {
 
           if (neighborId === goal) {
             const path = this._reconstructPath(parent, start, goal);
-            return { found: true, path, length: path.length - 1, stats: this._stats(visited.size) };
+            return { found: true, path, length: path.length - 1, stats: this._stats(visited.size, rs) };
           }
           nextFrontier.push({ nodeId: neighborId, depth: depth + 1 });
         }
@@ -363,7 +366,7 @@ export default class GraphTraversal {
       frontier = nextFrontier;
     }
 
-    return { found: false, path: [], length: -1, stats: this._stats(visited.size) };
+    return { found: false, path: [], length: -1, stats: this._stats(visited.size, rs) };
   }
 
   /**
@@ -385,9 +388,9 @@ export default class GraphTraversal {
     maxDepth = DEFAULT_MAX_DEPTH,
     signal,
   }) {
-    this._resetStats();
+    const rs = this._newRunStats();
     if (start === goal) {
-      return { reachable: true, stats: this._stats(1) };
+      return { reachable: true, stats: this._stats(1, rs) };
     }
 
     const visited = new Set([start]);
@@ -402,11 +405,11 @@ export default class GraphTraversal {
       /** @type {string[]} */
       const nextFrontier = [];
       for (const nodeId of frontier) {
-        const neighbors = await this._getNeighbors(nodeId, direction, options);
-        this._edgesTraversed += neighbors.length;
+        const neighbors = await this._getNeighbors(nodeId, direction, rs, options);
+        rs.edgesTraversed += neighbors.length;
         for (const { neighborId } of neighbors) {
           if (neighborId === goal) {
-            return { reachable: true, stats: this._stats(visited.size) };
+            return { reachable: true, stats: this._stats(visited.size, rs) };
           }
           if (!visited.has(neighborId)) {
             visited.add(neighborId);
@@ -418,7 +421,7 @@ export default class GraphTraversal {
       depth++;
     }
 
-    return { reachable: false, stats: this._stats(visited.size) };
+    return { reachable: false, stats: this._stats(visited.size, rs) };
   }
 
   /**
@@ -447,7 +450,7 @@ export default class GraphTraversal {
     signal,
   }) {
     const effectiveWeightFn = this._resolveWeightFn(weightFn, nodeWeightFn);
-    this._resetStats();
+    const rs = this._newRunStats();
     await this._validateStart(start);
     /** @type {Map<string, number>} */
     const dist = new Map([[start, 0]]);
@@ -467,11 +470,11 @@ export default class GraphTraversal {
 
       if (current === goal) {
         const path = this._reconstructPath(prev, start, goal);
-        return { path, totalCost: /** @type {number} */ (dist.get(goal)), stats: this._stats(visited.size) };
+        return { path, totalCost: /** @type {number} */ (dist.get(goal)), stats: this._stats(visited.size, rs) };
       }
 
-      const neighbors = await this._getNeighbors(current, direction, options);
-      this._edgesTraversed += neighbors.length;
+      const neighbors = await this._getNeighbors(current, direction, rs, options);
+      rs.edgesTraversed += neighbors.length;
 
       for (const { neighborId, label } of neighbors) {
         if (visited.has(neighborId)) { continue; }
@@ -518,7 +521,7 @@ export default class GraphTraversal {
     signal,
   }) {
     const effectiveWeightFn = this._resolveWeightFn(weightFn, nodeWeightFn);
-    this._resetStats();
+    const rs = this._newRunStats();
     await this._validateStart(start);
     /** @type {Map<string, number>} */
     const gScore = new Map([[start, 0]]);
@@ -542,12 +545,12 @@ export default class GraphTraversal {
           path,
           totalCost: /** @type {number} */ (gScore.get(goal)),
           nodesExplored: visited.size,
-          stats: this._stats(visited.size),
+          stats: this._stats(visited.size, rs),
         };
       }
 
-      const neighbors = await this._getNeighbors(current, direction, options);
-      this._edgesTraversed += neighbors.length;
+      const neighbors = await this._getNeighbors(current, direction, rs, options);
+      rs.edgesTraversed += neighbors.length;
 
       for (const { neighborId, label } of neighbors) {
         if (visited.has(neighborId)) { continue; }
@@ -601,10 +604,10 @@ export default class GraphTraversal {
     signal,
   }) {
     const effectiveWeightFn = this._resolveWeightFn(weightFn, nodeWeightFn);
-    this._resetStats();
+    const rs = this._newRunStats();
     await this._validateStart(start);
     if (start === goal) {
-      return { path: [start], totalCost: 0, nodesExplored: 1, stats: this._stats(1) };
+      return { path: [start], totalCost: 0, nodesExplored: 1, stats: this._stats(1, rs) };
     }
 
     const fwdG = new Map([[start, 0]]);
@@ -636,7 +639,7 @@ export default class GraphTraversal {
           otherVisited: bwdVisited, otherG: bwdG,
           weightFn: effectiveWeightFn, heuristicFn: forwardHeuristic,
           target: goal, directionForNeighbors: 'out', options,
-          mu, meeting,
+          mu, meeting, rs,
         });
         explored += r.explored;
         mu = r.mu;
@@ -647,7 +650,7 @@ export default class GraphTraversal {
           otherVisited: fwdVisited, otherG: fwdG,
           weightFn: effectiveWeightFn, heuristicFn: backwardHeuristic,
           target: start, directionForNeighbors: 'in', options,
-          mu, meeting,
+          mu, meeting, rs,
         });
         explored += r.explored;
         mu = r.mu;
@@ -663,7 +666,7 @@ export default class GraphTraversal {
     }
 
     const path = this._reconstructBiPath(fwdPrev, bwdNext, start, goal, meeting);
-    return { path, totalCost: mu, nodesExplored: explored, stats: this._stats(explored) };
+    return { path, totalCost: mu, nodesExplored: explored, stats: this._stats(explored, rs) };
   }
 
   /**
@@ -683,6 +686,7 @@ export default class GraphTraversal {
    * @param {NeighborOptions} [p.options]
    * @param {number} p.mu
    * @param {string|null} p.meeting
+   * @param {RunStats} p.rs
    * @returns {Promise<{explored: number, mu: number, meeting: string|null}>}
    */
   async _biAStarExpand({
@@ -690,7 +694,7 @@ export default class GraphTraversal {
     otherVisited, otherG,
     weightFn, heuristicFn, target,
     directionForNeighbors, options,
-    mu: inputMu, meeting: inputMeeting,
+    mu: inputMu, meeting: inputMeeting, rs,
   }) {
     const current = /** @type {string} */ (heap.extractMin());
     if (visited.has(current)) {
@@ -709,8 +713,8 @@ export default class GraphTraversal {
       }
     }
 
-    const neighbors = await this._getNeighbors(current, directionForNeighbors, options);
-    this._edgesTraversed += neighbors.length;
+    const neighbors = await this._getNeighbors(current, directionForNeighbors, rs, options);
+    rs.edgesTraversed += neighbors.length;
 
     for (const { neighborId, label } of neighbors) {
       if (visited.has(neighborId)) { continue; }
@@ -778,7 +782,7 @@ export default class GraphTraversal {
     signal,
     _returnAdjList = false,
   }) {
-    this._resetStats();
+    const rs = this._newRunStats();
     const starts = [...new Set(Array.isArray(start) ? start : [start])];
     for (const s of starts) {
       await this._validateStart(s);
@@ -802,8 +806,8 @@ export default class GraphTraversal {
         checkAborted(signal, 'topologicalSort');
       }
       const nodeId = /** @type {string} */ (queue[qHead++]);
-      const neighbors = await this._getNeighbors(nodeId, direction, options);
-      this._edgesTraversed += neighbors.length;
+      const neighbors = await this._getNeighbors(nodeId, direction, rs, options);
+      rs.edgesTraversed += neighbors.length;
 
       /** @type {string[]} */
       const neighborIds = [];
@@ -904,7 +908,7 @@ export default class GraphTraversal {
     return {
       sorted,
       hasCycle,
-      stats: this._stats(sorted.length),
+      stats: this._stats(sorted.length, rs),
       _neighborEdgeMap: _returnAdjList ? neighborEdgeMap : undefined,
     };
   }
@@ -936,9 +940,8 @@ export default class GraphTraversal {
     maxResults = 100,
     signal,
   }) {
-    this._resetStats();
     if (nodes.length === 0) {
-      return { ancestors: [], stats: this._stats(0) };
+      return { ancestors: [], stats: this._stats(0, this._newRunStats()) };
     }
 
     // For each node, BFS backward ('in') to collect ancestors
@@ -1025,7 +1028,7 @@ export default class GraphTraversal {
       _returnAdjList: true,
     });
 
-    this._resetStats();
+    const rs = this._newRunStats();
 
     // DP: longest distance from start
     /** @type {Map<string, number>} */
@@ -1038,8 +1041,8 @@ export default class GraphTraversal {
       // Reuse neighbor data from topo sort's discovery phase
       const neighbors = _neighborEdgeMap
         ? (_neighborEdgeMap.get(nodeId) || [])
-        : await this._getNeighbors(nodeId, direction, options);
-      this._edgesTraversed += neighbors.length;
+        : await this._getNeighbors(nodeId, direction, rs, options);
+      rs.edgesTraversed += neighbors.length;
 
       for (const { neighborId, label } of neighbors) {
         const w = await effectiveWeightFn(nodeId, neighborId, label);
@@ -1061,7 +1064,7 @@ export default class GraphTraversal {
     }
 
     const path = this._reconstructPath(prev, start, goal);
-    return { path, totalCost: /** @type {number} */ (dist.get(goal)), stats: this._stats(sorted.length) };
+    return { path, totalCost: /** @type {number} */ (dist.get(goal)), stats: this._stats(sorted.length, rs) };
   }
 
   // ==== Private Helpers ====

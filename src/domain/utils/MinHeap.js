@@ -14,7 +14,8 @@ class MinHeap {
    *   entries have equal priority. Negative return = a wins (comes out first).
    *   When omitted, equal-priority extraction order is unspecified (heap-natural).
    */
-  constructor({ tieBreaker } = {}) {
+  constructor(options) {
+    const { tieBreaker } = options || {};
     /** @type {Array<{item: T, priority: number}>} */
     this._heap = [];
     /** @type {((a: T, b: T) => number) | undefined} */

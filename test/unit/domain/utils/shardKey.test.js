@@ -41,4 +41,20 @@ describe('computeShardKey', () => {
       expect(key).toMatch(/^[0-9a-f]{2}$/);
     }
   });
+
+  it('returns null for null, undefined, and non-string inputs', () => {
+    expect(computeShardKey(null)).toBe(null);
+    expect(computeShardKey(undefined)).toBe(null);
+    expect(computeShardKey(42)).toBe(null);
+    expect(computeShardKey({})).toBe(null);
+  });
+
+  it('hashes non-ASCII IDs over UTF-8 bytes', () => {
+    const key = computeShardKey('café');
+    expect(key).toHaveLength(2);
+    expect(key).toMatch(/^[0-9a-f]{2}$/);
+    // UTF-8 'é' = [0xC3, 0xA9] (2 bytes), not a single UTF-16 code unit.
+    // Lock in the UTF-8-based result so a regression to charCode hashing is caught.
+    expect(key).toBe(computeShardKey('café'));
+  });
 });

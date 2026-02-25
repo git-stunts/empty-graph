@@ -17,6 +17,22 @@ import { createEmptyStateV5, applyOpV2 } from '../../src/domain/services/JoinRed
 import { createDot } from '../../src/domain/crdt/Dot.js';
 import { createEventId } from '../../src/domain/utils/EventId.js';
 
+/**
+ * Normalizes a thrown value into an object with `.name` and `.message` for
+ * comparison. Non-Error throws (strings, numbers, etc.) lack these properties,
+ * which would cause the mismatch check to silently treat different non-Error
+ * values as equal.
+ *
+ * @param {unknown} err
+ * @returns {{ name: string, message: string }}
+ */
+function normalizeError(err) {
+  if (err instanceof Error) {
+    return { name: err.name, message: err.message };
+  }
+  return { name: typeof err, message: String(err) };
+}
+
 // ── Core DSL ────────────────────────────────────────────────────────────────
 
 /**
@@ -507,8 +523,8 @@ export async function runCrossProvider({ fixture, providers, run, assert }) {
         );
       }
       if (baselineErrored && currentErrored) {
-        const baseErr = /** @type {Error} */ (baseline.error);
-        const curErr = /** @type {Error} */ (current.error);
+        const baseErr = normalizeError(baseline.error);
+        const curErr = normalizeError(current.error);
         if (baseErr.name !== curErr.name || baseErr.message !== curErr.message) {
           throw new Error(
             `Provider mismatch: '${baseline.name}' and '${current.name}' threw different errors`

@@ -508,6 +508,62 @@ describe('TemporalQuery checkpoint acceleration', () => {
       expect(loadCheckpoint).toHaveBeenCalledOnce();
     });
 
+    it('always() evaluates checkpoint when allPatches is empty (startIdx===0)', async () => {
+      // Checkpoint covers all patches — allPatches is empty after filtering
+      // so findIndex returns -1, startIdx = allPatches.length = 0.
+      // The checkpoint state must still be evaluated.
+      const patches = [
+        createNodeWithPropPatch({
+          nodeId: 'X', writer: 'W', lamport: 1,
+          propKey: 'status', propValue: 'active',
+          sha: 'a'.repeat(40),
+        }),
+      ];
+
+      const tq = new TemporalQuery({
+        loadAllPatches: async () => [],
+        loadCheckpoint: async () => ({
+          state: buildStateFromPatches(patches),
+          maxLamport: 1,
+        }),
+      });
+
+      // since=1 matches checkpoint maxLamport; node exists with status=active
+      const result = await tq.always(
+        'X',
+        (/** @type {any} */ n) => n.props.status === 'active',
+        { since: 1 },
+      );
+
+      expect(result).toBe(true);
+    });
+
+    it('eventually() evaluates checkpoint when allPatches is empty (startIdx===0)', async () => {
+      const patches = [
+        createNodeWithPropPatch({
+          nodeId: 'X', writer: 'W', lamport: 1,
+          propKey: 'status', propValue: 'found',
+          sha: 'a'.repeat(40),
+        }),
+      ];
+
+      const tq = new TemporalQuery({
+        loadAllPatches: async () => [],
+        loadCheckpoint: async () => ({
+          state: buildStateFromPatches(patches),
+          maxLamport: 1,
+        }),
+      });
+
+      const result = await tq.eventually(
+        'X',
+        (/** @type {any} */ n) => n.props.status === 'found',
+        { since: 1 },
+      );
+
+      expect(result).toBe(true);
+    });
+
     it('eventually() evaluates checkpoint boundary state when maxLamport === since', async () => {
       const patches = [
         createNodeWithPropPatch({
