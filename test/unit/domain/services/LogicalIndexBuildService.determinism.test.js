@@ -9,6 +9,9 @@ import defaultCodec from '../../../../src/domain/utils/defaultCodec.js';
  * Helper: builds a WarpStateV5 from nodes and edges, applying ops in the
  * given order. Different orderings of the same final state should produce
  * identical index mappings after the determinism sort fix.
+ *
+ * @param {string[]} nodes
+ * @param {Array<{from: string, to: string, label: string}>} edges
  */
 function buildState(nodes, edges) {
   const state = createEmptyStateV5();
@@ -36,12 +39,13 @@ function buildState(nodes, edges) {
 
 /**
  * Extracts nodeToGlobal mappings from all meta shards in a serialized tree.
+ * @param {Record<string, Buffer>} tree
  */
 function extractNodeMappings(tree) {
   const mappings = new Map();
   for (const [path, buf] of Object.entries(tree)) {
     if (path.startsWith('meta_') && path.endsWith('.cbor')) {
-      const meta = defaultCodec.decode(buf);
+      const meta = /** @type {{ nodeToGlobal: Array<[string, number]> }} */ (defaultCodec.decode(buf));
       for (const [nodeId, globalId] of meta.nodeToGlobal) {
         mappings.set(nodeId, globalId);
       }
@@ -52,6 +56,7 @@ function extractNodeMappings(tree) {
 
 /**
  * Extracts label registry from a serialized tree.
+ * @param {Record<string, Buffer>} tree
  */
 function extractLabelRegistry(tree) {
   return defaultCodec.decode(tree['labels.cbor']);
@@ -119,8 +124,8 @@ describe('LogicalIndexBuildService determinism', () => {
 
     for (const [path, buf] of Object.entries(tree)) {
       if (path.startsWith('meta_') && path.endsWith('.cbor')) {
-        const meta = defaultCodec.decode(buf);
-        const nodeIds = meta.nodeToGlobal.map(([id]) => id);
+        const meta = /** @type {{ nodeToGlobal: Array<[string, number]> }} */ (defaultCodec.decode(buf));
+        const nodeIds = meta.nodeToGlobal.map((/** @type {[string, number]} */ pair) => pair[0]);
         const sorted = [...nodeIds].sort();
         expect(nodeIds).toEqual(sorted);
       }

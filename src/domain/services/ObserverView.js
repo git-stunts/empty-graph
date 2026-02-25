@@ -124,17 +124,6 @@ function buildAdjacencyFromEdges(state, pattern) {
 }
 
 /**
- * Builds filtered adjacency maps using a BitmapNeighborProvider.
- *
- * For each visible node, queries the provider for outgoing neighbors,
- * then post-filters by glob match. Incoming maps are derived from
- * the outgoing results to avoid duplicate provider calls.
- *
- * @param {import('./BitmapNeighborProvider.js').default} provider
- * @param {string[]} visibleNodes
- * @returns {Promise<{ outgoing: Map<string, NeighborEntry[]>, incoming: Map<string, NeighborEntry[]> }>}
- */
-/**
  * Processes a single node's edges into the outgoing/incoming adjacency maps.
  *
  * @param {string} id
@@ -152,6 +141,17 @@ function collectNodeEdges(id, edges, ctx) {
   }
 }
 
+/**
+ * Builds filtered adjacency maps using a BitmapNeighborProvider.
+ *
+ * For each visible node, queries the provider for outgoing neighbors,
+ * then post-filters by glob match. Incoming maps are derived from
+ * the outgoing results to avoid duplicate provider calls.
+ *
+ * @param {import('./BitmapNeighborProvider.js').default} provider
+ * @param {string[]} visibleNodes
+ * @returns {Promise<{ outgoing: Map<string, NeighborEntry[]>, incoming: Map<string, NeighborEntry[]> }>}
+ */
 async function buildAdjacencyViaProvider(provider, visibleNodes) {
   const visibleSet = new Set(visibleNodes);
   const outgoing = /** @type {Map<string, NeighborEntry[]>} */ (new Map());
