@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **MaterializedView unification** — Phase 3: single service orchestrating build, persist, and load of the bitmap index + property reader as a coherent materialized view.
+  - **`MaterializedViewService`** (`src/domain/services/MaterializedViewService.js`) — three entry points: `build(state)` from WarpStateV5, `persistIndexTree(tree, persistence)` to Git, `loadFromOids(shardOids, storage)` for lazy hydration. In-memory PropertyReader uses path-as-OID trick for zero-copy shard access during build.
+  - **`LogicalIndexReader`** (`src/domain/services/LogicalIndexReader.js`) — extracted index hydration from test helpers into production code. Two load paths: `loadFromTree(tree)` (sync, in-memory) and `loadFromOids(shardOids, storage)` (async, lazy). Produces a `LogicalIndex` interface for `BitmapNeighborProvider`.
+  - **CheckpointService schema 4** — checkpoints now embed the bitmap index as a Git subtree under `index/`. `createV5()` accepts optional `indexTree` param; `loadCheckpoint()` partitions `index/`-prefixed entries into `indexShardOids` for lazy hydration. Backward-compatible with schema 2/3.
+  - **WarpGraph lifecycle wiring** — `_setMaterializedState` builds a `LogicalIndex` + `PropertyReader` and attaches a `BitmapNeighborProvider` to `_materializedGraph`. Index build cached by stateHash, wrapped in try-catch for resilience.
+  - **Indexed query fast paths** — `getNodeProps()` and `neighbors()` check the LogicalIndex/PropertyReader/BitmapNeighborProvider for O(1) lookups before falling through to linear scan.
+  - **Seek cache index persistence** — `CasSeekCacheAdapter` stores/returns optional `indexTreeOid` alongside the state buffer. `_materializeWithCeiling` persists the index tree to Git and records the OID in cache metadata; on cache hit, restores the index from the stored tree.
+  - **ObserverView fast path** — reuses parent graph's `BitmapNeighborProvider` for O(1) adjacency lookups with post-filter glob matching on visible nodes.
+
 - **Logical graph bitmap index** — Phase 2: CBOR-based bitmap index over the logical graph with labeled edges, stable numeric IDs, property indexes, and O(1) label-filtered neighbor lookups.
   - **`fnv1a`** (`src/domain/utils/fnv1a.js`) — FNV-1a 32-bit hash for shard key computation on non-SHA node IDs.
   - **`computeShardKey`** (`src/domain/utils/shardKey.js`) — 2-char hex shard key: SHA prefix for hex IDs, FNV-1a low byte for everything else.
