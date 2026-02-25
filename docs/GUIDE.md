@@ -511,6 +511,101 @@ const component = await graph.traverse.connectedComponent('user:alice');
 // All nodes reachable from user:alice in either direction
 ```
 
+#### Is Reachable
+
+Fast reachability check — returns `true`/`false` without reconstructing the path:
+
+```javascript
+const canReach = await graph.traverse.isReachable('user:alice', 'user:bob', {
+  dir: 'out',
+  labelFilter: 'follows',
+});
+// true or false
+```
+
+#### Weighted Shortest Path
+
+Dijkstra's algorithm with a custom edge weight function:
+
+```javascript
+const result = await graph.traverse.weightedShortestPath('city:a', 'city:z', {
+  dir: 'out',
+  weightFn: (from, to, label) => distances.get(`${from}->${to}`) ?? 1,
+});
+// { found: true, path: ['city:a', ..., 'city:z'], cost: 42 }
+```
+
+Use `nodeWeightFn` to add per-node traversal costs (e.g., node processing delays):
+
+```javascript
+const result = await graph.traverse.weightedShortestPath('city:a', 'city:z', {
+  dir: 'out',
+  weightFn: (from, to, label) => distances.get(`${from}->${to}`) ?? 1,
+  nodeWeightFn: (nodeId) => processingDelay.get(nodeId) ?? 0,
+});
+```
+
+#### A* Search
+
+A* with a heuristic function for guided search:
+
+```javascript
+const result = await graph.traverse.aStarSearch('city:a', 'city:z', {
+  dir: 'out',
+  heuristic: (nodeId) => euclideanDistance(coords[nodeId], coords['city:z']),
+});
+// { found: true, path: [...], cost: 38 }
+```
+
+#### Bidirectional A*
+
+A* search from both endpoints simultaneously — faster for large graphs:
+
+```javascript
+const result = await graph.traverse.bidirectionalAStar('city:a', 'city:z', {
+  dir: 'out',
+  heuristic: (nodeId) => euclideanDistance(coords[nodeId], coords['city:z']),
+});
+```
+
+#### Topological Sort
+
+Kahn's algorithm with cycle detection — useful for dependency graphs:
+
+```javascript
+const sorted = await graph.traverse.topologicalSort('task:root', {
+  dir: 'out',
+  labelFilter: 'depends-on',
+});
+// ['task:root', 'task:auth', 'task:caching', ...]
+// Throws TraversalError with code 'CYCLE_DETECTED' if a cycle exists
+```
+
+#### Common Ancestors
+
+Find shared ancestors of multiple nodes:
+
+```javascript
+const ancestors = await graph.traverse.commonAncestors(
+  ['user:carol', 'user:dave'],
+  { dir: 'in', labelFilter: 'manages' },
+);
+// ['user:alice'] — the common manager
+```
+
+#### Weighted Longest Path
+
+Find the longest (most expensive) path on a DAG — useful for critical path analysis:
+
+```javascript
+const result = await graph.traverse.weightedLongestPath('task:start', 'task:end', {
+  dir: 'out',
+  weightFn: (from, to, label) => durations.get(to) ?? 1,
+});
+// { found: true, path: [...], cost: 15 }
+// Throws TraversalError with code 'CYCLE_DETECTED' if the graph has cycles
+```
+
 ---
 
 ## Multi-Writer Collaboration

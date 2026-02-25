@@ -12,6 +12,7 @@ export { default as OperationAbortedError } from './OperationAbortedError.js';
 export { default as QueryError } from './QueryError.js';
 export { default as SyncError } from './SyncError.js';
 export { default as ShardCorruptionError } from './ShardCorruptionError.js';
+export { default as ShardIdOverflowError } from './ShardIdOverflowError.js';
 export { default as ShardLoadError } from './ShardLoadError.js';
 export { default as ShardValidationError } from './ShardValidationError.js';
 export { default as StorageError } from './StorageError.js';

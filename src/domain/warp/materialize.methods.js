@@ -51,6 +51,7 @@ function scanPatchesForMaxLamport(graph, patches) {
   }
 }
 
+
 /**
  * Materializes the current graph state.
  *
@@ -99,10 +100,13 @@ export async function materialize(options) {
     let state;
     /** @type {import('../types/TickReceipt.js').TickReceipt[]|undefined} */
     let receipts;
+    /** @type {import('../types/PatchDiff.js').PatchDiff|undefined} */
+    let diff;
     let patchCount = 0;
+    const wantDiff = !collectReceipts && !!this._cachedIndexTree;
 
     // If checkpoint exists, use incremental materialization
-    if (checkpoint?.schema === 2 || checkpoint?.schema === 3) {
+    if (checkpoint?.schema === 2 || checkpoint?.schema === 3 || checkpoint?.schema === 4) {
       const patches = await this._loadPatchesSince(checkpoint);
       // Update max observed Lamport so _nextLamport() issues globally-monotonic ticks.
       // Read the checkpoint frontier's tip commit messages to capture the pre-checkpoint max,
@@ -115,6 +119,10 @@ export async function materialize(options) {
         const result = /** @type {{state: import('../services/JoinReducer.js').WarpStateV5, receipts: import('../types/TickReceipt.js').TickReceipt[]}} */ (reduceV5(/** @type {Parameters<typeof reduceV5>[0]} */ (patches), checkpoint.state, { receipts: true }));
         state = result.state;
         receipts = result.receipts;
+      } else if (wantDiff) {
+        const result = /** @type {{state: import('../services/JoinReducer.js').WarpStateV5, diff: import('../types/PatchDiff.js').PatchDiff}} */ (reduceV5(/** @type {Parameters<typeof reduceV5>[0]} */ (patches), checkpoint.state, { trackDiff: true }));
+        state = result.state;
+        diff = result.diff;
       } else {
         state = /** @type {import('../services/JoinReducer.js').WarpStateV5} */ (reduceV5(/** @type {Parameters<typeof reduceV5>[0]} */ (patches), checkpoint.state));
       }
@@ -164,6 +172,10 @@ export async function materialize(options) {
             const result = /** @type {{state: import('../services/JoinReducer.js').WarpStateV5, receipts: import('../types/TickReceipt.js').TickReceipt[]}} */ (reduceV5(/** @type {Parameters<typeof reduceV5>[0]} */ (allPatches), undefined, { receipts: true }));
             state = result.state;
             receipts = result.receipts;
+          } else if (wantDiff) {
+            const result = /** @type {{state: import('../services/JoinReducer.js').WarpStateV5, diff: import('../types/PatchDiff.js').PatchDiff}} */ (reduceV5(/** @type {Parameters<typeof reduceV5>[0]} */ (allPatches), undefined, { trackDiff: true }));
+            state = result.state;
+            diff = result.diff;
           } else {
             state = /** @type {import('../services/JoinReducer.js').WarpStateV5} */ (reduceV5(/** @type {Parameters<typeof reduceV5>[0]} */ (allPatches)));
           }
@@ -178,7 +190,7 @@ export async function materialize(options) {
       }
     }
 
-    await this._setMaterializedState(state);
+    await this._setMaterializedState(state, diff);
     this._provenanceDegraded = false;
     this._cachedCeiling = null;
     this._cachedFrontier = null;
@@ -202,9 +214,9 @@ export async function materialize(options) {
     // Also handles deferred replay for subscribers added with replay: true before cached state
     if (this._subscribers.length > 0) {
       const hasPendingReplay = this._subscribers.some(s => s.pendingReplay);
-      const diff = diffStates(this._lastNotifiedState, state);
-      if (!isEmptyDiff(diff) || hasPendingReplay) {
-        this._notifySubscribers(diff, state);
+      const stateDelta = diffStates(this._lastNotifiedState, state);
+      if (!isEmptyDiff(stateDelta) || hasPendingReplay) {
+        this._notifySubscribers(stateDelta, state);
       }
     }
     // Clone state to prevent eager path mutations from affecting the baseline

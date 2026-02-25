@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import WarpGraph from '../../../../src/domain/WarpGraph.js';
+import ObserverView from '../../../../src/domain/services/ObserverView.js';
 import { createEmptyStateV5, encodeEdgeKey, encodePropKey } from '../../../../src/domain/services/JoinReducer.js';
 import { orsetAdd } from '../../../../src/domain/crdt/ORSet.js';
 import { createDot } from '../../../../src/domain/crdt/Dot.js';
@@ -48,6 +49,54 @@ describe('ObserverView', () => {
       persistence: mockPersistence,
       graphName: 'test',
       writerId: 'writer-1',
+    });
+  });
+
+  describe('provider batching', () => {
+    it('caps concurrent provider reads to batch size (64)', async () => {
+      const state = createEmptyStateV5();
+      const visibleNodes = Array.from({ length: 130 }, (_, i) => `user:${String(i).padStart(3, '0')}`);
+      for (let i = 0; i < visibleNodes.length; i++) {
+        addNode(state, visibleNodes[i], i + 1);
+      }
+
+      let inFlight = 0;
+      let maxInFlight = 0;
+      const provider = {
+        getNeighbors: vi.fn(async () => {
+          inFlight++;
+          if (inFlight > maxInFlight) {
+            maxInFlight = inFlight;
+          }
+          await Promise.resolve();
+          inFlight--;
+          return [];
+        }),
+      };
+
+      /** @type {any} */
+      const fakeGraph = {
+        hasNode: async () => true,
+        getNodes: async () => visibleNodes,
+        getNodeProps: async () => null,
+        _materializeGraph: async () => ({
+          state,
+          stateHash: 'h',
+          provider,
+          adjacency: { outgoing: new Map(), incoming: new Map() },
+        }),
+      };
+
+      const view = new ObserverView({
+        name: 'batching',
+        config: { match: 'user:*' },
+        graph: fakeGraph,
+      });
+
+      await /** @type {any} */ (view)._materializeGraph();
+
+      expect(provider.getNeighbors).toHaveBeenCalledTimes(visibleNodes.length);
+      expect(maxInFlight).toBeLessThanOrEqual(64);
     });
   });
 

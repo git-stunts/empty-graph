@@ -98,6 +98,7 @@ describe('WarpGraph prototype completeness', () => {
       'discoverWriters', 'discoverTicks',
       'join', 'syncCoverage',
       'setSeekCache',
+      'verifyIndex', 'invalidateIndex',
     ];
 
     for (const name of expectedMethods) {

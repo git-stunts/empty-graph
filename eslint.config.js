@@ -227,6 +227,7 @@ export default tseslint.config(
       "src/domain/services/DagTraversal.js",
       "src/domain/services/DagPathFinding.js",
       "src/domain/services/DagTopology.js",
+      "src/domain/services/GraphTraversal.js",
       "src/domain/services/AuditMessageCodec.js",
       "src/domain/services/AuditReceiptService.js",
       "src/domain/services/AuditVerifierService.js",
@@ -246,6 +247,9 @@ export default tseslint.config(
       "bin/cli/commands/patch.js",
       "bin/cli/commands/tree.js",
       "bin/presenters/text.js",
+      "src/domain/services/LogicalBitmapIndexBuilder.js",
+      "src/domain/services/LogicalIndexBuildService.js",
+      "src/domain/services/IncrementalIndexUpdater.js",
     ],
     rules: {
       "complexity": ["error", 35],

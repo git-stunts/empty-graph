@@ -941,6 +941,48 @@ eg-schema: 2`;
         })
       );
     });
+
+    it('falls back to checkpoint without index when index build fails', async () => {
+      const persistence = createMockPersistence();
+      const graph = await WarpGraph.open({
+        persistence,
+        graphName: 'events',
+        writerId: 'node-1',
+        crypto,
+      });
+
+      const writerSha = 'a'.repeat(40);
+      const checkpointSha = 'f'.repeat(40);
+      const blobOid = 'd'.repeat(40);
+      const treeOid = 'e'.repeat(40);
+      const warn = vi.fn();
+
+      vi.spyOn(graph, 'discoverWriters').mockResolvedValue(['writer-1']);
+      vi.spyOn(graph, 'materialize').mockResolvedValue(createEmptyStateV5());
+
+      persistence.readRef.mockResolvedValue(writerSha);
+      persistence.writeBlob.mockResolvedValue(blobOid);
+      persistence.writeTree.mockResolvedValue(treeOid);
+      persistence.commitNodeWithTree.mockResolvedValue(checkpointSha);
+      persistence.updateRef.mockResolvedValue(undefined);
+
+      /** @type {any} */ (graph)._cachedIndexTree = null;
+      /** @type {any} */ (graph)._logger = { warn, info: vi.fn() };
+      /** @type {any} */ (graph)._viewService = {
+        build: vi.fn(() => {
+          throw new Error('roaring unavailable');
+        }),
+      };
+
+      const sha = await graph.createCheckpoint();
+
+      expect(sha).toBe(checkpointSha);
+      expect(warn).toHaveBeenCalledWith(
+        '[warp] checkpoint index build failed; saving checkpoint without index',
+        expect.objectContaining({ error: 'roaring unavailable' }),
+      );
+      expect(persistence.commitNodeWithTree).toHaveBeenCalled();
+    });
   });
 
   describe('schema version selection (WARP v5)', () => {

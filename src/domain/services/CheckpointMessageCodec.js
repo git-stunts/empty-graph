@@ -60,8 +60,8 @@ export function encodeCheckpointMessage({ graph, stateHash, frontierOid, indexOi
     [TRAILER_KEYS.schema]: String(schema),
   };
 
-  // Add checkpoint version marker for V5 format (schema:2 and schema:3)
-  if (schema === 2 || schema === 3) {
+  // Add checkpoint version marker for V5 format (schema:2, schema:3, schema:4)
+  if (schema === 2 || schema === 3 || schema === 4) {
     trailers[TRAILER_KEYS.checkpointVersion] = 'v5';
   }
 
@@ -126,7 +126,7 @@ export function decodeCheckpointMessage(message) {
     throw new Error(`Invalid checkpoint message: eg-schema must be a positive integer, got '${schemaStr}'`);
   }
 
-  // Extract optional checkpoint version (v5 for schema:2)
+  // Extract optional checkpoint version (v5 for schema:2/3/4)
   const checkpointVersion = trailers[TRAILER_KEYS.checkpointVersion] || null;
 
   return {

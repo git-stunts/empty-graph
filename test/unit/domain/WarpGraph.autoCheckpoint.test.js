@@ -460,4 +460,73 @@ describe('AP/CKPT/3: auto-checkpoint in materialize() path', () => {
     expect(state.prop).toBeDefined();
     expect(state.observedFrontier).toBeDefined();
   });
+
+  // --------------------------------------------------------------------------
+  // H8: createCheckpoint reuses _cachedIndexTree instead of rebuilding
+  // --------------------------------------------------------------------------
+  it('createCheckpoint reuses cached index tree (H8)', async () => {
+    const graph = await WarpGraph.open({
+      persistence,
+      graphName: 'test',
+      writerId: 'w1',
+    });
+
+    const tipSha = buildPatchChain(persistence, 'w1', 2);
+    wirePersistenceForWriter(persistence, 'w1', tipSha);
+
+    await graph.materialize();
+
+    // After materialize, _cachedIndexTree should be set (from _buildView)
+    // Spy on _viewService.build to ensure it is NOT called during createCheckpoint
+    const buildSpy = vi.spyOn(graph._viewService, 'build');
+
+    // Mock persistence for checkpoint creation
+    persistence.writeBlob.mockResolvedValue(fakeSha('blob'));
+    persistence.writeTree.mockResolvedValue(fakeSha('tree'));
+    persistence.commitNodeWithTree.mockResolvedValue(fakeSha('commit'));
+    persistence.updateRef.mockResolvedValue(undefined);
+    persistence.isAncestor.mockResolvedValue(true);
+
+    await graph.createCheckpoint();
+
+    // build() should NOT have been called since _cachedIndexTree exists
+    expect(buildSpy).not.toHaveBeenCalled();
+  });
+
+  // --------------------------------------------------------------------------
+  // H5: Schema 4 checkpoints are accepted by the materialize path
+  // --------------------------------------------------------------------------
+  it('materializes from a schema:4 checkpoint (H5)', async () => {
+    const graph = await WarpGraph.open({
+      persistence,
+      graphName: 'test',
+      writerId: 'w1',
+    });
+
+    const checkpointState = createEmptyStateV5();
+
+    const patches = [];
+    for (let i = 1; i <= 2; i++) {
+      patches.push({
+        patch: createPatch('w1', i, `n:w1:${i}`),
+        sha: fakeSha(i),
+      });
+    }
+
+    vi.spyOn(graph, /** @type {any} */ ('_loadLatestCheckpoint')).mockResolvedValue({
+      schema: 4,
+      state: checkpointState,
+      frontier: new Map(),
+      indexShardOids: null,
+    });
+    vi.spyOn(graph, /** @type {any} */ ('_loadPatchesSince')).mockResolvedValue(patches);
+
+    const state = /** @type {any} */ (await graph.materialize());
+
+    // Should have applied the 2 patches on top of the schema:4 checkpoint
+    expect(state.nodeAlive).toBeDefined();
+    const nodeIds = [...state.nodeAlive.entries.keys()];
+    expect(nodeIds).toContain('n:w1:1');
+    expect(nodeIds).toContain('n:w1:2');
+  });
 });

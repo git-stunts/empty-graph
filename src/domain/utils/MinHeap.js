@@ -8,10 +8,18 @@
 class MinHeap {
   /**
    * Creates an empty MinHeap.
+   *
+   * @param {Object} [options] - Configuration options
+   * @param {((a: T, b: T) => number)} [options.tieBreaker] - Comparator invoked when two
+   *   entries have equal priority. Negative return = a wins (comes out first).
+   *   When omitted, equal-priority extraction order is unspecified (heap-natural).
    */
-  constructor() {
+  constructor(options) {
+    const { tieBreaker } = options || {};
     /** @type {Array<{item: T, priority: number}>} */
-    this.heap = [];
+    this._heap = [];
+    /** @type {((a: T, b: T) => number) | undefined} */
+    this._tieBreaker = tieBreaker;
   }
 
   /**
@@ -22,8 +30,8 @@ class MinHeap {
    * @returns {void}
    */
   insert(item, priority) {
-    this.heap.push({ item, priority });
-    this._bubbleUp(this.heap.length - 1);
+    this._heap.push({ item, priority });
+    this._bubbleUp(this._heap.length - 1);
   }
 
   /**
@@ -32,11 +40,11 @@ class MinHeap {
    * @returns {T | undefined} The item with lowest priority, or undefined if empty
    */
   extractMin() {
-    if (this.heap.length === 0) { return undefined; }
-    if (this.heap.length === 1) { return /** @type {{item: T, priority: number}} */ (this.heap.pop()).item; }
+    if (this._heap.length === 0) { return undefined; }
+    if (this._heap.length === 1) { return /** @type {{item: T, priority: number}} */ (this._heap.pop()).item; }
 
-    const min = this.heap[0];
-    this.heap[0] = /** @type {{item: T, priority: number}} */ (this.heap.pop());
+    const min = this._heap[0];
+    this._heap[0] = /** @type {{item: T, priority: number}} */ (this._heap.pop());
     this._bubbleDown(0);
     return min.item;
   }
@@ -47,7 +55,7 @@ class MinHeap {
    * @returns {boolean} True if empty
    */
   isEmpty() {
-    return this.heap.length === 0;
+    return this._heap.length === 0;
   }
 
   /**
@@ -56,7 +64,7 @@ class MinHeap {
    * @returns {number} Number of items
    */
   size() {
-    return this.heap.length;
+    return this._heap.length;
   }
 
   /**
@@ -65,7 +73,27 @@ class MinHeap {
    * @returns {number} The minimum priority value, or Infinity if empty
    */
   peekPriority() {
-    return this.heap.length > 0 ? this.heap[0].priority : Infinity;
+    return this._heap.length > 0 ? this._heap[0].priority : Infinity;
+  }
+
+  /**
+   * Compares two heap entries. Returns negative if a should come before b.
+   *
+   * @private
+   * @param {number} idxA - Index of first entry
+   * @param {number} idxB - Index of second entry
+   * @returns {number} Negative if a < b, positive if a > b, zero if equal
+   */
+  _compare(idxA, idxB) {
+    const a = this._heap[idxA];
+    const b = this._heap[idxB];
+    if (a.priority !== b.priority) {
+      return a.priority - b.priority;
+    }
+    if (this._tieBreaker) {
+      return this._tieBreaker(a.item, b.item);
+    }
+    return 0;
   }
 
   /**
@@ -78,8 +106,8 @@ class MinHeap {
     let current = pos;
     while (current > 0) {
       const parentIndex = Math.floor((current - 1) / 2);
-      if (this.heap[parentIndex].priority <= this.heap[current].priority) { break; }
-      [this.heap[parentIndex], this.heap[current]] = [this.heap[current], this.heap[parentIndex]];
+      if (this._compare(parentIndex, current) <= 0) { break; }
+      [this._heap[parentIndex], this._heap[current]] = [this._heap[current], this._heap[parentIndex]];
       current = parentIndex;
     }
   }
@@ -91,22 +119,22 @@ class MinHeap {
    * @param {number} pos - Starting index
    */
   _bubbleDown(pos) {
-    const {length} = this.heap;
+    const {length} = this._heap;
     let current = pos;
     while (true) {
       const leftChild = 2 * current + 1;
       const rightChild = 2 * current + 2;
       let smallest = current;
 
-      if (leftChild < length && this.heap[leftChild].priority < this.heap[smallest].priority) {
+      if (leftChild < length && this._compare(leftChild, smallest) < 0) {
         smallest = leftChild;
       }
-      if (rightChild < length && this.heap[rightChild].priority < this.heap[smallest].priority) {
+      if (rightChild < length && this._compare(rightChild, smallest) < 0) {
         smallest = rightChild;
       }
       if (smallest === current) { break; }
 
-      [this.heap[current], this.heap[smallest]] = [this.heap[smallest], this.heap[current]];
+      [this._heap[current], this._heap[smallest]] = [this._heap[smallest], this._heap[current]];
       current = smallest;
     }
   }

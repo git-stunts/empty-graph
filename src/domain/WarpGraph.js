@@ -19,6 +19,7 @@ import defaultClock from './utils/defaultClock.js';
 import LogicalTraversal from './services/LogicalTraversal.js';
 import LRUCache from './utils/LRUCache.js';
 import SyncController from './services/SyncController.js';
+import MaterializedViewService from './services/MaterializedViewService.js';
 import { wireWarpMethods } from './warp/_wire.js';
 import * as queryMethods from './warp/query.methods.js';
 import * as subscribeMethods from './warp/subscribe.methods.js';
@@ -40,6 +41,7 @@ const DEFAULT_ADJACENCY_CACHE_SIZE = 3;
  * @property {import('./services/JoinReducer.js').WarpStateV5} state
  * @property {string} stateHash
  * @property {{outgoing: Map<string, Array<{neighborId: string, label: string}>>, incoming: Map<string, Array<{neighborId: string, label: string}>>}} adjacency
+ * @property {import('./services/BitmapNeighborProvider.js').default} [provider]
  */
 
 /**
@@ -175,6 +177,24 @@ export default class WarpGraph {
 
     /** @type {SyncController} */
     this._syncController = new SyncController(this);
+
+    /** @type {MaterializedViewService} */
+    this._viewService = new MaterializedViewService({
+      codec: this._codec,
+      logger: this._logger || undefined,
+    });
+
+    /** @type {import('./services/BitmapNeighborProvider.js').LogicalIndex|null} */
+    this._logicalIndex = null;
+
+    /** @type {import('./services/PropertyIndexReader.js').default|null} */
+    this._propertyReader = null;
+
+    /** @type {string|null} */
+    this._cachedViewHash = null;
+
+    /** @type {Record<string, Uint8Array>|null} */
+    this._cachedIndexTree = null;
   }
 
   /**
@@ -216,6 +236,21 @@ export default class WarpGraph {
       const suffix = metrics ? ` (${metrics})` : '';
       this._logger.info(`[warp] ${op} completed in ${elapsed}ms${suffix}`);
     }
+  }
+
+  /**
+   * Extracts the maximum Lamport timestamp from a WarpStateV5.
+   *
+   * @param {import('./services/JoinReducer.js').WarpStateV5} state
+   * @returns {number} Maximum Lamport value (0 if frontier is empty)
+   * @private
+   */
+  _maxLamportFromState(state) {
+    let max = 0;
+    for (const v of state.observedFrontier.values()) {
+      if (v > max) { max = v; }
+    }
+    return max;
   }
 
   /**
@@ -379,6 +414,11 @@ export default class WarpGraph {
             allPatches.push(...writerPatches);
           }
           return this._sortPatchesCausally(allPatches);
+        },
+        loadCheckpoint: async () => {
+          const ck = await this._loadLatestCheckpoint();
+          if (!ck) { return null; }
+          return { state: ck.state, maxLamport: this._maxLamportFromState(ck.state) };
         },
       });
     }

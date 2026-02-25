@@ -7,6 +7,11 @@ exports[`WarpGraph API surface > all prototype methods have correct property des
     "enumerable": false,
     "type": "method",
   },
+  "_buildView": {
+    "configurable": true,
+    "enumerable": false,
+    "type": "method",
+  },
   "_computeBackwardCone": {
     "configurable": true,
     "enumerable": false,
@@ -72,6 +77,11 @@ exports[`WarpGraph API surface > all prototype methods have correct property des
     "enumerable": false,
     "type": "method",
   },
+  "_maxLamportFromState": {
+    "configurable": true,
+    "enumerable": false,
+    "type": "method",
+  },
   "_maybeRunGC": {
     "configurable": true,
     "enumerable": false,
@@ -92,12 +102,22 @@ exports[`WarpGraph API surface > all prototype methods have correct property des
     "enumerable": false,
     "type": "method",
   },
+  "_persistSeekCacheEntry": {
+    "configurable": true,
+    "enumerable": false,
+    "type": "method",
+  },
   "_relationToCheckpointHead": {
     "configurable": true,
     "enumerable": false,
     "type": "method",
   },
   "_resolveCeiling": {
+    "configurable": true,
+    "enumerable": false,
+    "type": "method",
+  },
+  "_restoreIndexFromCache": {
     "configurable": true,
     "enumerable": false,
     "type": "method",
@@ -252,6 +272,11 @@ exports[`WarpGraph API surface > all prototype methods have correct property des
     "enumerable": false,
     "type": "method",
   },
+  "invalidateIndex": {
+    "configurable": true,
+    "enumerable": false,
+    "type": "method",
+  },
   "join": {
     "configurable": true,
     "enumerable": false,
@@ -382,6 +407,11 @@ exports[`WarpGraph API surface > all prototype methods have correct property des
     "enumerable": false,
     "type": "method",
   },
+  "verifyIndex": {
+    "configurable": true,
+    "enumerable": false,
+    "type": "method",
+  },
   "watch": {
     "configurable": true,
     "enumerable": false,
@@ -400,11 +430,12 @@ exports[`WarpGraph API surface > all prototype methods have correct property des
 }
 `;
 
-exports[`WarpGraph API surface > prototype method count matches snapshot 1`] = `79`;
+exports[`WarpGraph API surface > prototype method count matches snapshot 1`] = `85`;
 
 exports[`WarpGraph API surface > prototype methods match snapshot 1`] = `
 [
   "_buildAdjacency",
+  "_buildView",
   "_computeBackwardCone",
   "_ensureFreshState",
   "_frontierEquals",
@@ -418,12 +449,15 @@ exports[`WarpGraph API surface > prototype methods match snapshot 1`] = `
   "_logTiming",
   "_materializeGraph",
   "_materializeWithCeiling",
+  "_maxLamportFromState",
   "_maybeRunGC",
   "_nextLamport",
   "_notifySubscribers",
   "_onPatchCommitted",
+  "_persistSeekCacheEntry",
   "_relationToCheckpointHead",
   "_resolveCeiling",
+  "_restoreIndexFromCache",
   "_setMaterializedState",
   "_sortPatchesCausally",
   "_validateMigrationBoundary",
@@ -454,6 +488,7 @@ exports[`WarpGraph API surface > prototype methods match snapshot 1`] = `
   "graphName",
   "hasFrontierChanged",
   "hasNode",
+  "invalidateIndex",
   "join",
   "loadPatchBySha",
   "materialize",
@@ -480,6 +515,7 @@ exports[`WarpGraph API surface > prototype methods match snapshot 1`] = `
   "syncWith",
   "temporal",
   "translationCost",
+  "verifyIndex",
   "watch",
   "writer",
   "writerId",

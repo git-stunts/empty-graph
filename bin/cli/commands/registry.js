@@ -7,6 +7,8 @@ import handleDoctor from './doctor/index.js';
 import handleMaterialize from './materialize.js';
 import handleSeek from './seek.js';
 import handleVerifyAudit from './verify-audit.js';
+import handleVerifyIndex from './verify-index.js';
+import handleReindex from './reindex.js';
 import handleView from './view.js';
 import handleInstallHooks from './install-hooks.js';
 import handleTrust from './trust.js';
@@ -24,6 +26,8 @@ export const COMMANDS = new Map(/** @type {[string, Function][]} */ ([
   ['materialize', handleMaterialize],
   ['seek', handleSeek],
   ['verify-audit', handleVerifyAudit],
+  ['verify-index', handleVerifyIndex],
+  ['reindex', handleReindex],
   ['trust', handleTrust],
   ['patch', handlePatch],
   ['tree', handleTree],

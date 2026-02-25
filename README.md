@@ -270,6 +270,45 @@ if (result.found) {
 }
 ```
 
+```javascript
+// Weighted shortest path (Dijkstra) with edge weight function
+const weighted = await graph.traverse.weightedShortestPath('city:a', 'city:z', {
+  dir: 'outgoing',
+  weightFn: (from, to, label) => edgeWeights.get(`${from}-${to}`) ?? 1,
+});
+
+// Weighted shortest path with per-node weight function
+const nodeWeighted = await graph.traverse.weightedShortestPath('city:a', 'city:z', {
+  dir: 'outgoing',
+  nodeWeightFn: (nodeId) => nodeDelays.get(nodeId) ?? 0,
+});
+
+// A* search with heuristic
+const astar = await graph.traverse.aStarSearch('city:a', 'city:z', {
+  dir: 'outgoing',
+  heuristic: (nodeId) => euclideanDistance(coords[nodeId], coords['city:z']),
+});
+
+// Topological sort (Kahn's algorithm with cycle detection)
+const sorted = await graph.traverse.topologicalSort('task:root', {
+  dir: 'outgoing',
+  labelFilter: 'depends-on',
+});
+// sorted = ['task:root', 'task:auth', 'task:caching', ...]
+
+// Longest path on DAGs (critical path)
+const critical = await graph.traverse.weightedLongestPath('task:start', 'task:end', {
+  dir: 'outgoing',
+  weightFn: (from, to, label) => taskDurations.get(to) ?? 1,
+});
+
+// Reachability check (fast, no path reconstruction)
+const canReach = await graph.traverse.isReachable('user:alice', 'user:bob', {
+  dir: 'outgoing',
+});
+// canReach = true | false
+```
+
 ## Subscriptions & Reactivity
 
 React to graph changes without polling. Handlers are called after `materialize()` when state has changed.
@@ -517,6 +556,7 @@ flowchart TB
             lp["LoggerPort"]
             ip["IndexStoragePort"]
             sp["SeekCachePort"]
+            np["NeighborProviderPort"]
 
             subgraph domain["Domain Core"]
                 wg["WarpGraph — main API facade"]
@@ -525,6 +565,8 @@ flowchart TB
                 cs["CheckpointService"]
                 qb["QueryBuilder"]
                 lt["LogicalTraversal"]
+                gt["GraphTraversal"]
+                mvs["MaterializedViewService"]
                 crdts["CRDTs: VersionVector · ORSet · LWW"]
             end
         end
@@ -552,6 +594,7 @@ The codebase follows hexagonal architecture with ports and adapters:
 - `LoggerPort` -- structured logging
 - `ClockPort` -- time measurement
 - `SeekCachePort` -- persistent seek materialization cache
+- `NeighborProviderPort` -- abstract neighbor lookup interface
 
 **Adapters** implement the ports:
 - `GitGraphAdapter` -- wraps `@git-stunts/plumbing` for Git operations
@@ -568,7 +611,12 @@ The codebase follows hexagonal architecture with ports and adapters:
 - `Writer` / `PatchSession` -- patch creation and commit
 - `JoinReducer` -- CRDT-based state materialization
 - `QueryBuilder` -- fluent query construction
-- `LogicalTraversal` -- graph traversal over materialized state
+- `LogicalTraversal` -- deprecated facade, delegates to GraphTraversal
+- `GraphTraversal` -- unified traversal engine (11 algorithms, `nodeWeightFn`)
+- `MaterializedViewService` -- orchestrate build/persist/load of materialized views
+- `IncrementalIndexUpdater` -- O(diff) bitmap index updates
+- `LogicalIndexBuildService` / `LogicalIndexReader` -- logical bitmap indexes
+- `AdjacencyNeighborProvider` / `BitmapNeighborProvider` -- neighbor provider implementations
 - `SyncProtocol` -- multi-writer synchronization
 - `CheckpointService` -- state snapshot creation and loading
 - `ObserverView` -- read-only filtered graph projections

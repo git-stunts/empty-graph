@@ -14,6 +14,9 @@ import LogicalTraversal from './LogicalTraversal.js';
 import { orsetContains, orsetElements } from '../crdt/ORSet.js';
 import { decodeEdgeKey } from './KeyCodec.js';
 
+/** @type {Map<string, RegExp>} Module-level cache for compiled glob regexes. */
+const globRegexCache = new Map();
+
 /**
  * Tests whether a string matches a glob-style pattern.
  *
@@ -31,8 +34,12 @@ function matchGlob(pattern, str) {
   if (!pattern.includes('*')) {
     return pattern === str;
   }
-  const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
-  const regex = new RegExp(`^${escaped.replace(/\*/g, '.*')}$`);
+  let regex = globRegexCache.get(pattern);
+  if (!regex) {
+    const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
+    regex = new RegExp(`^${escaped.replace(/\*/g, '.*')}$`);
+    globRegexCache.set(pattern, regex);
+  }
   return regex.test(str);
 }
 
@@ -65,6 +72,106 @@ function filterProps(propsMap, expose, redact) {
     filtered.set(key, value);
   }
   return filtered;
+}
+
+/** @typedef {{ neighborId: string, label: string }} NeighborEntry */
+
+/**
+ * Sorts a neighbor list by (neighborId, label) using strict codepoint comparison.
+ *
+ * @param {NeighborEntry[]} list
+ */
+function sortNeighbors(list) {
+  list.sort((a, b) => {
+    if (a.neighborId !== b.neighborId) {
+      return a.neighborId < b.neighborId ? -1 : 1;
+    }
+    return a.label < b.label ? -1 : a.label > b.label ? 1 : 0;
+  });
+}
+
+/**
+ * Builds filtered adjacency maps by scanning all edges in the OR-Set.
+ *
+ * @param {import('./JoinReducer.js').WarpStateV5} state
+ * @param {string} pattern
+ * @returns {{ outgoing: Map<string, NeighborEntry[]>, incoming: Map<string, NeighborEntry[]> }}
+ */
+function buildAdjacencyFromEdges(state, pattern) {
+  const outgoing = /** @type {Map<string, NeighborEntry[]>} */ (new Map());
+  const incoming = /** @type {Map<string, NeighborEntry[]>} */ (new Map());
+
+  for (const edgeKey of orsetElements(state.edgeAlive)) {
+    const { from, to, label } = decodeEdgeKey(edgeKey);
+
+    if (!orsetContains(state.nodeAlive, from) || !orsetContains(state.nodeAlive, to)) {
+      continue;
+    }
+    if (!matchGlob(pattern, from) || !matchGlob(pattern, to)) {
+      continue;
+    }
+
+    if (!outgoing.has(from)) { outgoing.set(from, []); }
+    if (!incoming.has(to)) { incoming.set(to, []); }
+
+    /** @type {NeighborEntry[]} */ (outgoing.get(from)).push({ neighborId: to, label });
+    /** @type {NeighborEntry[]} */ (incoming.get(to)).push({ neighborId: from, label });
+  }
+
+  for (const list of outgoing.values()) { sortNeighbors(list); }
+  for (const list of incoming.values()) { sortNeighbors(list); }
+  return { outgoing, incoming };
+}
+
+/**
+ * Processes a single node's edges into the outgoing/incoming adjacency maps.
+ *
+ * @param {string} id
+ * @param {NeighborEntry[]} edges
+ * @param {{ visibleSet: Set<string>, outgoing: Map<string, NeighborEntry[]>, incoming: Map<string, NeighborEntry[]> }} ctx
+ */
+function collectNodeEdges(id, edges, ctx) {
+  const filtered = edges.filter((e) => ctx.visibleSet.has(e.neighborId));
+  if (filtered.length > 0) {
+    ctx.outgoing.set(id, filtered);
+  }
+  for (const { neighborId, label } of filtered) {
+    if (!ctx.incoming.has(neighborId)) { ctx.incoming.set(neighborId, []); }
+    /** @type {NeighborEntry[]} */ (ctx.incoming.get(neighborId)).push({ neighborId: id, label });
+  }
+}
+
+/**
+ * Builds filtered adjacency maps using a BitmapNeighborProvider.
+ *
+ * For each visible node, queries the provider for outgoing neighbors,
+ * then post-filters by glob match. Incoming maps are derived from
+ * the outgoing results to avoid duplicate provider calls.
+ *
+ * @param {import('./BitmapNeighborProvider.js').default} provider
+ * @param {string[]} visibleNodes
+ * @returns {Promise<{ outgoing: Map<string, NeighborEntry[]>, incoming: Map<string, NeighborEntry[]> }>}
+ */
+async function buildAdjacencyViaProvider(provider, visibleNodes) {
+  const visibleSet = new Set(visibleNodes);
+  const outgoing = /** @type {Map<string, NeighborEntry[]>} */ (new Map());
+  const incoming = /** @type {Map<string, NeighborEntry[]>} */ (new Map());
+  const ctx = { visibleSet, outgoing, incoming };
+
+  const BATCH = 64;
+  for (let i = 0; i < visibleNodes.length; i += BATCH) {
+    const chunk = visibleNodes.slice(i, i + BATCH);
+    const results = await Promise.all(
+      chunk.map(id => provider.getNeighbors(id, 'out').then(edges => ({ id, edges })))
+    );
+    for (const { id, edges } of results) {
+      collectNodeEdges(id, edges, ctx);
+    }
+  }
+
+  // Provider returns pre-sorted outgoing; incoming needs sorting
+  for (const list of incoming.values()) { sortNeighbors(list); }
+  return { outgoing, incoming };
 }
 
 /**
@@ -101,6 +208,13 @@ export default class ObserverView {
     /** @type {import('../WarpGraph.js').default} */
     this._graph = graph;
 
+    /**
+     * Cast safety: LogicalTraversal requires the following methods from the
+     * graph-like object it wraps:
+     *   - hasNode(nodeId): Promise<boolean>          (line ~96 in LogicalTraversal)
+     *   - _materializeGraph(): Promise<{adjacency}>  (line ~94 in LogicalTraversal)
+     * ObserverView implements both: hasNode() at line ~242, _materializeGraph() at line ~214.
+     */
     /** @type {LogicalTraversal} */
     this.traverse = new LogicalTraversal(/** @type {import('../WarpGraph.js').default} */ (/** @type {unknown} */ (this)));
   }
@@ -122,60 +236,28 @@ export default class ObserverView {
    * QueryBuilder and LogicalTraversal.
    *
    * Builds a filtered adjacency structure that only includes edges
-   * where both endpoints pass the match filter.
+   * where both endpoints pass the match filter. Uses the parent graph's
+   * BitmapNeighborProvider when available for O(1) lookups with post-filter.
    *
-   * @returns {Promise<{state: unknown, stateHash: string, adjacency: {outgoing: Map<string, unknown[]>, incoming: Map<string, unknown[]>}}>}
+   * @returns {Promise<{state: unknown, stateHash: string, adjacency: {outgoing: Map<string, NeighborEntry[]>, incoming: Map<string, NeighborEntry[]>}}>}
    * @private
    */
   async _materializeGraph() {
-    const materialized = await /** @type {{ _materializeGraph: () => Promise<{state: import('./JoinReducer.js').WarpStateV5, stateHash: string, adjacency: {outgoing: Map<string, Array<{neighborId: string, label: string}>>, incoming: Map<string, Array<{neighborId: string, label: string}>>}}> }} */ (this._graph)._materializeGraph();
+    const materialized = await /** @type {{ _materializeGraph: () => Promise<{state: import('./JoinReducer.js').WarpStateV5, stateHash: string, provider?: import('./BitmapNeighborProvider.js').default, adjacency: {outgoing: Map<string, NeighborEntry[]>, incoming: Map<string, NeighborEntry[]>}}> }} */ (this._graph)._materializeGraph();
     const { state, stateHash } = materialized;
 
-    // Build filtered adjacency: only edges where both endpoints match
-    const outgoing = new Map();
-    const incoming = new Map();
+    /** @type {{ outgoing: Map<string, NeighborEntry[]>, incoming: Map<string, NeighborEntry[]> }} */
+    let adjacency;
 
-    for (const edgeKey of orsetElements(state.edgeAlive)) {
-      const { from, to, label } = decodeEdgeKey(edgeKey);
-
-      // Both endpoints must be alive
-      if (!orsetContains(state.nodeAlive, from) || !orsetContains(state.nodeAlive, to)) {
-        continue;
-      }
-
-      // Both endpoints must match the observer pattern
-      if (!matchGlob(this._matchPattern, from) || !matchGlob(this._matchPattern, to)) {
-        continue;
-      }
-
-      if (!outgoing.has(from)) {
-        outgoing.set(from, []);
-      }
-      if (!incoming.has(to)) {
-        incoming.set(to, []);
-      }
-
-      outgoing.get(from).push({ neighborId: to, label });
-      incoming.get(to).push({ neighborId: from, label });
+    if (materialized.provider) {
+      const visibleNodes = orsetElements(state.nodeAlive)
+        .filter((id) => matchGlob(this._matchPattern, id));
+      adjacency = await buildAdjacencyViaProvider(materialized.provider, visibleNodes);
+    } else {
+      adjacency = buildAdjacencyFromEdges(state, this._matchPattern);
     }
 
-    const sortNeighbors = (/** @type {{ neighborId: string, label: string }[]} */ list) => {
-      list.sort((/** @type {{ neighborId: string, label: string }} */ a, /** @type {{ neighborId: string, label: string }} */ b) => {
-        if (a.neighborId !== b.neighborId) {
-          return a.neighborId < b.neighborId ? -1 : 1;
-        }
-        return a.label < b.label ? -1 : a.label > b.label ? 1 : 0;
-      });
-    };
-
-    for (const list of outgoing.values()) {
-      sortNeighbors(list);
-    }
-    for (const list of incoming.values()) {
-      sortNeighbors(list);
-    }
-
-    return { state, stateHash, adjacency: { outgoing, incoming } };
+    return { state, stateHash, adjacency };
   }
 
   // ===========================================================================
@@ -260,6 +342,15 @@ export default class ObserverView {
    * @returns {QueryBuilder} A query builder scoped to this observer
    */
   query() {
+    /**
+     * Cast safety: QueryBuilder requires the following methods from the
+     * graph-like object it wraps:
+     *   - getNodes(): Promise<string[]>                  (line ~680 in QueryBuilder)
+     *   - getNodeProps(nodeId): Promise<Map|null>         (lines ~691, ~757, ~806 in QueryBuilder)
+     *   - _materializeGraph(): Promise<{adjacency, stateHash}>  (line ~678 in QueryBuilder)
+     * ObserverView implements all three: getNodes() at line ~254, getNodeProps() at line ~268,
+     * _materializeGraph() at line ~214.
+     */
     return new QueryBuilder(/** @type {import('../WarpGraph.js').default} */ (/** @type {unknown} */ (this)));
   }
 }

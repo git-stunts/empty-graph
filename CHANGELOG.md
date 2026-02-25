@@ -7,6 +7,111 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Bare `Buffer` in MaterializedView domain files** — `LogicalBitmapIndexBuilder`, `LogicalIndexReader`, `PropertyIndexBuilder`, and `IncrementalIndexUpdater` used the Node.js `Buffer` global without importing it. Deno doesn't provide `Buffer` on `globalThis`, causing `_buildView()` to silently fall back to null indexes — the entire O(1) bitmap index subsystem was non-functional in Deno. Replaced all `Buffer.from()` calls with `Uint8Array`-safe `.slice()` and `Uint8Array.from()`. Updated JSDoc types from `Record<string, Buffer>` to `Record<string, Uint8Array>` across builders, readers, and downstream consumers (`MaterializedViewService`, `LogicalIndexBuildService`).
+- **`hydrateCheckpointIndex` stale-overwrite bug** — `materialize()` called `hydrateCheckpointIndex()` after `_setMaterializedState()`, overwriting the freshly built bitmap index with the checkpoint's stale one. Removed the function entirely; `_buildView` already builds the correct index.
+- **Deterministic node/label ID assignment** — OR-Set iteration order is non-deterministic, causing node globalIds and label IDs to vary across builds of the same state. `LogicalIndexBuildService.build()` now sorts alive nodes and unique edge labels before registration.
+- **Deterministic property index output** — `PropertyIndexBuilder.serialize()` now sorts entries by nodeId before CBOR encoding, ensuring identical output regardless of patch arrival order.
+- **No-`Buffer` runtime regression coverage** — added a regression test that sets `globalThis.Buffer = undefined` and verifies full index build, index read, and incremental shard updates still succeed.
+- **Checkpoint index staleness regression coverage** — added an integration test that creates a schema:4 checkpoint, applies post-checkpoint patches, reopens the graph, and verifies `materialize()` neighbors/index reflect latest state (not stale checkpoint shards).
+- **Decoded-byte boundary hardening** — `LogicalIndexReader` now normalizes decoded bitmap/meta byte payloads via `Uint8Array.from(...)` before Roaring deserialization, so Buffer/Uint8Array/number[] decode variants all work reliably.
+- **Deno runtime native-addon bootstrap** — `docker/Dockerfile.deno` now bootstraps with a minimal Deno entrypoint that imports only `npm:roaring` and `npm:cbor-extract`, then runs `deno install --node-modules-dir=auto --allow-scripts=...` so lifecycle scripts execute without pulling unrelated npm dev dependencies (which previously caused CI 403 flake failures).
+- **Deno native fallback compile reliability** — retained `node-gyp` in `docker/Dockerfile.deno` because Deno/npm lifecycle fallback builds for `roaring`/`cbor-extract` invoke `node-gyp` from `PATH` when prebuilt binaries are unavailable.
+- **CLI verify-index error handling** — `verify-index` now safely stringifies non-`Error` throws from `materialize()` instead of assuming `err.message`.
+- **Node test image install determinism** — switched `docker/Dockerfile.node20` and `docker/Dockerfile.node22` from `npm install` to `npm ci`, and pinned direct `zod` dependency to `3.24.1` to avoid transient/blocked registry resolution during Dockerized CI builds.
+- **Checkpoint resilience when index build fails** — `createCheckpoint()` now logs a warning and still writes a valid checkpoint without embedded index shards if bitmap index construction fails (for example when Roaring native loading is unavailable), preserving correctness over acceleration.
+- **Traversal and verification regressions** — fixed `topologicalSort()` false cycle detection when output is truncated by `maxNodes`; `commonAncestors()` now reports aggregate stats across all internal BFS runs instead of only the last run; `verifyIndex()` now flags alive-bit mismatches even for isolated nodes with empty edge signatures.
+- **Fixture DSL Lamport fidelity** — `fixtureToState()` now honors explicit `props[].lamport` ticks, preventing fixture-order artifacts in property precedence tests.
+- **Determinism/regression test hardening** — added tests ensuring `LogicalBitmapIndexBuilder` does not duplicate shard mappings when re-registering nodes after `loadExistingMeta`, `LogicalIndexReader` unfiltered edges equal filtered-label unions with deterministic `(neighborId, label)` ordering, and `PropertyIndexBuilder` serializes equivalent property sets identically across operation orders.
+- **Temporal/query and fixture safety guards** — `TemporalQuery` now clones checkpoint state before replay (preventing cross-query mutation when providers reuse checkpoint objects), `PropertyIndexReader` now throws on malformed non-array shard payloads instead of silently returning empty data, and `makeFixture()` now validates `props` and tombstone references against declared nodes/edges.
+- **`TemporalQuery` checkpoint boundary skipped when all patches covered** — `evaluateAlwaysCheckpointBoundary` and `evaluateEventuallyCheckpointBoundary` used `startIdx > 0` to detect checkpoint presence, which failed when the checkpoint covered all patches (`findIndex → -1`, `startIdx = 0`). Changed guard to `checkpointMaxLamport !== since`. Removed the now-unused `startIdx` parameter from both functions.
+- **`GraphTraversal` shared mutable stats counters** — `_cacheHits`, `_cacheMisses`, and `_edgesTraversed` were instance fields reset per-run via `_resetStats()`, making concurrent traversals on the same instance share corrupted counters. Replaced with per-run `RunStats` objects threaded through `_getNeighbors()` and all 10 traversal entry points.
+- **`computeShardKey` crash on null/undefined input** — `computeShardKey()` now returns `'00'` for null, undefined, or non-string inputs instead of throwing. FNV-1a hashing now operates on UTF-8 bytes (via `TextEncoder`) instead of UTF-16 code units for correct cross-runtime shard placement of non-ASCII node IDs.
+- **`MinHeap` constructor crash on null** — `new MinHeap(null)` threw because destructuring defaults (`= {}`) only apply to `undefined`, not `null`. Constructor now uses explicit `options || {}` guard.
+- **Cross-provider error comparison for non-Error throws** — `runCrossProvider()` in the fixture DSL now normalizes thrown values via `normalizeError()` before comparing `.name`/`.message`, so non-Error throws (strings, numbers) are correctly detected as mismatches instead of silently comparing `undefined === undefined`.
+
+### Changed
+
+- **`LogicalIndexReader` per-owner edge lookup** — `resolveAllLabels()` previously scanned the entire edge store per node — O(total edges). Added `_edgeByOwnerFwd`/`_edgeByOwnerRev` secondary indexes built during shard decode, reducing unfiltered `getEdges()` to O(degree).
+- **`LogicalBitmapIndexBuilder.serialize()` O(N×S) elimination** — meta shard serialization scanned the full `_nodeToGlobal` map for every shard. Added per-shard node list (`_shardNodes`) populated during `registerNode()`/`loadExistingMeta()`, reducing cost to O(N).
+- **`ObserverView` batched provider calls** — `buildAdjacencyViaProvider()` now batches `getNeighbors()` calls in chunks of 64 via `Promise.all` instead of sequential awaits.
+- **Seek cache buffer contract typing** — `SeekCachePort` and `index.d.ts` now type seek-cache payloads as `Buffer | Uint8Array`, matching runtime adapter behavior from `@git-stunts/git-cas`.
+- **Docs/runtime consistency cleanup** — corrected `ARCHITECTURE.md` GraphTraversal method descriptions (BFS/DFS array-returning; BFS-based `shortestPath`) and removed branch-specific ROADMAP header metadata.
+- **Backlog reconciliation** — absorbed all 39 BACKLOG.md items into ROADMAP.md with B-numbers B66–B104. Added Milestone 12 (SCALPEL) for algorithmic performance audit fixes. Expanded Standalone Lane from 20 to 52 items across 11 priority tiers. Added cross-reference table and inventory. BACKLOG.md cleared to skeleton.
+- **Seek cache contract alignment** — synchronized `ARCHITECTURE.md` and `index.d.ts` `SeekCachePort` signatures with runtime behavior: key-based methods and optional `indexTreeOid` metadata on cache entries.
+- **MaterializedView/docs runtime naming alignment** — updated architecture lifecycle docs to reference `build() -> persistIndexTree() -> loadFromOids()` plus incremental `applyDiff()` and `verifyIndex()`, and switched Deno compose `--allow-scripts` to package-name form (`npm:roaring,npm:cbor-extract`) with an explicit sync note to reduce version-drift failures.
+
+## [12.0.0] — 2026-02-25
+
+### Changed
+
+- **Documentation updated for v12.0.0** — CLAUDE.md, README.md, ARCHITECTURE.md, GUIDE.md, and CLI_GUIDE.md updated to reflect the MaterializedView architecture overhaul: GraphTraversal engine (11 algorithms, `nodeWeightFn`), `graph.traverse` facade, MaterializedViewService, LogicalIndexBuildService/Reader, IncrementalIndexUpdater, NeighborProviderPort abstraction, checkpoint schema 4, and new CLI commands (`verify-index`, `reindex`).
+
+
+### Added (MaterializedView architecture & indexing)
+
+- **`nodeWeightFn` option for node-weighted graph algorithms** — `weightedShortestPath`, `aStarSearch`, `bidirectionalAStar`, and `weightedLongestPath` now accept `nodeWeightFn(nodeId) => number` as an alternative to `weightFn`. Weight = cost to enter the destination node. Internally memoized (each node resolved at most once). Mutually exclusive with `weightFn` — providing both throws `E_WEIGHT_FN_CONFLICT`.
+- **`graph.traverse` — 7 new facade methods** — `isReachable`, `weightedShortestPath`, `aStarSearch`, `bidirectionalAStar`, `topologicalSort`, `commonAncestors`, and `weightedLongestPath` are now accessible via the public `graph.traverse.*` API, matching the full `GraphTraversal` engine surface. Previously these required constructing `GraphTraversal` + `NeighborProvider` directly.
+
+### Fixed
+
+- **`commonAncestors` error message** — error message now reads `"Node not found: <id>"` (was `"Start node not found"`) with `{ node }` context, since `commonAncestors` accepts multiple nodes, not a single start.
+- **`bidirectionalAStar` direction bypass** — no longer routes through `_prepare`/`assertDirection`, which silently accepted a meaningless `dir` parameter. Now validates `from` inline after `_prepareEngine`.
+- **Traverse facade: phantom `maxDepth` JSDoc** — removed undocumented `maxDepth` param from `weightedShortestPath` and `aStarSearch` JSDoc and `index.d.ts` types (these methods don't support depth limiting).
+- **Traverse facade: `signal` forwarding** — `isReachable`, `weightedShortestPath`, `aStarSearch`, and `bidirectionalAStar` now forward `options.signal` to the `GraphTraversal` engine.
+- **`AdjacencyNeighborProvider`: isolated node visibility** — `LogicalTraversal` now passes `aliveNodes` from the materialized OR-Set when constructing the provider, so `hasNode()` correctly reports isolated nodes (no edges) as alive.
+- **IncrementalIndexUpdater: overflow guard** — `_handleNodeAdd` now throws `ShardIdOverflowError` when a shard's `nextLocalId` reaches 2^24, matching the full-build path and preventing silent globalId collisions across shards.
+- **IncrementalIndexUpdater: undefined label guard** — `_handleEdgeRemove` now returns early when the edge label is not in the label registry, preventing a `"undefined"` bucket from being targeted.
+- **GraphTraversal: bidirectional A\* backward weight direction** — `_biAStarExpand` now passes `weightFn(neighborId, current, label)` when expanding backward, correctly reflecting edge direction for asymmetric weight functions.
+- **JoinReducer: spurious diff entries for already-dead elements** — `snapshotBeforeOp` now captures alive-ness before `NodeRemove`/`EdgeRemove` ops, and `collectNodeRemovals`/`collectEdgeRemovals` only record transitions from alive → dead, eliminating spurious diff entries for redundant removes.
+- **Schema 4 checkpoint support in materialize** — `materialize()` now recognizes schema:4 checkpoints (previously only schema:2/3). When a schema:4 checkpoint includes `indexShardOids`, the bitmap index is hydrated from stored OIDs, avoiding a full rebuild.
+- **CLI verify-index/reindex: public API** — CLI commands now use public `verifyIndex()` and `invalidateIndex()` methods instead of accessing private underscore-prefixed properties. Both commands now include proper try/catch error handling.
+- **`_buildView` index failure logging** — `_buildView` now logs a warning via `this._logger?.warn()` when the index build fails, instead of silently nulling all index state.
+- **`createCheckpoint` index tree cache reuse** — `createCheckpoint()` now reuses `_cachedIndexTree` from a prior `materialize()` instead of unconditionally calling `_viewService.build()`, avoiding a redundant O(N) full rebuild.
+- **CheckpointService: codepoint sort** — tree entry sorting now uses codepoint comparison instead of `localeCompare`, matching Git's byte-order requirement.
+- **BitmapNeighborProvider: constructor guard** — throws when neither `indexReader` nor `logicalIndex` is provided, preventing silent empty-result misconfiguration.
+- **fixtureDsl: complete op fields** — `NodeRemove` ops now include `node` field, `EdgeRemove` ops include `from`, `to`, `label` fields, matching the contract expected by `accumulateOpDiff`.
+
+### Added
+
+- **MaterializedView unification** — Phase 3: single service orchestrating build, persist, and load of the bitmap index + property reader as a coherent materialized view.
+  - **`MaterializedViewService`** (`src/domain/services/MaterializedViewService.js`) — three entry points: `build(state)` from WarpStateV5, `persistIndexTree(tree, persistence)` to Git, `loadFromOids(shardOids, storage)` for lazy hydration. In-memory PropertyReader uses path-as-OID trick for zero-copy shard access during build.
+  - **`LogicalIndexReader`** (`src/domain/services/LogicalIndexReader.js`) — extracted index hydration from test helpers into production code. Two load paths: `loadFromTree(tree)` (sync, in-memory) and `loadFromOids(shardOids, storage)` (async, lazy). Produces a `LogicalIndex` interface for `BitmapNeighborProvider`.
+  - **CheckpointService schema 4** — checkpoints now embed the bitmap index as a Git subtree under `index/`. `createV5()` accepts optional `indexTree` param; `loadCheckpoint()` partitions `index/`-prefixed entries into `indexShardOids` for lazy hydration. Backward-compatible with schema 2/3.
+  - **WarpGraph lifecycle wiring** — `_setMaterializedState` builds a `LogicalIndex` + `PropertyReader` and attaches a `BitmapNeighborProvider` to `_materializedGraph`. Index build cached by stateHash, wrapped in try-catch for resilience.
+  - **Indexed query fast paths** — `getNodeProps()` and `neighbors()` check the LogicalIndex/PropertyReader/BitmapNeighborProvider for O(1) lookups before falling through to linear scan.
+  - **Seek cache index persistence** — `CasSeekCacheAdapter` stores/returns optional `indexTreeOid` alongside the state buffer. `_materializeWithCeiling` persists the index tree to Git and records the OID in cache metadata; on cache hit, restores the index from the stored tree.
+  - **ObserverView fast path** — reuses parent graph's `BitmapNeighborProvider` for O(1) adjacency lookups with post-filter glob matching on visible nodes.
+
+- **Logical graph bitmap index** — Phase 2: CBOR-based bitmap index over the logical graph with labeled edges, stable numeric IDs, property indexes, and O(1) label-filtered neighbor lookups.
+  - **`fnv1a`** (`src/domain/utils/fnv1a.js`) — FNV-1a 32-bit hash for shard key computation on non-SHA node IDs.
+  - **`computeShardKey`** (`src/domain/utils/shardKey.js`) — 2-char hex shard key: SHA prefix for hex IDs, FNV-1a low byte for everything else.
+  - **`encodeCanonicalCbor` / `decodeCanonicalCbor`** (`src/domain/utils/canonicalCbor.js`) — canonical CBOR encoding with deterministic key ordering via `defaultCodec`.
+  - **`ShardIdOverflowError`** (`src/domain/errors/ShardIdOverflowError.js`) — thrown when a shard exceeds 2^24 local IDs. Code: `E_SHARD_ID_OVERFLOW`.
+  - **`LogicalBitmapIndexBuilder`** (`src/domain/services/LogicalBitmapIndexBuilder.js`) — core builder producing CBOR shards: `meta_XX.cbor` (stable nodeId↔globalId, alive bitmap), `labels.cbor` (append-only label registry), `fwd_XX.cbor`/`rev_XX.cbor` (per-label + all Roaring bitmaps), `receipt.cbor`. Supports seeding from prior builds for ID stability across rebuilds.
+  - **`PropertyIndexBuilder`** (`src/domain/services/PropertyIndexBuilder.js`) — builds `props_XX.cbor` shards from node properties. Proto-safe array-of-pairs serialization.
+  - **`PropertyIndexReader`** (`src/domain/services/PropertyIndexReader.js`) — lazy property reader with LRU shard cache via `IndexStoragePort.readBlob`.
+  - **`LogicalIndexBuildService`** (`src/domain/services/LogicalIndexBuildService.js`) — orchestrates full index build from `WarpStateV5`: extracts visible projection, delegates to builder + property builder, returns serialized tree + receipt.
+- **Cross-provider equivalence tests** — 18 tests verifying BFS, DFS, shortestPath, Dijkstra, A*, topologicalSort produce identical results across `AdjacencyNeighborProvider` and `BitmapNeighborProvider`.
+  - **Benchmark** (`test/benchmark/logicalIndex.benchmark.js`) — index build time at 1K/10K/100K nodes, single-node `getNeighbors` latency, `getNodeProps` latency.
+
+### Changed (Provider integration & fixtures)
+
+- **`BitmapNeighborProvider`** — dual-mode: commit DAG (`indexReader` param, existing) + logical graph (`logicalIndex` param, new). Logical mode supports per-label bitmap filtering, alive bitmap checks, and `'both'` direction dedup.
+- **Contract tests** — added `BitmapNeighborProvider` as third provider to both `contractSuite` (unlabeled) and `labelContractSuite` (labeled). All 44 contract assertions pass.
+- **Fixture DSL** — added `makeLogicalBitmapProvider(fixture)`: builds `WarpStateV5` from fixture → `LogicalIndexBuildService` → in-memory `LogicalIndex` adapter → `BitmapNeighborProvider`.
+
+- **`NeighborProviderPort`** (`src/ports/NeighborProviderPort.js`) — abstract interface for neighbor lookups on any graph. Methods: `getNeighbors(nodeId, direction, options)`, `hasNode(nodeId)`, `latencyClass` getter. Direction: `'out' | 'in' | 'both'`. Edges sorted by `(neighborId, label)` via strict codepoint comparison.
+- **`AdjacencyNeighborProvider`** (`src/domain/services/AdjacencyNeighborProvider.js`) — in-memory provider wrapping `{ outgoing, incoming }` adjacency maps. Pre-sorts at construction. `latencyClass: 'sync'`. Deduplicates `'both'` direction by `(neighborId, label)`.
+- **`GraphTraversal`** (`src/domain/services/GraphTraversal.js`) — unified traversal engine accepting any `NeighborProviderPort`. 11 algorithms: BFS, DFS, shortestPath, isReachable, weightedShortestPath (Dijkstra), aStarSearch, bidirectionalAStar, topologicalSort, connectedComponent, commonAncestors, weightedLongestPath. All methods accept `AbortSignal`, `maxNodes`, `maxDepth`, `hooks`, and return `stats`. Deterministic: BFS level-sorted lex, DFS reverse-push lex, PQ tie-break by lex nodeId, Kahn zero-indegree sorted lex. Equal-cost predecessor update rule enforced.
+- **`BitmapNeighborProvider`** (`src/domain/services/BitmapNeighborProvider.js`) — commit DAG provider wrapping `BitmapIndexReader`. Commit DAG edges use `label = ''` (empty string sentinel). `latencyClass: 'async-local'`.
+- **`MinHeap` tie-breaking** — optional `tieBreaker` comparator in constructor. Used by Dijkstra/A* for deterministic lex nodeId ordering on equal priority. Backward compatible.
+
+### Changed (Deprecations)
+
+- **`LogicalTraversal`** — deprecated; now delegates to `GraphTraversal + AdjacencyNeighborProvider` internally. Public API unchanged. New code should use `GraphTraversal` directly.
+
 ## [11.5.3] — 2026-02-22 — Mermaid Diagram Migration
 
 ### Changed

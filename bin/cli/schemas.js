@@ -175,3 +175,22 @@ export const seekSchema = z.object({
     diffLimit: val['diff-limit'],
   };
 });
+
+// ============================================================================
+// Verify-index
+// ============================================================================
+
+export const verifyIndexSchema = z.object({
+  seed: z.coerce.number().int().min(-2147483648).max(2147483647).optional(),
+  'sample-rate': z.coerce.number().gt(0, '--sample-rate must be greater than 0').max(1).optional().default(0.1),
+}).strict().transform((val) => ({
+  seed: val.seed,
+  sampleRate: val['sample-rate'],
+}));
+
+// ============================================================================
+// Reindex
+// ============================================================================
+
+// No command-level options; schema exists for forward compatibility
+export const reindexSchema = z.object({}).strict();

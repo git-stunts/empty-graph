@@ -101,15 +101,26 @@ function setupPersistence(persistence, writerSpecs, graphName = 'test') {
 
 /**
  * Creates an in-memory SeekCachePort mock.
+ *
+ * Stores entries as `{ buffer, indexTreeOid? }` objects matching the
+ * updated SeekCachePort contract.
  */
 function createMockSeekCache() {
+  /** @type {Map<string, { buffer: Buffer, indexTreeOid?: string }>} */
   const store = new Map();
   return {
-    get: vi.fn(async (key) => store.get(key) ?? null),
-    set: vi.fn(async (key, buf) => { store.set(key, buf); }),
-    has: vi.fn(async (key) => store.has(key)),
+    get: vi.fn(async (/** @type {string} */ key) => store.get(key) ?? null),
+    set: vi.fn(async (/** @type {string} */ key, /** @type {Buffer} */ buf, /** @type {{ indexTreeOid?: string }} */ opts) => {
+      /** @type {{ buffer: Buffer, indexTreeOid?: string }} */
+      const entry = { buffer: buf };
+      if (opts?.indexTreeOid) {
+        entry.indexTreeOid = opts.indexTreeOid;
+      }
+      store.set(key, entry);
+    }),
+    has: vi.fn(async (/** @type {string} */ key) => store.has(key)),
     keys: vi.fn(async () => [...store.keys()]),
-    delete: vi.fn(async (key) => store.delete(key)),
+    delete: vi.fn(async (/** @type {string} */ key) => store.delete(key)),
     clear: vi.fn(async () => { store.clear(); }),
     _store: store,
   };
@@ -158,6 +169,9 @@ describe('buildSeekCacheKey', () => {
   });
 });
 
+/** Flush microtask queue so fire-and-forget promises settle. */
+const flush = () => new Promise((r) => { setTimeout(r, 0); });
+
 // ===========================================================================
 // WarpGraph seek cache integration (mock cache)
 // ===========================================================================
@@ -170,6 +184,9 @@ describe('WarpGraph seek cache integration', () => {
 
   beforeEach(() => {
     persistence = createMockPersistence();
+    // Ensure writeBlob/writeTree resolve for index tree persistence
+    persistence.writeBlob.mockResolvedValue('mock-blob-oid');
+    persistence.writeTree.mockResolvedValue('mock-tree-oid');
     seekCache = createMockSeekCache();
   });
 
@@ -183,6 +200,7 @@ describe('WarpGraph seek cache integration', () => {
     });
 
     await graph.materialize({ ceiling: 2 });
+    await flush();
 
     expect(seekCache.set).toHaveBeenCalledTimes(1);
     const [key, buf] = seekCache.set.mock.calls[0];
@@ -201,6 +219,7 @@ describe('WarpGraph seek cache integration', () => {
 
     // First visit — full materialize, stores to cache
     await graph.materialize({ ceiling: 2 });
+    await flush();
     const getCallsBefore = seekCache.get.mock.calls.length;
 
     // Clear in-memory cache to force persistent cache path
@@ -257,6 +276,7 @@ describe('WarpGraph seek cache integration', () => {
 
     // First materialize — populates cache
     await graph.materialize({ ceiling: 2 });
+    await flush();
     expect(graph._provenanceDegraded).toBe(false);
 
     // Force persistent cache path
@@ -279,6 +299,7 @@ describe('WarpGraph seek cache integration', () => {
     });
 
     await graph.materialize({ ceiling: 2 });
+    await flush();
 
     // Force cache hit
     graph._cachedState = null;
@@ -299,6 +320,7 @@ describe('WarpGraph seek cache integration', () => {
     });
 
     await graph.materialize({ ceiling: 2 });
+    await flush();
     graph._cachedState = null;
     graph._cachedCeiling = null;
     graph._cachedFrontier = null;
@@ -385,11 +407,12 @@ describe('WarpGraph seek cache integration', () => {
 
     // First materialize populates cache
     await graph.materialize({ ceiling: 2 });
+    await flush();
     expect(seekCache.set).toHaveBeenCalledTimes(1);
     const [cacheKey] = seekCache.set.mock.calls[0];
 
-    // Corrupt the cached data
-    seekCache._store.set(cacheKey, Buffer.from('corrupted-data'));
+    // Corrupt the cached data (store object with bad buffer)
+    seekCache._store.set(cacheKey, { buffer: Buffer.from('corrupted-data') });
 
     // Clear in-memory cache
     graph._cachedState = null;

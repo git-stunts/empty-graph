@@ -42,6 +42,18 @@ export async function hasNode(nodeId) {
  */
 export async function getNodeProps(nodeId) {
   await this._ensureFreshState();
+
+  // ── Indexed fast path (positive results only; stale index falls through) ──
+  if (this._propertyReader && this._logicalIndex?.isAlive(nodeId)) {
+    try {
+      const record = await this._propertyReader.getNodeProps(nodeId);
+      return record ? new Map(Object.entries(record)) : new Map();
+    } catch {
+      // Fall through to linear scan on index read failures.
+    }
+  }
+
+  // ── Linear scan fallback ─────────────────────────────────────────────
   const s = /** @type {import('../services/JoinReducer.js').WarpStateV5} */ (this._cachedState);
 
   if (!orsetContains(s.nodeAlive, nodeId)) {
@@ -104,6 +116,17 @@ export async function getEdgeProps(from, to, label) {
 }
 
 /**
+ * Converts NeighborEdge[] to the query-method shape with a direction tag.
+ *
+ * @param {Array<{neighborId: string, label: string}>} edges
+ * @param {'outgoing' | 'incoming'} dir
+ * @returns {Array<{nodeId: string, label: string, direction: 'outgoing' | 'incoming'}>}
+ */
+function tagDirection(edges, dir) {
+  return edges.map((e) => ({ nodeId: e.neighborId, label: e.label, direction: dir }));
+}
+
+/**
  * Gets neighbors of a node from the materialized state.
  *
  * @this {import('../WarpGraph.js').default}
@@ -115,28 +138,71 @@ export async function getEdgeProps(from, to, label) {
  */
 export async function neighbors(nodeId, direction = 'both', edgeLabel = undefined) {
   await this._ensureFreshState();
-  const s = /** @type {import('../services/JoinReducer.js').WarpStateV5} */ (this._cachedState);
 
+  // ── Indexed fast path (only when node is in index; stale falls through) ──
+  const provider = this._materializedGraph?.provider;
+  if (provider && this._logicalIndex?.isAlive(nodeId)) {
+    try {
+      const opts = edgeLabel ? { labels: new Set([edgeLabel]) } : undefined;
+      return await _indexedNeighbors(provider, nodeId, direction, opts);
+    } catch {
+      // Fall through to linear scan on index/provider failures.
+    }
+  }
+
+  // ── Linear scan fallback ─────────────────────────────────────────────
+  return _linearNeighbors(/** @type {import('../services/JoinReducer.js').WarpStateV5} */ (this._cachedState), nodeId, direction, edgeLabel);
+}
+
+/**
+ * Indexed neighbor lookup using BitmapNeighborProvider.
+ *
+ * @param {import('../../ports/NeighborProviderPort.js').default} provider
+ * @param {string} nodeId
+ * @param {'outgoing' | 'incoming' | 'both'} direction
+ * @param {import('../../ports/NeighborProviderPort.js').NeighborOptions} [opts]
+ * @returns {Promise<Array<{nodeId: string, label: string, direction: 'outgoing' | 'incoming'}>>}
+ */
+async function _indexedNeighbors(provider, nodeId, direction, opts) {
+  if (direction === 'both') {
+    const [outEdges, inEdges] = await Promise.all([
+      provider.getNeighbors(nodeId, 'out', opts),
+      provider.getNeighbors(nodeId, 'in', opts),
+    ]);
+    return [...tagDirection(outEdges, 'outgoing'), ...tagDirection(inEdges, 'incoming')];
+  }
+  const dir = direction === 'outgoing' ? 'out' : 'in';
+  const edges = await provider.getNeighbors(nodeId, dir, opts);
+  const tag = direction === 'outgoing' ? /** @type {const} */ ('outgoing') : /** @type {const} */ ('incoming');
+  return tagDirection(edges, tag);
+}
+
+/**
+ * Linear-scan neighbor lookup from raw CRDT state.
+ *
+ * @param {import('../services/JoinReducer.js').WarpStateV5} cachedState
+ * @param {string} nodeId
+ * @param {'outgoing' | 'incoming' | 'both'} direction
+ * @param {string} [edgeLabel]
+ * @returns {Array<{nodeId: string, label: string, direction: 'outgoing' | 'incoming'}>}
+ */
+function _linearNeighbors(cachedState, nodeId, direction, edgeLabel) {
+  const s = /** @type {import('../services/JoinReducer.js').WarpStateV5} */ (cachedState);
   /** @type {Array<{nodeId: string, label: string, direction: 'outgoing' | 'incoming'}>} */
   const result = [];
+  const checkOut = direction === 'outgoing' || direction === 'both';
+  const checkIn = direction === 'incoming' || direction === 'both';
 
   for (const edgeKey of orsetElements(s.edgeAlive)) {
     const { from, to, label } = decodeEdgeKey(edgeKey);
-
     if (edgeLabel !== undefined && label !== edgeLabel) {
       continue;
     }
-
-    if ((direction === 'outgoing' || direction === 'both') && from === nodeId) {
-      if (orsetContains(s.nodeAlive, to)) {
-        result.push({ nodeId: to, label, direction: /** @type {const} */ ('outgoing') });
-      }
+    if (checkOut && from === nodeId && orsetContains(s.nodeAlive, to)) {
+      result.push({ nodeId: to, label, direction: /** @type {const} */ ('outgoing') });
     }
-
-    if ((direction === 'incoming' || direction === 'both') && to === nodeId) {
-      if (orsetContains(s.nodeAlive, from)) {
-        result.push({ nodeId: from, label, direction: /** @type {const} */ ('incoming') });
-      }
+    if (checkIn && to === nodeId && orsetContains(s.nodeAlive, from)) {
+      result.push({ nodeId: from, label, direction: /** @type {const} */ ('incoming') });
     }
   }
 

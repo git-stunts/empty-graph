@@ -34,6 +34,8 @@
  * @property {{clear: () => Promise<void>} | null} seekCache
  * @property {number} [_seekCeiling]
  * @property {boolean} [_provenanceDegraded]
+ * @property {(options?: {seed?: number, sampleRate?: number}) => Promise<{passed: number, failed: number, errors: Array<{nodeId: string, direction: string, error: string}>}>} verifyIndex
+ * @property {() => void} invalidateIndex
  */
 
 /**

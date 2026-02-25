@@ -1,53 +1,11 @@
-# OPERATION: WARP VELOCITY — EDITOR'S EDITION: GENERALISSIMO GPT CUT
+# ROADMAP — @git-stunts/git-warp
 
-> **Status:** LOCKED FOR EXECUTION
-> **Release Target:** v2.0 = Trust Core
-> **Prime Directive:** If it does not improve trust, verification, or operational safety, it does not get into v2.0.
-
----
-
-## Commander's Intent
-
-Ship a v2.0 that can survive:
-
-1. adversarial security review,
-2. forensic audit scrutiny,
-3. real operator incidents at 2 AM.
-
-Everything else is secondary.
-
----
-
-## Non-Negotiable Release Promise (v2.0)
-
-By v2.0, operators can:
-
-- authenticate sync traffic with replay protection,
-- generate immutable, deterministic audit receipts,
-- cryptographically verify chain-of-custody,
-- diagnose common failure states quickly.
-
-If any of those are weak, we do not ship.
-
----
-
-## What Got Cut (On Purpose)
-
-**Removed from v2.0 core:**
-
-- Risky semantic rewrite: sync-builder Lamport prefetch model
-- Optional reactive API surface (observer) unless capacity remains
-- Cosmetic "perfect audit score" work beyond exploitable risk triage
-
-**Replaced with safer alternative:**
-
-- Single-await ergonomics via `graph.patch(fn)` wrapper (same semantics, less user friction)
+> **Current version:** v12.0.0
+> **Last reconciled:** 2026-02-25 (backlog fully absorbed)
 
 ---
 
 ## Completed Milestones
-
-All 12 milestones (77 tasks, ~255 human hours, ~13,100 LOC) have been implemented and verified.
 
 | # | Codename | Version | Theme |
 |---|----------|---------|-------|
@@ -63,377 +21,15 @@ All 12 milestones (77 tasks, ~255 human hours, ~13,100 LOC) have been implemente
 | 10 | BULKHEAD | v10.0.0 | Hexagonal Purity & Structural Integrity |
 | 11 | RECALL | v10.4.0 | Seek Materialization Cache |
 | 12 | SEEKDIFF | v10.5.0 | Structural Seek Diff |
-
----
-
-## Milestone 1 — IRON DOME
-
-**Theme:** Security & protocol hardening
-**Objective:** Make sync requests fresh, authentic, and replay-resistant.
-
-### M1.T1.SHIELD — Hardened Sync Auth (S-Tier)
-
-- **Status:** `DONE`
-
-**User Story:** As a deployer, I need cryptographic proof that sync requests are authentic, fresh, and unique.
-
-**Requirements:**
-
-- Required headers:
-  - `x-warp-sig-version: 1`
-  - `x-warp-signature`
-  - `x-warp-timestamp` (epoch ms)
-  - `x-warp-nonce`
-- Canonical signed payload:
-  - `warp-v1|${METHOD}|${RAW_PATH_WITH_QUERY}|${TIMESTAMP}|${NONCE}|${CONTENT_TYPE}|${BODY_SHA256}`
-- Normalization:
-  - METHOD uppercase
-  - raw path+query exact as received (no decode/re-encode)
-  - content-type lowercase or empty string
-  - body hash = SHA-256(raw body), empty string for no-body
-- Replay defense:
-  - reject if `abs(now - timestamp) > 5m`
-  - nonce dedupe cache TTL 5m
-  - LRU capacity 100k baseline
-  - shard or quota by peer to prevent nonce-flood eviction abuse
-- Signature compare:
-  - `crypto.timingSafeEqual`
-- Upgrade mode:
-  - `--auth-mode=enforce|log-only` (default log-only during rollout)
-- Observability:
-  - metrics: `auth_fail_reason`, `replay_reject_count`, `nonce_evictions`, `clock_skew_rejects`
-
-**Acceptance Criteria:**
-
-- Missing/invalid version header -> 400
-- Missing signature fields -> 401
-- Stale timestamp -> 403 EXPIRED
-- Reused nonce -> 403 REPLAY
-- Valid signed request -> 200
-
-**Performance Budget:** auth overhead < 2ms p95 (defined benchmark profile)
-
-**Definition of Done:**
-
-- unit + integration tests complete
-- 2-node sync test in both log-only and enforce
-- SECURITY.md includes restart policy and limitations
-- benchmark report checked in
-
-**Estimate:** 10-12 hours
-
-### M1.T2.HYGIENE — Exploitable Risk Triage (C/B-Tier)
-
-- **Status:** `DONE`
-
-**User Story:** As a maintainer, I need a defendable security posture, not vanity metrics.
-
-**Requirements:**
-
-- audit runtime dependency risk for exploitability
-- upgrade vulnerable packages where practical
-- create/update SECURITY.md:
-  - reporting path
-  - accepted risks with expiry/owner
-  - threat model boundaries
-
-**Acceptance Criteria:** no known exploitable HIGH in runtime path; CI gate reflects exploitability policy (not blind audit score worship)
-
-**Definition of Done:** triage log committed; policy committed
-
-**Estimate:** 3-5 hours
-
----
-
-## Milestone 2 — FOUNDATION LIFT
-
-**Theme:** Developer velocity for correctness work
-**Objective:** Build test and CLI infrastructure that accelerates safe delivery.
-
-### M2.T1.MEM-ADAPTER (A-Tier)
-
-- **Status:** `DONE`
-
-**User Story:** As an architect, I need fast in-memory tests to validate risky logic quickly.
-
-**Requirements:**
-
-- InMemoryGraphAdapter implementing GraphPersistencePort
-- parity behaviors with Git adapter (including integrity constraints where relevant)
-- shared tests run against both adapters
-
-**Delivered in v10.7.0.**
-
-**Acceptance Criteria:** domain suite passes on memory + git adapters
-
-**Definition of Done:** adapter integrated in test harness; CI includes adapter matrix lane
-
-**Estimate:** 8-10 hours
-
-### M2.T2.PRESENTER — Output Contracts (A-Tier)
-
-- **Status:** `DONE`
-
-**User Story:** As a contributor, I need command logic separated from rendering for stable machine outputs.
-
-**Requirements:**
-
-- `bin/presenters/index.js`
-- command handlers return plain data objects
-- serializer contracts:
-  - deterministic key order for snapshots
-  - NDJSON: one object per line
-  - no-color mode via `NO_COLOR` + CI detection
-
-**Acceptance Criteria:** legacy human output unchanged (byte-equivalent where promised); JSON/NDJSON contract tests green
-
-**Definition of Done:** BATS regression suite passes; snapshot tests for JSON outputs
-
-**Estimate:** 6-8 hours
-
-### M2.T3.SIGNPOSTS + DEFAULTS (B-Tier bundle)
-
-- **Status:** `DONE`
-
-**User Story:** As a new dev, I should hit fewer dead ends and get immediate recovery hints.
-
-**Requirements:**
-
-- improve `E_NO_STATE` / `E_STALE_STATE` messages
-- include recovery hint + docs URL
-- default `autoMaterialize=true`
-- publish migration doc with performance note
-
-**Acceptance Criteria:**
-
-- `open()` -> `hasNode()` works by default
-- explicit `autoMaterialize=false` still errors as designed
-- error messages include actionable fix
-
-**Definition of Done:** docs + migration examples added; regression tests updated
-
-**Estimate:** 3-4 hours
-
----
-
-## Milestone 3 — GHOST PROTOCOL
-
-**Theme:** Immutable audit trail
-**Objective:** Deterministic receipts first, implementation second.
-
-### M3.T0.SPEC — Hard Gate (S-Tier)
-
-- **Status:** `DONE`
-
-**User Story:** As an architect, I need deterministic receipt spec with zero ambiguity.
-
-**Requirements:**
-
-Create `docs/specs/AUDIT_RECEIPT.md` with:
-
-- required fields:
-  - `version`
-  - `writerId`
-  - `dataCommit`
-  - `tickStart`
-  - `tickEnd`
-  - `opsDigest`
-  - `prevAuditCommit`
-  - `timestamp`
-- canonical serialization rules
-- hash algorithm (SHA-256)
-- chunking strategy
-- genesis/chain rules
-- trust/version compatibility section
-- test vectors:
-  - canonical fixtures + expected digests
-  - negative fixture behavior
-
-**Acceptance Criteria:** lead approval; verifier fixture tests pass from spec vectors
-
-**Definition of Done:** spec committed and referenced by implementation docs
-
-**Estimate:** 4-6 hours
-
-### M3.T1.SHADOW-LEDGER (S-Tier)
-
-- **Status:** `DONE`
-
-**User Story:** As an auditor, I need tamper-evident receipts stored immutably and linked to data commits.
-
-**Requirements:**
-
-- implement ReceiptBlockBuilder per spec
-- flush receipt blocks to Git blobs
-- construct audit tree
-- commit to `refs/audit/<writer-id>`
-- include deterministic metadata/trailers
-- gate behind `audit: true` or feature flag during rollout
-
-**Acceptance Criteria:**
-
-- audit ref advances correctly
-- blobs decode and validate against spec
-- million-receipt stress run meets memory budget
-
-**Performance Budget:** Max RSS < 500MB on defined stress profile
-
-**Rollback:** feature flag to disable audit logging path instantly
-
-**Definition of Done:**
-
-- integration tests validate object/ref layout
-- deterministic replay tests green
-- stress + benchmark artifacts checked in
-
-**Estimate:** 16-22 hours
-
----
-
-## Milestone 4 — VERIFY OR IT DIDN'T HAPPEN
-
-**Theme:** Cryptographic verification
-**Objective:** Prove chain-of-custody, detect tampering deterministically.
-
-### M4.T1.VERIFY-AUDIT (S-Tier)
-
-- **Status:** `DONE`
-
-**User Story:** As an operator, I need a definitive verification command for audit integrity.
-
-**Requirements:**
-
-- command: `git warp verify-audit <ref>`
-- trust root configuration:
-  - `WARP_TRUSTED_ROOT` env
-  - `.warp/trust.json`
-- modes:
-  - `--since <commit>`
-  - `--format json|ndjson`
-- verification flow:
-  - validate commit/link integrity
-  - validate trust/signature policy
-  - replay receipts
-  - compare with referenced data commits
-
-**Deterministic Tamper Tests:**
-
-- ref rollback to older commit -> TAMPERED
-- broken parent chain -> BROKEN_CHAIN
-- mismatched dataCommit metadata -> DATA_MISMATCH
-- swapped receipt blob in tree -> DATA_MISMATCH
-
-**Performance Budget:** verify 10k commits < 5s p95 under declared benchmark profile
-
-**Definition of Done:** BATS + fixture tests pass; machine-readable output schema documented
-
-**Estimate:** 10-14 hours
-
-### M4.T2.DOCTOR (B-Tier)
-
-- **Status:** `DONE`
-
-**User Story:** As an operator, I need one command that identifies likely system breakage fast.
-
-**Requirements:**
-
-- command: `git warp doctor`
-- checks:
-  - stale refs
-  - missing objects
-  - clock skew risk
-  - auth misconfig
-  - audit/data divergence signals
-- output:
-  - human summary + JSON mode
-
-**Acceptance Criteria:** known-bad fixtures are correctly diagnosed
-
-**Definition of Done:** README + troubleshooting linked; ops runbook includes doctor output interpretation
-
-**Estimate:** 4-6 hours
-
----
-
-## Milestone 5 — CLI DECOMPOSITION (A-Tier)
-
-**Theme:** Maintainability
-**Objective:** Prevent monolith drag on future features.
-
-### M5.T1.COMMANDS SPLIT
-
-- **Status:** `DONE`
-
-**Requirements:**
-
-- split `bin/warp-graph.js` into command modules
-- `register(program)` per command
-- complexity budget enforced by lint
-
-**Acceptance Criteria:** entrypoint < 300 LOC; full regression suite green
-
-**Definition of Done:** docs for contributor command architecture added
-
-**Estimate:** 10-14 hours
-
----
-
-## Milestone 6 — SAFE ERGONOMICS (B-Tier, replaces risky feature)
-
-### M6.T1.PATCH-WRAPPER — Single Await API
-
-- **Status:** `DONE`
-
-**User Story:** As a developer, I want one-await mutation ergonomics without changing concurrency semantics.
-
-**Requirements:**
-
-- add `await graph.patch(fn, opts?)`
-- internally:
-  - `p = await createPatch()`
-  - execute callback
-  - `await p.commit()`
-- explicitly preserve existing Lamport/ref ordering semantics
-- typed errors for callback/commit failures
-- forbid or define nested patch behavior
-
-**Acceptance Criteria:**
-
-- one-await UX works
-- concurrency outcomes identical to legacy two-await flow
-- no regressions in multi-writer tests
-
-**Definition of Done:** docs include "convenience wrapper, no semantic changes"; examples and migration snippet added
-
-**Estimate:** 4-6 hours
-
----
-
-## Release Gates (Hard)
-
-No v2.0 tag until **every** gate passes. If any RG fails: no tag. Period.
-
-### Prior milestone gates (M1–M6)
-
-1. M1.T1 security suite + replay fuzz + metrics checks
-2. M3.T0 spec vectors implemented and passing
-3. M3.T1 stress budget passed (RSS + correctness)
-4. M4.T1 deterministic tamper suite fully green
-5. rollback drill executed for audit feature flag
-6. benchmark reports committed with environment disclosure
-
-### Trust release gates (M7)
-
-| Gate | Proof Obligation | Hard Fail Condition |
-|------|-----------------|---------------------|
-| **RG-T1** Persistence Determinism | Same record set + same ordering input → identical canonical outputs + digests | Any digest drift across replays |
-| **RG-T2** Trust Evaluation Correctness | Allow/deny/revoke matrix passes for key lifecycle fixtures | Any incorrect verdict on known fixture |
-| **RG-T3** Crypto Roundtrip | canonical → hash → sign → verify passes; tamper cases fail | Any false-accept or false-reject |
-| **RG-T4** Chain Integrity | Missing/altered/interleaved records detected with actionable error codes | Silent acceptance of corrupted chain |
-| **RG-T5** Mode Safety | off/warn/enforce semantics match spec; warn emits diagnostics without denial | Enforce behavior in warn mode, or silent bypass in enforce mode |
-| **RG-T6** Migration Safety | Pre-v2 repos handled via documented path; no silent trust bypass | Undefined behavior on pre-v2 repo without explicit operator action |
-| **RG-T7** CLI/API Parity | Identical verdict + reason codes for equivalent inputs via programmatic and CLI paths | Divergent verdicts between API and CLI for same input |
-| **RG-T8** Operator Readiness | Docs cover install, bootstrap, verify, rotate, revoke, incident fallback | Any undocumented operator-facing workflow |
+| M1 | IRON DOME | v11.0.0 | Security & Protocol Hardening |
+| M2 | FOUNDATION LIFT | v11.1.0 | Developer Velocity for Correctness |
+| M3 | GHOST PROTOCOL | v11.1.0 | Immutable Audit Trail |
+| M4 | VERIFY OR IT DIDN'T HAPPEN | v11.1.0 | Cryptographic Verification |
+| M5 | CLI DECOMPOSITION | v11.1.0 | Maintainability |
+| M6 | SAFE ERGONOMICS | v11.1.0 | Single-Await API |
+| M7 | TRUST V1 | v11.1.0 | Cryptographic Identity-Backed Trust |
+| M8 | IRONCLAD | v11.x | Type Safety |
+| M9 | PARTITION | v12.0.0 | Architectural Decomposition |
 
 ---
 
@@ -447,208 +43,10 @@ No v2.0 tag until **every** gate passes. If any RG fails: no tag. Period.
 
 ---
 
-## Milestone 7 — TRUST V1: CRYPTOGRAPHIC IDENTITY-BACKED TRUST
-
-**Theme:** Signed evidence, key bindings, monotonic revocation
-**Objective:** Writer trust derived from signed records + active key bindings + revocation state. No unsigned trust decisions.
-
-> **Do not merge until writer trust is derived from signed records + active key bindings + revocation state.**
-
-### Phase 0 — ADR + Schema Lock (1 day)
-
-- **Status:** `DONE`
-
-**Deliverables:**
-
-- `docs/specs/TRUST_V1_CRYPTO.md` — full spec (record schema, reason codes, verdict mapping, canonical serialization, evaluation algorithm)
-- `src/domain/trust/reasonCodes.js` — frozen reason code registry
-- `src/domain/trust/schemas.js` — Zod schemas for record envelope, policy, assessment output
-- `src/domain/trust/canonical.js` — domain separation constants + unsigned record helpers
-- `src/domain/trust/verdict.js` — deterministic verdict derivation
-
-**Acceptance Criteria:** schemas + reason codes frozen before any implementation code.
-
-### Phase 1 — Crypto Plumbing (2 days)
-
-- **Status:** `DONE`
-
-**Deliverables:**
-
-- `src/domain/trust/TrustCrypto.js` — Ed25519 signature verify, key fingerprint computation
-- `src/domain/trust/TrustCanonical.js` — canonical bytes for recordId + signing
-- Extend `TrustError` codes for signature/record failures
-
-**Test classes:**
-
-- Known-good signature verify
-- Tamper detection (mutated payload/signature/issuerKeyId)
-- keyId fingerprint integrity (KEY_ADD keyId must match fingerprint of publicKey)
-- Unsupported algorithm rejection
-- Deterministic recordId computation
-
-### Phase 2 — Trust Record Store + Parser (2 days)
-
-- **Status:** `DONE`
-
-**Deliverables:**
-
-- `src/domain/trust/TrustRecordService.js` — appendRecord, readRecords, verifyRecordSignature
-- Trust record ref at `refs/warp/<graph>/trust/records`
-- ~~B15~~ Chain integration test (append, read-back, chain integrity under `refs/warp/<graph>/trust/records`)
-- ~~B23~~ Sign+verify round-trip test (canonical → hash → sign → verify pipeline end-to-end)
-- Golden canonical fixtures: freeze expected digests for known record inputs before Phase 3
-
-**Test classes:**
-
-- Genesis constraints (first record prev=null)
-- Prev-link consistency
-- Duplicate recordId detection
-- Pinned read strictness
-- Order determinism (different retrieval order → same evaluated state)
-- Chain integrity: append N records → read back → verify prev-links + digests match golden fixtures
-- Crypto round-trip: `computeSignaturePayload()` → `node:crypto.sign()` → `TrustCrypto.verifySignature()` passes; mutated payload fails
-
-### Phase 3 — State Builder + Evaluator (2 days)
-
-- **Status:** `DONE`
-
-**Deliverables:**
-
-- `src/domain/trust/TrustStateBuilder.js` — buildState(records) → { activeKeys, revokedKeys, writerBindings, revokedBindings, errors }
-- `src/domain/trust/TrustEvaluator.js` — evaluateWriters(writerIds, trustState, policy) → TrustAssessment
-
-**Test classes:**
-
-- Key lifecycle (KEY_ADD → active, KEY_REVOKE → inactive)
-- Binding lifecycle (WRITER_BIND_ADD → trusted, WRITER_BIND_REVOKE → untrusted)
-- Monotonic revocation (revoked key cannot validate future bindings)
-- Deterministic ordering (shuffled writer input → same sorted output)
-- Reason code completeness (every explanation has machine-readable reasonCode)
-- Policy strictness (unknown policy → fail)
-
-**Adversarial test class (required — if not green, "trust" is marketing copy):**
-
-- Tampered trust record injected mid-chain → detected, actionable error code
-- Stale key presented as active after KEY_REVOKE → denied
-- Revoked key used to sign new binding after revocation tick → rejected
-- Out-of-order record replay attempt → deterministic result (same verdict regardless of arrival order)
-- Forged issuerKeyId (keyId does not match fingerprint of supplied publicKey) → rejected
-
-### Phase 4 — CLI + Verifier Integration (2 days)
-
-- **Status:** `DONE`
-
-**Deliverables:**
-
-- `bin/cli/commands/trust.js` — key add/revoke, bind add/revoke, show, doctor
-- `AuditVerifierService.evaluateTrust()` backed by signed evidence
-- `trustSchemaVersion` + `mode` in output contract
-- Pin resolution at CLI boundary (flag > env > ref)
-
-**Test classes:**
-
-- CLI pin precedence matrix (flag only, env only, both, neither)
-- Exit code matrix (integrity fail, trust fail in enforce mode, not_configured with --trust-required)
-- JSON contract lock (full schema validation on CLI JSON output)
-
-### Phase 5 — Hardening + Migration (1–2 days)
-
-- **Status:** `DONE`
-
-**Deliverables:**
-
-- Full JSON contract snapshot tests
-- Migration doc from allowlist model
-- Operator runbook (install, bootstrap, verify, rotate, revoke, incident fallback)
-- Threat model section
-- Explicit rollout modes: off / warn / enforce
-- Schema + canonicalization hash freeze: golden fixtures with pinned expected digests (any post-tag hash drift = ecosystem pain)
-
-**Hard rollback rule:** if enforce-mode produces any false deny on known-good fixtures, auto-fallback to warn-mode. Document exact operator command/flag for rollback. No vibes-based rollback during incident response.
-
-**Cross-mode receipt determinism:** same input must produce identical receipts across warn/enforce modes.
-
-**Release gate:** all test classes from Phases 1–4 passing (including adversarial suite), output schema locked, golden fixtures frozen, boundary purity checks green, no-coordination regression suite green.
-
----
-
-## Milestone 8 — IRONCLAD
-
-**Theme:** Type safety
-**Objective:** Stabilize the declaration surface, eliminate untyped casts, lock it with CI.
-**Triage date:** 2026-02-17
-
-### M8 Phase 1 — Declaration Fix + Boundary Validation
-
-- **Status:** `DONE`
-
-**Items:**
-
-- **B29** (`index.d.ts` TYPE FIXES) — `createPatch()` returns `Promise<PatchSession>` not `Promise<unknown>`; `logNodes` format optional; `materialize()`/`syncCoverage()`/`materializeAt()` return proper types. Unblocks all downstream TS consumers (#35).
-- **B38** (DENO AMBIENT TYPE DECLARATION) — add `globals.d.ts` declaring `Deno` as an ambient type; eliminates scattered `@ts-expect-error` annotations.
-- **B14** (`HttpSyncServer` CONFIG VALIDATION LAYER) — Zod schema for constructor options; catch impossible/contradictory combos at construction time. Pulled forward from M10: validates the boundary *before* M9 refactors move code behind it.
-
-### M8 Phase 2 — Cast Elimination
-
-- **Status:** `DONE`
-
-**Items:**
-
-- **B30** (`any` CAST CLEANUP + `WarpPersistence` TYPE) — define `WarpPersistence` union type covering all 5 persistence ports; replace 161+ `any` casts in `src/` with validated types.
-
-**Acceptance:** `grep -rE '@type \{(\*|any)\}' src/` returns zero.
-
-### M8 Phase 3 — Declaration Automation
-
-- **Status:** `DONE`
-
-**Items:**
-
-- **B41** (DECLARATION SURFACE VALIDATOR) — `scripts/check-dts-surface.js` validates `index.d.ts` against the `type-surface.m8.json` manifest and `index.js` runtime exports. Catches drift when exports are added/removed without updating declarations or manifest.
-- **B42** (CI `.d.ts` SIGNATURE VALIDATION + CONSUMER EXPANSION) — Consumer type test (`test/type-check/consumer.ts`) expanded to cover full API surface per manifest: sync protocol, serve, fork, wormhole, GC, provenance, Writer lifecycle, standalone functions (BTR, wormhole, type creators, tick receipts, migration), class constructors (InMemoryGraphAdapter, GitGraphAdapter, BitmapIndexBuilder/Reader, ProvenancePayload, HealthCheckService), getters/setters, and 6 negative `@ts-expect-error` cases. CI Gate 5 runs the surface validator.
-
-**M8 Gate:** `.d.ts` CI green; zero `any` casts; B28 compile-only stub passes (`tsc --noEmit` on minimal TS consumer).
-
----
-
-## Milestone 9 — PARTITION
-
-**Theme:** Architectural decomposition
-**Objective:** Break apart the god class and eliminate structural DRY violations before adding feature mass.
-**Triage date:** 2026-02-17
-
-### M9.T1 — SyncController Extraction
-
-- **Status:** `DONE`
-
-**Items:**
-
-- **B33** (WARPGRAPH SYNCCONTROLLER EXTRACTION) — move `syncWith`, `serve`, `processSyncRequest` from `WarpGraph.js` into `SyncController.js`; reduces god class by ~800 LOC; isolates network concerns from graph concerns.
-
-### M9.T2 — JoinReducer Dual-Path Refactor
-
-- **Status:** `DONE`
-
-**Items:**
-
-- **B32** (JOINREDUCER DUAL-PATH REFACTOR) — split `join()` into `applyFast(state, patch)` and `applyWithReceipt(state, patch)` strategy pair; eliminates DRY violation where new op types in fast path can be missed in receipt path.
-
-### M9.T3 — Bitmap OID Validation (Opportunistic)
-
-- **Status:** `DONE`
-
-**Items:**
-
-- **B31** (BITMAP INDEX OID VALIDATION) — add strict OID validation pass in `BitmapIndexReader.setup()`. Bundle if touching bitmap internals during decomposition.
-
-**M9 Gate:** WarpGraph LOC < 500; no-coordination regression suite green; LOC/complexity delta documented; behavior parity tests for extracted modules.
-
----
-
 ## Milestone 10 — SENTINEL
 
-**Theme:** Trust hardening + sync safety
-**Objective:** Complete the signed trust boundary. Design the causality bisect spec.
+**Theme:** Trust hardening + sync safety + correctness
+**Objective:** Complete the signed trust boundary. Fix audit-critical safety issues. Design the causality bisect spec.
 **Triage date:** 2026-02-17
 
 ### M10.T1 — Signed Sync Ingress
@@ -668,7 +66,17 @@ No v2.0 tag until **every** gate passes. If any RG fails: no tag. Period.
 - **B39** (TRUST RECORD CAS RETRY) — retry-once semantics for `compareAndSwapRef` failures in `TrustRecordService._persistRecord`; mirrors the `AuditReceiptService` pattern.
 - **B40** (BATS E2E: `git warp trust` OUTPUT SHAPES) — integration tests for JSON output schema, exit codes, and `not_configured` default behaviour.
 
-### M10.T3 — Causality Bisect Spec
+### M10.T3 — Audit-Critical Fixes
+
+- **Status:** `PENDING`
+
+**Items:**
+
+- **B63** (GC SNAPSHOT ISOLATION) — `executeGC()` is not snapshot-isolated. If a concurrent writer commits between `appliedVV` capture and compaction, tombstones required by the new patch are deleted, breaking OR-Set semantics. Fix: capture writer tips at GC start, verify no new patches arrived post-compaction, or guard with a lock. Promoted from B-AUDIT-1 (CRIT). **File:** `src/domain/services/GCPolicy.js:101`
+- **B64** (SYNC INGRESS PAYLOAD VALIDATION) — `CborCodec.decode()` is a raw pass-through with zero shape validation. Add Zod schema validation on the HTTP sync boundary in `SyncProtocol.processSyncRequest()` before patches touch the merge engine. Lightweight post-decode shape assert in `PatchMessageCodec` for the non-HTTP path. Promoted from B-AUDIT-7 (JANK). **Files:** `src/domain/services/SyncProtocol.js`, `src/domain/services/PatchMessageCodec.js`
+- **B65** (SYNC DIVERGENCE LOGGING) — `processSyncRequest()` silently swallows divergence errors. Requester gets a success response but may be missing patches. Fix: log divergence at warn level; ideally return partial-success indicating which writers diverged. Promoted from B-AUDIT-11 (JANK). **File:** `src/domain/services/SyncProtocol.js:418`
+
+### M10.T4 — Causality Bisect Spec
 
 - **Status:** `PENDING`
 
@@ -676,7 +84,7 @@ No v2.0 tag until **every** gate passes. If any RG fails: no tag. Period.
 
 - **B2 (spec only)** (CAUSALITY BISECT) — design the bisect CLI contract + data model. Commit spec with test vectors. Full implementation deferred to M11 — but the spec lands here so bisect is available as a debugging tool during M10 trust hardening.
 
-**M10 Gate:** Signed ingress enforced end-to-end; trust E2E receipts green; B2 spec committed with test vectors.
+**M10 Gate:** Signed ingress enforced end-to-end; trust E2E receipts green; B63 GC isolation verified under concurrent writes; B64 sync payload validation green; B65 divergence logging verified; B2 spec committed with test vectors.
 
 ---
 
@@ -714,9 +122,45 @@ No v2.0 tag until **every** gate passes. If any RG fails: no tag. Period.
 
 ---
 
+## Milestone 12 — SCALPEL
+
+**Theme:** Algorithmic performance & correctness guards
+**Objective:** Fix CRIT/STANK hotspots from the 2026-02-25 cognitive complexity audit. Eliminate O(N^2) and O(N*E) paths in core services.
+**Triage date:** 2026-02-25
+
+### M12.T1 — Critical Performance Fix
+
+- **Status:** `PENDING`
+
+**Items:**
+
+- **B66** (INCREMENTAL INDEX O(E) SCAN) — `IncrementalIndexUpdater.apply()` scans every alive edge on node re-add. O(N * E) with batch re-adds on a 1M-edge graph. Fix: use adjacency map (already in materialized state) for O(degree) lookup. Promoted from B-AUDIT-2 (CRIT). **File:** `src/domain/services/IncrementalIndexUpdater.js:107-127`
+
+### M12.T2 — Corruption Guard
+
+- **Status:** `PENDING`
+
+**Items:**
+
+- **B70** (PATCHBUILDER ASSERTNOTCOMMITTED) — `PatchBuilderV2` silently allows method calls after `commit()`, producing corrupt patches or silent no-ops. Add `_committed` flag + `assertNotCommitted()` guard on all mutating methods. From B-CODE-1. **Files:** `src/domain/services/PatchBuilderV2.js`, `test/unit/domain/services/PatchBuilderV2.test.js`
+
+### M12.T3 — Algorithmic Rewrites
+
+- **Status:** `PENDING`
+
+**Items:**
+
+- **B67** (JOINREDUCER RECEIPT O(N*M)) — `nodeRemoveOutcome()`/`edgeRemoveOutcome()` scan all OR-Set entries per observed dot. Fix: maintain persistent `dot → elementId` reverse index populated during `orsetAdd`. Promoted from B-AUDIT-3 (STANK). **Files:** `src/domain/services/JoinReducer.js:192-212, 258-278`
+- **B68** (TOPOLOGICALSORT O(N^2)) — ready queue uses O(N) splice + O(N+K) merge per iteration. Replace with `MinHeap` (already in `src/domain/utils/MinHeap.js`). Total O(N log N). Promoted from B-AUDIT-5 (STANK). **File:** `src/domain/services/GraphTraversal.js:839-846`
+- **B69** (QUERYBUILDER UNBOUNDED FAN-OUT) — each `where()` clause fires `Promise.all()` over entire working set calling `getNodeProps()` per node. Fuse consecutive where predicates into single pass; fetch properties once, test all predicates, filter in one iteration. Promoted from B-AUDIT-6 (JANK). **File:** `src/domain/services/QueryBuilder.js:689-704`
+
+**M12 Gate:** B66 uses adjacency map (benchmark proves O(degree)); B67 reverse index passes receipt correctness tests; B68 topologicalSort benchmarks O(N log N); B69 fused where-pass green; B70 PatchBuilder throws on post-commit mutation.
+
+---
+
 ## Standalone Lane (Ongoing)
 
-Items that can be picked up opportunistically without blocking anything. No milestone assignment.
+Items picked up opportunistically without blocking milestones. No milestone assignment.
 
 ### Immediate (tiny changes)
 
@@ -725,6 +169,11 @@ Items that can be picked up opportunistically without blocking anything. No mile
 | B46 | **ESLINT BAN `Date.now()` IN DOMAIN** — one-line `no-restricted-syntax` config change |
 | B47 | **`orsetAdd` DOT ARGUMENT VALIDATION** — domain boundary validation, prevents silent corruption |
 | B26 | **DER SPKI PREFIX CONSTANT** — named constant with RFC 8410 reference |
+| B71 | **PATCHBUILDER `console.warn` BYPASSES LOGGERPORT** — replace direct `console.warn()` with `this._logger?.warn()` in `removeNode`. From B-AUDIT-9 (JANK). **File:** `src/domain/services/PatchBuilderV2.js:252-256` |
+| B72 | **ZERO-OID CONSTRUCTION FRAGILE** — `'0'.repeat(newOid.length)` assumes SHA-1. Replace with `ZERO_OID` constant + length assert. From B-AUDIT-12 (TSK TSK). **File:** `src/infrastructure/adapters/GitGraphAdapter.js:579` |
+| B73 | **`orsetClone` VIA JOIN WITH EMPTY SET** — add `orsetClone()` that directly copies entries + tombstones instead of joining with empty set. From B-AUDIT-14 (TSK TSK). **File:** `src/domain/services/JoinReducer.js:854-862` |
+| B74 | **WRITER `commitPatch` REENTRANCY COMMENT** — document why `_commitInProgress` check-and-set is safe (JS single-threaded, synchronous check cannot be preempted). From B-AUDIT-17 (TSK TSK). **File:** `src/domain/warp/Writer.js:180-195` |
+| B75 | **VV COUNTER=0 ELISION** — document invariant ("VV entries with counter=0 are equivalent to absent entries") and assert at serialization time. From B-AUDIT-8 (JANK). **File:** `src/domain/crdt/VersionVector.js:189-190` |
 
 ### Near-Term
 
@@ -745,13 +194,54 @@ Items that can be picked up opportunistically without blocking anything. No mile
 | B53 | **FIX JSR PUBLISH DRY-RUN DENO PANIC** — Deno 2.6.7 `deno_ast` panics on overlapping text changes from duplicate `roaring` import rewrites; either pin Deno version, vendor the import, or file upstream issue and add workaround |
 | B54 | **`typedCustom()` ZOD HELPER** — `z.custom()` without a generic yields `unknown` in JS; a JSDoc-friendly wrapper (or `@typedef`-based pattern) would eliminate verbose `/** @type {z.ZodType<T>} */ (z.custom(...))` casts across HttpSyncServer and future Zod schemas |
 | B55 | **UPGRADE `HttpServerPort` REQUEST/RESPONSE TYPES** — `createServer` callback uses `Object` for `headers` and `string|Buffer` for response body; tighten to `Record<string, string>` and extract shared request/response typedefs to avoid repeated inline casts in HttpSyncServer, NodeHttpAdapter, BunHttpAdapter, DenoHttpAdapter |
-| ~~B56~~ | ~~**INVESTIGATE `observedFrontier` / FRONTIER SEMANTIC MISMATCH**~~ — DONE. Was a latent bug: `applySyncResponse()` passed `observedFrontier` (Lamport counters `Map<string, number>`) instead of `_lastFrontier` (SHA frontier `Map<string, string>`). Fixed to use `_lastFrontier` with `createFrontier()` fallback. |
 | B57 | **CI: AUTO-VALIDATE `type-surface.m8.json` AGAINST `index.d.ts`** — add a CI gate or pre-push check that parses the manifest and confirms every declared method/property/return type matches the corresponding signature in `index.d.ts`; prevents drift like the missing `setSeekCache` and `syncWith.state` return found in review |
-| ~~B58~~ | ~~**DEAD SYNC CONSTANTS IN `_internal.js`**~~ — DONE. Deleted orphaned sync constants and re-exports from `_internal.js`. |
-| ~~B59~~ | ~~**ELIMINATE `wireWarpMethods` INDIRECTION FOR SYNC**~~ — DONE. Deleted `sync.methods.js`; 9 sync methods wired directly onto WarpGraph.prototype via `defineProperty` loop delegating to `_syncController`. |
-| ~~B60~~ | ~~**TEST HELPER: `mockOid(tag)`**~~ — DONE then REVERTED. Created speculatively but never adopted; deleted as dead code. |
-| ~~B61~~ | ~~**REMOVE DOUBLED `/** @type {any} */` ANNOTATIONS IN TESTS**~~ — DONE. Removed 66 doubled annotations across 13 test files. |
-| ~~B62~~ | ~~**DEFINE `SyncHost` INTERFACE FOR SYNCCONTROLLER**~~ — DONE. Added `@typedef SyncHost` to `SyncController.js` documenting all 12 host fields + 3 methods. |
+| B28 | **PURE TYPESCRIPT EXAMPLE APP** — CI compile-only stub (`tsc --noEmit` on minimal TS consumer). |
+| B76 | **WARPGRAPH INVISIBLE API SURFACE DOCS** — add `// API Surface` block listing all 40+ dynamically wired methods with source module. Consider generating as build step. From B-AUDIT-4 (STANK). **File:** `src/domain/WarpGraph.js:451-478` |
+| B77 | **`listRefs` UPPER BOUND** — add optional `limit` parameter consistent with `logNodes()`. From B-AUDIT-13 (TSK TSK). **File:** `src/infrastructure/adapters/GitGraphAdapter.js:650-657` |
+| B78 | **REFLAYOUT SLASH-IN-GRAPH-NAME AMBIGUITY** — validate at graph creation that names cannot collide with ref layout keywords. From B-AUDIT-15 (TSK TSK). **File:** `src/domain/utils/RefLayout.js:409-419` |
+| B79 | **WARPGRAPH CONSTRUCTOR LIFECYCLE DOCS** — document cache invalidation strategy for 25 instance variables: which operations dirty which caches, which flush them. From B-AUDIT-16 (TSK TSK). **File:** `src/domain/WarpGraph.js:69-198` |
+| B80 | **CHECKPOINTSERVICE CONTENT BLOB UNBOUNDED MEMORY** — iterates all properties into single `Set` before tree serialization. Stream content OIDs in batches. From B-AUDIT-10 (JANK). **File:** `src/domain/services/CheckpointService.js:224-226` |
+| B81 | **`attachContent` ORPHAN BLOB GUARD** — `attachContent()` unconditionally writes blob before `setProperty()`. Validate before push to prevent orphan blobs. From B-CODE-2. **File:** `src/domain/services/PatchBuilderV2.js` |
+| B82 | **PRE-PUSH HOOK `--quick` MODE** — skip unit tests, type gates only (~5s vs ~24s). Full suite still runs in CI. From B-DX-1. **File:** `scripts/pre-push-hook.sh` |
+
+### CI & Tooling Pack
+
+| ID | Item |
+|----|------|
+| B83 | **DEDUP CI `type-firewall` AND `lint` JOBS** — merge into one job (add `npm audit` to `type-firewall`, drop `lint`) or chain with `needs:`. From B-CI-1. **File:** GitHub workflow file `.github/workflows/ci.yml` |
+| B84 | **SURFACE VALIDATOR QUIET MODE** — `--quiet` flag or summary count instead of 80 per-export warning lines. From B-CI-2. **File:** `scripts/check-dts-surface.js` |
+| B85 | **TYPE-ONLY EXPORT MANIFEST SECTION** — `typeExports` section in `type-surface.m8.json` to catch accidental type removal from `index.d.ts`. From B-CI-3. **Files:** `contracts/type-surface.m8.json`, `scripts/check-dts-surface.js` |
+| B86 | **MARKDOWNLINT CI GATE** — catch MD040 (missing code fence language) etc. From B-DOC-1. **File:** GitHub workflow file `.github/workflows/ci.yml` |
+| B87 | **CODE SAMPLE LINTER** — syntax-check JS/TS code blocks in markdown files via `eslint-plugin-markdown` or custom extractor. From B-DOC-2. **Files:** new script, `docs/**/*.md` |
+| B88 | **MERMAID RENDERING SMOKE TEST** — parse all ` ```mermaid ` blocks with `@mermaid-js/mermaid-cli` in CI. From B-DIAG-2. **File:** GitHub workflow file `.github/workflows/ci.yml` or `scripts/` |
+| B89 | **VERSION CONSISTENCY GATE** — CI gate checking every `## [X.Y.Z]` CHANGELOG heading against `package.json`/`jsr.json`. From B-REL-1. **File:** new script in `scripts/` |
+| B90 | **PREFLIGHT BOT CHANGELOG CHECK** — cross-check `package version` against CHANGELOG heading existence. From B-REL-2. **File:** GitHub workflows directory `.github/workflows/` |
+
+### Surface Validator Pack
+
+All items target `scripts/check-dts-surface.js`:
+
+| ID | Item |
+|----|------|
+| B91 | **MISSING `declare` FOR `interface`/`type` REGEXES** — add `(?:declare\s+)?` to `export interface` (line 104) and `export type` (line 108) for consistency with class/const/function regexes. From B-SURF-1. |
+| B92 | **SURFACE VALIDATOR UNIT TESTS** — test `extractJsExports` and `extractDtsExports` covering: `export { type Foo }`, `export declare class`, multiline blocks, edge cases. From B-SURF-2. **File:** new `test/unit/scripts/check-dts-surface.test.js` |
+| B93 | **DEDUP EXPORT PARSING LOGIC** — extract shared `parseExportBlock()` from near-identical code in `extractJsExports` and `extractDtsExports`. From B-SURF-3. |
+| B94 | **STANDALONE EXPORT DECLARATIONS** — handle `export const foo` / `export function bar` in `extractJsExports` (currently only handles `export { ... }` blocks). From B-SURF-4. |
+| B95 | **NAMESPACE EXPORT SUPPORT** — handle `export declare namespace Foo`. From B-SURF-5. |
+
+### Type Surface Pack
+
+| ID | Item |
+|----|------|
+| B96 | **CONSUMER TEST TYPE-ONLY IMPORT COVERAGE** — exercise all exported types beyond just declaring variables. Types like `OpOutcome`, `TraversalDirection`, `LogLevelValue` aren't tested at all. From B-TYPE-1. **File:** `test/type-check/consumer.ts` |
+| B97 | **AUDIT MANIFEST vs `index.js` DRIFT** — manifest has 70 entries, `index.js` has 66 exports. 4 stale or type-only entries need reconciliation. From B-TYPE-2. **Files:** `contracts/type-surface.m8.json`, `index.js` |
+| B98 | **TEST-FILE WILDCARD RATCHET** — `ts-policy-check.js` excludes test files entirely. Add separate ratchet with higher threshold or document exclusion as intentional. From B-TYPE-3. **File:** `scripts/ts-policy-check.js` |
+
+### Content Attachment
+
+| ID | Item |
+|----|------|
+| B99 | **DETERMINISM FUZZER FOR TREE CONSTRUCTION** — property-based test randomizing content blob insertion order in `PatchBuilderV2` and content OID iteration order in `CheckpointService.createV5()`, verifying identical tree OID. From B-FEAT-2. **File:** new test in `test/unit/domain/services/` |
 
 ### Conformance Property Pack (B19 + B22)
 
@@ -762,9 +252,13 @@ Single lightweight property suite — not a milestone anchor:
 
 **Rationale:** Golden fixtures test known paths; property tests test unknown edge combinations. For a deterministic engine, this is not optional forever. Trimmed to a single file covering canonical serialize idempotence + order-invariance.
 
-### Post-M8 Stub
+### Process (no code)
 
-- **B28** (PURE TYPESCRIPT EXAMPLE APP) — 1-hour CI compile-only stub (`tsc --noEmit` on minimal TS consumer). Ships the day M8 Phase 1 merges. Full app deferred until M8 complete.
+| ID | Item |
+|----|------|
+| B102 | **API EXAMPLES REVIEW CHECKLIST** — add to `CONTRIBUTING.md`: each `createPatch()`/`commit()` uses own builder, async methods `await`ed, examples copy-pasteable. From B-DOC-3. |
+| B103 | **BATCH REVIEW FIX COMMITS** — batch all review fixes into one commit before re-requesting CodeRabbit. Reduces duplicate findings across incremental pushes. From B-DX-2. |
+| B104 | **MERMAID DIAGRAM CONTENT CHECKLIST** — for diagram migrations: count annotations in source/target, verify edge labels survive, check complexity annotations preserved. From B-DIAG-1. |
 
 ---
 
@@ -780,6 +274,8 @@ Items parked with explicit conditions for promotion.
 | B20 | **TRUST RECORD ROUND-TRIP SNAPSHOT TEST** | Promote if trust record schema changes |
 | B21 | **TRUST SCHEMA DISCRIMINATED UNION** | Promote if superRefine causes a bug or blocks a feature |
 | B27 | **`TrustKeyStore` PRE-VALIDATED KEY CACHE** | Promote when `verifySignature` appears in any p95 flame graph above 5% of call time |
+| B100 | **MAP vs RECORD ASYMMETRY** — `getNodeProps()` returns Map, `getEdgeProps()` returns Record. Breaking change either way. From B-FEAT-3. | Promote with next major version RFC |
+| B101 | **MERMAID `~~~` INVISIBLE-LINK FRAGILITY** — undocumented Mermaid feature for positioning. From B-DIAG-3. | Promote if Mermaid renderer update breaks `~~~` positioning |
 
 ---
 
@@ -789,53 +285,111 @@ B5, B6, B13, B17, B18, B25, B45 — rejected 2026-02-17 with cause recorded in `
 
 ---
 
-## Completed Backlog Items
-
-| ID | Status |
-|----|--------|
-| B8 | ~~DONE~~ `readRef` dangling-ref resilience |
-| B9 | ~~DONE~~ `graph.patch()` integration test |
-| B10 | ~~DONE~~ `Writer.commitPatch()` reentrancy guard |
-| B15 | ~~PROMOTED TO M7 PHASE 2~~ trust record chain integration test |
-| B23 | ~~PROMOTED TO M7 PHASE 2~~ trust sign+verify integration test |
-| B24 | ~~DONE (daf4adb)~~ audit try/catch without `expect.assertions` |
-
----
-
 ## Execution Order
 
-### v2.0 milestones (M1–M7): COMPLETE
+### Milestones: M10 → M11 → M12
 
-1. M1.T1 → M2.T1 + M2.T2 → M3.T0 → M3.T1 → M4.T1 → M5.T1 → M4.T2 → M6.T1 → M2.T3 → M1.T2 → M7
-
-### Post-v2.0 milestones (M8–M11): LOCKED
-
-1. **M8 IRONCLAD** — Type safety (B29, B38, B14 → B30 → B41, B42)
-2. **M9 PARTITION** — Decomposition (B33, B32, B31)
-3. **M10 SENTINEL** — Trust + sync safety (B1, B39, B40, B2 spec)
-4. **M11 COMPASS II** — Developer experience (B2 impl, B3, B11)
+1. **M10 SENTINEL** — Trust + sync safety + correctness (B1, B39, B40, B63, B64, B65, B2 spec)
+2. **M11 COMPASS II** — Developer experience (B2 impl, B3, B11)
+3. **M12 SCALPEL** — Algorithmic performance + corruption guards (B66, B67, B68, B69, B70)
 
 ### Critical Path
 
 ```text
-B29 ──→ B30 ──→ B41/B42 ──→ [M8 GATE] ──→ B33 ──→ [M9 GATE]
- │                                          B32 ──┘      │
- B38                                        B31(opt)      │
- B14                                                      ▼
-                                            B1 ──→ [M10 GATE] ──→ B2(impl)
-                                            B39 ──┘    │           B3
-                                            B40 ──┘    │           B11
-                                            B2(spec)───┘           ▼
-                                                            [M11 GATE]
+B1  ──→ [M10 GATE] ──→ B2(impl) ──→ [M11 GATE] ──→ B66 ──→ [M12 GATE]
+B39 ──┘      │          B3                            B70
+B40 ──┘      │          B11                           B67
+B63 ──┘      │                                        B68
+B64 ──┘      │                                        B69
+B65 ──┘      │
+B2(spec) ────┘
 ```
+
+### Standalone Priority Sequence
+
+Pick opportunistically between milestones. Recommended order within tiers:
+
+1. **Immediate** (B46, B47, B26, B71–B75) — any order, each ≤30 min
+2. **Near-term correctness** (B44, B76, B80, B81) — prioritize items touching core services
+3. **Near-term DX** (B36, B37, B43, B82) — test ergonomics and developer velocity
+4. **Near-term docs/types** (B34, B35, B50, B52, B55) — alignment and documentation
+5. **Near-term tooling** (B12, B48, B49, B51, B53, B54, B57, B28) — remaining type safety items
+6. **CI & Tooling Pack** (B83–B90) — batch as one PR
+7. **Surface Validator Pack** (B91–B95) — batch as one PR, do B92 tests first
+8. **Type Surface Pack** (B96–B98) — batch as one PR
+9. **Content Attachment** (B99) — standalone property test
+10. **Conformance Property Pack** (B19, B22) — standalone property suite
+11. **Process** (B102–B104) — fold into CONTRIBUTING.md when touching that file
+
+---
+
+## Inventory
+
+### By Status
+
+| Status | Count | IDs |
+|--------|-------|-----|
+| **Milestone (M10)** | 7 | B1, B2(spec), B39, B40, B63, B64, B65 |
+| **Milestone (M11)** | 3 | B2(impl), B3, B11 |
+| **Milestone (M12)** | 5 | B66, B67, B68, B69, B70 |
+| **Standalone** | 54 | B12, B19, B22, B26, B28, B34–B37, B43, B44, B46–B55, B57, B71–B99, B102–B104 |
+| **Deferred** | 8 | B4, B7, B16, B20, B21, B27, B100, B101 |
+| **Rejected** | 7 | B5, B6, B13, B17, B18, B25, B45 |
+| **Total tracked** | **84** | |
+
+### B-Number Cross-Reference (Backlog → Roadmap)
+
+| Backlog ID | B# | Disposition |
+|---|---|---|
+| B-AUDIT-1 (CRIT) | B63 | M10 |
+| B-AUDIT-2 (CRIT) | B66 | M12 |
+| B-AUDIT-3 (STANK) | B67 | M12 |
+| B-AUDIT-4 (STANK) | B76 | Standalone Near-Term |
+| B-AUDIT-5 (STANK) | B68 | M12 |
+| B-AUDIT-6 (JANK) | B69 | M12 |
+| B-AUDIT-7 (JANK) | B64 | M10 |
+| B-AUDIT-8 (JANK) | B75 | Standalone Immediate |
+| B-AUDIT-9 (JANK) | B71 | Standalone Immediate |
+| B-AUDIT-10 (JANK) | B80 | Standalone Near-Term |
+| B-AUDIT-11 (JANK) | B65 | M10 |
+| B-AUDIT-12 (TSK TSK) | B72 | Standalone Immediate |
+| B-AUDIT-13 (TSK TSK) | B77 | Standalone Near-Term |
+| B-AUDIT-14 (TSK TSK) | B73 | Standalone Immediate |
+| B-AUDIT-15 (TSK TSK) | B78 | Standalone Near-Term |
+| B-AUDIT-16 (TSK TSK) | B79 | Standalone Near-Term |
+| B-AUDIT-17 (TSK TSK) | B74 | Standalone Immediate |
+| B-CI-1 | B83 | CI & Tooling Pack |
+| B-CI-2 | B84 | CI & Tooling Pack |
+| B-CI-3 | B85 | CI & Tooling Pack |
+| B-SURF-1 | B91 | Surface Validator Pack |
+| B-SURF-2 | B92 | Surface Validator Pack |
+| B-SURF-3 | B93 | Surface Validator Pack |
+| B-SURF-4 | B94 | Surface Validator Pack |
+| B-SURF-5 | B95 | Surface Validator Pack |
+| B-TYPE-1 | B96 | Type Surface Pack |
+| B-TYPE-2 | B97 | Type Surface Pack |
+| B-TYPE-3 | B98 | Type Surface Pack |
+| B-FEAT-2 | B99 | Content Attachment |
+| B-FEAT-3 | B100 | Deferred |
+| B-DOC-1 | B86 | CI & Tooling Pack |
+| B-DOC-2 | B87 | CI & Tooling Pack |
+| B-DOC-3 | B102 | Process |
+| B-CODE-1 | B70 | M12 |
+| B-CODE-2 | B81 | Standalone Near-Term |
+| B-DX-1 | B82 | Standalone Near-Term |
+| B-DX-2 | B103 | Process |
+| B-DIAG-1 | B104 | Process |
+| B-DIAG-2 | B88 | CI & Tooling Pack |
+| B-DIAG-3 | B101 | Deferred |
+| B-REL-1 | B89 | CI & Tooling Pack |
+| B-REL-2 | B90 | CI & Tooling Pack |
 
 ---
 
 ## Final Command
 
-v2.0 shipped defensible, verifiable, and maintainable.
-
-Post-v2.0 locks in type safety first, then decomposes, then hardens trust, then ships DX.
 Every milestone has a hard gate. No milestone blurs into the next.
+Execution: M10 SENTINEL → M11 COMPASS II → M12 SCALPEL. Standalone items fill the gaps.
 
+BACKLOG.md is now fully absorbed into this file. It can be archived or deleted.
 Rejected items live in `GRAVEYARD.md`. Resurrections require an RFC.

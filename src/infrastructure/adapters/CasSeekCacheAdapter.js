@@ -39,6 +39,7 @@ const MAX_CAS_RETRIES = 3;
  * @property {string} codec - Codec identifier (e.g. 'cbor-v1')
  * @property {number} schemaVersion - Index entry schema version
  * @property {string} [lastAccessedAt] - ISO 8601 timestamp of last read (for LRU eviction)
+ * @property {string} [indexTreeOid] - Git tree OID of the bitmap index snapshot
  */
 
 /**
@@ -203,9 +204,18 @@ export default class CasSeekCacheAdapter extends SeekCachePort {
   // ---------------------------------------------------------------------------
 
   /**
+   * Retrieves a cached state buffer by key.
+   *
+   * Note: This method reads the index twice — once here for the entry lookup,
+   * and again inside `_mutateIndex` for the `lastAccessedAt` update. The
+   * double-read is a known trade-off: `_mutateIndex` re-reads to provide
+   * CAS-safe retry semantics, and deduplicating the reads would complicate
+   * the retry logic without meaningful performance impact (the index is a
+   * single small JSON blob).
+   *
    * @override
    * @param {string} key
-   * @returns {Promise<Buffer|null>}
+   * @returns {Promise<{ buffer: Buffer|Uint8Array, indexTreeOid?: string } | null>}
    */
   async get(key) {
     const cas = await this._getCas();
@@ -225,7 +235,12 @@ export default class CasSeekCacheAdapter extends SeekCachePort {
         }
         return idx;
       });
-      return buffer;
+      /** @type {{ buffer: Buffer|Uint8Array, indexTreeOid?: string }} */
+      const result = { buffer };
+      if (entry.indexTreeOid) {
+        result.indexTreeOid = entry.indexTreeOid;
+      }
+      return result;
     } catch {
       // Blob GC'd or corrupted — self-heal by removing dead entry
       await this._mutateIndex((idx) => {
@@ -239,10 +254,11 @@ export default class CasSeekCacheAdapter extends SeekCachePort {
   /**
    * @override
    * @param {string} key
-   * @param {Buffer} buffer
+   * @param {Buffer|Uint8Array} buffer
+   * @param {{ indexTreeOid?: string }} [options]
    * @returns {Promise<void>}
    */
-  async set(key, buffer) {
+  async set(key, buffer, options) {
     const cas = await this._getCas();
     const { ceiling, frontierHash } = this._parseKey(key);
 
@@ -257,7 +273,8 @@ export default class CasSeekCacheAdapter extends SeekCachePort {
 
     // Update index with rich metadata
     await this._mutateIndex((index) => {
-      index.entries[key] = {
+      /** @type {IndexEntry} */
+      const entry = {
         treeOid,
         createdAt: new Date().toISOString(),
         ceiling,
@@ -266,6 +283,10 @@ export default class CasSeekCacheAdapter extends SeekCachePort {
         codec: 'cbor-v1',
         schemaVersion: INDEX_SCHEMA_VERSION,
       };
+      if (options?.indexTreeOid) {
+        entry.indexTreeOid = options.indexTreeOid;
+      }
+      index.entries[key] = entry;
       return this._enforceMaxEntries(index);
     });
   }

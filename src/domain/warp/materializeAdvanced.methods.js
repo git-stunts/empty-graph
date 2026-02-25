@@ -18,6 +18,7 @@ import { serializeFullStateV5, deserializeFullStateV5 } from '../services/Checkp
 import { buildSeekCacheKey } from '../utils/seekCacheKey.js';
 import { materializeIncremental } from '../services/CheckpointService.js';
 import { createFrontier, updateFrontier } from '../services/Frontier.js';
+import BitmapNeighborProvider from '../services/BitmapNeighborProvider.js';
 
 /** @typedef {import('../types/WarpPersistence.js').CorePersistence} CorePersistence */
 /** @typedef {import('../services/JoinReducer.js').WarpStateV5} WarpStateV5 */
@@ -106,10 +107,11 @@ export function _buildAdjacency(state) {
  *
  * @this {import('../WarpGraph.js').default}
  * @param {import('../services/JoinReducer.js').WarpStateV5} state
+ * @param {import('../types/PatchDiff.js').PatchDiff} [diff] - Optional diff for incremental index
  * @returns {Promise<MaterializedResult>}
  * @private
  */
-export async function _setMaterializedState(state) {
+export async function _setMaterializedState(state, diff) {
   this._cachedState = state;
   this._stateDirty = false;
   this._versionVector = vvClone(state.observedFrontier);
@@ -128,7 +130,56 @@ export async function _setMaterializedState(state) {
   }
 
   this._materializedGraph = { state, stateHash, adjacency };
+  this._buildView(state, stateHash, diff);
   return this._materializedGraph;
+}
+
+/**
+ * Builds the MaterializedView (logicalIndex + propertyReader) and attaches
+ * a BitmapNeighborProvider to the materialized graph. Skips rebuild when
+ * the stateHash matches the previous build. Uses incremental update when
+ * a diff and cached index tree are available.
+ *
+ * @this {import('../WarpGraph.js').default}
+ * @param {import('../services/JoinReducer.js').WarpStateV5} state
+ * @param {string} stateHash
+ * @param {import('../types/PatchDiff.js').PatchDiff} [diff] - Optional diff for incremental update
+ * @private
+ */
+export function _buildView(state, stateHash, diff) {
+  if (this._cachedViewHash === stateHash) {
+    return;
+  }
+  try {
+    /** @type {import('../services/MaterializedViewService.js').BuildResult} */
+    let result;
+    if (diff && this._cachedIndexTree) {
+      result = this._viewService.applyDiff({
+        existingTree: this._cachedIndexTree,
+        diff,
+        state,
+      });
+    } else {
+      result = this._viewService.build(state);
+    }
+
+    this._logicalIndex = result.logicalIndex;
+    this._propertyReader = result.propertyReader;
+    this._cachedViewHash = stateHash;
+    this._cachedIndexTree = result.tree;
+
+    const provider = new BitmapNeighborProvider({ logicalIndex: result.logicalIndex });
+    if (this._materializedGraph) {
+      this._materializedGraph.provider = provider;
+    }
+  } catch (err) {
+    this._logger?.warn('[warp] index build failed, falling back to linear scan', {
+      error: /** @type {Error} */ (err).message,
+    });
+    this._logicalIndex = null;
+    this._propertyReader = null;
+    this._cachedIndexTree = null;
+  }
 }
 
 /**
@@ -196,12 +247,15 @@ export async function _materializeWithCeiling(ceiling, collectReceipts, t0) {
       const cached = await this._seekCache.get(cacheKey);
       if (cached) {
         try {
-          const state = deserializeFullStateV5(cached, { codec: this._codec });
+          const state = deserializeFullStateV5(cached.buffer, { codec: this._codec });
           this._provenanceIndex = new ProvenanceIndex();
           this._provenanceDegraded = true;
           await this._setMaterializedState(state);
           this._cachedCeiling = ceiling;
           this._cachedFrontier = frontier;
+          if (cached.indexTreeOid) {
+            await this._restoreIndexFromCache(cached.indexTreeOid);
+          }
           this._logTiming('materialize', t0, { metrics: `cache hit (ceiling=${ceiling})` });
           return state;
         } catch {
@@ -258,7 +312,8 @@ export async function _materializeWithCeiling(ceiling, collectReceipts, t0) {
       cacheKey = buildSeekCacheKey(ceiling, frontier);
     }
     const buf = serializeFullStateV5(state, { codec: this._codec });
-    this._seekCache.set(cacheKey, /** @type {Buffer} */ (buf)).catch(() => {});
+    this._persistSeekCacheEntry(cacheKey, /** @type {Buffer} */ (buf), state)
+      .catch(() => {});
   }
 
   // Skip auto-checkpoint and GC — this is an exploratory read
@@ -268,6 +323,62 @@ export async function _materializeWithCeiling(ceiling, collectReceipts, t0) {
     return { state, receipts: /** @type {import('../types/TickReceipt.js').TickReceipt[]} */ (receipts) };
   }
   return state;
+}
+
+/**
+ * Persists a seek cache entry with an optional index tree snapshot.
+ *
+ * Builds the bitmap index tree from the materialized state, writes it
+ * to Git storage, and includes the resulting tree OID in the cache
+ * entry metadata. Index persistence failure is non-fatal — the state
+ * buffer is still cached without the index.
+ *
+ * @this {import('../WarpGraph.js').default}
+ * @param {string} cacheKey - Seek cache key
+ * @param {Buffer} buf - Serialized WarpStateV5 buffer
+ * @param {import('../services/JoinReducer.js').WarpStateV5} state
+ * @returns {Promise<void>}
+ * @private
+ */
+export async function _persistSeekCacheEntry(cacheKey, buf, state) {
+  /** @type {{ indexTreeOid?: string }} */
+  const opts = {};
+  try {
+    const { tree } = this._viewService.build(state);
+    opts.indexTreeOid = await this._viewService.persistIndexTree(
+      tree,
+      this._persistence,
+    );
+  } catch {
+    // Non-fatal — cache the state without the index
+  }
+  if (this._seekCache) {
+    await this._seekCache.set(cacheKey, buf, opts);
+  }
+}
+
+/**
+ * Restores a LogicalIndex and PropertyReader from a cached index tree OID.
+ *
+ * Reads the tree entries from Git storage and delegates hydration to
+ * the MaterializedViewService. Failure is non-fatal — the in-memory
+ * index built by `_buildView` remains as fallback.
+ *
+ * @this {import('../WarpGraph.js').default}
+ * @param {string} indexTreeOid - Git tree OID of the bitmap index snapshot
+ * @returns {Promise<void>}
+ * @private
+ */
+export async function _restoreIndexFromCache(indexTreeOid) {
+  try {
+    const shardOids = await this._persistence.readTreeOids(indexTreeOid);
+    const { logicalIndex, propertyReader } =
+      await this._viewService.loadFromOids(shardOids, this._persistence);
+    this._logicalIndex = logicalIndex;
+    this._propertyReader = propertyReader;
+  } catch {
+    // Non-fatal — fall back to in-memory index from _buildView
+  }
 }
 
 /**
@@ -347,4 +458,32 @@ export async function materializeAt(checkpointSha) {
   });
   await this._setMaterializedState(state);
   return state;
+}
+
+/**
+ * Verifies the bitmap index against adjacency ground truth.
+ *
+ * @this {import('../WarpGraph.js').default}
+ * @param {{ seed?: number, sampleRate?: number }} [options]
+ * @returns {{ passed: number, failed: number, errors: Array<{nodeId: string, direction: string, expected: string[], actual: string[]}> }}
+ */
+export function verifyIndex(options) {
+  if (!this._logicalIndex || !this._cachedState || !this._viewService) {
+    throw new Error('Cannot verify index: graph not materialized or index not built');
+  }
+  return this._viewService.verifyIndex({
+    state: this._cachedState,
+    logicalIndex: this._logicalIndex,
+    options,
+  });
+}
+
+/**
+ * Clears the cached bitmap index, forcing a full rebuild on next materialize.
+ *
+ * @this {import('../WarpGraph.js').default}
+ */
+export function invalidateIndex() {
+  this._cachedIndexTree = null;
+  this._cachedViewHash = null;
 }

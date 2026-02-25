@@ -50,6 +50,7 @@ const NOT_CHECKED = Symbol('NOT_CHECKED');
  * @typedef {Object} RoaringBitmapSubset
  * @property {number} size
  * @property {function(number): void} add
+ * @property {function(number): void} remove
  * @property {function(number): boolean} has
  * @property {function(Iterable<number>): void} orInPlace
  * @property {function(boolean): Uint8Array} serialize
@@ -62,6 +63,13 @@ const NOT_CHECKED = Symbol('NOT_CHECKED');
  * @private
  */
 let roaringModule = null;
+
+/**
+ * Captures module initialization failure so callers can see the root cause.
+ * @type {unknown}
+ * @private
+ */
+let initError = null;
 
 /**
  * Cached result of native availability check.
@@ -83,7 +91,8 @@ let nativeAvailability = NOT_CHECKED;
  */
 function loadRoaring() {
   if (!roaringModule) {
-    throw new Error('Roaring module not loaded. Call initRoaring() first or ensure top-level await import completed.');
+    const cause = initError instanceof Error ? ` Caused by: ${initError.message}` : '';
+    throw new Error(`Roaring module not loaded. Call initRoaring() first or ensure top-level await import completed.${cause}`);
   }
   return roaringModule;
 }
@@ -99,6 +108,7 @@ function loadRoaring() {
 export async function initRoaring(mod) {
   if (mod) {
     roaringModule = mod;
+    initError = null;
     return;
   }
   if (!roaringModule) {
@@ -113,8 +123,9 @@ export async function initRoaring(mod) {
 // Auto-initialize on module load (top-level await)
 try {
   await initRoaring();
-} catch {
-  // Roaring may not be installed; functions will throw on use
+} catch (err) {
+  // Roaring may not be installed; keep root cause for downstream diagnostics.
+  initError = err;
 }
 
 /**

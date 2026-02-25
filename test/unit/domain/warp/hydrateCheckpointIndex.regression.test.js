@@ -1,0 +1,113 @@
+import { describe, it, expect } from 'vitest';
+import { materialize } from '../../../../src/domain/warp/materialize.methods.js';
+import { createEmptyStateV5, applyOpV2 } from '../../../../src/domain/services/JoinReducer.js';
+import { createDot } from '../../../../src/domain/crdt/Dot.js';
+import { createEventId } from '../../../../src/domain/utils/EventId.js';
+import LogicalIndexBuildService from '../../../../src/domain/services/LogicalIndexBuildService.js';
+import LogicalIndexReader from '../../../../src/domain/services/LogicalIndexReader.js';
+import MaterializedViewService from '../../../../src/domain/services/MaterializedViewService.js';
+
+/**
+ * @param {string[]} nodes
+ * @param {Array<[string, string, string]>} edges
+ */
+function buildState(nodes, edges) {
+  const state = createEmptyStateV5();
+  const writer = 'w1';
+  const sha = 'a'.repeat(40);
+  let lamport = 1;
+  let opIdx = 0;
+
+  for (const nodeId of nodes) {
+    applyOpV2(
+      state,
+      { type: 'NodeAdd', node: nodeId, dot: createDot(writer, lamport) },
+      createEventId(lamport, writer, sha, opIdx++),
+    );
+    lamport++;
+  }
+  for (const [from, to, label] of edges) {
+    applyOpV2(
+      state,
+      { type: 'EdgeAdd', from, to, label, dot: createDot(writer, lamport) },
+      createEventId(lamport, writer, sha, opIdx++),
+    );
+    lamport++;
+  }
+  return state;
+}
+
+/**
+ * @param {import('../../../../src/domain/services/JoinReducer.js').WarpStateV5} state
+ */
+function buildLogicalIndex(state) {
+  const { tree } = new LogicalIndexBuildService().build(state);
+  return new LogicalIndexReader().loadFromTree(tree).toLogicalIndex();
+}
+
+describe('materialize stale-checkpoint regression', () => {
+  it('does not overwrite freshly built index with stale checkpoint index data', async () => {
+    const staleCheckpointState = buildState(
+      ['A', 'B'],
+      [['A', 'B', 'knows']],
+    );
+    const latestState = buildState(
+      ['A', 'B', 'C'],
+      [['A', 'B', 'knows'], ['A', 'C', 'manages']],
+    );
+    const staleIndex = buildLogicalIndex(staleCheckpointState);
+
+    let hydrateCalled = false;
+    /** @type {any} */
+    const context = {
+      _clock: { now: () => 0 },
+      _resolveCeiling: () => null,
+      _materializeWithCeiling: async () => {
+        throw new Error('ceiling path should not be used');
+      },
+      _loadLatestCheckpoint: async () => ({
+        schema: 4,
+        state: latestState,
+        frontier: new Map(),
+        indexShardOids: { 'meta_stale.cbor': 'oid_stale' },
+      }),
+      _loadPatchesSince: async () => [],
+      _maxObservedLamport: 0,
+      _cachedIndexTree: null,
+      _viewService: new MaterializedViewService(),
+      async _setMaterializedState(/** @type {import('../../../../src/domain/services/JoinReducer.js').WarpStateV5} */ state) {
+        const result = this._viewService.build(state);
+        this._cachedState = state;
+        this._logicalIndex = result.logicalIndex;
+        this._cachedIndexTree = result.tree;
+      },
+      // Old buggy path invoked this and replaced the fresh index with stale checkpoint data.
+      async hydrateCheckpointIndex() {
+        hydrateCalled = true;
+        this._logicalIndex = staleIndex;
+      },
+      getFrontier: async () => new Map(),
+      _checkpointPolicy: null,
+      _checkpointing: false,
+      _maybeRunGC: () => {},
+      _subscribers: [],
+      _lastNotifiedState: createEmptyStateV5(),
+      _notifySubscribers: () => {},
+      _logTiming: () => {},
+      _provenanceDegraded: false,
+      _cachedCeiling: null,
+      _cachedFrontier: null,
+      _lastFrontier: new Map(),
+      _patchesSinceCheckpoint: 0,
+    };
+
+    await /** @type {any} */ (materialize).call(context);
+
+    expect(hydrateCalled).toBe(false);
+    const neighbors = context._logicalIndex
+      .getEdges('A', 'out')
+      .map((/** @type {{neighborId: string}} */ e) => e.neighborId)
+      .sort();
+    expect(neighbors).toEqual(['B', 'C']);
+  });
+});
