@@ -57,6 +57,9 @@ export default class LogicalBitmapIndexBuilder {
 
     /** Reverse edge bitmaps. Same key scheme as _fwdBitmaps. @type {Map<string, import('../utils/roaring.js').RoaringBitmapSubset>} */
     this._revBitmaps = new Map();
+
+    /** Per-shard node list for O(shard) serialize. @type {Map<string, Array<[string, number]>>} */
+    this._shardNodes = new Map();
   }
 
   /**
@@ -88,6 +91,13 @@ export default class LogicalBitmapIndexBuilder {
     this._nodeToGlobal.set(nodeId, globalId);
     this._globalToNode.set(String(globalId), nodeId);
     this._shardNextLocal.set(shardKey, nextLocal + 1);
+
+    let shardList = this._shardNodes.get(shardKey);
+    if (!shardList) {
+      shardList = [];
+      this._shardNodes.set(shardKey, shardList);
+    }
+    shardList.push([nodeId, globalId]);
 
     return globalId;
   }
@@ -170,9 +180,15 @@ export default class LogicalBitmapIndexBuilder {
     const entries = Array.isArray(metaShard.nodeToGlobal)
       ? metaShard.nodeToGlobal
       : Object.entries(metaShard.nodeToGlobal);
+    let shardList = this._shardNodes.get(shardKey);
+    if (!shardList) {
+      shardList = [];
+      this._shardNodes.set(shardKey, shardList);
+    }
     for (const [nodeId, globalId] of entries) {
       this._nodeToGlobal.set(nodeId, /** @type {number} */ (globalId));
       this._globalToNode.set(String(globalId), /** @type {string} */ (nodeId));
+      shardList.push([/** @type {string} */ (nodeId), /** @type {number} */ (globalId)]);
     }
     const current = this._shardNextLocal.get(shardKey) ?? 0;
     if (metaShard.nextLocalId > current) {
@@ -213,13 +229,10 @@ export default class LogicalBitmapIndexBuilder {
     // Meta shards
     for (const shardKey of allShardKeys) {
       // Use array of [nodeId, globalId] pairs to avoid __proto__ key issues
-      /** @type {Array<[string, number]>} */
-      const nodeToGlobal = [];
-      for (const [nodeId, globalId] of this._nodeToGlobal) {
-        if (computeShardKey(nodeId) === shardKey) {
-          nodeToGlobal.push([nodeId, globalId]);
-        }
-      }
+      // Sort by nodeId for deterministic output
+      const nodeToGlobal = (this._shardNodes.get(shardKey) ?? [])
+        .slice()
+        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
 
       const aliveBitmap = this._aliveBitmaps.get(shardKey);
       const aliveBytes = aliveBitmap ? aliveBitmap.serialize(true) : new Uint8Array(0);
