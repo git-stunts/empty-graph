@@ -33,8 +33,10 @@ The domain layer models the graph database concepts:
 
 - `GraphNode` - Immutable value object representing a node
 - `WarpGraph` - Node CRUD operations (the main API class)
-- `TraversalService` - Graph algorithms (BFS, DFS, shortest path)
+- `GraphTraversal` - Graph algorithms (11 algorithms: BFS, DFS, shortest path, A*, topological sort, etc.)
 - `BitmapIndexBuilder/Reader` - High-performance indexing
+- `MaterializedViewService` - Orchestrate materialized view lifecycle
+- `NeighborProviderPort` - Abstract neighbor lookup interface
 
 ### Immutable Entities
 
@@ -60,7 +62,7 @@ This enables testing with mocks and flexible runtime configuration.
 +--------------------------------------------------------------+
 |                     Supporting Services                      |
 |  +---------------+ +--------------------+                    |
-|  | IndexRebuild  | | TraversalService   |                    |
+|  | IndexRebuild  | | GraphTraversal     |                    |
 |  | Service       | |                    |                    |
 |  +---------------+ +--------------------+                    |
 |  +-------------+ +---------------+ +--------------------+    |
@@ -71,6 +73,14 @@ This enables testing with mocks and flexible runtime configuration.
 |  | GitLogParser  | | Streaming          |                    |
 |  |               | | BitmapIndexBuilder |                    |
 |  +---------------+ +--------------------+                    |
+|  +---------------------+ +----------------------------+     |
+|  | MaterializedView    | | IncrementalIndexUpdater     |     |
+|  | Service             | |                            |     |
+|  +---------------------+ +----------------------------+     |
+|  +---------------------+ +----------------------------+     |
+|  | LogicalIndex        | | LogicalIndex               |     |
+|  | BuildService        | | Reader                     |     |
+|  +---------------------+ +----------------------------+     |
 +--------------------------------------------------------------+
 |                         Ports                                |
 |  +-------------------+ +---------------------------+         |
@@ -80,6 +90,10 @@ This enables testing with mocks and flexible runtime configuration.
 |  +-------------------+ +---------------------------+         |
 |  | LoggerPort        | | ClockPort                 |         |
 |  +-------------------+ +---------------------------+         |
+|  +-------------------+                                       |
+|  | NeighborProvider  |                                       |
+|  | Port              |                                       |
+|  +-------------------+                                       |
 +--------------------------------------------------------------+
 |                       Adapters                               |
 |  +-------------------+ +---------------------------+         |
@@ -106,7 +120,14 @@ src/
 |   |   +-- BitmapIndexBuilder.js    # In-memory index construction
 |   |   +-- BitmapIndexReader.js     # O(1) index queries
 |   |   +-- StreamingBitmapIndexBuilder.js  # Memory-bounded building
-|   |   +-- TraversalService.js      # Graph algorithms
+|   |   +-- TraversalService.js      # Graph algorithms (deprecated facade)
+|   |   +-- GraphTraversal.js        # Unified traversal engine (11 algorithms)
+|   |   +-- MaterializedViewService.js  # Materialized view lifecycle
+|   |   +-- LogicalIndexBuildService.js # Build bitmap indexes from state
+|   |   +-- LogicalIndexReader.js       # Hydrate indexes from tree
+|   |   +-- IncrementalIndexUpdater.js  # O(diff) index updates
+|   |   +-- AdjacencyNeighborProvider.js # In-memory neighbor provider
+|   |   +-- BitmapNeighborProvider.js   # Bitmap-backed neighbor provider
 |   |   +-- HealthCheckService.js    # K8s-style probes
 |   |   +-- GitLogParser.js          # Binary stream parsing
 |   +-- errors/             # Domain-specific errors
@@ -134,6 +155,8 @@ src/
     +-- IndexStoragePort.js      # Blob/tree storage
     +-- LoggerPort.js            # Structured logging contract
     +-- ClockPort.js             # Timing abstraction
+    +-- NeighborProviderPort.js  # Abstract neighbor lookup interface
+    +-- SeekCachePort.js         # Persistent seek cache interface
 ```
 
 ## Key Components
@@ -172,25 +195,29 @@ Orchestrates index creation:
 
 Supports cancellation via `AbortSignal` and progress callbacks.
 
-#### TraversalService
+#### GraphTraversal
 
-Graph algorithms using O(1) bitmap lookups:
+Unified traversal engine with 11 algorithms, operating over a `NeighborProviderPort` abstraction (in-memory via `AdjacencyNeighborProvider` or bitmap-backed via `BitmapNeighborProvider`):
 
 - `bfs()` / `dfs()` - Traversal generators
-- `ancestors()` / `descendants()` - Transitive closures
-- `findPath()` - Any path between nodes
-- `shortestPath()` - Bidirectional BFS for efficiency
-- `weightedShortestPath()` - Dijkstra with custom edge weights
+- `shortestPath()` - Bidirectional BFS
+- `weightedShortestPath()` - Dijkstra with custom `weightFn` or `nodeWeightFn`
 - `aStarSearch()` - A* with heuristic guidance
-- `bidirectionalAStar()` - A* from both ends
+- `bidirectionalAStar()` - Bidirectional A*
 - `topologicalSort()` - Kahn's algorithm with cycle detection
-- `commonAncestors()` - Find shared ancestors of multiple nodes
+- `weightedLongestPath()` - Longest path on DAGs (critical path)
+- `connectedComponent()` - All reachable nodes
+- `isReachable()` - Fast reachability check
+- `commonAncestors()` - Multi-source ancestor intersection
 
 All traversals support:
 
 - `maxNodes` / `maxDepth` limits
 - Cancellation via `AbortSignal`
 - Direction control (forward/reverse)
+- `nodeWeightFn` - Per-node weight function for weighted algorithms
+
+> **Note:** `LogicalTraversal` remains as a deprecated facade that delegates to `GraphTraversal`.
 
 #### BitmapIndexBuilder / BitmapIndexReader
 
@@ -216,6 +243,24 @@ Memory-bounded variant of BitmapIndexBuilder:
 - Flushes bitmap data to storage when threshold exceeded
 - SHA-to-ID mappings remain in memory (required for consistency)
 - Merges chunks at finalization via bitmap OR operations
+
+#### MaterializedViewService
+
+Orchestrates the full materialized view lifecycle — build, persist, and load:
+
+- Coordinates `JoinReducer` (patch replay), `LogicalIndexBuildService` (bitmap index construction), and `CheckpointService` (state snapshots)
+- Supports checkpoint schema 4 with embedded bitmap indexes
+- `IncrementalIndexUpdater` enables O(diff) bitmap index updates when only a few patches have arrived since the last checkpoint
+- Lifecycle: `build()` → `persist()` → `load()`, with incremental `update()` for hot paths
+
+#### NeighborProviderPort
+
+Abstract interface for neighbor lookups, decoupling traversal algorithms from storage:
+
+- `getNeighbors(nodeId, direction, labelFilter)` — returns neighbor node IDs
+- Two implementations:
+  - `AdjacencyNeighborProvider` — builds adjacency lists from materialized state (in-memory, O(E) build)
+  - `BitmapNeighborProvider` — delegates to `LogicalIndexReader` for O(1) bitmap lookups
 
 ### Ports (Interfaces)
 
@@ -254,6 +299,13 @@ Timing abstraction:
 
 - `now()` - High-resolution timestamp (ms)
 - `timestamp()` - ISO 8601 wall-clock time
+
+#### NeighborProviderPort
+
+Neighbor lookup abstraction:
+
+- `getNeighbors(nodeId, direction, labelFilter)` — returns adjacent node IDs
+- Implementations: `AdjacencyNeighborProvider` (in-memory), `BitmapNeighborProvider` (bitmap-backed)
 
 ### Adapters (Implementations)
 

@@ -14,6 +14,7 @@ This guide teaches you the `git warp` command-line interface from scratch. Every
 - [Time Travel](#time-travel) (`seek`)
 - [Materializing State](#materializing-state) (`materialize`)
 - [Health and Diagnostics](#health-and-diagnostics) (`check`, `doctor`)
+- [Index Management](#index-management) (`verify-index`, `reindex`)
 - [Verifying Audit Integrity](#verifying-audit-integrity) (`verify-audit`)
 - [Interactive Explorer](#interactive-explorer) (`view`)
 - [Git Hook Integration](#git-hook-integration) (`install-hooks`)
@@ -746,6 +747,42 @@ This changes the exit code from 0 to 4 when warnings are present.
 
 ---
 
+## Index Management
+
+### `verify-index` — Verify bitmap index integrity
+
+The `verify-index` command checks that the persisted bitmap index matches the current materialized state. It materializes the graph, loads the index, and compares every node and edge entry.
+
+```bash
+# Verify the index for the auto-detected graph
+git warp verify-index --repo ./team-repo
+
+# Verify a specific graph
+git warp verify-index --repo ./team-repo --graph team
+```
+
+When the index is valid, the command prints a summary of nodes and edges checked and exits with code 0. When mismatches are found, it reports the differences and exits with code 3.
+
+**Flags:** None beyond [global options](#global-options).
+
+### `reindex` — Rebuild bitmap indexes from materialized state
+
+The `reindex` command rebuilds the bitmap index from scratch using the current materialized state. This is useful after manual data repairs or when `verify-index` reports mismatches.
+
+```bash
+# Rebuild the index
+git warp reindex --repo ./team-repo
+
+# Rebuild for a specific graph
+git warp reindex --repo ./team-repo --graph team
+```
+
+The output shows the number of nodes and edges indexed and the time taken.
+
+**Flags:** None beyond [global options](#global-options).
+
+---
+
 ## Verifying Audit Integrity
 
 ### `verify-audit` — Verify audit receipt chain integrity
@@ -1069,6 +1106,18 @@ Quick-reference table of all commands and their flags.
 |------|-------------|
 | `--writer <id>` | Verify a single writer's chain |
 | `--since <commit>` | Verify from tip down to this commit |
+
+### `verify-index`
+
+| Flag | Description |
+|------|-------------|
+| _(global only)_ | See [Global Options](#global-options) |
+
+### `reindex`
+
+| Flag | Description |
+|------|-------------|
+| _(global only)_ | See [Global Options](#global-options) |
 
 ### `view`
 

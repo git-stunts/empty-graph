@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [12.0.0] — 2026-02-25
 
+### Changed
+
+- **Documentation updated for v12.0.0** — CLAUDE.md, README.md, ARCHITECTURE.md, GUIDE.md, and CLI_GUIDE.md updated to reflect the MaterializedView architecture overhaul: GraphTraversal engine (11 algorithms, `nodeWeightFn`), `graph.traverse` facade, MaterializedViewService, LogicalIndexBuildService/Reader, IncrementalIndexUpdater, NeighborProviderPort abstraction, checkpoint schema 4, and new CLI commands (`verify-index`, `reindex`).
+
+
 ### Added
 
 - **`nodeWeightFn` option for node-weighted graph algorithms** — `weightedShortestPath`, `aStarSearch`, `bidirectionalAStar`, and `weightedLongestPath` now accept `nodeWeightFn(nodeId) => number` as an alternative to `weightFn`. Weight = cost to enter the destination node. Internally memoized (each node resolved at most once). Mutually exclusive with `weightFn` — providing both throws `E_WEIGHT_FN_CONFLICT`.
