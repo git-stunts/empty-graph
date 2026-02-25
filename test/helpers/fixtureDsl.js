@@ -11,12 +11,10 @@
 import AdjacencyNeighborProvider from '../../src/domain/services/AdjacencyNeighborProvider.js';
 import BitmapNeighborProvider from '../../src/domain/services/BitmapNeighborProvider.js';
 import LogicalIndexBuildService from '../../src/domain/services/LogicalIndexBuildService.js';
+import LogicalIndexReader from '../../src/domain/services/LogicalIndexReader.js';
 import { createEmptyStateV5, applyOpV2 } from '../../src/domain/services/JoinReducer.js';
 import { createDot } from '../../src/domain/crdt/Dot.js';
 import { createEventId } from '../../src/domain/utils/EventId.js';
-import defaultCodec from '../../src/domain/utils/defaultCodec.js';
-import computeShardKey from '../../src/domain/utils/shardKey.js';
-import { getRoaringBitmap32 } from '../../src/domain/utils/roaring.js';
 
 // ── Core DSL ────────────────────────────────────────────────────────────────
 
@@ -493,133 +491,12 @@ function _fixtureToState(fixture) {
 
 /**
  * Creates a LogicalIndex object from serialized index tree (in-memory).
+ * Delegates to LogicalIndexReader (production code).
  *
  * @param {Record<string, Buffer>} tree
  * @returns {import('../../src/domain/services/BitmapNeighborProvider.js').LogicalIndex}
  * @private
  */
 function _createLogicalIndexFromTree(tree) {
-  // Decode meta shards → nodeId↔globalId, alive bitmaps
-  const nodeToGlobal = new Map();
-  const globalToNode = new Map();
-  const aliveBitmaps = new Map();  // shardKey → RoaringBitmap
-  const RoaringBitmap32 = getRoaringBitmap32();
-
-  for (const [path, buf] of Object.entries(tree)) {
-    if (path.startsWith('meta_') && path.endsWith('.cbor')) {
-      const shardKey = path.slice(5, 7);
-      const meta = /** @type {Record<string, *>} */ (defaultCodec.decode(buf));
-      // nodeToGlobal is array of [nodeId, globalId] pairs (proto-safe)
-      const entries = Array.isArray(meta.nodeToGlobal)
-        ? meta.nodeToGlobal
-        : Object.entries(meta.nodeToGlobal);
-      for (const [nodeId, globalId] of entries) {
-        nodeToGlobal.set(nodeId, globalId);
-        globalToNode.set(/** @type {number} */ (globalId), nodeId);
-      }
-      if (meta.alive && meta.alive.length > 0) {
-        aliveBitmaps.set(shardKey, RoaringBitmap32.deserialize(
-          Buffer.from(meta.alive.buffer, meta.alive.byteOffset, meta.alive.byteLength), true
-        ));
-      }
-    }
-  }
-
-  // Decode label registry
-  const labelRegistry = new Map();
-  const idToLabel = new Map();
-  if (tree['labels.cbor']) {
-    const labels = /** @type {Record<string, *>} */ (defaultCodec.decode(tree['labels.cbor']));
-    for (const [label, id] of Object.entries(labels)) {
-      labelRegistry.set(label, id);
-      idToLabel.set(/** @type {number} */ (id), label);
-    }
-  }
-
-  // Decode fwd/rev edge shards → per-node bitmaps by bucket
-  /** @type {Record<string, Map<string, *>>} */
-  const edgeShards = { fwd: new Map(), rev: new Map() };
-  for (const [path, buf] of Object.entries(tree)) {
-    for (const dir of /** @type {const} */ (['fwd', 'rev'])) {
-      if (path.startsWith(`${dir}_`) && path.endsWith('.cbor')) {
-        const decoded = /** @type {Record<string, Record<string, *>>} */ (defaultCodec.decode(buf));
-        // decoded: { bucketName: { globalIdStr: Uint8Array } }
-        for (const [bucket, entries] of Object.entries(decoded)) {
-          for (const [gidStr, bitmapBytes] of Object.entries(entries)) {
-            const key = `${dir}:${bucket}:${gidStr}`;
-            edgeShards[dir].set(key, RoaringBitmap32.deserialize(
-              Buffer.from(bitmapBytes.buffer, bitmapBytes.byteOffset, bitmapBytes.byteLength), true
-            ));
-          }
-        }
-      }
-    }
-  }
-
-  return {
-    getGlobalId(nodeId) {
-      return nodeToGlobal.get(nodeId);
-    },
-
-    isAlive(nodeId) {
-      const gid = nodeToGlobal.get(nodeId);
-      if (gid === undefined) return false;
-      const shardKey = computeShardKey(nodeId);
-      const bitmap = aliveBitmaps.get(shardKey);
-      return bitmap ? bitmap.has(gid) : false;
-    },
-
-    getNodeId(globalId) {
-      return globalToNode.get(globalId);
-    },
-
-    getLabelRegistry() {
-      return labelRegistry;
-    },
-
-    getEdges(nodeId, direction, filterLabelIds) {
-      const gid = nodeToGlobal.get(nodeId);
-      if (gid === undefined) return [];
-
-      const dir = direction === 'out' ? 'fwd' : 'rev';
-      const store = edgeShards[dir];
-      const results = [];
-
-      if (filterLabelIds) {
-        // Per-label lookup: O(1) per label
-        for (const labelId of filterLabelIds) {
-          const key = `${dir}:${labelId}:${gid}`;
-          const bitmap = store.get(key);
-          if (!bitmap) continue;
-          const label = idToLabel.get(labelId) ?? '';
-          for (const neighborGid of bitmap.toArray()) {
-            const neighborId = globalToNode.get(neighborGid);
-            if (neighborId) {
-              results.push({ neighborId, label });
-            }
-          }
-        }
-      } else {
-        // Iterate all label buckets to reconstruct (neighborId, label) pairs
-        for (const [key, bitmap] of store) {
-          if (!key.startsWith(`${dir}:`)) continue;
-          const parts = key.split(':');
-          const bucket = parts[1];
-          const ownerGid = parseInt(parts[2], 10);
-          if (ownerGid !== gid) continue;
-          if (bucket === 'all') continue; // Skip 'all' to avoid duplicates
-          const labelId = parseInt(bucket, 10);
-          const label = idToLabel.get(labelId) ?? '';
-          for (const neighborGid of bitmap.toArray()) {
-            const neighborId = globalToNode.get(neighborGid);
-            if (neighborId) {
-              results.push({ neighborId, label });
-            }
-          }
-        }
-      }
-
-      return results;
-    },
-  };
+  return new LogicalIndexReader().loadFromTree(tree).toLogicalIndex();
 }
