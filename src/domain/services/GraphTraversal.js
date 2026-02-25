@@ -65,6 +65,15 @@ const DEFAULT_MAX_NODES = 100000;
 const DEFAULT_MAX_DEPTH = 1000;
 
 /**
+ * Default edge weight function: uniform weight of 1.
+ * @param {string} _from
+ * @param {string} _to
+ * @param {string} _label
+ * @returns {number}
+ */
+const DEFAULT_WEIGHT_FN = (_from, _to, _label) => 1;
+
+/**
  * Lexicographic nodeId comparator for MinHeap tie-breaking.
  * @param {string} a
  * @param {string} b
@@ -407,17 +416,20 @@ export default class GraphTraversal {
    * @param {Direction} [params.direction]
    * @param {NeighborOptions} [params.options]
    * @param {(from: string, to: string, label: string) => number | Promise<number>} [params.weightFn]
+   * @param {(nodeId: string) => number | Promise<number>} [params.nodeWeightFn]
    * @param {number} [params.maxNodes]
    * @param {AbortSignal} [params.signal]
    * @returns {Promise<{path: string[], totalCost: number, stats: TraversalStats}>}
    * @throws {TraversalError} code 'NO_PATH' if unreachable
+   * @throws {TraversalError} code 'E_WEIGHT_FN_CONFLICT' if both weightFn and nodeWeightFn provided
    */
   async weightedShortestPath({
     start, goal, direction = 'out', options,
-    weightFn = () => 1,
+    weightFn, nodeWeightFn,
     maxNodes = DEFAULT_MAX_NODES,
     signal,
   }) {
+    const effectiveWeightFn = this._resolveWeightFn(weightFn, nodeWeightFn);
     this._resetStats();
     await this._validateStart(start);
     /** @type {Map<string, number>} */
@@ -446,7 +458,7 @@ export default class GraphTraversal {
 
       for (const { neighborId, label } of neighbors) {
         if (visited.has(neighborId)) { continue; }
-        const w = await weightFn(current, neighborId, label);
+        const w = await effectiveWeightFn(current, neighborId, label);
         const alt = /** @type {number} */ (dist.get(current)) + w;
         const best = dist.has(neighborId) ? /** @type {number} */ (dist.get(neighborId)) : Infinity;
 
@@ -473,19 +485,22 @@ export default class GraphTraversal {
    * @param {Direction} [params.direction]
    * @param {NeighborOptions} [params.options]
    * @param {(from: string, to: string, label: string) => number | Promise<number>} [params.weightFn]
+   * @param {(nodeId: string) => number | Promise<number>} [params.nodeWeightFn]
    * @param {(nodeId: string, goalId: string) => number} [params.heuristicFn]
    * @param {number} [params.maxNodes]
    * @param {AbortSignal} [params.signal]
    * @returns {Promise<{path: string[], totalCost: number, nodesExplored: number, stats: TraversalStats}>}
    * @throws {TraversalError} code 'NO_PATH' if unreachable
+   * @throws {TraversalError} code 'E_WEIGHT_FN_CONFLICT' if both weightFn and nodeWeightFn provided
    */
   async aStarSearch({
     start, goal, direction = 'out', options,
-    weightFn = () => 1,
+    weightFn, nodeWeightFn,
     heuristicFn = () => 0,
     maxNodes = DEFAULT_MAX_NODES,
     signal,
   }) {
+    const effectiveWeightFn = this._resolveWeightFn(weightFn, nodeWeightFn);
     this._resetStats();
     await this._validateStart(start);
     /** @type {Map<string, number>} */
@@ -519,7 +534,7 @@ export default class GraphTraversal {
 
       for (const { neighborId, label } of neighbors) {
         if (visited.has(neighborId)) { continue; }
-        const w = await weightFn(current, neighborId, label);
+        const w = await effectiveWeightFn(current, neighborId, label);
         const tentG = /** @type {number} */ (gScore.get(current)) + w;
         const bestG = gScore.has(neighborId) ? /** @type {number} */ (gScore.get(neighborId)) : Infinity;
 
@@ -551,21 +566,24 @@ export default class GraphTraversal {
    * @param {string} params.goal
    * @param {NeighborOptions} [params.options]
    * @param {(from: string, to: string, label: string) => number | Promise<number>} [params.weightFn]
+   * @param {(nodeId: string) => number | Promise<number>} [params.nodeWeightFn]
    * @param {(nodeId: string, goalId: string) => number} [params.forwardHeuristic]
    * @param {(nodeId: string, goalId: string) => number} [params.backwardHeuristic]
    * @param {number} [params.maxNodes]
    * @param {AbortSignal} [params.signal]
    * @returns {Promise<{path: string[], totalCost: number, nodesExplored: number, stats: TraversalStats}>}
    * @throws {TraversalError} code 'NO_PATH' if unreachable
+   * @throws {TraversalError} code 'E_WEIGHT_FN_CONFLICT' if both weightFn and nodeWeightFn provided
    */
   async bidirectionalAStar({
     start, goal, options,
-    weightFn = () => 1,
+    weightFn, nodeWeightFn,
     forwardHeuristic = () => 0,
     backwardHeuristic = () => 0,
     maxNodes = DEFAULT_MAX_NODES,
     signal,
   }) {
+    const effectiveWeightFn = this._resolveWeightFn(weightFn, nodeWeightFn);
     this._resetStats();
     await this._validateStart(start);
     if (start === goal) {
@@ -599,7 +617,7 @@ export default class GraphTraversal {
         const r = await this._biAStarExpand({
           heap: fwdHeap, visited: fwdVisited, gScore: fwdG, predMap: fwdPrev,
           otherVisited: bwdVisited, otherG: bwdG,
-          weightFn, heuristicFn: forwardHeuristic,
+          weightFn: effectiveWeightFn, heuristicFn: forwardHeuristic,
           target: goal, directionForNeighbors: 'out', options,
           mu, meeting,
         });
@@ -610,7 +628,7 @@ export default class GraphTraversal {
         const r = await this._biAStarExpand({
           heap: bwdHeap, visited: bwdVisited, gScore: bwdG, predMap: bwdNext,
           otherVisited: fwdVisited, otherG: fwdG,
-          weightFn, heuristicFn: backwardHeuristic,
+          weightFn: effectiveWeightFn, heuristicFn: backwardHeuristic,
           target: start, directionForNeighbors: 'in', options,
           mu, meeting,
         });
@@ -942,18 +960,21 @@ export default class GraphTraversal {
    * @param {Direction} [params.direction]
    * @param {NeighborOptions} [params.options]
    * @param {(from: string, to: string, label: string) => number | Promise<number>} [params.weightFn]
+   * @param {(nodeId: string) => number | Promise<number>} [params.nodeWeightFn]
    * @param {number} [params.maxNodes]
    * @param {AbortSignal} [params.signal]
    * @returns {Promise<{path: string[], totalCost: number, stats: TraversalStats}>}
    * @throws {TraversalError} code 'ERR_GRAPH_HAS_CYCLES' if graph has cycles
    * @throws {TraversalError} code 'NO_PATH' if unreachable
+   * @throws {TraversalError} code 'E_WEIGHT_FN_CONFLICT' if both weightFn and nodeWeightFn provided
    */
   async weightedLongestPath({
     start, goal, direction = 'out', options,
-    weightFn = () => 1,
+    weightFn, nodeWeightFn,
     maxNodes = DEFAULT_MAX_NODES,
     signal,
   }) {
+    const effectiveWeightFn = this._resolveWeightFn(weightFn, nodeWeightFn);
     await this._validateStart(start);
     // Run topo sort first — will throw on cycles.
     // Request the neighbor edge map so the DP phase can reuse it
@@ -985,7 +1006,7 @@ export default class GraphTraversal {
       this._edgesTraversed += neighbors.length;
 
       for (const { neighborId, label } of neighbors) {
-        const w = await weightFn(nodeId, neighborId, label);
+        const w = await effectiveWeightFn(nodeId, neighborId, label);
         const alt = /** @type {number} */ (dist.get(nodeId)) + w;
         const best = dist.has(neighborId) ? /** @type {number} */ (dist.get(neighborId)) : -Infinity;
 
@@ -1008,6 +1029,60 @@ export default class GraphTraversal {
   }
 
   // ==== Private Helpers ====
+
+  /**
+   * Builds an edge-weight-shaped resolver from a nodeWeightFn.
+   *
+   * Weight = cost to enter the `to` node. The start node's weight is NOT
+   * counted (you're already there). Each node is resolved at most once via
+   * a lazy memoization cache.
+   *
+   * @param {(nodeId: string) => number | Promise<number>} nodeWeightFn
+   * @returns {(from: string, to: string, label: string) => number | Promise<number>}
+   * @private
+   */
+  _buildNodeWeightResolver(nodeWeightFn) {
+    /** @type {Map<string, number>} */
+    const cache = new Map();
+    return (_from, to, _label) => {
+      const cached = cache.get(to);
+      if (cached !== undefined) {
+        return cached;
+      }
+      const result = nodeWeightFn(to);
+      if (typeof result === 'number') {
+        cache.set(to, result);
+        return result;
+      }
+      // Async path: resolve promise, cache, and return
+      return /** @type {Promise<number>} */ (result).then((v) => {
+        cache.set(to, v);
+        return v;
+      });
+    };
+  }
+
+  /**
+   * Resolves the effective weight function from weightFn / nodeWeightFn options.
+   * Throws if both are provided.
+   *
+   * @param {((from: string, to: string, label: string) => number | Promise<number>) | undefined} weightFn
+   * @param {((nodeId: string) => number | Promise<number>) | undefined} nodeWeightFn
+   * @returns {(from: string, to: string, label: string) => number | Promise<number>}
+   * @private
+   */
+  _resolveWeightFn(weightFn, nodeWeightFn) {
+    if (weightFn && nodeWeightFn) {
+      throw new TraversalError(
+        'Cannot provide both weightFn and nodeWeightFn — they are mutually exclusive',
+        { code: 'E_WEIGHT_FN_CONFLICT', context: {} },
+      );
+    }
+    if (nodeWeightFn) {
+      return this._buildNodeWeightResolver(nodeWeightFn);
+    }
+    return weightFn ?? DEFAULT_WEIGHT_FN;
+  }
 
   /**
    * Validates that a start node exists in the provider.

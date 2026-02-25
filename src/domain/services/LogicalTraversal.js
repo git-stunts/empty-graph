@@ -266,9 +266,11 @@ export default class LogicalTraversal {
    * @param {'out'|'in'|'both'} [options.dir] - Edge direction to follow
    * @param {string|string[]} [options.labelFilter] - Edge label(s) to include
    * @param {(from: string, to: string, label: string) => number | Promise<number>} [options.weightFn] - Edge weight function
+   * @param {(nodeId: string) => number | Promise<number>} [options.nodeWeightFn] - Node weight function (mutually exclusive with weightFn)
    * @param {AbortSignal} [options.signal] - Abort signal
    * @returns {Promise<{path: string[], totalCost: number}>}
    * @throws {TraversalError} code 'NO_PATH' if unreachable
+   * @throws {TraversalError} code 'E_WEIGHT_FN_CONFLICT' if both weightFn and nodeWeightFn provided
    */
   async weightedShortestPath(from, to, options = {}) {
     const { engine, direction, options: opts } = await this._prepare(from, options);
@@ -278,6 +280,7 @@ export default class LogicalTraversal {
       direction,
       options: opts,
       weightFn: options.weightFn,
+      nodeWeightFn: options.nodeWeightFn,
       maxNodes: Infinity,
       signal: options.signal,
     });
@@ -293,10 +296,12 @@ export default class LogicalTraversal {
    * @param {'out'|'in'|'both'} [options.dir] - Edge direction to follow
    * @param {string|string[]} [options.labelFilter] - Edge label(s) to include
    * @param {(from: string, to: string, label: string) => number | Promise<number>} [options.weightFn] - Edge weight function
+   * @param {(nodeId: string) => number | Promise<number>} [options.nodeWeightFn] - Node weight function (mutually exclusive with weightFn)
    * @param {(nodeId: string, goalId: string) => number} [options.heuristicFn] - Heuristic function
    * @param {AbortSignal} [options.signal] - Abort signal
    * @returns {Promise<{path: string[], totalCost: number, nodesExplored: number}>}
    * @throws {TraversalError} code 'NO_PATH' if unreachable
+   * @throws {TraversalError} code 'E_WEIGHT_FN_CONFLICT' if both weightFn and nodeWeightFn provided
    */
   async aStarSearch(from, to, options = {}) {
     const { engine, direction, options: opts } = await this._prepare(from, options);
@@ -306,6 +311,7 @@ export default class LogicalTraversal {
       direction,
       options: opts,
       weightFn: options.weightFn,
+      nodeWeightFn: options.nodeWeightFn,
       heuristicFn: options.heuristicFn,
       maxNodes: Infinity,
       signal: options.signal,
@@ -323,11 +329,13 @@ export default class LogicalTraversal {
    * @param {Object} [options] - Traversal options
    * @param {string|string[]} [options.labelFilter] - Edge label(s) to include
    * @param {(from: string, to: string, label: string) => number | Promise<number>} [options.weightFn] - Edge weight function
+   * @param {(nodeId: string) => number | Promise<number>} [options.nodeWeightFn] - Node weight function (mutually exclusive with weightFn)
    * @param {(nodeId: string, goalId: string) => number} [options.forwardHeuristic] - Forward heuristic
    * @param {(nodeId: string, goalId: string) => number} [options.backwardHeuristic] - Backward heuristic
    * @param {AbortSignal} [options.signal] - Abort signal
    * @returns {Promise<{path: string[], totalCost: number, nodesExplored: number}>}
    * @throws {TraversalError} code 'NO_PATH' if unreachable
+   * @throws {TraversalError} code 'E_WEIGHT_FN_CONFLICT' if both weightFn and nodeWeightFn provided
    */
   async bidirectionalAStar(from, to, options = {}) {
     const { engine, options: opts } = await this._prepareEngine(options);
@@ -344,6 +352,7 @@ export default class LogicalTraversal {
       goal: to,
       options: opts,
       weightFn: options.weightFn,
+      nodeWeightFn: options.nodeWeightFn,
       forwardHeuristic: options.forwardHeuristic,
       backwardHeuristic: options.backwardHeuristic,
       maxNodes: Infinity,
@@ -438,10 +447,12 @@ export default class LogicalTraversal {
    * @param {'out'|'in'|'both'} [options.dir] - Edge direction to follow
    * @param {string|string[]} [options.labelFilter] - Edge label(s) to include
    * @param {(from: string, to: string, label: string) => number | Promise<number>} [options.weightFn] - Edge weight function
+   * @param {(nodeId: string) => number | Promise<number>} [options.nodeWeightFn] - Node weight function (mutually exclusive with weightFn)
    * @param {AbortSignal} [options.signal] - Abort signal
    * @returns {Promise<{path: string[], totalCost: number}>}
    * @throws {TraversalError} code 'ERR_GRAPH_HAS_CYCLES' if graph has cycles
    * @throws {TraversalError} code 'NO_PATH' if unreachable
+   * @throws {TraversalError} code 'E_WEIGHT_FN_CONFLICT' if both weightFn and nodeWeightFn provided
    */
   async weightedLongestPath(from, to, options = {}) {
     const { engine, direction, options: opts } = await this._prepare(from, options);
@@ -451,6 +462,7 @@ export default class LogicalTraversal {
       direction,
       options: opts,
       weightFn: options.weightFn,
+      nodeWeightFn: options.nodeWeightFn,
       maxNodes: Infinity,
       signal: options.signal,
     });

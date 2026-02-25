@@ -277,6 +277,58 @@ describe('WarpGraph logical traversal', () => {
   });
 
   // ========================================================================
+  // nodeWeightFn facade tests
+  // ========================================================================
+
+  it('weightedShortestPath with nodeWeightFn picks cheapest path', async () => {
+    // A --(x)--> B --(x)--> D
+    // A --(x)--> C --(x)--> D
+    // Node weights: A=0, B=1, C=10, D=0
+    // Shortest via nodes: A→B→D = 1+0 = 1
+    setupGraphState(graph, (/** @type {any} */ state) => {
+      addNodeToState(state, 'node:a', 1);
+      addNodeToState(state, 'node:b', 2);
+      addNodeToState(state, 'node:c', 3);
+      addNodeToState(state, 'node:d', 4);
+      addEdgeToState(state, 'node:a', 'node:b', 'x', 5);
+      addEdgeToState(state, 'node:a', 'node:c', 'x', 6);
+      addEdgeToState(state, 'node:b', 'node:d', 'x', 7);
+      addEdgeToState(state, 'node:c', 'node:d', 'x', 8);
+    });
+
+    const weights = new Map([['node:a', 0], ['node:b', 1], ['node:c', 10], ['node:d', 0]]);
+    const result = await graph.traverse.weightedShortestPath('node:a', 'node:d', {
+      dir: 'out',
+      nodeWeightFn: (/** @type {string} */ id) => weights.get(id) ?? 1,
+    });
+    expect(result.path).toEqual(['node:a', 'node:b', 'node:d']);
+    expect(result.totalCost).toBe(1);
+  });
+
+  it('weightedLongestPath with nodeWeightFn picks longest path', async () => {
+    // Same graph as above but longest path
+    // Longest via nodes: A→C→D = 10+0 = 10
+    setupGraphState(graph, (/** @type {any} */ state) => {
+      addNodeToState(state, 'node:a', 1);
+      addNodeToState(state, 'node:b', 2);
+      addNodeToState(state, 'node:c', 3);
+      addNodeToState(state, 'node:d', 4);
+      addEdgeToState(state, 'node:a', 'node:b', 'x', 5);
+      addEdgeToState(state, 'node:a', 'node:c', 'x', 6);
+      addEdgeToState(state, 'node:b', 'node:d', 'x', 7);
+      addEdgeToState(state, 'node:c', 'node:d', 'x', 8);
+    });
+
+    const weights = new Map([['node:a', 0], ['node:b', 1], ['node:c', 10], ['node:d', 0]]);
+    const result = await graph.traverse.weightedLongestPath('node:a', 'node:d', {
+      dir: 'out',
+      nodeWeightFn: (/** @type {string} */ id) => weights.get(id) ?? 1,
+    });
+    expect(result.path).toEqual(['node:a', 'node:c', 'node:d']);
+    expect(result.totalCost).toBe(10);
+  });
+
+  // ========================================================================
   // Negative / edge-case tests
   // ========================================================================
 

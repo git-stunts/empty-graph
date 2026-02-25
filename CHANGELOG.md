@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`nodeWeightFn` option for node-weighted graph algorithms** — `weightedShortestPath`, `aStarSearch`, `bidirectionalAStar`, and `weightedLongestPath` now accept `nodeWeightFn(nodeId) => number` as an alternative to `weightFn`. Weight = cost to enter the destination node. Internally memoized (each node resolved at most once). Mutually exclusive with `weightFn` — providing both throws `E_WEIGHT_FN_CONFLICT`.
 - **`graph.traverse` — 7 new facade methods** — `isReachable`, `weightedShortestPath`, `aStarSearch`, `bidirectionalAStar`, `topologicalSort`, `commonAncestors`, and `weightedLongestPath` are now accessible via the public `graph.traverse.*` API, matching the full `GraphTraversal` engine surface. Previously these required constructing `GraphTraversal` + `NeighborProvider` directly.
 
 ### Fixed

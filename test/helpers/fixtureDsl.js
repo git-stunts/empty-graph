@@ -372,6 +372,39 @@ export const F13_BFS_MULTI_PARENT_DEDUP = makeFixture({
   ],
 });
 
+/**
+ * F14 — NODE_WEIGHTED_DAG
+ *
+ * Tests node-weighted path algorithms.
+ * Node weights: START=0, A=3, B=5, C=2, END=0.
+ * Weight = cost to enter the `to` node.
+ *
+ * START --(x)--> A --(x)--> C --(x)--> END
+ * START --(x)--> B --(x)--> C
+ *
+ * Shortest: START→A→C→END = 3+2+0 = 5
+ * Longest:  START→B→C→END = 5+2+0 = 7
+ */
+export const F14_NODE_WEIGHTED_DAG = makeFixture({
+  nodes: ['START', 'A', 'B', 'C', 'END'],
+  edges: [
+    { from: 'START', to: 'A' },
+    { from: 'START', to: 'B' },
+    { from: 'A', to: 'C' },
+    { from: 'B', to: 'C' },
+    { from: 'C', to: 'END' },
+  ],
+});
+
+/** Node weight map for F14 */
+export const F14_NODE_WEIGHTS = new Map([
+  ['START', 0],
+  ['A', 3],
+  ['B', 5],
+  ['C', 2],
+  ['END', 0],
+]);
+
 // ── Utility: weight function from a Map ─────────────────────────────────────
 
 /**
@@ -386,6 +419,17 @@ export function makeWeightFn(weights, defaultWeight = 1) {
     const key = `${from}\0${to}\0${label}`;
     return weights.get(key) ?? defaultWeight;
   };
+}
+
+/**
+ * Creates a node weight function from a Map keyed by nodeId.
+ *
+ * @param {Map<string, number>} weights
+ * @param {number} [defaultWeight=1]
+ * @returns {(nodeId: string) => number}
+ */
+export function makeNodeWeightFn(weights, defaultWeight = 1) {
+  return (nodeId) => weights.get(nodeId) ?? defaultWeight;
 }
 
 // ── Utility: cross-provider equivalence runner ──────────────────────────────

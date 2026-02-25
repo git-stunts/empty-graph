@@ -259,18 +259,21 @@ export interface LogicalTraversal {
     dir?: 'out' | 'in' | 'both';
     labelFilter?: string | string[];
     weightFn?: (from: string, to: string, label: string) => number | Promise<number>;
+    nodeWeightFn?: (nodeId: string) => number | Promise<number>;
     signal?: AbortSignal;
   }): Promise<{ path: string[]; totalCost: number }>;
   aStarSearch(from: string, to: string, options?: {
     dir?: 'out' | 'in' | 'both';
     labelFilter?: string | string[];
     weightFn?: (from: string, to: string, label: string) => number | Promise<number>;
+    nodeWeightFn?: (nodeId: string) => number | Promise<number>;
     heuristicFn?: (nodeId: string, goalId: string) => number;
     signal?: AbortSignal;
   }): Promise<{ path: string[]; totalCost: number; nodesExplored: number }>;
   bidirectionalAStar(from: string, to: string, options?: {
     labelFilter?: string | string[];
     weightFn?: (from: string, to: string, label: string) => number | Promise<number>;
+    nodeWeightFn?: (nodeId: string) => number | Promise<number>;
     forwardHeuristic?: (nodeId: string, goalId: string) => number;
     backwardHeuristic?: (nodeId: string, goalId: string) => number;
     signal?: AbortSignal;
@@ -291,6 +294,7 @@ export interface LogicalTraversal {
     dir?: 'out' | 'in' | 'both';
     labelFilter?: string | string[];
     weightFn?: (from: string, to: string, label: string) => number | Promise<number>;
+    nodeWeightFn?: (nodeId: string) => number | Promise<number>;
     signal?: AbortSignal;
   }): Promise<{ path: string[]; totalCost: number }>;
 }
