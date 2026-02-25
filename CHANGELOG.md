@@ -28,7 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Documentation updated for v12.0.0** — CLAUDE.md, README.md, ARCHITECTURE.md, GUIDE.md, and CLI_GUIDE.md updated to reflect the MaterializedView architecture overhaul: GraphTraversal engine (11 algorithms, `nodeWeightFn`), `graph.traverse` facade, MaterializedViewService, LogicalIndexBuildService/Reader, IncrementalIndexUpdater, NeighborProviderPort abstraction, checkpoint schema 4, and new CLI commands (`verify-index`, `reindex`).
 
 
-### Added
+### Added (MaterializedView architecture & indexing)
 
 - **`nodeWeightFn` option for node-weighted graph algorithms** — `weightedShortestPath`, `aStarSearch`, `bidirectionalAStar`, and `weightedLongestPath` now accept `nodeWeightFn(nodeId) => number` as an alternative to `weightFn`. Weight = cost to enter the destination node. Internally memoized (each node resolved at most once). Mutually exclusive with `weightFn` — providing both throws `E_WEIGHT_FN_CONFLICT`.
 - **`graph.traverse` — 7 new facade methods** — `isReachable`, `weightedShortestPath`, `aStarSearch`, `bidirectionalAStar`, `topologicalSort`, `commonAncestors`, and `weightedLongestPath` are now accessible via the public `graph.traverse.*` API, matching the full `GraphTraversal` engine surface. Previously these required constructing `GraphTraversal` + `NeighborProvider` directly.
@@ -75,7 +75,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Cross-provider equivalence tests** — 18 tests verifying BFS, DFS, shortestPath, Dijkstra, A*, topologicalSort produce identical results across `AdjacencyNeighborProvider` and `LogicalBitmapNeighborProvider`.
   - **Benchmark** (`test/benchmark/logicalIndex.benchmark.js`) — index build time at 1K/10K/100K nodes, single-node `getNeighbors` latency, `getNodeProps` latency.
 
-### Changed
+### Changed (Provider integration & fixtures)
 
 - **`BitmapNeighborProvider`** — dual-mode: commit DAG (`indexReader` param, existing) + logical graph (`logicalIndex` param, new). Logical mode supports per-label bitmap filtering, alive bitmap checks, and `'both'` direction dedup.
 - **Contract tests** — added `LogicalBitmapNeighborProvider` as third provider to both `contractSuite` (unlabeled) and `labelContractSuite` (labeled). All 44 contract assertions pass.
@@ -87,7 +87,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`BitmapNeighborProvider`** (`src/domain/services/BitmapNeighborProvider.js`) — commit DAG provider wrapping `BitmapIndexReader`. Commit DAG edges use `label = ''` (empty string sentinel). `latencyClass: 'async-local'`.
 - **`MinHeap` tie-breaking** — optional `tieBreaker` comparator in constructor. Used by Dijkstra/A* for deterministic lex nodeId ordering on equal priority. Backward compatible.
 
-### Changed
+### Changed (Deprecations)
 
 - **`LogicalTraversal`** — deprecated; now delegates to `GraphTraversal + AdjacencyNeighborProvider` internally. Public API unchanged. New code should use `GraphTraversal` directly.
 
