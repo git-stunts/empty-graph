@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Backlog reconciliation** — absorbed all 39 BACKLOG.md items into ROADMAP.md with B-numbers B66–B104. Added Milestone 12 (SCALPEL) for algorithmic performance audit fixes. Expanded Standalone Lane from 20 to 52 items across 11 priority tiers. Added cross-reference table and inventory. BACKLOG.md cleared to skeleton.
+
 ## [12.0.0] — 2026-02-25
 
 ### Changed
