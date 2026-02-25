@@ -42,11 +42,11 @@ describe('computeShardKey', () => {
     }
   });
 
-  it('returns null for null, undefined, and non-string inputs', () => {
-    expect(computeShardKey(null)).toBe(null);
-    expect(computeShardKey(undefined)).toBe(null);
-    expect(computeShardKey(42)).toBe(null);
-    expect(computeShardKey({})).toBe(null);
+  it('returns fallback shard for null, undefined, and non-string inputs', () => {
+    expect(computeShardKey(/** @type {*} */ (null))).toBe('00');
+    expect(computeShardKey(/** @type {*} */ (undefined))).toBe('00');
+    expect(computeShardKey(/** @type {*} */ (42))).toBe('00');
+    expect(computeShardKey(/** @type {*} */ ({}))).toBe('00');
   });
 
   it('hashes non-ASCII IDs over UTF-8 bytes', () => {

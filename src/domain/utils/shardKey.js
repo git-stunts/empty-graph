@@ -23,14 +23,14 @@ function fnv1aBytes(bytes) {
  * For hex SHAs (exactly 40 or 64 hex chars), uses the first two characters (lowercased).
  * For all other strings, computes FNV-1a hash over UTF-8 bytes and takes the low byte.
  *
- * Returns null for null, undefined, or non-string inputs (graceful shard miss).
+ * Returns '00' for null, undefined, or non-string inputs (graceful fallback).
  *
  * @param {string} id - Node ID or SHA
- * @returns {string | null} 2-character lowercase hex shard key (e.g. 'ab', '0f'), or null
+ * @returns {string} 2-character lowercase hex shard key (e.g. 'ab', '0f')
  */
 export default function computeShardKey(id) {
   if (id === null || id === undefined || typeof id !== 'string') {
-    return null;
+    return '00';
   }
   if (HEX_RE.test(id)) {
     return id.substring(0, 2).toLowerCase();
