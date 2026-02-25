@@ -107,10 +107,11 @@ export function _buildAdjacency(state) {
  *
  * @this {import('../WarpGraph.js').default}
  * @param {import('../services/JoinReducer.js').WarpStateV5} state
+ * @param {import('../types/PatchDiff.js').PatchDiff} [diff] - Optional diff for incremental index
  * @returns {Promise<MaterializedResult>}
  * @private
  */
-export async function _setMaterializedState(state) {
+export async function _setMaterializedState(state, diff) {
   this._cachedState = state;
   this._stateDirty = false;
   this._versionVector = vvClone(state.observedFrontier);
@@ -129,36 +130,51 @@ export async function _setMaterializedState(state) {
   }
 
   this._materializedGraph = { state, stateHash, adjacency };
-  this._buildView(state, stateHash);
+  this._buildView(state, stateHash, diff);
   return this._materializedGraph;
 }
 
 /**
  * Builds the MaterializedView (logicalIndex + propertyReader) and attaches
  * a BitmapNeighborProvider to the materialized graph. Skips rebuild when
- * the stateHash matches the previous build.
+ * the stateHash matches the previous build. Uses incremental update when
+ * a diff and cached index tree are available.
  *
  * @this {import('../WarpGraph.js').default}
  * @param {import('../services/JoinReducer.js').WarpStateV5} state
  * @param {string} stateHash
+ * @param {import('../types/PatchDiff.js').PatchDiff} [diff] - Optional diff for incremental update
  * @private
  */
-export function _buildView(state, stateHash) {
+export function _buildView(state, stateHash, diff) {
   if (this._cachedViewHash === stateHash) {
     return;
   }
   try {
-    const { logicalIndex, propertyReader } = this._viewService.build(state);
-    this._logicalIndex = logicalIndex;
-    this._propertyReader = propertyReader;
-    this._cachedViewHash = stateHash;
+    /** @type {import('../services/MaterializedViewService.js').BuildResult} */
+    let result;
+    if (diff && this._cachedIndexTree) {
+      result = this._viewService.applyDiff({
+        existingTree: this._cachedIndexTree,
+        diff,
+        state,
+      });
+    } else {
+      result = this._viewService.build(state);
+    }
 
-    const provider = new BitmapNeighborProvider({ logicalIndex });
+    this._logicalIndex = result.logicalIndex;
+    this._propertyReader = result.propertyReader;
+    this._cachedViewHash = stateHash;
+    this._cachedIndexTree = result.tree;
+
+    const provider = new BitmapNeighborProvider({ logicalIndex: result.logicalIndex });
     this._materializedGraph.provider = provider;
   } catch {
-    // Non-fatal: index build can fail on edge-case states (e.g. non-string node IDs)
+    // Non-fatal: index build can fail on edge-case states
     this._logicalIndex = null;
     this._propertyReader = null;
+    this._cachedIndexTree = null;
   }
 }
 
