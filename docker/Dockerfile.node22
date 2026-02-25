@@ -15,7 +15,7 @@ WORKDIR /app
 COPY git-warp/package*.json ./
 COPY git-warp/scripts ./scripts
 COPY git-warp/patches ./patches
-RUN npm install
+RUN npm ci
 COPY git-warp .
 # Init a git repo so plumbing operations work inside the container.
 RUN git init -q \
