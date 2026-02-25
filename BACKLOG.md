@@ -13,3 +13,5 @@ Items noticed during development that are worth addressing but were out of scope
 - CI-ready summary task that combines unresolved-thread count with check statuses.
 - Reduce runtime fragility around external prebuilt binaries by documenting and testing fallback behavior explicitly.
 - Add an explicit local `test:deno:smoke` command for fast pre-push confidence.
+- Add markdownlint to pre-commit to catch MD024 (duplicate headings) and MD040 (fenced code language) before review.
+- Consider a `no-empty-catch` ESLint rule (or at least `no-catch-without-comment`) to prevent silent error swallowing.
