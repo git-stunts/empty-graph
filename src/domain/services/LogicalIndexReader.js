@@ -32,27 +32,22 @@ function expandBitmap(bitmap, label, ctx) {
 }
 
 /**
- * Resolves edges from a bitmap store for a given node (all labels).
+ * Resolves edges from a byOwner map for a given node (all labels).
  *
- * @param {Map<string, Bitmap>} store
- * @param {{ dir: string, gid: number, i2l: Map<number, string>, g2n: Map<number, string> }} ctx
+ * @param {Map<number, Array<{labelId: number, bitmap: Bitmap}>>} byOwner
+ * @param {{ gid: number, i2l: Map<number, string>, g2n: Map<number, string> }} ctx
  * @returns {Array<{neighborId: string, label: string}>}
  */
-function resolveAllLabels(store, ctx) {
-  const { dir, gid, i2l, g2n } = ctx;
-  const prefix = `${dir}:`;
+function resolveAllLabels(byOwner, ctx) {
+  const { gid, i2l, g2n } = ctx;
+  const entries = byOwner.get(gid);
+  if (!entries) {
+    return [];
+  }
   /** @type {import('../../ports/NeighborProviderPort.js').NeighborEdge[]} */
   const out = [];
-  for (const [key, bitmap] of store) {
-    if (!key.startsWith(prefix)) {
-      continue;
-    }
-    const parts = key.split(':');
-    const bucket = parts[1];
-    if (bucket === 'all' || parseInt(parts[2], 10) !== gid) {
-      continue;
-    }
-    expandBitmap(bitmap, i2l.get(parseInt(bucket, 10)) ?? '', { g2n, out });
+  for (const { labelId, bitmap } of entries) {
+    expandBitmap(bitmap, i2l.get(labelId) ?? '', { g2n, out });
   }
   return out;
 }
@@ -113,6 +108,11 @@ export default class LogicalIndexReader {
     this._edgeFwd = new Map();
     /** @type {Map<string, Bitmap>} */
     this._edgeRev = new Map();
+
+    /** @type {Map<number, Array<{labelId: number, bitmap: Bitmap}>>} */
+    this._edgeByOwnerFwd = new Map();
+    /** @type {Map<number, Array<{labelId: number, bitmap: Bitmap}>>} */
+    this._edgeByOwnerRev = new Map();
   }
 
   /**
@@ -150,7 +150,8 @@ export default class LogicalIndexReader {
    */
   toLogicalIndex() {
     const { _nodeToGlobal: n2g, _globalToNode: g2n, _aliveBitmaps: alive,
-      _labelRegistry: lr, _idToLabel: i2l, _edgeFwd: fwd, _edgeRev: rev } = this;
+      _labelRegistry: lr, _idToLabel: i2l, _edgeFwd: fwd, _edgeRev: rev,
+      _edgeByOwnerFwd: byOwnerFwd, _edgeByOwnerRev: byOwnerRev } = this;
 
     return {
       getGlobalId: (nodeId) => n2g.get(nodeId),
@@ -172,11 +173,12 @@ export default class LogicalIndexReader {
           return [];
         }
         const dir = direction === 'out' ? 'fwd' : 'rev';
-        const store = dir === 'fwd' ? fwd : rev;
 
         if (!filterLabelIds) {
-          return resolveAllLabels(store, { dir, gid, i2l, g2n });
+          const byOwner = dir === 'fwd' ? byOwnerFwd : byOwnerRev;
+          return resolveAllLabels(byOwner, { gid, i2l, g2n });
         }
+        const store = dir === 'fwd' ? fwd : rev;
         /** @type {import('../../ports/NeighborProviderPort.js').NeighborEdge[]} */
         const out = [];
         for (const labelId of filterLabelIds) {
@@ -262,17 +264,37 @@ export default class LogicalIndexReader {
    */
   _decodeEdgeShard(dir, buf, Ctor) {
     const store = dir === 'fwd' ? this._edgeFwd : this._edgeRev;
+    const byOwner = dir === 'fwd' ? this._edgeByOwnerFwd : this._edgeByOwnerRev;
     const decoded = /** @type {Record<string, Record<string, Uint8Array>>} */ (this._codec.decode(buf));
     for (const [bucket, entries] of Object.entries(decoded)) {
       for (const [gidStr, bitmapBytes] of Object.entries(entries)) {
-        store.set(
-          `${dir}:${bucket}:${gidStr}`,
-          Ctor.deserialize(
-            Buffer.from(bitmapBytes.buffer, bitmapBytes.byteOffset, bitmapBytes.byteLength),
-            true
-          )
+        const bitmap = Ctor.deserialize(
+          Buffer.from(bitmapBytes.buffer, bitmapBytes.byteOffset, bitmapBytes.byteLength),
+          true
         );
+        store.set(`${dir}:${bucket}:${gidStr}`, bitmap);
+        this._indexByOwner(byOwner, { bucket, gidStr, bitmap });
       }
     }
+  }
+
+  /**
+   * Adds a bitmap entry to the per-owner secondary index (non-'all' buckets only).
+   *
+   * @param {Map<number, Array<{labelId: number, bitmap: Bitmap}>>} byOwner
+   * @param {{ bucket: string, gidStr: string, bitmap: Bitmap }} entry
+   * @private
+   */
+  _indexByOwner(byOwner, { bucket, gidStr, bitmap }) {
+    if (bucket === 'all') {
+      return;
+    }
+    const gid = parseInt(gidStr, 10);
+    let list = byOwner.get(gid);
+    if (!list) {
+      list = [];
+      byOwner.set(gid, list);
+    }
+    list.push({ labelId: parseInt(bucket, 10), bitmap });
   }
 }
