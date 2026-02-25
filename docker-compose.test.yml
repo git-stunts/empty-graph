@@ -49,5 +49,5 @@ services:
       dockerfile: git-warp/docker/Dockerfile.deno
     environment:
       - GIT_STUNTS_DOCKER=1
-    command: ["deno", "test", "--allow-all", "--node-modules-dir", "test/runtime/deno/"]
+    command: ["deno", "test", "--allow-all", "--allow-scripts=npm:roaring@2.7.0,npm:cbor-extract@2.2.0", "--node-modules-dir=auto", "test/runtime/deno/"]
     profiles: [deno, full]
