@@ -9,13 +9,14 @@
  * }
  */
 
-import { createORSet, orsetAdd, orsetRemove, orsetJoin } from '../crdt/ORSet.js';
+import { createORSet, orsetAdd, orsetRemove, orsetJoin, orsetContains } from '../crdt/ORSet.js';
 import { createVersionVector, vvMerge, vvClone, vvDeserialize } from '../crdt/VersionVector.js';
 import { lwwSet, lwwMax } from '../crdt/LWW.js';
 import { createEventId, compareEventIds } from '../utils/EventId.js';
 import { createTickReceipt, OP_TYPES } from '../types/TickReceipt.js';
 import { encodeDot } from '../crdt/Dot.js';
-import { encodeEdgeKey, encodePropKey } from './KeyCodec.js';
+import { encodeEdgeKey, decodeEdgeKey, encodePropKey } from './KeyCodec.js';
+import { createEmptyDiff, mergeDiffs } from '../types/PatchDiff.js';
 
 // Re-export key codec functions for backward compatibility
 export {
@@ -379,6 +380,172 @@ export function applyFast(state, patch, patchSha) {
 }
 
 /**
+ * Snapshots alive-ness of a node or edge before an op is applied.
+ *
+ * @param {WarpStateV5} state
+ * @param {Object} op
+ * @returns {{ nodeWasAlive?: boolean, edgeWasAlive?: boolean, edgeKey?: string, prevPropValue?: unknown, propKey?: string }}
+ */
+function snapshotBeforeOp(state, op) {
+  switch (op.type) {
+    case 'NodeAdd':
+      return { nodeWasAlive: orsetContains(state.nodeAlive, op.node) };
+    case 'NodeRemove':
+      return {};
+    case 'EdgeAdd': {
+      const ek = encodeEdgeKey(op.from, op.to, op.label);
+      return { edgeWasAlive: orsetContains(state.edgeAlive, ek), edgeKey: ek };
+    }
+    case 'EdgeRemove':
+      return {};
+    case 'PropSet': {
+      const pk = encodePropKey(op.node, op.key);
+      const reg = state.prop.get(pk);
+      return { prevPropValue: reg ? reg.value : undefined, propKey: pk };
+    }
+    default:
+      return {};
+  }
+}
+
+/**
+ * Computes diff entries by comparing pre/post alive-ness after an op.
+ *
+ * @param {import('../types/PatchDiff.js').PatchDiff} diff
+ * @param {WarpStateV5} state
+ * @param {Object} op
+ * @param {Object} before - snapshot from snapshotBeforeOp
+ */
+function accumulateOpDiff(diff, state, op, before) {
+  switch (op.type) {
+    case 'NodeAdd': {
+      if (!before.nodeWasAlive && orsetContains(state.nodeAlive, op.node)) {
+        diff.nodesAdded.push(op.node);
+      }
+      break;
+    }
+    case 'NodeRemove': {
+      collectNodeRemovals(diff, state, op);
+      break;
+    }
+    case 'EdgeAdd': {
+      if (!before.edgeWasAlive && orsetContains(state.edgeAlive, before.edgeKey)) {
+        const { from, to, label } = op;
+        diff.edgesAdded.push({ from, to, label });
+      }
+      break;
+    }
+    case 'EdgeRemove': {
+      collectEdgeRemovals(diff, state, op);
+      break;
+    }
+    case 'PropSet': {
+      const reg = state.prop.get(before.propKey);
+      const newVal = reg ? reg.value : undefined;
+      if (newVal !== before.prevPropValue) {
+        diff.propsChanged.push({
+          nodeId: op.node,
+          key: op.key,
+          value: newVal,
+          prevValue: before.prevPropValue,
+        });
+      }
+      break;
+    }
+    default:
+      break;
+  }
+}
+
+/**
+ * Checks each observed dot's owner element; if now dead, records removal.
+ *
+ * @param {import('../types/PatchDiff.js').PatchDiff} diff
+ * @param {WarpStateV5} state
+ * @param {Object} op
+ */
+function collectNodeRemovals(diff, state, op) {
+  const seen = new Set();
+  for (const [element] of state.nodeAlive.entries) {
+    if (seen.has(element)) {
+      continue;
+    }
+    if (!orsetContains(state.nodeAlive, element)) {
+      // Check if any of the observed dots belonged to this element
+      const dots = state.nodeAlive.entries.get(element);
+      if (dots) {
+        for (const d of op.observedDots) {
+          if (dots.has(d)) {
+            diff.nodesRemoved.push(element);
+            seen.add(element);
+            break;
+          }
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Checks each observed dot's owner edge; if now dead, records removal.
+ *
+ * @param {import('../types/PatchDiff.js').PatchDiff} diff
+ * @param {WarpStateV5} state
+ * @param {Object} op
+ */
+function collectEdgeRemovals(diff, state, op) {
+  const seen = new Set();
+  for (const [edgeKey] of state.edgeAlive.entries) {
+    if (seen.has(edgeKey)) {
+      continue;
+    }
+    if (!orsetContains(state.edgeAlive, edgeKey)) {
+      const dots = state.edgeAlive.entries.get(edgeKey);
+      if (dots) {
+        for (const d of op.observedDots) {
+          if (dots.has(d)) {
+            diff.edgesRemoved.push(decodeEdgeKey(edgeKey));
+            seen.add(edgeKey);
+            break;
+          }
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Applies a patch to state with diff tracking for incremental index updates.
+ *
+ * Captures alive-ness transitions: only records a diff entry when the
+ * alive-ness of a node/edge actually changes, or when an LWW property
+ * winner changes. Redundant ops produce no diff entries.
+ *
+ * @param {WarpStateV5} state - The state to mutate in place
+ * @param {Object} patch - The patch to apply
+ * @param {string} patch.writer
+ * @param {number} patch.lamport
+ * @param {Array<Object>} patch.ops
+ * @param {Map<string, number>|{[x: string]: number}} patch.context
+ * @param {string} patchSha - Git SHA of the patch commit
+ * @returns {{state: WarpStateV5, diff: import('../types/PatchDiff.js').PatchDiff}}
+ */
+export function applyWithDiff(state, patch, patchSha) {
+  const diff = createEmptyDiff();
+
+  for (let i = 0; i < patch.ops.length; i++) {
+    const op = patch.ops[i];
+    const eventId = createEventId(patch.lamport, patch.writer, patchSha, i);
+    const before = snapshotBeforeOp(state, op);
+    applyOpV2(state, op, eventId);
+    accumulateOpDiff(diff, state, op, before);
+  }
+
+  updateFrontierFromPatch(state, patch);
+  return { state, diff };
+}
+
+/**
  * Applies a patch to state with receipt collection for provenance tracking.
  *
  * @param {WarpStateV5} state - The state to mutate in place
@@ -585,9 +752,11 @@ function mergeEdgeBirthEvent(a, b) {
  * @param {WarpStateV5} [initialState] - Optional starting state (for incremental materialization from checkpoint)
  * @param {Object} [options] - Optional configuration
  * @param {boolean} [options.receipts=false] - When true, collect and return TickReceipts
- * @returns {WarpStateV5|{state: WarpStateV5, receipts: import('../types/TickReceipt.js').TickReceipt[]}}
- *          Returns state directly when receipts is false;
- *          returns {state, receipts} when receipts is true
+ * @param {boolean} [options.trackDiff=false] - When true, collect and return PatchDiff
+ * @returns {WarpStateV5|{state: WarpStateV5, receipts: import('../types/TickReceipt.js').TickReceipt[]}|{state: WarpStateV5, diff: import('../types/PatchDiff.js').PatchDiff}}
+ *          Returns state directly when no options;
+ *          returns {state, receipts} when receipts is true;
+ *          returns {state, diff} when trackDiff is true
  */
 export function reduceV5(patches, initialState, options) {
   const state = initialState ? cloneStateV5(initialState) : createEmptyStateV5();
@@ -600,6 +769,15 @@ export function reduceV5(patches, initialState, options) {
       receipts.push(result.receipt);
     }
     return { state, receipts };
+  }
+
+  if (options && options.trackDiff) {
+    let merged = createEmptyDiff();
+    for (const { patch, sha } of patches) {
+      const { diff } = applyWithDiff(state, patch, sha);
+      merged = mergeDiffs(merged, diff);
+    }
+    return { state, diff: merged };
   }
 
   for (const { patch, sha } of patches) {
