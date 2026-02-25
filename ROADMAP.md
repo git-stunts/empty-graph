@@ -23,7 +23,7 @@
 | 11 | RECALL | v10.4.0 | Seek Materialization Cache |
 | 12 | SEEKDIFF | v10.5.0 | Structural Seek Diff |
 | M1 | IRON DOME | v11.0.0 | Security & Protocol Hardening |
-| M2 | FOUNDATION LIFT | v10.7.0 | Developer Velocity for Correctness |
+| M2 | FOUNDATION LIFT | v11.1.0 | Developer Velocity for Correctness |
 | M3 | GHOST PROTOCOL | v11.0.0 | Immutable Audit Trail |
 | M4 | VERIFY OR IT DIDN'T HAPPEN | v11.0.0 | Cryptographic Verification |
 | M5 | CLI DECOMPOSITION | v11.0.0 | Maintainability |
@@ -333,10 +333,10 @@ Pick opportunistically between milestones. Recommended order within tiers:
 | **Milestone (M10)** | 7 | B1, B2(spec), B39, B40, B63, B64, B65 |
 | **Milestone (M11)** | 3 | B2(impl), B3, B11 |
 | **Milestone (M12)** | 5 | B66, B67, B68, B69, B70 |
-| **Standalone** | 52 | B12, B19, B22, B26, B28, B34–B37, B43, B44, B46–B55, B57, B71–B99, B102–B104 |
+| **Standalone** | 54 | B12, B19, B22, B26, B28, B34–B37, B43, B44, B46–B55, B57, B71–B99, B102–B104 |
 | **Deferred** | 8 | B4, B7, B16, B20, B21, B27, B100, B101 |
 | **Rejected** | 7 | B5, B6, B13, B17, B18, B25, B45 |
-| **Total tracked** | **82** | |
+| **Total tracked** | **84** | |
 
 ### B-Number Cross-Reference (Backlog → Roadmap)
 

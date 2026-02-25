@@ -1017,7 +1017,7 @@ These flags are accepted by every command and can appear before or after the com
 | 0 | `OK` | Success |
 | 1 | `USAGE` | Invalid arguments, missing required flags, or validation error |
 | 2 | `NOT_FOUND` | The requested entity was not found (e.g., no path exists, graph not found) |
-| 3 | `INTERNAL` | Unhandled error, or audit chain integrity failure |
+| 3 | `INTERNAL` | Unhandled error, audit chain integrity failure, or `verify-index` mismatch |
 | 4 | _(doctor strict)_ | Doctor findings present with `--strict` mode |
 
 Use exit codes in scripts:

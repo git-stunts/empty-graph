@@ -120,7 +120,7 @@ src/
 |   |   +-- BitmapIndexBuilder.js    # In-memory index construction
 |   |   +-- BitmapIndexReader.js     # O(1) index queries
 |   |   +-- StreamingBitmapIndexBuilder.js  # Memory-bounded building
-|   |   +-- TraversalService.js      # Graph algorithms (deprecated facade)
+|   |   +-- LogicalTraversal.js      # Graph algorithms (deprecated facade)
 |   |   +-- GraphTraversal.js        # Unified traversal engine (11 algorithms)
 |   |   +-- MaterializedViewService.js  # Materialized view lifecycle
 |   |   +-- LogicalIndexBuildService.js # Build bitmap indexes from state
@@ -306,6 +306,16 @@ Neighbor lookup abstraction:
 
 - `getNeighbors(nodeId, direction, labelFilter)` — returns adjacent node IDs
 - Implementations: `AdjacencyNeighborProvider` (in-memory), `BitmapNeighborProvider` (bitmap-backed)
+
+#### SeekCachePort
+
+Persistent seek-cache abstraction used by `materializeAt` and cursor-bound materialization:
+
+- `get(graphName, key)` — returns `{ buffer, indexTreeOid? } | null` for a cached state snapshot
+- `set(graphName, key, buffer, { indexTreeOid? })` — stores a snapshot with optional index-tree metadata
+- `delete(graphName, key)` / `clear(graphName)` — invalidates stale seek-cache entries
+
+Implementations must preserve the optional `indexTreeOid` metadata so index hydration can skip full rebuilds on cache hits.
 
 ### Adapters (Implementations)
 

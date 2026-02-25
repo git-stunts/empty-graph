@@ -95,7 +95,7 @@ A **MaterializedView** should be a single persistent, indexed artifact produced 
 
 ### Target Architecture
 
-```
+```text
 Layer 1: Algorithms + Query (graph-agnostic)
   ┌──────────────────────────────────────────────┐
   │  BFS, DFS, topo sort, shortest path,         │
@@ -119,7 +119,7 @@ Layer 2: Storage │  (NeighborProvider implementations)
 
 ### MaterializedView Structure
 
-```
+```text
 MaterializedView (persisted as Git tree)
 ├── state.cbor              # Full CRDT state (what checkpoints do today)
 ├── frontier.cbor           # Writer frontier (staleness/cache key)
