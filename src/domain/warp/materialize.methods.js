@@ -10,6 +10,7 @@ import { reduceV5, createEmptyStateV5, cloneStateV5 } from '../services/JoinRedu
 import { ProvenanceIndex } from '../services/ProvenanceIndex.js';
 import { diffStates, isEmptyDiff } from '../services/StateDiff.js';
 import { decodePatchMessage, detectMessageKind } from '../services/WarpMessageCodec.js';
+import BitmapNeighborProvider from '../services/BitmapNeighborProvider.js';
 
 /**
  * Scans the checkpoint frontier's tip commits for the maximum observed Lamport tick.
@@ -48,6 +49,28 @@ function scanPatchesForMaxLamport(graph, patches) {
     if (tick > graph._maxObservedLamport) {
       graph._maxObservedLamport = tick;
     }
+  }
+}
+
+/**
+ * Hydrates the bitmap index from a schema:4 checkpoint's stored OIDs.
+ * Non-fatal: falls back silently if hydration fails (index was already built by _buildView).
+ *
+ * @param {import('../WarpGraph.js').default} graph
+ * @param {Object|null|undefined} checkpoint
+ */
+async function hydrateCheckpointIndex(graph, checkpoint) {
+  if (!checkpoint?.indexShardOids || !graph._viewService || !graph._persistence) {
+    return;
+  }
+  try {
+    const { logicalIndex, propertyReader } =
+      await graph._viewService.loadFromOids(checkpoint.indexShardOids, graph._persistence);
+    graph._logicalIndex = logicalIndex;
+    graph._propertyReader = propertyReader;
+    graph._materializedGraph.provider = new BitmapNeighborProvider({ logicalIndex });
+  } catch {
+    // Non-fatal — _buildView already attempted a full build
   }
 }
 
@@ -105,7 +128,7 @@ export async function materialize(options) {
     const wantDiff = !collectReceipts && !!this._cachedIndexTree;
 
     // If checkpoint exists, use incremental materialization
-    if (checkpoint?.schema === 2 || checkpoint?.schema === 3) {
+    if (checkpoint?.schema === 2 || checkpoint?.schema === 3 || checkpoint?.schema === 4) {
       const patches = await this._loadPatchesSince(checkpoint);
       // Update max observed Lamport so _nextLamport() issues globally-monotonic ticks.
       // Read the checkpoint frontier's tip commit messages to capture the pre-checkpoint max,
@@ -190,6 +213,7 @@ export async function materialize(options) {
     }
 
     await this._setMaterializedState(state, diff);
+    await hydrateCheckpointIndex(this, checkpoint);
     this._provenanceDegraded = false;
     this._cachedCeiling = null;
     this._cachedFrontier = null;

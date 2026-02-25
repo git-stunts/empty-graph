@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **IncrementalIndexUpdater: undefined label guard** — `_handleEdgeRemove` now returns early when the edge label is not in the label registry, preventing a `"undefined"` bucket from being targeted.
 - **GraphTraversal: bidirectional A\* backward weight direction** — `_biAStarExpand` now passes `weightFn(neighborId, current, label)` when expanding backward, correctly reflecting edge direction for asymmetric weight functions.
 - **JoinReducer: spurious diff entries for already-dead elements** — `snapshotBeforeOp` now captures alive-ness before `NodeRemove`/`EdgeRemove` ops, and `collectNodeRemovals`/`collectEdgeRemovals` only record transitions from alive → dead, eliminating spurious diff entries for redundant removes.
+- **Schema 4 checkpoint support in materialize** — `materialize()` now recognizes schema:4 checkpoints (previously only schema:2/3). When a schema:4 checkpoint includes `indexShardOids`, the bitmap index is hydrated from stored OIDs, avoiding a full rebuild.
 
 ### Added
 
