@@ -199,8 +199,8 @@ Supports cancellation via `AbortSignal` and progress callbacks.
 
 Unified traversal engine with 11 algorithms, operating over a `NeighborProviderPort` abstraction (in-memory via `AdjacencyNeighborProvider` or bitmap-backed via `BitmapNeighborProvider`):
 
-- `bfs()` / `dfs()` - Traversal generators
-- `shortestPath()` - Bidirectional BFS
+- `bfs()` / `dfs()` - Deterministic traversals returning ordered node arrays
+- `shortestPath()` - Unweighted shortest path (BFS-based)
 - `weightedShortestPath()` - Dijkstra with custom `weightFn` or `nodeWeightFn`
 - `aStarSearch()` - A* with heuristic guidance
 - `bidirectionalAStar()` - Bidirectional A*

@@ -1,7 +1,6 @@
 # ROADMAP — @git-stunts/git-warp
 
 > **Current version:** v12.0.0
-> **Current branch:** `fix-the-arch` (MaterializedView architecture overhaul)
 > **Last reconciled:** 2026-02-25 (backlog fully absorbed)
 
 ---
