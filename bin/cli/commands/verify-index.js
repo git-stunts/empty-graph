@@ -49,7 +49,7 @@ export default async function handleVerifyIndex({ options, args }) {
     payload: {
       graph: graphName,
       ...result,
-      total: result.passed + result.failed,
+      totalChecks: result.passed + result.failed,
     },
     exitCode: result.failed > 0 ? EXIT_CODES.INTERNAL : EXIT_CODES.OK,
   };

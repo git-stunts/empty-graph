@@ -9,6 +9,7 @@ import {
   F1_BFS_LEVEL_SORT_TRAP,
   F3_DIAMOND_EQUAL_PATHS,
   F9_UNICODE_CODEPOINT_ORDER,
+  F13_BFS_MULTI_PARENT_DEDUP,
 } from '../../../helpers/fixtureDsl.js';
 
 describe('GraphTraversal.bfs', () => {
@@ -105,6 +106,21 @@ describe('GraphTraversal.bfs', () => {
       const engine = new GraphTraversal({ provider });
       const { nodes } = await engine.bfs({ start: 'B', direction: 'both' });
       expect(nodes.sort()).toEqual(['A', 'B', 'C', 'D']);
+    });
+  });
+
+  // F13 — multi-parent dedup: B, C, E all point to D; D must not be queued 3x
+  describe('F13 — BFS_MULTI_PARENT_DEDUP', () => {
+    it('visits D exactly once despite 3 parents at the same level', async () => {
+      const provider = makeAdjacencyProvider(F13_BFS_MULTI_PARENT_DEDUP);
+      const engine = new GraphTraversal({ provider });
+      const { nodes, stats } = await engine.bfs({ start: 'A' });
+
+      // Depth 0=[A], depth 1=[B,C,E], depth 2=[D]
+      expect(nodes).toEqual(['A', 'B', 'C', 'E', 'D']);
+      // D must appear exactly once (no duplicates from multi-parent enqueue)
+      expect(nodes.filter((n) => n === 'D').length).toBe(1);
+      expect(stats.nodesVisited).toBe(5);
     });
   });
 

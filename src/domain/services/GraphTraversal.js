@@ -175,6 +175,8 @@ export default class GraphTraversal {
       currentLevel.sort((a, b) => (a.nodeId < b.nodeId ? -1 : a.nodeId > b.nodeId ? 1 : 0));
       /** @type {Array<{nodeId: string, depth: number}>} */
       const nextLevel = [];
+      /** @type {Set<string>} — dedup within this level to avoid O(E) duplicates */
+      const queued = new Set();
 
       for (const { nodeId, depth } of currentLevel) {
         if (visited.size >= maxNodes) { break; }
@@ -194,7 +196,8 @@ export default class GraphTraversal {
           this._edgesTraversed += neighbors.length;
           if (hooks?.onExpand) { hooks.onExpand(nodeId, neighbors); }
           for (const { neighborId } of neighbors) {
-            if (!visited.has(neighborId)) {
+            if (!visited.has(neighborId) && !queued.has(neighborId)) {
+              queued.add(neighborId);
               nextLevel.push({ nodeId: neighborId, depth: depth + 1 });
             }
           }
@@ -729,13 +732,14 @@ export default class GraphTraversal {
     const discovered = new Set();
     /** @type {string[]} */
     const queue = [...starts];
+    let qHead = 0;
     for (const s of starts) { discovered.add(s); }
 
-    while (queue.length > 0) {
+    while (qHead < queue.length) {
       if (discovered.size % 1000 === 0) {
         checkAborted(signal, 'topologicalSort');
       }
-      const nodeId = /** @type {string} */ (queue.shift());
+      const nodeId = /** @type {string} */ (queue[qHead++]);
       const neighbors = await this._getNeighbors(nodeId, direction, options);
       this._edgesTraversed += neighbors.length;
 
@@ -770,11 +774,12 @@ export default class GraphTraversal {
     ready.sort(lexTieBreaker);
 
     const sorted = [];
-    while (ready.length > 0 && sorted.length < maxNodes) {
+    let rHead = 0;
+    while (rHead < ready.length && sorted.length < maxNodes) {
       if (sorted.length % 1000 === 0) {
         checkAborted(signal, 'topologicalSort');
       }
-      const nodeId = /** @type {string} */ (ready.shift());
+      const nodeId = /** @type {string} */ (ready[rHead++]);
       sorted.push(nodeId);
 
       const neighbors = adjList.get(nodeId) || [];
@@ -790,6 +795,11 @@ export default class GraphTraversal {
       // Insert newly ready nodes in sorted position
       if (newlyReady.length > 0) {
         newlyReady.sort(lexTieBreaker);
+        // Compact consumed prefix before merge to keep rHead at 0
+        if (rHead > 0) {
+          ready.splice(0, rHead);
+          rHead = 0;
+        }
         this._insertSorted(ready, newlyReady);
       }
     }
@@ -1033,14 +1043,22 @@ export default class GraphTraversal {
    * @private
    */
   _insertSorted(target, items) {
-    // Merge approach: walk both arrays with pointers
+    // O(n+k) merge: build merged array from two sorted inputs
+    const merged = [];
     let ti = 0;
-    for (const item of items) {
-      while (ti < target.length && target[ti] < item) {
-        ti++;
+    let ii = 0;
+    while (ti < target.length && ii < items.length) {
+      if (target[ti] <= items[ii]) {
+        merged.push(target[ti++]);
+      } else {
+        merged.push(items[ii++]);
       }
-      target.splice(ti, 0, item);
-      ti++;
+    }
+    while (ti < target.length) { merged.push(target[ti++]); }
+    while (ii < items.length) { merged.push(items[ii++]); }
+    target.length = 0;
+    for (let i = 0; i < merged.length; i++) {
+      target.push(merged[i]);
     }
   }
 }

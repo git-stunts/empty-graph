@@ -104,4 +104,110 @@ describe('GraphTraversal.topologicalSort', () => {
       expect(sorted).toEqual(['A', 'B', 'C', 'D', 'E', 'Z']);
     });
   });
+
+  // M7 regression: O(n^2) Array.shift() replaced with two-pointer index
+  describe('M7 — two-pointer queue performance', () => {
+    it('handles wide fan-out chain without O(n^2) shift overhead', async () => {
+      // Build a graph: root -> L0_000..L0_099 -> L1_000..L1_099
+      // 201 nodes, 200 edges. BFS discovery queue grows large enough
+      // that O(n) shift per dequeue would be measurably slower.
+      const nodes = ['root'];
+      const edges = [];
+      for (let i = 0; i < 100; i++) {
+        const l0 = `L0_${String(i).padStart(3, '0')}`;
+        const l1 = `L1_${String(i).padStart(3, '0')}`;
+        nodes.push(l0, l1);
+        edges.push({ from: 'root', to: l0 });
+        edges.push({ from: l0, to: l1 });
+      }
+      const fixture = makeFixture({ nodes, edges });
+      const provider = makeAdjacencyProvider(fixture);
+      const engine = new GraphTraversal({ provider });
+
+      const { sorted, hasCycle } = await engine.topologicalSort({ start: 'root' });
+      expect(hasCycle).toBe(false);
+      expect(sorted.length).toBe(201);
+      // root first, then all L0_ in lex order, then all L1_ in lex order
+      expect(sorted[0]).toBe('root');
+      expect(sorted[1]).toBe('L0_000');
+      expect(sorted[100]).toBe('L0_099');
+      expect(sorted[101]).toBe('L1_000');
+      expect(sorted[200]).toBe('L1_099');
+    });
+
+    it('newly ready nodes with lex value below current position are still processed', async () => {
+      // A -> C -> B (B becomes ready after C is processed; B < C)
+      // Ensures the compaction in Phase 2 correctly handles items
+      // inserted before the current head position.
+      const fixture = makeFixture({
+        nodes: ['A', 'B', 'C'],
+        edges: [
+          { from: 'A', to: 'C' },
+          { from: 'C', to: 'B' },
+        ],
+      });
+      const provider = makeAdjacencyProvider(fixture);
+      const engine = new GraphTraversal({ provider });
+
+      const { sorted, hasCycle } = await engine.topologicalSort({ start: 'A' });
+      expect(hasCycle).toBe(false);
+      expect(sorted).toEqual(['A', 'C', 'B']);
+    });
+  });
+
+  // M8 regression: _insertSorted O(n+k) merge replaces O(k*n) splice
+  describe('M8 — _insertSorted merge correctness', () => {
+    it('maintains deterministic lex order when many nodes become ready simultaneously', async () => {
+      // Diamond with multiple convergence points:
+      // root -> {A, B, C, D, E} each -> sink
+      // All 5 become zero-indegree simultaneously after root is processed.
+      // After all 5 are processed, sink becomes ready.
+      const fixture = makeFixture({
+        nodes: ['root', 'A', 'B', 'C', 'D', 'E', 'sink'],
+        edges: [
+          { from: 'root', to: 'A' },
+          { from: 'root', to: 'B' },
+          { from: 'root', to: 'C' },
+          { from: 'root', to: 'D' },
+          { from: 'root', to: 'E' },
+          { from: 'A', to: 'sink' },
+          { from: 'B', to: 'sink' },
+          { from: 'C', to: 'sink' },
+          { from: 'D', to: 'sink' },
+          { from: 'E', to: 'sink' },
+        ],
+      });
+      const provider = makeAdjacencyProvider(fixture);
+      const engine = new GraphTraversal({ provider });
+
+      const { sorted, hasCycle } = await engine.topologicalSort({ start: 'root' });
+      expect(hasCycle).toBe(false);
+      expect(sorted).toEqual(['root', 'A', 'B', 'C', 'D', 'E', 'sink']);
+    });
+
+    it('interleaves newly ready nodes correctly with existing ready queue', async () => {
+      // Graph where processing one node yields newly ready nodes
+      // that interleave with existing items in the ready queue.
+      // root -> {M, Z}, M -> {A, N}, Z -> {B}
+      // After root: ready = [M, Z]
+      // Process M: A and N become ready. ready was [Z], merge [A, N] -> [A, N, Z]
+      // Process A (leaf). Process N (leaf). Process Z -> B ready. Process B.
+      const fixture = makeFixture({
+        nodes: ['root', 'M', 'Z', 'A', 'N', 'B'],
+        edges: [
+          { from: 'root', to: 'M' },
+          { from: 'root', to: 'Z' },
+          { from: 'M', to: 'A' },
+          { from: 'M', to: 'N' },
+          { from: 'Z', to: 'B' },
+        ],
+      });
+      const provider = makeAdjacencyProvider(fixture);
+      const engine = new GraphTraversal({ provider });
+
+      const { sorted, hasCycle } = await engine.topologicalSort({ start: 'root' });
+      expect(hasCycle).toBe(false);
+      expect(sorted).toEqual(['root', 'M', 'A', 'N', 'Z', 'B']);
+    });
+  });
 });

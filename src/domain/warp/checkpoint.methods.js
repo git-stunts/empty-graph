@@ -67,7 +67,7 @@ export async function createCheckpoint() {
       indexTree = tree;
     }
 
-    // 5. Call CheckpointService.create() with provenance index + index tree
+    // 5. Create checkpoint commit with provenance index + index tree
     /** @type {CorePersistence} */
     const persistence = this._persistence;
     const checkpointSha = await createCheckpointCommit({
@@ -82,13 +82,13 @@ export async function createCheckpoint() {
       indexTree,
     });
 
-    // 5. Update checkpoint ref
+    // 6. Update checkpoint ref
     const checkpointRef = buildCheckpointRef(this._graphName);
     await this._persistence.updateRef(checkpointRef, checkpointSha);
 
     this._logTiming('createCheckpoint', t0);
 
-    // 6. Return checkpoint SHA
+    // 7. Return checkpoint SHA
     return checkpointSha;
   } catch (err) {
     this._logTiming('createCheckpoint', t0, { error: /** @type {Error} */ (err) });

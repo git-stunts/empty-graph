@@ -97,6 +97,11 @@ export default class IncrementalIndexUpdater {
     // not-alive -> alive, edges touching it that are alive in the ORSet
     // become visible again. The diff only tracks explicit EdgeAdd ops,
     // not these implicit visibility transitions.
+    //
+    // Known O(E) worst-case: scans all alive edges. For genuinely new nodes
+    // (not re-adds), this scan is unnecessary since they can't have pre-existing
+    // edges. _findGlobalId returns undefined for new nodes, so this could be
+    // short-circuited — deferred for a future optimization pass.
     if (diff.nodesAdded.length > 0) {
       const addedSet = new Set(diff.nodesAdded);
       const diffEdgeSet = new Set(

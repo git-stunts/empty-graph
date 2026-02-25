@@ -33,10 +33,12 @@ function edgeCmp(a, b) {
  * @returns {Map<string, Array<{neighborId: string, label: string}>>}
  */
 function sortAdjacencyMap(adjMap) {
-  for (const [, edges] of adjMap) {
-    edges.sort(edgeCmp);
+  const result = new Map();
+  for (const [nodeId, edges] of adjMap) {
+    const sorted = edges.slice().sort(edgeCmp);
+    result.set(nodeId, sorted);
   }
-  return adjMap;
+  return result;
 }
 
 /**

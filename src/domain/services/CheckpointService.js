@@ -102,6 +102,7 @@ function partitionTreeOids(rawOids) {
  * @param {import('./ProvenanceIndex.js').ProvenanceIndex} [options.provenanceIndex] - Optional provenance index to persist
  * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for CBOR serialization
  * @param {import('../../ports/CryptoPort.js').default} [options.crypto] - CryptoPort for state hash computation
+ * @param {Record<string, Buffer>} [options.indexTree] - Optional materialized view index tree (triggers schema 4)
  * @returns {Promise<string>} The checkpoint commit SHA
  */
 export async function create({ persistence, graphName, state, frontier, parents = [], compact = true, provenanceIndex, codec, crypto, indexTree }) {

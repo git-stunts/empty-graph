@@ -66,14 +66,27 @@ describe('MaterializedViewService', () => {
       expect(receipt.nodeCount).toBe(3);
     });
 
-    it('builds a working propertyReader from state', () => {
+    it('builds a working propertyReader from state', async () => {
       const service = new MaterializedViewService();
       const state = buildTestState();
       const { propertyReader } = service.build(state);
 
       expect(propertyReader).not.toBeNull();
-      // Property reader loads from in-memory tree, so getNodeProps is sync-like
-      // but the reader API is async — use await
+
+      // Verify property reader returns correct node properties
+      const propsA = await propertyReader.getNodeProps('A');
+      expect(propsA).toEqual({ name: 'Alice' });
+
+      const propsB = await propertyReader.getNodeProps('B');
+      expect(propsB).toEqual({ role: 'admin' });
+
+      // Node with no properties returns null
+      const propsC = await propertyReader.getNodeProps('C');
+      expect(propsC).toBeNull();
+
+      // Non-existent node returns null
+      const propsZ = await propertyReader.getNodeProps('Z');
+      expect(propsZ).toBeNull();
     });
 
     it('logicalIndex getEdges returns correct edges', () => {

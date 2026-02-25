@@ -24,18 +24,7 @@ import MaterializedViewService from '../../../../src/domain/services/Materialize
 import BitmapNeighborProvider from '../../../../src/domain/services/BitmapNeighborProvider.js';
 import AdjacencyNeighborProvider from '../../../../src/domain/services/AdjacencyNeighborProvider.js';
 import { createEmptyDiff } from '../../../../src/domain/types/PatchDiff.js';
-
-// ── Mulberry32 PRNG ─────────────────────────────────────────────────────────
-
-function mulberry32(seed) {
-  let s = seed | 0;
-  return function () {
-    s = (s + 0x6d2b79f5) | 0;
-    let t = Math.imul(s ^ (s >>> 15), 1 | s);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
+import { createRng } from '../../../helpers/seededRng.js';
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
@@ -49,8 +38,8 @@ const PROP_VALUES = ['Alice', 'Bob', 42, true, null, 'active', 'red', 0, ''];
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
-function pick(rng, arr) {
-  return arr[Math.floor(rng() * arr.length)];
+function pick(nextFn, arr) {
+  return arr[Math.floor(nextFn() * arr.length)];
 }
 
 function makeSha(seed, lamport) {
@@ -63,7 +52,7 @@ function makeSha(seed, lamport) {
  * Also applies ops to a tracking state so removals target real alive entities.
  */
 function generatePatches(seed) {
-  const rng = mulberry32(seed);
+  const rng = createRng(seed).next;
   const patchCount = 10 + Math.floor(rng() * 41); // 10-50
   const writer = `w${seed}`;
   const patches = [];

@@ -184,6 +184,13 @@ export default class ObserverView {
     /** @type {import('../WarpGraph.js').default} */
     this._graph = graph;
 
+    /**
+     * Cast safety: LogicalTraversal requires the following methods from the
+     * graph-like object it wraps:
+     *   - hasNode(nodeId): Promise<boolean>          (line ~96 in LogicalTraversal)
+     *   - _materializeGraph(): Promise<{adjacency}>  (line ~94 in LogicalTraversal)
+     * ObserverView implements both: hasNode() at line ~242, _materializeGraph() at line ~214.
+     */
     /** @type {LogicalTraversal} */
     this.traverse = new LogicalTraversal(/** @type {import('../WarpGraph.js').default} */ (/** @type {unknown} */ (this)));
   }
@@ -311,6 +318,15 @@ export default class ObserverView {
    * @returns {QueryBuilder} A query builder scoped to this observer
    */
   query() {
+    /**
+     * Cast safety: QueryBuilder requires the following methods from the
+     * graph-like object it wraps:
+     *   - getNodes(): Promise<string[]>                  (line ~680 in QueryBuilder)
+     *   - getNodeProps(nodeId): Promise<Map|null>         (lines ~691, ~757, ~806 in QueryBuilder)
+     *   - _materializeGraph(): Promise<{adjacency, stateHash}>  (line ~678 in QueryBuilder)
+     * ObserverView implements all three: getNodes() at line ~254, getNodeProps() at line ~268,
+     * _materializeGraph() at line ~214.
+     */
     return new QueryBuilder(/** @type {import('../WarpGraph.js').default} */ (/** @type {unknown} */ (this)));
   }
 }

@@ -752,6 +752,10 @@ function mergeEdgeBirthEvent(a, b) {
  *          Returns state directly when no options;
  *          returns {state, receipts} when receipts is true;
  *          returns {state, diff} when trackDiff is true
+ *
+ * @note When initialState is provided, the returned diff records transitions
+ * relative to that state. The caller must ensure any index tree passed to
+ * IncrementalIndexUpdater was built from the same initialState.
  */
 export function reduceV5(patches, initialState, options) {
   const state = initialState ? cloneStateV5(initialState) : createEmptyStateV5();

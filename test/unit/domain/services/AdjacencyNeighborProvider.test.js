@@ -115,4 +115,51 @@ describe('AdjacencyNeighborProvider', () => {
       { neighborId: 'y', label: 'b' },
     ]);
   });
+
+  // M9 regression: sortAdjacencyMap must not mutate caller's data in-place
+  describe('M9 — no in-place mutation of caller data', () => {
+    it('does not mutate the original outgoing/incoming arrays', () => {
+      const outgoing = new Map([
+        ['a', [
+          { neighborId: 'c', label: 'manages' },
+          { neighborId: 'b', label: 'knows' },
+        ]],
+      ]);
+      const incoming = new Map([
+        ['b', [{ neighborId: 'a', label: 'knows' }]],
+        ['c', [{ neighborId: 'a', label: 'manages' }]],
+      ]);
+
+      // Snapshot the original order before construction
+      const originalOutA = outgoing.get('a').map((e) => ({ ...e }));
+
+      // Construction triggers sortAdjacencyMap internally
+      new AdjacencyNeighborProvider({ outgoing, incoming });
+
+      // Caller's original arrays must be unmodified
+      expect(outgoing.get('a')).toEqual(originalOutA);
+      // Specifically: 'c' was first in the original, if sorted in-place 'b' would be first
+      expect(outgoing.get('a')[0].neighborId).toBe('c');
+    });
+
+    it('two providers from same source data are independent', async () => {
+      const edges1 = [
+        { from: 'x', to: 'z', label: 'b' },
+        { from: 'x', to: 'y', label: 'a' },
+      ];
+      const maps = buildMaps(edges1);
+
+      const p1 = new AdjacencyNeighborProvider(maps);
+      const p2 = new AdjacencyNeighborProvider(maps);
+
+      // Both should return sorted results independently
+      const r1 = await p1.getNeighbors('x', 'out');
+      const r2 = await p2.getNeighbors('x', 'out');
+      expect(r1).toEqual([
+        { neighborId: 'y', label: 'a' },
+        { neighborId: 'z', label: 'b' },
+      ]);
+      expect(r2).toEqual(r1);
+    });
+  });
 });

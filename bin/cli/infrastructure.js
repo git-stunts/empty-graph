@@ -92,7 +92,7 @@ Verify-audit options:
 
 Verify-index options:
   --seed <n>              PRNG seed for reproducible sampling
-  --sample-rate <0.1>     Fraction of nodes to verify (0-1)
+  --sample-rate <rate>    Fraction of nodes to verify (0-1, default 0.1)
 
 Trust options:
   --mode <warn|enforce> Override trust evaluation mode

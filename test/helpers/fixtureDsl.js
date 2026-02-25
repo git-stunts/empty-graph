@@ -347,6 +347,31 @@ export const F12_STABLE_IDS = {
   overflowNextLocalId: 2 ** 24,
 };
 
+/**
+ * F13 — BFS_MULTI_PARENT_DEDUP
+ *
+ * Multiple parents in the same BFS level all point to the same child D.
+ * Without dedup in nextLevel, D would appear 3 times in the queue.
+ * Correct BFS should only enqueue D once and visit it once.
+ *
+ *     A
+ *    /|\
+ *   B C E
+ *    \|/
+ *     D
+ */
+export const F13_BFS_MULTI_PARENT_DEDUP = makeFixture({
+  nodes: ['A', 'B', 'C', 'D', 'E'],
+  edges: [
+    { from: 'A', to: 'B' },
+    { from: 'A', to: 'C' },
+    { from: 'A', to: 'E' },
+    { from: 'B', to: 'D' },
+    { from: 'C', to: 'D' },
+    { from: 'E', to: 'D' },
+  ],
+});
+
 // ── Utility: weight function from a Map ─────────────────────────────────────
 
 /**

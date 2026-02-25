@@ -210,6 +210,15 @@ export class TemporalQuery {
    * patches already covered by it. Otherwise falls back to an
    * empty state starting from index 0.
    *
+   * **Checkpoint `maxLamport` invariant**: The checkpoint's `maxLamport` value
+   * MUST represent a fully-closed Lamport tick — i.e. ALL patches with
+   * `lamport <= maxLamport` are included in the checkpoint state. The
+   * `findIndex` below uses strict `>` to locate the first patch *after* the
+   * checkpoint boundary. If a checkpoint were created mid-tick (some but not
+   * all patches at a given Lamport value included), this would silently skip
+   * the remaining same-tick patches. Checkpoint creators MUST guarantee the
+   * all-or-nothing inclusion property for any given Lamport tick.
+   *
    * @param {Array<{patch: Object, sha: string}>} allPatches
    * @param {number} since - Minimum Lamport tick
    * @returns {Promise<{state: import('./JoinReducer.js').WarpStateV5, startIdx: number}>}
