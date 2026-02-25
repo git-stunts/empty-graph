@@ -49,21 +49,23 @@ export default class LogicalIndexBuildService {
       indexBuilder.loadExistingLabels(options.existingLabels);
     }
 
-    // 1. Register and mark alive all visible nodes
-    const aliveNodes = orsetElements(state.nodeAlive);
+    // 1. Register and mark alive all visible nodes (sorted for deterministic ID assignment)
+    const aliveNodes = [...orsetElements(state.nodeAlive)].sort();
     for (const nodeId of aliveNodes) {
       indexBuilder.registerNode(nodeId);
       indexBuilder.markAlive(nodeId);
     }
 
-    // 2. Collect visible edges and register labels
+    // 2. Collect visible edges and register labels (sorted for deterministic ID assignment)
     const visibleEdges = [];
     for (const edgeKey of orsetElements(state.edgeAlive)) {
       if (edgeVisibleV5(state, edgeKey)) {
-        const { from, to, label } = decodeEdgeKey(edgeKey);
-        indexBuilder.registerLabel(label);
-        visibleEdges.push({ from, to, label });
+        visibleEdges.push(decodeEdgeKey(edgeKey));
       }
+    }
+    const uniqueLabels = [...new Set(visibleEdges.map(e => e.label))].sort();
+    for (const label of uniqueLabels) {
+      indexBuilder.registerLabel(label);
     }
 
     // 3. Add edges
