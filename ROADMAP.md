@@ -24,11 +24,11 @@
 | 12 | SEEKDIFF | v10.5.0 | Structural Seek Diff |
 | M1 | IRON DOME | v11.0.0 | Security & Protocol Hardening |
 | M2 | FOUNDATION LIFT | v11.1.0 | Developer Velocity for Correctness |
-| M3 | GHOST PROTOCOL | v11.0.0 | Immutable Audit Trail |
-| M4 | VERIFY OR IT DIDN'T HAPPEN | v11.0.0 | Cryptographic Verification |
-| M5 | CLI DECOMPOSITION | v11.0.0 | Maintainability |
-| M6 | SAFE ERGONOMICS | v11.0.0 | Single-Await API |
-| M7 | TRUST V1 | v11.0.0 | Cryptographic Identity-Backed Trust |
+| M3 | GHOST PROTOCOL | v11.1.0 | Immutable Audit Trail |
+| M4 | VERIFY OR IT DIDN'T HAPPEN | v11.1.0 | Cryptographic Verification |
+| M5 | CLI DECOMPOSITION | v11.1.0 | Maintainability |
+| M6 | SAFE ERGONOMICS | v11.1.0 | Single-Await API |
+| M7 | TRUST V1 | v11.1.0 | Cryptographic Identity-Backed Trust |
 | M8 | IRONCLAD | v11.x | Type Safety |
 | M9 | PARTITION | v12.0.0 | Architectural Decomposition |
 
@@ -209,14 +209,14 @@ Items picked up opportunistically without blocking milestones. No milestone assi
 
 | ID | Item |
 |----|------|
-| B83 | **DEDUP CI `type-firewall` AND `lint` JOBS** — merge into one job (add `npm audit` to `type-firewall`, drop `lint`) or chain with `needs:`. From B-CI-1. **File:** `.github/workflows/ci.yml` |
+| B83 | **DEDUP CI `type-firewall` AND `lint` JOBS** — merge into one job (add `npm audit` to `type-firewall`, drop `lint`) or chain with `needs:`. From B-CI-1. **File:** GitHub workflow file `.github/workflows/ci.yml` |
 | B84 | **SURFACE VALIDATOR QUIET MODE** — `--quiet` flag or summary count instead of 80 per-export warning lines. From B-CI-2. **File:** `scripts/check-dts-surface.js` |
 | B85 | **TYPE-ONLY EXPORT MANIFEST SECTION** — `typeExports` section in `type-surface.m8.json` to catch accidental type removal from `index.d.ts`. From B-CI-3. **Files:** `contracts/type-surface.m8.json`, `scripts/check-dts-surface.js` |
-| B86 | **MARKDOWNLINT CI GATE** — catch MD040 (missing code fence language) etc. From B-DOC-1. **File:** `.github/workflows/ci.yml` |
+| B86 | **MARKDOWNLINT CI GATE** — catch MD040 (missing code fence language) etc. From B-DOC-1. **File:** GitHub workflow file `.github/workflows/ci.yml` |
 | B87 | **CODE SAMPLE LINTER** — syntax-check JS/TS code blocks in markdown files via `eslint-plugin-markdown` or custom extractor. From B-DOC-2. **Files:** new script, `docs/**/*.md` |
-| B88 | **MERMAID RENDERING SMOKE TEST** — parse all ` ```mermaid ` blocks with `@mermaid-js/mermaid-cli` in CI. From B-DIAG-2. **File:** `.github/workflows/ci.yml` or `scripts/` |
+| B88 | **MERMAID RENDERING SMOKE TEST** — parse all ` ```mermaid ` blocks with `@mermaid-js/mermaid-cli` in CI. From B-DIAG-2. **File:** GitHub workflow file `.github/workflows/ci.yml` or `scripts/` |
 | B89 | **VERSION CONSISTENCY GATE** — CI gate checking every `## [X.Y.Z]` CHANGELOG heading against `package.json`/`jsr.json`. From B-REL-1. **File:** new script in `scripts/` |
-| B90 | **PREFLIGHT BOT CHANGELOG CHECK** — cross-check `package version` against CHANGELOG heading existence. From B-REL-2. **File:** `.github/workflows/` |
+| B90 | **PREFLIGHT BOT CHANGELOG CHECK** — cross-check `package version` against CHANGELOG heading existence. From B-REL-2. **File:** GitHub workflows directory `.github/workflows/` |
 
 ### Surface Validator Pack
 

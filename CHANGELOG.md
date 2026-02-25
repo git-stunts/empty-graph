@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Traversal and verification regressions** — fixed `topologicalSort()` false cycle detection when output is truncated by `maxNodes`; `commonAncestors()` now reports aggregate stats across all internal BFS runs instead of only the last run; `verifyIndex()` now flags alive-bit mismatches even for isolated nodes with empty edge signatures.
 - **Fixture DSL Lamport fidelity** — `fixtureToState()` now honors explicit `props[].lamport` ticks, preventing fixture-order artifacts in property precedence tests.
 - **Determinism/regression test hardening** — added tests ensuring `LogicalBitmapIndexBuilder` does not duplicate shard mappings when re-registering nodes after `loadExistingMeta`, `LogicalIndexReader` unfiltered edges equal filtered-label unions with deterministic `(neighborId, label)` ordering, and `PropertyIndexBuilder` serializes equivalent property sets identically across operation orders.
+- **Temporal/query and fixture safety guards** — `TemporalQuery` now clones checkpoint state before replay (preventing cross-query mutation when providers reuse checkpoint objects), `PropertyIndexReader` now throws on malformed non-array shard payloads instead of silently returning empty data, and `makeFixture()` now validates `props` and tombstone references against declared nodes/edges.
 
 ### Changed
 
@@ -28,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`ObserverView` batched provider calls** — `buildAdjacencyViaProvider()` now batches `getNeighbors()` calls in chunks of 64 via `Promise.all` instead of sequential awaits.
 - **Backlog reconciliation** — absorbed all 39 BACKLOG.md items into ROADMAP.md with B-numbers B66–B104. Added Milestone 12 (SCALPEL) for algorithmic performance audit fixes. Expanded Standalone Lane from 20 to 52 items across 11 priority tiers. Added cross-reference table and inventory. BACKLOG.md cleared to skeleton.
 - **Seek cache contract alignment** — synchronized `ARCHITECTURE.md` and `index.d.ts` `SeekCachePort` signatures with runtime behavior: key-based methods and optional `indexTreeOid` metadata on cache entries.
+- **MaterializedView/docs runtime naming alignment** — updated architecture lifecycle docs to reference `build() -> persistIndexTree() -> loadFromOids()` plus incremental `applyDiff()` and `verifyIndex()`, and switched Deno compose `--allow-scripts` to package-name form (`npm:roaring,npm:cbor-extract`) with an explicit sync note to reduce version-drift failures.
 
 ## [12.0.0] — 2026-02-25
 

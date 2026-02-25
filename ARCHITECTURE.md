@@ -251,7 +251,7 @@ Orchestrates the full materialized view lifecycle — build, persist, and load:
 - Coordinates `JoinReducer` (patch replay), `LogicalIndexBuildService` (bitmap index construction), and `CheckpointService` (state snapshots)
 - Supports checkpoint schema 4 with embedded bitmap indexes
 - `IncrementalIndexUpdater` enables O(diff) bitmap index updates when only a few patches have arrived since the last checkpoint
-- Lifecycle: `build()` → `persist()` → `load()`, with incremental `update()` for hot paths
+- Lifecycle: `build()` → `persistIndexTree()` → `loadFromOids()`, with incremental `applyDiff()` for hot paths and integrity checks via `verifyIndex()`
 
 #### NeighborProviderPort
 
