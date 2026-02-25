@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **IncrementalIndexUpdater: overflow guard** — `_handleNodeAdd` now throws `ShardIdOverflowError` when a shard's `nextLocalId` reaches 2^24, matching the full-build path and preventing silent globalId collisions across shards.
+- **IncrementalIndexUpdater: undefined label guard** — `_handleEdgeRemove` now returns early when the edge label is not in the label registry, preventing a `"undefined"` bucket from being targeted.
+
 ### Added
 
 - **MaterializedView unification** — Phase 3: single service orchestrating build, persist, and load of the bitmap index + property reader as a coherent materialized view.

@@ -13,6 +13,10 @@ import computeShardKey from '../utils/shardKey.js';
 import { getRoaringBitmap32 } from '../utils/roaring.js';
 import { orsetContains, orsetElements } from '../crdt/ORSet.js';
 import { decodeEdgeKey } from './KeyCodec.js';
+import { ShardIdOverflowError } from '../errors/index.js';
+
+/** Maximum local IDs per shard byte (2^24). */
+const MAX_LOCAL_ID = 1 << 24;
 
 /**
  * @typedef {Object} MetaShard
@@ -175,6 +179,13 @@ export default class IncrementalIndexUpdater {
     if (existing !== undefined) {
       meta.aliveBitmap.add(existing);
       return;
+    }
+    if (meta.nextLocalId >= MAX_LOCAL_ID) {
+      const sk = computeShardKey(nodeId);
+      throw new ShardIdOverflowError(
+        `Shard ${sk} exceeded 2^24 local IDs`,
+        { shardKey: sk, nextLocalId: meta.nextLocalId },
+      );
     }
     const shardByte = parseInt(computeShardKey(nodeId), 16);
     const globalId = ((shardByte << 24) | meta.nextLocalId) >>> 0;
@@ -389,6 +400,10 @@ export default class IncrementalIndexUpdater {
     const fromGid = this._findGlobalId(fromMeta, edge.from);
     const toGid = this._findGlobalId(toMeta, edge.to);
     if (fromGid === undefined || toGid === undefined) {
+      return;
+    }
+
+    if (labels[edge.label] === undefined) {
       return;
     }
 

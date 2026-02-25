@@ -3,3 +3,4 @@ node_modules/
 .vite/
 coverage/
 CLAUDE.md
+TASKS-DO-NOT-CHECK-IN.md

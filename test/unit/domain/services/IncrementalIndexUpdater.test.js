@@ -8,6 +8,7 @@ import { createEventId } from '../../../../src/domain/utils/EventId.js';
 import defaultCodec from '../../../../src/domain/utils/defaultCodec.js';
 import computeShardKey from '../../../../src/domain/utils/shardKey.js';
 import { getRoaringBitmap32 } from '../../../../src/domain/utils/roaring.js';
+import { ShardIdOverflowError } from '../../../../src/domain/errors/index.js';
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -157,6 +158,47 @@ describe('IncrementalIndexUpdater', () => {
       expect(index3.getGlobalId('A')).toBe(originalGid);
       expect(index3.isAlive('A')).toBe(true);
     });
+
+    it('throws ShardIdOverflowError when shard exceeds 2^24 local IDs', () => {
+      // Pick two nodeIds that hash to the same shard
+      const nodeA = 'A';
+      const shardKey = computeShardKey(nodeA);
+      let nodeB;
+      for (let i = 0; i < 10000; i++) {
+        const candidate = `node${i}`;
+        if (computeShardKey(candidate) === shardKey) {
+          nodeB = candidate;
+          break;
+        }
+      }
+
+      const state = buildState({ nodes: [nodeA], edges: [], props: [] });
+      const tree = buildTree(state);
+
+      // Tamper with the meta shard: push nextLocalId to the limit
+      const metaBuf = tree[`meta_${shardKey}.cbor`];
+      const meta = defaultCodec.decode(metaBuf);
+      meta.nextLocalId = (1 << 24);
+      tree[`meta_${shardKey}.cbor`] = defaultCodec.encode(meta);
+
+      // Attempting to add a new node in the same shard should overflow
+      const diff = {
+        nodesAdded: [nodeB],
+        nodesRemoved: [],
+        edgesAdded: [],
+        edgesRemoved: [],
+        propsChanged: [],
+      };
+
+      const updater = new IncrementalIndexUpdater();
+      expect(() =>
+        updater.computeDirtyShards({
+          diff,
+          state,
+          loadShard: (path) => tree[path],
+        }),
+      ).toThrow(ShardIdOverflowError);
+    });
   });
 
   describe('NodeRemove', () => {
@@ -286,6 +328,38 @@ describe('IncrementalIndexUpdater', () => {
       const knowsLabelId = labels.get('knows');
       const knowsEdges = index2.getEdges('A', 'out', knowsLabelId !== undefined ? [knowsLabelId] : []);
       expect(knowsEdges.length).toBe(0);
+    });
+
+    it('safely no-ops when removing an edge with an unregistered label', () => {
+      const state = buildState({
+        nodes: ['A', 'B'],
+        edges: [{ from: 'A', to: 'B', label: 'knows' }],
+        props: [],
+      });
+      const tree1 = buildTree(state);
+
+      // Attempt to remove an edge whose label was never indexed
+      const diff = {
+        nodesAdded: [],
+        nodesRemoved: [],
+        edgesAdded: [],
+        edgesRemoved: [{ from: 'A', to: 'B', label: 'NEVER_REGISTERED' }],
+        propsChanged: [],
+      };
+
+      const updater = new IncrementalIndexUpdater();
+      // Should not throw — unregistered label means edge was never indexed
+      const dirtyShards = updater.computeDirtyShards({
+        diff,
+        state,
+        loadShard: (path) => tree1[path],
+      });
+
+      // The 'knows' edge should be unaffected
+      const tree2 = { ...tree1, ...dirtyShards };
+      const index2 = readIndex(tree2);
+      const aOutEdges = index2.getEdges('A', 'out');
+      expect(aOutEdges.find((e) => e.label === 'knows' && e.neighborId === 'B')).toBeDefined();
     });
   });
 
