@@ -1,0 +1,436 @@
+import { describe, it, expect } from 'vitest';
+import IncrementalIndexUpdater from '../../../../src/domain/services/IncrementalIndexUpdater.js';
+import LogicalIndexBuildService from '../../../../src/domain/services/LogicalIndexBuildService.js';
+import LogicalIndexReader from '../../../../src/domain/services/LogicalIndexReader.js';
+import { createEmptyStateV5, applyOpV2 } from '../../../../src/domain/services/JoinReducer.js';
+import { createDot } from '../../../../src/domain/crdt/Dot.js';
+import { createEventId } from '../../../../src/domain/utils/EventId.js';
+import defaultCodec from '../../../../src/domain/utils/defaultCodec.js';
+import computeShardKey from '../../../../src/domain/utils/shardKey.js';
+import { getRoaringBitmap32 } from '../../../../src/domain/utils/roaring.js';
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+
+/** Builds a WarpStateV5 from a simple fixture definition. */
+function buildState({ nodes, edges, props }) {
+  const state = createEmptyStateV5();
+  const writer = 'w1';
+  const sha = 'a'.repeat(40);
+  let opIdx = 0;
+  let lamport = 1;
+
+  for (const nodeId of nodes) {
+    const dot = createDot(writer, lamport);
+    const eventId = createEventId(lamport, writer, sha, opIdx++);
+    applyOpV2(state, { type: 'NodeAdd', node: nodeId, dot }, eventId);
+    lamport++;
+  }
+
+  for (const { from, to, label } of edges) {
+    const dot = createDot(writer, lamport);
+    const eventId = createEventId(lamport, writer, sha, opIdx++);
+    applyOpV2(state, { type: 'EdgeAdd', from, to, label, dot }, eventId);
+    lamport++;
+  }
+
+  for (const { nodeId, key, value } of (props || [])) {
+    const eventId = createEventId(lamport, writer, sha, opIdx++);
+    applyOpV2(state, { type: 'PropSet', node: nodeId, key, value }, eventId);
+    lamport++;
+  }
+
+  return state;
+}
+
+/** Builds a full index tree and returns it. */
+function buildTree(state) {
+  const svc = new LogicalIndexBuildService();
+  return svc.build(state).tree;
+}
+
+/** Hydrates a LogicalIndex from a tree for assertions. */
+function readIndex(tree) {
+  return new LogicalIndexReader().loadFromTree(tree).toLogicalIndex();
+}
+
+/** Decodes a meta shard from the tree. */
+function decodeMeta(tree, shardKey) {
+  const buf = tree[`meta_${shardKey}.cbor`];
+  if (!buf) return null;
+  return defaultCodec.decode(buf);
+}
+
+/** Decodes props shard from the tree. */
+function decodeProps(tree, shardKey) {
+  const buf = tree[`props_${shardKey}.cbor`];
+  if (!buf) return null;
+  const decoded = defaultCodec.decode(buf);
+  const map = new Map();
+  if (Array.isArray(decoded)) {
+    for (const [nodeId, props] of decoded) {
+      map.set(nodeId, props);
+    }
+  }
+  return map;
+}
+
+describe('IncrementalIndexUpdater', () => {
+  describe('NodeAdd', () => {
+    it('adds node to correct meta shard and sets alive bit', () => {
+      // Start with A, B
+      const state1 = buildState({ nodes: ['A', 'B'], edges: [], props: [] });
+      const tree1 = buildTree(state1);
+
+      // After adding C
+      const state2 = buildState({ nodes: ['A', 'B', 'C'], edges: [], props: [] });
+
+      const diff = {
+        nodesAdded: ['C'],
+        nodesRemoved: [],
+        edgesAdded: [],
+        edgesRemoved: [],
+        propsChanged: [],
+      };
+
+      const updater = new IncrementalIndexUpdater();
+      const dirtyShards = updater.computeDirtyShards({
+        diff,
+        state: state2,
+        loadShard: (path) => tree1[path],
+      });
+
+      // Only the meta shard for C should be dirty
+      const cShardKey = computeShardKey('C');
+      expect(dirtyShards[`meta_${cShardKey}.cbor`]).toBeDefined();
+
+      // Merge and verify
+      const tree2 = { ...tree1, ...dirtyShards };
+      const index = readIndex(tree2);
+      expect(index.isAlive('C')).toBe(true);
+      expect(index.getGlobalId('C')).toBeDefined();
+
+      // A and B should still be alive
+      expect(index.isAlive('A')).toBe(true);
+      expect(index.isAlive('B')).toBe(true);
+    });
+
+    it('reactivates a previously removed node without allocating new globalId', () => {
+      // Build with A, B
+      const state1 = buildState({ nodes: ['A', 'B'], edges: [], props: [] });
+      const tree1 = buildTree(state1);
+      const index1 = readIndex(tree1);
+      const originalGid = index1.getGlobalId('A');
+
+      // Simulate A removed
+      const removeDiff = {
+        nodesAdded: [],
+        nodesRemoved: ['A'],
+        edgesAdded: [],
+        edgesRemoved: [],
+        propsChanged: [],
+      };
+      const updater = new IncrementalIndexUpdater();
+      const removed = updater.computeDirtyShards({
+        diff: removeDiff,
+        state: state1,
+        loadShard: (path) => tree1[path],
+      });
+      const tree2 = { ...tree1, ...removed };
+
+      // Now re-add A
+      const readdDiff = {
+        nodesAdded: ['A'],
+        nodesRemoved: [],
+        edgesAdded: [],
+        edgesRemoved: [],
+        propsChanged: [],
+      };
+      const readded = updater.computeDirtyShards({
+        diff: readdDiff,
+        state: state1,
+        loadShard: (path) => tree2[path],
+      });
+      const tree3 = { ...tree2, ...readded };
+      const index3 = readIndex(tree3);
+
+      // Same globalId, alive again
+      expect(index3.getGlobalId('A')).toBe(originalGid);
+      expect(index3.isAlive('A')).toBe(true);
+    });
+  });
+
+  describe('NodeRemove', () => {
+    it('clears alive bit but preserves globalId', () => {
+      const state = buildState({ nodes: ['A', 'B'], edges: [], props: [] });
+      const tree1 = buildTree(state);
+      const index1 = readIndex(tree1);
+      const originalGid = index1.getGlobalId('A');
+
+      const diff = {
+        nodesAdded: [],
+        nodesRemoved: ['A'],
+        edgesAdded: [],
+        edgesRemoved: [],
+        propsChanged: [],
+      };
+
+      const updater = new IncrementalIndexUpdater();
+      const dirtyShards = updater.computeDirtyShards({
+        diff,
+        state,
+        loadShard: (path) => tree1[path],
+      });
+
+      const tree2 = { ...tree1, ...dirtyShards };
+      const index2 = readIndex(tree2);
+
+      expect(index2.isAlive('A')).toBe(false);
+      // globalId is still allocated in meta
+      expect(index2.getGlobalId('A')).toBe(originalGid);
+      // B unaffected
+      expect(index2.isAlive('B')).toBe(true);
+    });
+  });
+
+  describe('EdgeAdd', () => {
+    it('populates fwd and rev shards and creates label if new', () => {
+      const state = buildState({
+        nodes: ['A', 'B'],
+        edges: [{ from: 'A', to: 'B', label: 'knows' }],
+        props: [],
+      });
+      const tree1 = buildTree(state);
+
+      // Add a new edge with a new label
+      const state2 = buildState({
+        nodes: ['A', 'B'],
+        edges: [
+          { from: 'A', to: 'B', label: 'knows' },
+          { from: 'B', to: 'A', label: 'likes' },
+        ],
+        props: [],
+      });
+
+      const diff = {
+        nodesAdded: [],
+        nodesRemoved: [],
+        edgesAdded: [{ from: 'B', to: 'A', label: 'likes' }],
+        edgesRemoved: [],
+        propsChanged: [],
+      };
+
+      const updater = new IncrementalIndexUpdater();
+      const dirtyShards = updater.computeDirtyShards({
+        diff,
+        state: state2,
+        loadShard: (path) => tree1[path],
+      });
+
+      // labels.cbor should be dirty (new label 'likes')
+      expect(dirtyShards['labels.cbor']).toBeDefined();
+
+      const tree2 = { ...tree1, ...dirtyShards };
+      const index2 = readIndex(tree2);
+
+      // Forward: B -> A via 'likes'
+      const bOutEdges = index2.getEdges('B', 'out');
+      const likesEdge = bOutEdges.find((e) => e.label === 'likes' && e.neighborId === 'A');
+      expect(likesEdge).toBeDefined();
+
+      // Reverse: A <- B via 'likes'
+      const aInEdges = index2.getEdges('A', 'in');
+      const revLikesEdge = aInEdges.find((e) => e.label === 'likes' && e.neighborId === 'B');
+      expect(revLikesEdge).toBeDefined();
+    });
+  });
+
+  describe('EdgeRemove with multi-label same neighbor', () => {
+    it('keeps neighbor in "all" bitmap when one label removed but another remains', () => {
+      // Build: A --knows--> B and A --likes--> B
+      const state = buildState({
+        nodes: ['A', 'B'],
+        edges: [
+          { from: 'A', to: 'B', label: 'knows' },
+          { from: 'A', to: 'B', label: 'likes' },
+        ],
+        props: [],
+      });
+      const tree1 = buildTree(state);
+
+      // Remove only 'knows' edge
+      const diff = {
+        nodesAdded: [],
+        nodesRemoved: [],
+        edgesAdded: [],
+        edgesRemoved: [{ from: 'A', to: 'B', label: 'knows' }],
+        propsChanged: [],
+      };
+
+      const updater = new IncrementalIndexUpdater();
+      const dirtyShards = updater.computeDirtyShards({
+        diff,
+        state,
+        loadShard: (path) => tree1[path],
+      });
+
+      const tree2 = { ...tree1, ...dirtyShards };
+      const index2 = readIndex(tree2);
+
+      // 'likes' edge should still exist
+      const aOutEdges = index2.getEdges('A', 'out');
+      const likesEdge = aOutEdges.find((e) => e.label === 'likes' && e.neighborId === 'B');
+      expect(likesEdge).toBeDefined();
+
+      // 'knows' per-label should be gone
+      const labels = index2.getLabelRegistry();
+      const knowsLabelId = labels.get('knows');
+      const knowsEdges = index2.getEdges('A', 'out', knowsLabelId !== undefined ? [knowsLabelId] : []);
+      expect(knowsEdges.length).toBe(0);
+    });
+  });
+
+  describe('PropSet', () => {
+    it('updates props shard for affected node', () => {
+      const state = buildState({
+        nodes: ['A'],
+        edges: [],
+        props: [{ nodeId: 'A', key: 'name', value: 'Alice' }],
+      });
+      const tree1 = buildTree(state);
+
+      const diff = {
+        nodesAdded: [],
+        nodesRemoved: [],
+        edgesAdded: [],
+        edgesRemoved: [],
+        propsChanged: [{ nodeId: 'A', key: 'name', value: 'Bob', prevValue: 'Alice' }],
+      };
+
+      const updater = new IncrementalIndexUpdater();
+      const dirtyShards = updater.computeDirtyShards({
+        diff,
+        state,
+        loadShard: (path) => tree1[path],
+      });
+
+      const shardKey = computeShardKey('A');
+      expect(dirtyShards[`props_${shardKey}.cbor`]).toBeDefined();
+
+      const tree2 = { ...tree1, ...dirtyShards };
+      const propsMap = decodeProps(tree2, shardKey);
+      expect(propsMap.get('A').name).toBe('Bob');
+    });
+  });
+
+  describe('proto pollution safety', () => {
+    it('handles __proto__ and constructor nodeIds without poisoning', () => {
+      const state = buildState({
+        nodes: ['__proto__', 'constructor'],
+        edges: [],
+        props: [],
+      });
+      const tree1 = buildTree(state);
+
+      // Add a new prop to __proto__
+      const diff = {
+        nodesAdded: [],
+        nodesRemoved: [],
+        edgesAdded: [],
+        edgesRemoved: [],
+        propsChanged: [{ nodeId: '__proto__', key: 'x', value: 1, prevValue: undefined }],
+      };
+
+      const updater = new IncrementalIndexUpdater();
+      const dirtyShards = updater.computeDirtyShards({
+        diff,
+        state,
+        loadShard: (path) => tree1[path],
+      });
+
+      const shardKey = computeShardKey('__proto__');
+      const tree2 = { ...tree1, ...dirtyShards };
+      const propsMap = decodeProps(tree2, shardKey);
+
+      // Should be safe — no prototype poisoning
+      expect(propsMap.get('__proto__').x).toBe(1);
+      expect({}.x).toBeUndefined();
+    });
+  });
+
+  describe('empty diff', () => {
+    it('returns empty object when diff has no changes', () => {
+      const state = buildState({ nodes: ['A'], edges: [], props: [] });
+      const tree1 = buildTree(state);
+
+      const diff = {
+        nodesAdded: [],
+        nodesRemoved: [],
+        edgesAdded: [],
+        edgesRemoved: [],
+        propsChanged: [],
+      };
+
+      const updater = new IncrementalIndexUpdater();
+      const dirtyShards = updater.computeDirtyShards({
+        diff,
+        state,
+        loadShard: (path) => tree1[path],
+      });
+
+      expect(Object.keys(dirtyShards).length).toBe(0);
+    });
+  });
+
+  describe('MaterializedViewService.applyDiff integration', () => {
+    it('produces a valid BuildResult via applyDiff', async () => {
+      const { default: MaterializedViewService } = await import(
+        '../../../../src/domain/services/MaterializedViewService.js'
+      );
+
+      const state1 = buildState({
+        nodes: ['A', 'B'],
+        edges: [{ from: 'A', to: 'B', label: 'knows' }],
+        props: [{ nodeId: 'A', key: 'name', value: 'Alice' }],
+      });
+
+      const mvs = new MaterializedViewService();
+      const { tree: tree1 } = mvs.build(state1);
+
+      // Incremental update: add node C and edge B->C
+      const state2 = buildState({
+        nodes: ['A', 'B', 'C'],
+        edges: [
+          { from: 'A', to: 'B', label: 'knows' },
+          { from: 'B', to: 'C', label: 'manages' },
+        ],
+        props: [
+          { nodeId: 'A', key: 'name', value: 'Alice' },
+          { nodeId: 'C', key: 'role', value: 'dev' },
+        ],
+      });
+
+      const diff = {
+        nodesAdded: ['C'],
+        nodesRemoved: [],
+        edgesAdded: [{ from: 'B', to: 'C', label: 'manages' }],
+        edgesRemoved: [],
+        propsChanged: [{ nodeId: 'C', key: 'role', value: 'dev', prevValue: undefined }],
+      };
+
+      const result = mvs.applyDiff({ existingTree: tree1, diff, state: state2 });
+
+      expect(result.tree).toBeDefined();
+      expect(result.logicalIndex).toBeDefined();
+      expect(result.propertyReader).toBeDefined();
+
+      // Verify index correctness
+      expect(result.logicalIndex.isAlive('C')).toBe(true);
+      const bOut = result.logicalIndex.getEdges('B', 'out');
+      expect(bOut.find((e) => e.neighborId === 'C' && e.label === 'manages')).toBeDefined();
+
+      // Verify property reader
+      const cProps = await result.propertyReader.getNodeProps('C');
+      expect(cProps.role).toBe('dev');
+    });
+  });
+});

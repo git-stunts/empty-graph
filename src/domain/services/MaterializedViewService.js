@@ -2,10 +2,11 @@
  * Orchestrates building, persisting, and loading a MaterializedView
  * composed of a LogicalIndex + PropertyIndexReader.
  *
- * Three entry points:
+ * Four entry points:
  * - `build(state)` — from a WarpStateV5 (in-memory)
  * - `persistIndexTree(tree, persistence)` — write shards to Git storage
  * - `loadFromOids(shardOids, storage)` — hydrate from blob OIDs
+ * - `applyDiff(existingTree, diff, state)` — incremental update from PatchDiff
  *
  * @module domain/services/MaterializedViewService
  */
@@ -15,6 +16,7 @@ import nullLogger from '../utils/nullLogger.js';
 import LogicalIndexBuildService from './LogicalIndexBuildService.js';
 import LogicalIndexReader from './LogicalIndexReader.js';
 import PropertyIndexReader from './PropertyIndexReader.js';
+import IncrementalIndexUpdater from './IncrementalIndexUpdater.js';
 
 /**
  * @typedef {import('./BitmapNeighborProvider.js').LogicalIndex} LogicalIndex
@@ -154,5 +156,36 @@ export default class MaterializedViewService {
     propertyReader.setup(propOids);
 
     return { logicalIndex, propertyReader };
+  }
+
+  /**
+   * Applies a PatchDiff incrementally to an existing index tree.
+   *
+   * @param {Object} params
+   * @param {Record<string, Buffer>} params.existingTree
+   * @param {import('../types/PatchDiff.js').PatchDiff} params.diff
+   * @param {import('./JoinReducer.js').WarpStateV5} params.state
+   * @returns {BuildResult}
+   */
+  applyDiff({ existingTree, diff, state }) {
+    const updater = new IncrementalIndexUpdater({ codec: this._codec });
+    const loadShard = (path) => existingTree[path];
+    const dirtyShards = updater.computeDirtyShards({ diff, state, loadShard });
+    const tree = { ...existingTree, ...dirtyShards };
+
+    const logicalIndex = new LogicalIndexReader({ codec: this._codec })
+      .loadFromTree(tree)
+      .toLogicalIndex();
+    const propertyReader = buildInMemoryPropertyReader(tree, this._codec);
+    const receipt = tree['receipt.cbor']
+      ? this._codec.decode(tree['receipt.cbor'])
+      : {};
+
+    return {
+      tree,
+      logicalIndex,
+      propertyReader,
+      receipt: /** @type {Record<string, unknown>} */ (receipt),
+    };
   }
 }

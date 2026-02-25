@@ -249,6 +249,7 @@ export default tseslint.config(
       "bin/presenters/text.js",
       "src/domain/services/LogicalBitmapIndexBuilder.js",
       "src/domain/services/LogicalIndexBuildService.js",
+      "src/domain/services/IncrementalIndexUpdater.js",
     ],
     rules: {
       "complexity": ["error", 35],
