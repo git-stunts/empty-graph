@@ -134,21 +134,38 @@ function buildAdjacencyFromEdges(state, pattern) {
  * @param {string[]} visibleNodes
  * @returns {Promise<{ outgoing: Map<string, NeighborEntry[]>, incoming: Map<string, NeighborEntry[]> }>}
  */
+/**
+ * Processes a single node's edges into the outgoing/incoming adjacency maps.
+ *
+ * @param {string} id
+ * @param {NeighborEntry[]} edges
+ * @param {{ visibleSet: Set<string>, outgoing: Map<string, NeighborEntry[]>, incoming: Map<string, NeighborEntry[]> }} ctx
+ */
+function collectNodeEdges(id, edges, ctx) {
+  const filtered = edges.filter((e) => ctx.visibleSet.has(e.neighborId));
+  if (filtered.length > 0) {
+    ctx.outgoing.set(id, filtered);
+  }
+  for (const { neighborId, label } of filtered) {
+    if (!ctx.incoming.has(neighborId)) { ctx.incoming.set(neighborId, []); }
+    /** @type {NeighborEntry[]} */ (ctx.incoming.get(neighborId)).push({ neighborId: id, label });
+  }
+}
+
 async function buildAdjacencyViaProvider(provider, visibleNodes) {
   const visibleSet = new Set(visibleNodes);
   const outgoing = /** @type {Map<string, NeighborEntry[]>} */ (new Map());
   const incoming = /** @type {Map<string, NeighborEntry[]>} */ (new Map());
+  const ctx = { visibleSet, outgoing, incoming };
 
-  for (const nodeId of visibleNodes) {
-    const edges = await provider.getNeighbors(nodeId, 'out');
-    const filtered = edges.filter((e) => visibleSet.has(e.neighborId));
-
-    if (filtered.length > 0) {
-      outgoing.set(nodeId, filtered);
-    }
-    for (const { neighborId, label } of filtered) {
-      if (!incoming.has(neighborId)) { incoming.set(neighborId, []); }
-      /** @type {NeighborEntry[]} */ (incoming.get(neighborId)).push({ neighborId: nodeId, label });
+  const BATCH = 64;
+  for (let i = 0; i < visibleNodes.length; i += BATCH) {
+    const chunk = visibleNodes.slice(i, i + BATCH);
+    const results = await Promise.all(
+      chunk.map(id => provider.getNeighbors(id, 'out').then(edges => ({ id, edges })))
+    );
+    for (const { id, edges } of results) {
+      collectNodeEdges(id, edges, ctx);
     }
   }
 
