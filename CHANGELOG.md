@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [12.0.0] — 2026-02-25
+
 ### Added
 
 - **`nodeWeightFn` option for node-weighted graph algorithms** — `weightedShortestPath`, `aStarSearch`, `bidirectionalAStar`, and `weightedLongestPath` now accept `nodeWeightFn(nodeId) => number` as an alternative to `weightFn`. Weight = cost to enter the destination node. Internally memoized (each node resolved at most once). Mutually exclusive with `weightFn` — providing both throws `E_WEIGHT_FN_CONFLICT`.
