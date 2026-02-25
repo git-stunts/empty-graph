@@ -10,6 +10,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     make \
     g++ \
+    # Needed on PATH for Deno npm lifecycle fallback builds (roaring/cbor-extract).
+    node-gyp \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY git-warp/ .
