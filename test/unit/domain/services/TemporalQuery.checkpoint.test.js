@@ -396,6 +396,47 @@ describe('TemporalQuery checkpoint acceleration', () => {
   });
 
   describe('checkpoint maxLamport boundary', () => {
+    it('does not mutate reused checkpoint state across independent queries', async () => {
+      const patches = [
+        createNodeWithPropPatch({
+          nodeId: 'X', writer: 'W', lamport: 1,
+          propKey: 'status', propValue: 'draft',
+          sha: 'a'.repeat(40),
+        }),
+        createPropOnlyPatch({
+          nodeId: 'X', writer: 'W', lamport: 2,
+          propKey: 'status', propValue: 'active',
+          sha: 'b'.repeat(40),
+        }),
+      ];
+
+      const checkpoint = {
+        state: buildStateFromPatches(patches.slice(0, 1)),
+        maxLamport: 1,
+      };
+      const loadCheckpoint = vi.fn().mockResolvedValue(checkpoint);
+      const tq = new TemporalQuery({
+        loadAllPatches: async () => patches,
+        loadCheckpoint,
+      });
+
+      // First query replays lamport 2 and must not mutate shared checkpoint state.
+      await expect(tq.eventually(
+        'X',
+        (/** @type {any} */ n) => n.props.status === 'active',
+        { since: 2 },
+      )).resolves.toBe(true);
+
+      // Second query depends on checkpoint boundary snapshot still being "draft".
+      await expect(tq.eventually(
+        'X',
+        (/** @type {any} */ n) => n.props.status === 'draft',
+        { since: 1 },
+      )).resolves.toBe(true);
+
+      expect(loadCheckpoint).toHaveBeenCalledTimes(2);
+    });
+
     it('skips checkpoint when maxLamport > since', async () => {
       const patches = [
         createNodeWithPropPatch({

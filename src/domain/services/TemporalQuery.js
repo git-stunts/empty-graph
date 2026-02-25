@@ -26,7 +26,7 @@
  * @see Paper IV - Echo and the WARP Core (CTL* temporal logic on histories)
  */
 
-import { createEmptyStateV5, join as joinPatch } from './JoinReducer.js';
+import { createEmptyStateV5, cloneStateV5, join as joinPatch } from './JoinReducer.js';
 import { decodePropKey } from './KeyCodec.js';
 import { orsetContains } from '../crdt/ORSet.js';
 
@@ -316,7 +316,8 @@ export class TemporalQuery {
           ({ patch }) => patch.lamport > ck.maxLamport,
         );
         const startIdx = idx < 0 ? allPatches.length : idx;
-        return { state: ck.state, startIdx, checkpointMaxLamport: ck.maxLamport };
+        // Replay mutates state in-place; isolate checkpoint provider caches from query runs.
+        return { state: cloneStateV5(ck.state), startIdx, checkpointMaxLamport: ck.maxLamport };
       }
     }
     return { state: createEmptyStateV5(), startIdx: 0, checkpointMaxLamport: null };

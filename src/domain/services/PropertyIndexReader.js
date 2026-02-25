@@ -95,12 +95,15 @@ export default class PropertyIndexReader {
     const decoded = this._codec.decode(buffer);
 
     // Shards are stored as array of [nodeId, props] pairs (proto-safe)
+    if (!Array.isArray(decoded)) {
+      const shape = decoded === null ? 'null' : typeof decoded;
+      throw new Error(`PropertyIndexReader: invalid shard format for '${path}' (expected array, got ${shape})`);
+    }
+
     /** @type {Record<string, Record<string, unknown>>} */
     const data = Object.create(null);
-    if (Array.isArray(decoded)) {
-      for (const [nid, props] of /** @type {Array<[string, Record<string, unknown>]>} */ (decoded)) {
-        data[nid] = props;
-      }
+    for (const [nid, props] of /** @type {Array<[string, Record<string, unknown>]>} */ (decoded)) {
+      data[nid] = props;
     }
     this._cache.set(path, data);
     return data;

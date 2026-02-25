@@ -8,6 +8,30 @@ import {
 import MaterializedViewService from '../../../src/domain/services/MaterializedViewService.js';
 
 describe('fixtureDsl helpers', () => {
+  it('makeFixture throws when props reference unknown nodes', () => {
+    expect(() => makeFixture({
+      nodes: ['A'],
+      edges: [],
+      props: [{ nodeId: 'missing', key: 'k', value: 1 }],
+    })).toThrow(/Prop target 'missing'.*not in fixture\.nodes/);
+  });
+
+  it('makeFixture throws when tombstoned nodes are unknown', () => {
+    expect(() => makeFixture({
+      nodes: ['A'],
+      edges: [],
+      tombstones: { nodes: new Set(['missing']) },
+    })).toThrow(/Tombstoned node 'missing'.*not in fixture\.nodes/);
+  });
+
+  it('makeFixture throws when tombstoned edges are unknown', () => {
+    expect(() => makeFixture({
+      nodes: ['A', 'B'],
+      edges: [{ from: 'A', to: 'B', label: 'x' }],
+      tombstones: { edges: new Set(['A\0B\0missing']) },
+    })).toThrow(/Tombstoned edge .*not in fixture\.edges/);
+  });
+
   it('toAdjacencyMaps sorts adjacency lists deterministically', () => {
     const fixture = makeFixture({
       nodes: ['A', 'B', 'C'],

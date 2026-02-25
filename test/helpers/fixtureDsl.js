@@ -42,6 +42,11 @@ export function makeFixture({ nodes, edges, props = [], tombstones = {} }) {
   const normalizedEdges = edges.map(({ from, to, label }) => ({
     from, to, label: label ?? '',
   }));
+  const edgeKeySet = new Set(
+    normalizedEdges.map(({ from, to, label }) => `${from}\0${to}\0${label}`),
+  );
+  const tombstoneNodes = tombstones.nodes ?? new Set();
+  const tombstoneEdges = tombstones.edges ?? new Set();
 
   // Validate: all edge endpoints must be in nodes
   for (const { from, to } of normalizedEdges) {
@@ -50,6 +55,24 @@ export function makeFixture({ nodes, edges, props = [], tombstones = {} }) {
     }
     if (!nodeSet.has(to)) {
       throw new Error(`Edge to '${to}' — node not in fixture.nodes`);
+    }
+  }
+
+  for (const { nodeId } of props) {
+    if (!nodeSet.has(nodeId)) {
+      throw new Error(`Prop target '${nodeId}' — node not in fixture.nodes`);
+    }
+  }
+
+  for (const nodeId of tombstoneNodes) {
+    if (!nodeSet.has(nodeId)) {
+      throw new Error(`Tombstoned node '${nodeId}' — node not in fixture.nodes`);
+    }
+  }
+
+  for (const edgeKey of tombstoneEdges) {
+    if (!edgeKeySet.has(edgeKey)) {
+      throw new Error(`Tombstoned edge '${edgeKey}' — edge not in fixture.edges`);
     }
   }
 

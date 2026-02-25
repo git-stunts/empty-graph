@@ -139,6 +139,17 @@ describe('PropertyIndex', () => {
     await expect(reader.getNodeProps(abNodeId)).rejects.toThrow(/missing blob.*oid_missing/i);
   });
 
+  it('throws when decoded shard payload is not an array', async () => {
+    const abNodeId = `ab${'0'.repeat(38)}`;
+    const shardPath = `props_${computeShardKey(abNodeId)}.cbor`;
+    const reader = new PropertyIndexReader({
+      storage: { readBlob: async () => defaultCodec.encode({ [abNodeId]: { name: 'Alice' } }) },
+    });
+    reader.setup({ [shardPath]: 'oid_bad_format' });
+
+    await expect(reader.getNodeProps(abNodeId)).rejects.toThrow(/invalid shard format.*expected array.*object/i);
+  });
+
   it('serializes deterministically for equivalent property sets across op orders', () => {
     const order1 = new PropertyIndexBuilder();
     order1.addProperty('node:alpha', 'name', 'Alice');
