@@ -1,0 +1,94 @@
+import { describe, it, expect } from 'vitest';
+import LogicalBitmapIndexBuilder from '../../../../src/domain/services/LogicalBitmapIndexBuilder.js';
+import { ShardIdOverflowError } from '../../../../src/domain/errors/index.js';
+import { F12_STABLE_IDS } from '../../../helpers/fixtureDsl.js';
+import computeShardKey from '../../../../src/domain/utils/shardKey.js';
+import defaultCodec from '../../../../src/domain/utils/defaultCodec.js';
+
+describe('LogicalBitmapIndexBuilder ID stability (F12)', () => {
+  it('existing node IDs are preserved across rebuild', () => {
+    const { initialNodes, addedNodes } = F12_STABLE_IDS;
+
+    // Build 1: register initial nodes
+    const builder1 = new LogicalBitmapIndexBuilder();
+    const initialIds = {};
+    for (const node of initialNodes) {
+      initialIds[node] = builder1.registerNode(node);
+    }
+    const tree1 = builder1.serialize();
+
+    // Extract meta shards for each shardKey used (proto-safe decode)
+    const metaShards = {};
+    for (const [path, buf] of Object.entries(tree1)) {
+      if (path.startsWith('meta_') && path.endsWith('.cbor')) {
+        const shardKey = path.slice(5, 7);
+        const decoded = defaultCodec.decode(buf);
+        metaShards[shardKey] = decoded;
+      }
+    }
+
+    // Build 2: seed from build 1, then add new nodes
+    const builder2 = new LogicalBitmapIndexBuilder();
+    for (const [shardKey, meta] of Object.entries(metaShards)) {
+      builder2.loadExistingMeta(shardKey, meta);
+    }
+    for (const node of addedNodes) {
+      builder2.registerNode(node);
+    }
+
+    // Verify: initial node IDs unchanged
+    for (const node of initialNodes) {
+      expect(builder2.registerNode(node)).toBe(initialIds[node]);
+    }
+
+    // Verify: added nodes got new IDs (not colliding with initial)
+    const allIds = new Set(Object.values(initialIds));
+    for (const node of addedNodes) {
+      const id = builder2.registerNode(node);
+      expect(allIds.has(id)).toBe(false);
+      allIds.add(id);
+    }
+  });
+
+  it('throws ShardIdOverflowError when shard is full', () => {
+    const builder = new LogicalBitmapIndexBuilder();
+
+    // Seed a shard with nextLocalId at 2^24 (F12.overflowNextLocalId)
+    const testNode = 'A';
+    const shardKey = computeShardKey(testNode);
+    builder.loadExistingMeta(shardKey, {
+      nodeToGlobal: {},
+      nextLocalId: F12_STABLE_IDS.overflowNextLocalId,
+    });
+
+    expect(() => builder.registerNode(testNode)).toThrow(ShardIdOverflowError);
+    try {
+      builder.registerNode(testNode);
+    } catch (err) {
+      expect(err.code).toBe('E_SHARD_ID_OVERFLOW');
+      expect(err.context.shardKey).toBe(shardKey);
+    }
+  });
+
+  it('label registry is append-only across rebuilds', () => {
+    const builder1 = new LogicalBitmapIndexBuilder();
+    const managesId = builder1.registerLabel('manages');
+    const ownsId = builder1.registerLabel('owns');
+    expect(managesId).toBe(0);
+    expect(ownsId).toBe(1);
+
+    const tree1 = builder1.serialize();
+    const labelRegistry = defaultCodec.decode(tree1['labels.cbor']);
+
+    // Build 2: seed existing labels, add new
+    const builder2 = new LogicalBitmapIndexBuilder();
+    builder2.loadExistingLabels(labelRegistry);
+    const likesId = builder2.registerLabel('likes');
+
+    // Old labels keep their IDs
+    expect(builder2.registerLabel('manages')).toBe(0);
+    expect(builder2.registerLabel('owns')).toBe(1);
+    // New label gets next ID
+    expect(likesId).toBe(2);
+  });
+});

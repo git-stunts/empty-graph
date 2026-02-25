@@ -9,6 +9,14 @@
  */
 
 import AdjacencyNeighborProvider from '../../src/domain/services/AdjacencyNeighborProvider.js';
+import BitmapNeighborProvider from '../../src/domain/services/BitmapNeighborProvider.js';
+import LogicalIndexBuildService from '../../src/domain/services/LogicalIndexBuildService.js';
+import { createEmptyStateV5, applyOpV2 } from '../../src/domain/services/JoinReducer.js';
+import { createDot } from '../../src/domain/crdt/Dot.js';
+import { createEventId } from '../../src/domain/utils/EventId.js';
+import defaultCodec from '../../src/domain/utils/defaultCodec.js';
+import computeShardKey from '../../src/domain/utils/shardKey.js';
+import { getRoaringBitmap32 } from '../../src/domain/utils/roaring.js';
 
 // ── Core DSL ────────────────────────────────────────────────────────────────
 
@@ -400,4 +408,217 @@ export async function runCrossProvider({ fixture, providers, run, assert }) {
       }
     }
   }
+}
+
+// ── Logical Bitmap Provider ─────────────────────────────────────────────────
+
+/**
+ * Builds a WarpStateV5 from a fixture, runs LogicalIndexBuildService,
+ * creates an in-memory LogicalIndex, and wraps in BitmapNeighborProvider.
+ *
+ * @param {GraphFixture} fixture
+ * @returns {BitmapNeighborProvider}
+ */
+export function makeLogicalBitmapProvider(fixture) {
+  // Build WarpStateV5 from fixture
+  const state = _fixtureToState(fixture);
+
+  // Build logical index
+  const service = new LogicalIndexBuildService();
+  const { tree } = service.build(state);
+
+  // Create in-memory LogicalIndex adapter from serialized tree
+  const logicalIndex = _createLogicalIndexFromTree(tree);
+
+  return new BitmapNeighborProvider({ logicalIndex });
+}
+
+/**
+ * Converts a fixture to WarpStateV5.
+ * @param {GraphFixture} fixture
+ * @returns {import('../../src/domain/services/JoinReducer.js').WarpStateV5}
+ * @private
+ */
+function _fixtureToState(fixture) {
+  const state = createEmptyStateV5();
+  const writer = 'w1';
+  const sha = 'a'.repeat(40);
+  let opIdx = 0;
+  let lamport = 1;
+
+  for (const nodeId of fixture.nodes) {
+    const dot = createDot(writer, lamport);
+    const eventId = createEventId(lamport, writer, sha, opIdx++);
+    applyOpV2(state, { type: 'NodeAdd', node: nodeId, dot }, eventId);
+    lamport++;
+  }
+
+  // Apply tombstones for nodes
+  const tombNodes = fixture.tombstones?.nodes ?? new Set();
+  for (const nodeId of tombNodes) {
+    const dots = state.nodeAlive.entries.get(nodeId);
+    if (dots) {
+      const eventId = createEventId(lamport, writer, sha, opIdx++);
+      applyOpV2(state, { type: 'NodeRemove', observedDots: new Set(dots) }, eventId);
+      lamport++;
+    }
+  }
+
+  for (const { from, to, label } of fixture.edges) {
+    const dot = createDot(writer, lamport);
+    const eventId = createEventId(lamport, writer, sha, opIdx++);
+    applyOpV2(state, { type: 'EdgeAdd', from, to, label, dot }, eventId);
+    lamport++;
+  }
+
+  // Apply tombstones for edges
+  const tombEdges = fixture.tombstones?.edges ?? new Set();
+  for (const edgeKey of tombEdges) {
+    const dots = state.edgeAlive.entries.get(edgeKey);
+    if (dots) {
+      const eventId = createEventId(lamport, writer, sha, opIdx++);
+      applyOpV2(state, { type: 'EdgeRemove', observedDots: new Set(dots) }, eventId);
+      lamport++;
+    }
+  }
+
+  for (const { nodeId, key, value } of (fixture.props || [])) {
+    const eventId = createEventId(lamport, writer, sha, opIdx++);
+    applyOpV2(state, { type: 'PropSet', node: nodeId, key, value }, eventId);
+    lamport++;
+  }
+
+  return state;
+}
+
+/**
+ * Creates a LogicalIndex object from serialized index tree (in-memory).
+ *
+ * @param {Record<string, Buffer>} tree
+ * @returns {import('../../src/domain/services/BitmapNeighborProvider.js').LogicalIndex}
+ * @private
+ */
+function _createLogicalIndexFromTree(tree) {
+  // Decode meta shards → nodeId↔globalId, alive bitmaps
+  const nodeToGlobal = new Map();
+  const globalToNode = new Map();
+  const aliveBitmaps = new Map();  // shardKey → RoaringBitmap
+  const RoaringBitmap32 = getRoaringBitmap32();
+
+  for (const [path, buf] of Object.entries(tree)) {
+    if (path.startsWith('meta_') && path.endsWith('.cbor')) {
+      const shardKey = path.slice(5, 7);
+      const meta = defaultCodec.decode(buf);
+      // nodeToGlobal is array of [nodeId, globalId] pairs (proto-safe)
+      const entries = Array.isArray(meta.nodeToGlobal)
+        ? meta.nodeToGlobal
+        : Object.entries(meta.nodeToGlobal);
+      for (const [nodeId, globalId] of entries) {
+        nodeToGlobal.set(nodeId, globalId);
+        globalToNode.set(/** @type {number} */ (globalId), nodeId);
+      }
+      if (meta.alive && meta.alive.length > 0) {
+        aliveBitmaps.set(shardKey, RoaringBitmap32.deserialize(
+          Buffer.from(meta.alive.buffer, meta.alive.byteOffset, meta.alive.byteLength), true
+        ));
+      }
+    }
+  }
+
+  // Decode label registry
+  const labelRegistry = new Map();
+  const idToLabel = new Map();
+  if (tree['labels.cbor']) {
+    const labels = defaultCodec.decode(tree['labels.cbor']);
+    for (const [label, id] of Object.entries(labels)) {
+      labelRegistry.set(label, id);
+      idToLabel.set(/** @type {number} */ (id), label);
+    }
+  }
+
+  // Decode fwd/rev edge shards → per-node bitmaps by bucket
+  const edgeShards = { fwd: new Map(), rev: new Map() };
+  for (const [path, buf] of Object.entries(tree)) {
+    for (const dir of ['fwd', 'rev']) {
+      if (path.startsWith(`${dir}_`) && path.endsWith('.cbor')) {
+        const decoded = defaultCodec.decode(buf);
+        // decoded: { bucketName: { globalIdStr: Uint8Array } }
+        for (const [bucket, entries] of Object.entries(decoded)) {
+          for (const [gidStr, bitmapBytes] of Object.entries(entries)) {
+            const key = `${dir}:${bucket}:${gidStr}`;
+            edgeShards[dir].set(key, RoaringBitmap32.deserialize(
+              Buffer.from(bitmapBytes.buffer, bitmapBytes.byteOffset, bitmapBytes.byteLength), true
+            ));
+          }
+        }
+      }
+    }
+  }
+
+  return {
+    getGlobalId(nodeId) {
+      return nodeToGlobal.get(nodeId);
+    },
+
+    isAlive(nodeId) {
+      const gid = nodeToGlobal.get(nodeId);
+      if (gid === undefined) return false;
+      const shardKey = computeShardKey(nodeId);
+      const bitmap = aliveBitmaps.get(shardKey);
+      return bitmap ? bitmap.has(gid) : false;
+    },
+
+    getNodeId(globalId) {
+      return globalToNode.get(globalId);
+    },
+
+    getLabelRegistry() {
+      return labelRegistry;
+    },
+
+    getEdges(nodeId, direction, filterLabelIds) {
+      const gid = nodeToGlobal.get(nodeId);
+      if (gid === undefined) return [];
+
+      const dir = direction === 'out' ? 'fwd' : 'rev';
+      const store = edgeShards[dir];
+      const results = [];
+
+      if (filterLabelIds) {
+        // Per-label lookup: O(1) per label
+        for (const labelId of filterLabelIds) {
+          const key = `${dir}:${labelId}:${gid}`;
+          const bitmap = store.get(key);
+          if (!bitmap) continue;
+          const label = idToLabel.get(labelId) ?? '';
+          for (const neighborGid of bitmap.toArray()) {
+            const neighborId = globalToNode.get(neighborGid);
+            if (neighborId) {
+              results.push({ neighborId, label });
+            }
+          }
+        }
+      } else {
+        // Iterate all label buckets to reconstruct (neighborId, label) pairs
+        for (const [key, bitmap] of store) {
+          if (!key.startsWith(`${dir}:`)) continue;
+          const parts = key.split(':');
+          const bucket = parts[1];
+          const ownerGid = parseInt(parts[2], 10);
+          if (ownerGid !== gid) continue;
+          if (bucket === 'all') continue; // Skip 'all' to avoid duplicates
+          const labelId = parseInt(bucket, 10);
+          const label = idToLabel.get(labelId) ?? '';
+          for (const neighborGid of bitmap.toArray()) {
+            const neighborId = globalToNode.get(neighborGid);
+            if (neighborId) {
+              results.push({ neighborId, label });
+            }
+          }
+        }
+      }
+
+      return results;
+    },
+  };
 }

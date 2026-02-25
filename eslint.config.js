@@ -247,6 +247,8 @@ export default tseslint.config(
       "bin/cli/commands/patch.js",
       "bin/cli/commands/tree.js",
       "bin/presenters/text.js",
+      "src/domain/services/LogicalBitmapIndexBuilder.js",
+      "src/domain/services/LogicalIndexBuildService.js",
     ],
     rules: {
       "complexity": ["error", 35],

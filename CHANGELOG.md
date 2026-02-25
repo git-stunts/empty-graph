@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Logical graph bitmap index** — Phase 2: CBOR-based bitmap index over the logical graph with labeled edges, stable numeric IDs, property indexes, and O(1) label-filtered neighbor lookups.
+  - **`fnv1a`** (`src/domain/utils/fnv1a.js`) — FNV-1a 32-bit hash for shard key computation on non-SHA node IDs.
+  - **`computeShardKey`** (`src/domain/utils/shardKey.js`) — 2-char hex shard key: SHA prefix for hex IDs, FNV-1a low byte for everything else.
+  - **`encodeCanonicalCbor` / `decodeCanonicalCbor`** (`src/domain/utils/canonicalCbor.js`) — canonical CBOR encoding with deterministic key ordering via `defaultCodec`.
+  - **`ShardIdOverflowError`** (`src/domain/errors/ShardIdOverflowError.js`) — thrown when a shard exceeds 2^24 local IDs. Code: `E_SHARD_ID_OVERFLOW`.
+  - **`LogicalBitmapIndexBuilder`** (`src/domain/services/LogicalBitmapIndexBuilder.js`) — core builder producing CBOR shards: `meta_XX.cbor` (stable nodeId↔globalId, alive bitmap), `labels.cbor` (append-only label registry), `fwd_XX.cbor`/`rev_XX.cbor` (per-label + all Roaring bitmaps), `receipt.cbor`. Supports seeding from prior builds for ID stability across rebuilds.
+  - **`PropertyIndexBuilder`** (`src/domain/services/PropertyIndexBuilder.js`) — builds `props_XX.cbor` shards from node properties. Proto-safe array-of-pairs serialization.
+  - **`PropertyIndexReader`** (`src/domain/services/PropertyIndexReader.js`) — lazy property reader with LRU shard cache via `IndexStoragePort.readBlob`.
+  - **`LogicalIndexBuildService`** (`src/domain/services/LogicalIndexBuildService.js`) — orchestrates full index build from `WarpStateV5`: extracts visible projection, delegates to builder + property builder, returns serialized tree + receipt.
+  - **Cross-provider equivalence tests** — 18 tests verifying BFS, DFS, shortestPath, Dijkstra, A*, topologicalSort produce identical results across `AdjacencyNeighborProvider` and `LogicalBitmapNeighborProvider`.
+  - **Benchmark** (`test/benchmark/logicalIndex.benchmark.js`) — index build time at 1K/10K/100K nodes, single-node `getNeighbors` latency, `getNodeProps` latency.
+
+### Changed
+
+- **`BitmapNeighborProvider`** — dual-mode: commit DAG (`indexReader` param, existing) + logical graph (`logicalIndex` param, new). Logical mode supports per-label bitmap filtering, alive bitmap checks, and `'both'` direction dedup.
+- **Contract tests** — added `LogicalBitmapNeighborProvider` as third provider to both `contractSuite` (unlabeled) and `labelContractSuite` (labeled). All 44 contract assertions pass.
+- **Fixture DSL** — added `makeLogicalBitmapProvider(fixture)`: builds `WarpStateV5` from fixture → `LogicalIndexBuildService` → in-memory `LogicalIndex` adapter → `BitmapNeighborProvider`.
+
 - **`NeighborProviderPort`** (`src/ports/NeighborProviderPort.js`) — abstract interface for neighbor lookups on any graph. Methods: `getNeighbors(nodeId, direction, options)`, `hasNode(nodeId)`, `latencyClass` getter. Direction: `'out' | 'in' | 'both'`. Edges sorted by `(neighborId, label)` via strict codepoint comparison.
 - **`AdjacencyNeighborProvider`** (`src/domain/services/AdjacencyNeighborProvider.js`) — in-memory provider wrapping `{ outgoing, incoming }` adjacency maps. Pre-sorts at construction. `latencyClass: 'sync'`. Deduplicates `'both'` direction by `(neighborId, label)`.
 - **`GraphTraversal`** (`src/domain/services/GraphTraversal.js`) — unified traversal engine accepting any `NeighborProviderPort`. 11 algorithms: BFS, DFS, shortestPath, isReachable, weightedShortestPath (Dijkstra), aStarSearch, bidirectionalAStar, topologicalSort, connectedComponent, commonAncestors, weightedLongestPath. All methods accept `AbortSignal`, `maxNodes`, `maxDepth`, `hooks`, and return `stats`. Deterministic: BFS level-sorted lex, DFS reverse-push lex, PQ tie-break by lex nodeId, Kahn zero-indegree sorted lex. Equal-cost predecessor update rule enforced.

@@ -10,7 +10,7 @@
 
 import { describe, it, expect } from 'vitest';
 import {
-  makeFixture, makeAdjacencyProvider,
+  makeFixture, makeAdjacencyProvider, makeLogicalBitmapProvider,
   F6_BOTH_DIRECTION_DEDUP,
   F7_MULTILABEL_SAME_NEIGHBOR,
   F9_UNICODE_CODEPOINT_ORDER,
@@ -287,9 +287,11 @@ function bitmapLabelFilterSuite() {
 // All providers must pass the base contract (unlabeled fixtures only)
 contractSuite('AdjacencyNeighborProvider', (fixture) => makeAdjacencyProvider(fixture));
 contractSuite('BitmapNeighborProvider (mock)', (fixture) => makeMockBitmapProvider(fixture));
+contractSuite('LogicalBitmapNeighborProvider', (fixture) => makeLogicalBitmapProvider(fixture));
 
 // Only label-aware providers run the label contract
 labelContractSuite('AdjacencyNeighborProvider', (fixture) => makeAdjacencyProvider(fixture));
+labelContractSuite('LogicalBitmapNeighborProvider', (fixture) => makeLogicalBitmapProvider(fixture));
 
 // Bitmap-specific label filter behavior
 bitmapLabelFilterSuite();

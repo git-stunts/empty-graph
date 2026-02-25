@@ -1,12 +1,11 @@
 /**
- * NeighborProvider backed by BitmapIndexReader for the commit DAG.
+ * NeighborProvider backed by bitmap indexes.
  *
- * Wraps the existing BitmapIndexReader (parent/child relationships via
- * Roaring bitmaps) to satisfy the NeighborProviderPort interface.
- *
- * Commit DAG edges use label = '' (empty string sentinel). If the caller
- * passes options.labels with non-empty strings, returns [] (no match).
- * This proves the interface works uniformly for both graph types.
+ * Two modes:
+ * 1. **Commit DAG** (`indexReader`): Wraps BitmapIndexReader for parent/child
+ *    relationships. Edges use label = '' (empty string sentinel).
+ * 2. **Logical graph** (`logicalIndex`): Wraps CBOR-based logical bitmap index
+ *    with labeled edges, per-label bitmap filtering, and alive bitmap checks.
  *
  * @module domain/services/BitmapNeighborProvider
  */
@@ -14,6 +13,15 @@
 import NeighborProviderPort from '../../ports/NeighborProviderPort.js';
 
 /** @typedef {import('./BitmapIndexReader.js').default} BitmapIndexReader */
+
+/**
+ * @typedef {Object} LogicalIndex
+ * @property {(nodeId: string) => number|undefined} getGlobalId
+ * @property {(nodeId: string) => boolean} isAlive
+ * @property {(globalId: number) => string|undefined} getNodeId
+ * @property {(nodeId: string, direction: string, labelIds?: number[]) => Array<{neighborId: string, label: string}>} getEdges
+ * @property {() => Map<string, number>} getLabelRegistry
+ */
 
 /**
  * Sorts edges by (neighborId, label) using strict codepoint comparison.
@@ -52,11 +60,13 @@ function dedupSorted(edges) {
 export default class BitmapNeighborProvider extends NeighborProviderPort {
   /**
    * @param {Object} params
-   * @param {BitmapIndexReader} params.indexReader
+   * @param {BitmapIndexReader} [params.indexReader] - For commit DAG mode
+   * @param {LogicalIndex} [params.logicalIndex] - For logical graph mode
    */
-  constructor({ indexReader }) {
+  constructor({ indexReader, logicalIndex }) {
     super();
-    this._reader = indexReader;
+    this._reader = indexReader ?? null;
+    this._logical = logicalIndex ?? null;
   }
 
   /**
@@ -66,12 +76,46 @@ export default class BitmapNeighborProvider extends NeighborProviderPort {
    * @returns {Promise<import('../../ports/NeighborProviderPort.js').NeighborEdge[]>}
    */
   async getNeighbors(nodeId, direction, options) {
-    // Commit DAG edges have label=''. If caller asks for specific non-empty labels, no match.
+    if (this._logical) {
+      return this._getLogicalNeighbors(nodeId, direction, options);
+    }
+    return await this._getDagNeighbors(nodeId, direction, options);
+  }
+
+  /**
+   * @param {string} nodeId
+   * @returns {Promise<boolean>}
+   */
+  async hasNode(nodeId) {
+    if (this._logical) {
+      return this._logical.isAlive(nodeId);
+    }
+    if (this._reader) {
+      const id = await this._reader.lookupId(nodeId);
+      return id !== undefined;
+    }
+    return false;
+  }
+
+  /** @returns {'async-local'} */
+  get latencyClass() {
+    return 'async-local';
+  }
+
+  // ── Commit DAG mode ─────────────────────────────────────────────────
+
+  /**
+   * @param {string} nodeId
+   * @param {import('../../ports/NeighborProviderPort.js').Direction} direction
+   * @param {import('../../ports/NeighborProviderPort.js').NeighborOptions} [options]
+   * @returns {Promise<import('../../ports/NeighborProviderPort.js').NeighborEdge[]>}
+   * @private
+   */
+  async _getDagNeighbors(nodeId, direction, options) {
+    if (!this._reader) { return []; }
+
     if (options?.labels) {
-      const hasEmpty = options.labels.has('');
-      if (!hasEmpty) {
-        return [];
-      }
+      if (!options.labels.has('')) { return []; }
     }
 
     if (direction === 'out') {
@@ -84,7 +128,6 @@ export default class BitmapNeighborProvider extends NeighborProviderPort {
       return sortEdges(parents.map((id) => ({ neighborId: id, label: '' })));
     }
 
-    // 'both': union(out, in) deduped by (neighborId, label)
     const [children, parents] = await Promise.all([
       this._reader.getChildren(nodeId),
       this._reader.getParents(nodeId),
@@ -94,17 +137,39 @@ export default class BitmapNeighborProvider extends NeighborProviderPort {
     return dedupSorted(sortEdges(all));
   }
 
+  // ── Logical graph mode ──────────────────────────────────────────────
+
   /**
    * @param {string} nodeId
-   * @returns {Promise<boolean>}
+   * @param {import('../../ports/NeighborProviderPort.js').Direction} direction
+   * @param {import('../../ports/NeighborProviderPort.js').NeighborOptions} [options]
+   * @returns {import('../../ports/NeighborProviderPort.js').NeighborEdge[]}
+   * @private
    */
-  async hasNode(nodeId) {
-    const id = await this._reader.lookupId(nodeId);
-    return id !== undefined;
-  }
+  _getLogicalNeighbors(nodeId, direction, options) {
+    const logical = /** @type {LogicalIndex} */ (this._logical);
 
-  /** @returns {'async-local'} */
-  get latencyClass() {
-    return 'async-local';
+    // Resolve label filter to labelIds
+    /** @type {number[]|undefined} */
+    let labelIds;
+    if (options?.labels) {
+      const registry = logical.getLabelRegistry();
+      labelIds = [];
+      for (const label of options.labels) {
+        const id = registry.get(label);
+        if (id !== undefined) {
+          labelIds.push(id);
+        }
+      }
+      if (labelIds.length === 0) { return []; }
+    }
+
+    if (direction === 'both') {
+      const outEdges = logical.getEdges(nodeId, 'out', labelIds);
+      const inEdges = logical.getEdges(nodeId, 'in', labelIds);
+      return dedupSorted(sortEdges([...outEdges, ...inEdges]));
+    }
+
+    return sortEdges(logical.getEdges(nodeId, direction, labelIds));
   }
 }
