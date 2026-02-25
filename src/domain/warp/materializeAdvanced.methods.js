@@ -18,6 +18,7 @@ import { serializeFullStateV5, deserializeFullStateV5 } from '../services/Checkp
 import { buildSeekCacheKey } from '../utils/seekCacheKey.js';
 import { materializeIncremental } from '../services/CheckpointService.js';
 import { createFrontier, updateFrontier } from '../services/Frontier.js';
+import BitmapNeighborProvider from '../services/BitmapNeighborProvider.js';
 
 /** @typedef {import('../types/WarpPersistence.js').CorePersistence} CorePersistence */
 /** @typedef {import('../services/JoinReducer.js').WarpStateV5} WarpStateV5 */
@@ -128,7 +129,37 @@ export async function _setMaterializedState(state) {
   }
 
   this._materializedGraph = { state, stateHash, adjacency };
+  this._buildView(state, stateHash);
   return this._materializedGraph;
+}
+
+/**
+ * Builds the MaterializedView (logicalIndex + propertyReader) and attaches
+ * a BitmapNeighborProvider to the materialized graph. Skips rebuild when
+ * the stateHash matches the previous build.
+ *
+ * @this {import('../WarpGraph.js').default}
+ * @param {import('../services/JoinReducer.js').WarpStateV5} state
+ * @param {string} stateHash
+ * @private
+ */
+export function _buildView(state, stateHash) {
+  if (this._cachedViewHash === stateHash) {
+    return;
+  }
+  try {
+    const { logicalIndex, propertyReader } = this._viewService.build(state);
+    this._logicalIndex = logicalIndex;
+    this._propertyReader = propertyReader;
+    this._cachedViewHash = stateHash;
+
+    const provider = new BitmapNeighborProvider({ logicalIndex });
+    this._materializedGraph.provider = provider;
+  } catch {
+    // Non-fatal: index build can fail on edge-case states (e.g. non-string node IDs)
+    this._logicalIndex = null;
+    this._propertyReader = null;
+  }
 }
 
 /**

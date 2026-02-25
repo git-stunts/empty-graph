@@ -60,7 +60,14 @@ export async function createCheckpoint() {
       this._checkpointing = prevCheckpointing;
     }
 
-    // 4. Call CheckpointService.create() with provenance index if available
+    // 4. Build index tree from view service (reuse cached if stateHash matches)
+    let indexTree;
+    if (this._viewService) {
+      const { tree } = this._viewService.build(state);
+      indexTree = tree;
+    }
+
+    // 5. Call CheckpointService.create() with provenance index + index tree
     /** @type {CorePersistence} */
     const persistence = this._persistence;
     const checkpointSha = await createCheckpointCommit({
@@ -72,6 +79,7 @@ export async function createCheckpoint() {
       provenanceIndex: this._provenanceIndex || undefined,
       crypto: this._crypto,
       codec: this._codec,
+      indexTree,
     });
 
     // 5. Update checkpoint ref
@@ -137,7 +145,7 @@ export async function syncCoverage() {
  * Loads the latest checkpoint for this graph.
  *
  * @this {import('../WarpGraph.js').default}
- * @returns {Promise<{state: import('../services/JoinReducer.js').WarpStateV5, frontier: Map<string, string>, stateHash: string, schema: number, provenanceIndex?: import('../services/ProvenanceIndex.js').ProvenanceIndex}|null>} The checkpoint or null
+ * @returns {Promise<{state: import('../services/JoinReducer.js').WarpStateV5, frontier: Map<string, string>, stateHash: string, schema: number, provenanceIndex?: import('../services/ProvenanceIndex.js').ProvenanceIndex, indexShardOids?: Record<string, string>|null}|null>} The checkpoint or null
  * @private
  */
 export async function _loadLatestCheckpoint() {
@@ -197,7 +205,7 @@ export async function _loadPatchesSince(checkpoint) {
  */
 export async function _validateMigrationBoundary() {
   const checkpoint = await this._loadLatestCheckpoint();
-  if (checkpoint?.schema === 2 || checkpoint?.schema === 3) {
+  if (checkpoint?.schema === 2 || checkpoint?.schema === 3 || checkpoint?.schema === 4) {
     return;  // Already migrated
   }
 
