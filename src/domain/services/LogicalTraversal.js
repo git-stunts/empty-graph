@@ -131,7 +131,7 @@ export default class LogicalTraversal {
    */
   async _prepare(start, opts) {
     const prepared = await this._prepareEngine(opts);
-
+    // Note: engine also validates via provider.hasNode — redundant but harmless.
     if (!(await this._graph.hasNode(start))) {
       throw new TraversalError(`Start node not found: ${start}`, {
         code: 'NODE_NOT_FOUND',
@@ -240,6 +240,7 @@ export default class LogicalTraversal {
    * @param {number} [options.maxDepth] - Maximum search depth
    * @param {'out'|'in'|'both'} [options.dir] - Edge direction to follow
    * @param {string|string[]} [options.labelFilter] - Edge label(s) to include
+   * @param {AbortSignal} [options.signal] - Abort signal
    * @returns {Promise<{reachable: boolean}>}
    */
   async isReachable(from, to, options = {}) {
@@ -251,6 +252,7 @@ export default class LogicalTraversal {
       options: opts,
       maxDepth: depthLimit,
       maxNodes: Infinity,
+      signal: options.signal,
     });
     return { reachable };
   }
@@ -261,10 +263,10 @@ export default class LogicalTraversal {
    * @param {string} from - Source node ID
    * @param {string} to - Target node ID
    * @param {Object} [options] - Traversal options
-   * @param {number} [options.maxDepth] - Maximum search depth
    * @param {'out'|'in'|'both'} [options.dir] - Edge direction to follow
    * @param {string|string[]} [options.labelFilter] - Edge label(s) to include
    * @param {(from: string, to: string, label: string) => number | Promise<number>} [options.weightFn] - Edge weight function
+   * @param {AbortSignal} [options.signal] - Abort signal
    * @returns {Promise<{path: string[], totalCost: number}>}
    * @throws {TraversalError} code 'NO_PATH' if unreachable
    */
@@ -277,6 +279,7 @@ export default class LogicalTraversal {
       options: opts,
       weightFn: options.weightFn,
       maxNodes: Infinity,
+      signal: options.signal,
     });
     return { path, totalCost };
   }
@@ -287,11 +290,11 @@ export default class LogicalTraversal {
    * @param {string} from - Source node ID
    * @param {string} to - Target node ID
    * @param {Object} [options] - Traversal options
-   * @param {number} [options.maxDepth] - Maximum search depth
    * @param {'out'|'in'|'both'} [options.dir] - Edge direction to follow
    * @param {string|string[]} [options.labelFilter] - Edge label(s) to include
    * @param {(from: string, to: string, label: string) => number | Promise<number>} [options.weightFn] - Edge weight function
    * @param {(nodeId: string, goalId: string) => number} [options.heuristicFn] - Heuristic function
+   * @param {AbortSignal} [options.signal] - Abort signal
    * @returns {Promise<{path: string[], totalCost: number, nodesExplored: number}>}
    * @throws {TraversalError} code 'NO_PATH' if unreachable
    */
@@ -305,6 +308,7 @@ export default class LogicalTraversal {
       weightFn: options.weightFn,
       heuristicFn: options.heuristicFn,
       maxNodes: Infinity,
+      signal: options.signal,
     });
     return { path, totalCost, nodesExplored };
   }
@@ -321,11 +325,20 @@ export default class LogicalTraversal {
    * @param {(from: string, to: string, label: string) => number | Promise<number>} [options.weightFn] - Edge weight function
    * @param {(nodeId: string, goalId: string) => number} [options.forwardHeuristic] - Forward heuristic
    * @param {(nodeId: string, goalId: string) => number} [options.backwardHeuristic] - Backward heuristic
+   * @param {AbortSignal} [options.signal] - Abort signal
    * @returns {Promise<{path: string[], totalCost: number, nodesExplored: number}>}
    * @throws {TraversalError} code 'NO_PATH' if unreachable
    */
   async bidirectionalAStar(from, to, options = {}) {
-    const { engine, options: opts } = await this._prepare(from, options);
+    const { engine, options: opts } = await this._prepareEngine(options);
+
+    if (!(await this._graph.hasNode(from))) {
+      throw new TraversalError(`Start node not found: ${from}`, {
+        code: 'NODE_NOT_FOUND',
+        context: { start: from },
+      });
+    }
+
     const { path, totalCost, nodesExplored } = await engine.bidirectionalAStar({
       start: from,
       goal: to,
@@ -334,6 +347,7 @@ export default class LogicalTraversal {
       forwardHeuristic: options.forwardHeuristic,
       backwardHeuristic: options.backwardHeuristic,
       maxNodes: Infinity,
+      signal: options.signal,
     });
     return { path, totalCost, nodesExplored };
   }
@@ -396,9 +410,9 @@ export default class LogicalTraversal {
     // Validate each node
     for (const n of nodes) {
       if (!(await this._graph.hasNode(n))) {
-        throw new TraversalError(`Start node not found: ${n}`, {
+        throw new TraversalError(`Node not found: ${n}`, {
           code: 'NODE_NOT_FOUND',
-          context: { start: n },
+          context: { node: n },
         });
       }
     }

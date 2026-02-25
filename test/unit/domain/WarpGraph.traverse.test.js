@@ -154,7 +154,7 @@ describe('WarpGraph logical traversal', () => {
 
     await expect(
       graph.traverse.weightedShortestPath('node:a', 'node:b', { dir: 'out' })
-    ).rejects.toThrow('No path from');
+    ).rejects.toThrow(expect.objectContaining({ code: 'NO_PATH' }));
   });
 
   it('aStarSearch finds path', async () => {
@@ -251,9 +251,9 @@ describe('WarpGraph logical traversal', () => {
   });
 
   it('weightedLongestPath finds critical path in DAG', async () => {
-    // a --(2)--> b --(3)--> d
+    // a --(3)--> b --(3)--> d
     // a --(1)--> c --(1)--> d
-    // longest: a -> b -> d = 5
+    // longest: a -> b -> d = 6
     setupGraphState(graph, (/** @type {any} */ state) => {
       addNodeToState(state, 'node:a', 1);
       addNodeToState(state, 'node:b', 2);
@@ -274,5 +274,75 @@ describe('WarpGraph logical traversal', () => {
     });
     expect(result.path).toEqual(['node:a', 'node:b', 'node:d']);
     expect(result.totalCost).toBe(6);
+  });
+
+  // ========================================================================
+  // Negative / edge-case tests
+  // ========================================================================
+
+  it('topologicalSort throwOnCycle throws ERR_GRAPH_HAS_CYCLES', async () => {
+    setupGraphState(graph, (/** @type {any} */ state) => {
+      addNodeToState(state, 'node:a', 1);
+      addNodeToState(state, 'node:b', 2);
+      addEdgeToState(state, 'node:a', 'node:b', 'x', 3);
+      addEdgeToState(state, 'node:b', 'node:a', 'x', 4);
+    });
+
+    await expect(
+      graph.traverse.topologicalSort('node:a', { dir: 'out', throwOnCycle: true })
+    ).rejects.toThrow(expect.objectContaining({ code: 'ERR_GRAPH_HAS_CYCLES' }));
+  });
+
+  it('topologicalSort non-existent start throws NODE_NOT_FOUND', async () => {
+    setupGraphState(graph, (/** @type {any} */ state) => {
+      addNodeToState(state, 'node:a', 1);
+    });
+
+    await expect(
+      graph.traverse.topologicalSort('node:ghost', { dir: 'out' })
+    ).rejects.toThrow(expect.objectContaining({ code: 'NODE_NOT_FOUND' }));
+  });
+
+  it('commonAncestors non-existent node throws NODE_NOT_FOUND', async () => {
+    setupGraphState(graph, (/** @type {any} */ state) => {
+      addNodeToState(state, 'node:a', 1);
+    });
+
+    await expect(
+      graph.traverse.commonAncestors(['node:a', 'node:ghost'])
+    ).rejects.toThrow(expect.objectContaining({ code: 'NODE_NOT_FOUND' }));
+  });
+
+  it('commonAncestors with empty array returns empty ancestors', async () => {
+    setupGraphState(graph, (/** @type {any} */ state) => {
+      addNodeToState(state, 'node:a', 1);
+    });
+
+    const result = await graph.traverse.commonAncestors([]);
+    expect(result).toEqual({ ancestors: [] });
+  });
+
+  it('bidirectionalAStar throws NO_PATH when unreachable', async () => {
+    setupGraphState(graph, (/** @type {any} */ state) => {
+      addNodeToState(state, 'node:a', 1);
+      addNodeToState(state, 'node:b', 2);
+    });
+
+    await expect(
+      graph.traverse.bidirectionalAStar('node:a', 'node:b')
+    ).rejects.toThrow(expect.objectContaining({ code: 'NO_PATH' }));
+  });
+
+  it('weightedLongestPath throws ERR_GRAPH_HAS_CYCLES on cyclic graph', async () => {
+    setupGraphState(graph, (/** @type {any} */ state) => {
+      addNodeToState(state, 'node:a', 1);
+      addNodeToState(state, 'node:b', 2);
+      addEdgeToState(state, 'node:a', 'node:b', 'x', 3);
+      addEdgeToState(state, 'node:b', 'node:a', 'x', 4);
+    });
+
+    await expect(
+      graph.traverse.weightedLongestPath('node:a', 'node:b', { dir: 'out' })
+    ).rejects.toThrow(expect.objectContaining({ code: 'ERR_GRAPH_HAS_CYCLES' }));
   });
 });
