@@ -170,8 +170,10 @@ export function _buildView(state, stateHash, diff) {
 
     const provider = new BitmapNeighborProvider({ logicalIndex: result.logicalIndex });
     this._materializedGraph.provider = provider;
-  } catch {
-    // Non-fatal: index build can fail on edge-case states
+  } catch (err) {
+    this._logger?.warn('[warp] index build failed, falling back to linear scan', {
+      error: /** @type {Error} */ (err).message,
+    });
     this._logicalIndex = null;
     this._propertyReader = null;
     this._cachedIndexTree = null;
@@ -452,4 +454,32 @@ export async function materializeAt(checkpointSha) {
   });
   await this._setMaterializedState(state);
   return state;
+}
+
+/**
+ * Verifies the bitmap index against adjacency ground truth.
+ *
+ * @this {import('../WarpGraph.js').default}
+ * @param {{ seed?: number, sampleRate?: number }} [options]
+ * @returns {{ passed: number, failed: number, errors: Array<{nodeId: string, direction: string, expected: string[], actual: string[]}> }}
+ */
+export function verifyIndex(options) {
+  if (!this._logicalIndex || !this._cachedState || !this._viewService) {
+    throw new Error('Cannot verify index: graph not materialized or index not built');
+  }
+  return this._viewService.verifyIndex({
+    state: this._cachedState,
+    logicalIndex: this._logicalIndex,
+    options,
+  });
+}
+
+/**
+ * Clears the cached bitmap index, forcing a full rebuild on next materialize.
+ *
+ * @this {import('../WarpGraph.js').default}
+ */
+export function invalidateIndex() {
+  this._cachedIndexTree = null;
+  this._cachedViewHash = null;
 }

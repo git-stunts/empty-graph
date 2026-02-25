@@ -462,6 +462,38 @@ describe('AP/CKPT/3: auto-checkpoint in materialize() path', () => {
   });
 
   // --------------------------------------------------------------------------
+  // H8: createCheckpoint reuses _cachedIndexTree instead of rebuilding
+  // --------------------------------------------------------------------------
+  it('createCheckpoint reuses cached index tree (H8)', async () => {
+    const graph = await WarpGraph.open({
+      persistence,
+      graphName: 'test',
+      writerId: 'w1',
+    });
+
+    const tipSha = buildPatchChain(persistence, 'w1', 2);
+    wirePersistenceForWriter(persistence, 'w1', tipSha);
+
+    await graph.materialize();
+
+    // After materialize, _cachedIndexTree should be set (from _buildView)
+    // Spy on _viewService.build to ensure it is NOT called during createCheckpoint
+    const buildSpy = vi.spyOn(graph._viewService, 'build');
+
+    // Mock persistence for checkpoint creation
+    persistence.writeBlob.mockResolvedValue(fakeSha('blob'));
+    persistence.writeTree.mockResolvedValue(fakeSha('tree'));
+    persistence.commitNodeWithTree.mockResolvedValue(fakeSha('commit'));
+    persistence.updateRef.mockResolvedValue(undefined);
+    persistence.isAncestor.mockResolvedValue(true);
+
+    await graph.createCheckpoint();
+
+    // build() should NOT have been called since _cachedIndexTree exists
+    expect(buildSpy).not.toHaveBeenCalled();
+  });
+
+  // --------------------------------------------------------------------------
   // H5: Schema 4 checkpoints are accepted by the materialize path
   // --------------------------------------------------------------------------
   it('materializes from a schema:4 checkpoint (H5)', async () => {

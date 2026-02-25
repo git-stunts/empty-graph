@@ -26,21 +26,24 @@ export default async function handleVerifyIndex({ options, args }) {
   const cursorInfo = await applyCursorCeiling(graph, persistence, graphName);
   emitCursorWarning(cursorInfo, null);
 
-  await graph.materialize();
+  try {
+    await graph.materialize();
+  } catch (err) {
+    return {
+      payload: { error: /** @type {Error} */ (err).message },
+      exitCode: EXIT_CODES.INTERNAL,
+    };
+  }
 
-  const logicalIndex = graph._logicalIndex;
-  if (!logicalIndex) {
+  let result;
+  try {
+    result = graph.verifyIndex({ seed: values.seed, sampleRate: values.sampleRate });
+  } catch {
     return {
       payload: { error: 'No bitmap index available after materialization' },
       exitCode: EXIT_CODES.INTERNAL,
     };
   }
-
-  const result = graph._viewService.verifyIndex({
-    state: graph._cachedState,
-    logicalIndex,
-    options: { seed: values.seed, sampleRate: values.sampleRate },
-  });
 
   return {
     payload: {

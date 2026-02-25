@@ -252,5 +252,7 @@ declare module '../WarpGraph.js' {
     _persistSeekCacheEntry(cacheKey: string, buf: Buffer, state: WarpStateV5): Promise<void>;
     _restoreIndexFromCache(indexTreeOid: string): Promise<void>;
     materializeAt(checkpointSha: string): Promise<WarpStateV5>;
+    verifyIndex(options?: { seed?: number; sampleRate?: number }): { passed: number; failed: number; errors: Array<{ nodeId: string; direction: string; expected: string[]; actual: string[] }> };
+    invalidateIndex(): void;
   }
 }

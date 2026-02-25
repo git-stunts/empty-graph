@@ -19,10 +19,16 @@ export default async function handleReindex({ options, args }) {
   emitCursorWarning(cursorInfo, null);
 
   // Clear cached index to force full rebuild
-  graph._cachedIndexTree = null;
-  graph._cachedViewHash = null;
+  graph.invalidateIndex();
 
-  await graph.materialize();
+  try {
+    await graph.materialize();
+  } catch (err) {
+    return {
+      payload: { error: /** @type {Error} */ (err).message },
+      exitCode: EXIT_CODES.INTERNAL,
+    };
+  }
 
   return {
     payload: {

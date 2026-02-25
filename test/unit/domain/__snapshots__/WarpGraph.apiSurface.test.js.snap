@@ -272,6 +272,11 @@ exports[`WarpGraph API surface > all prototype methods have correct property des
     "enumerable": false,
     "type": "method",
   },
+  "invalidateIndex": {
+    "configurable": true,
+    "enumerable": false,
+    "type": "method",
+  },
   "join": {
     "configurable": true,
     "enumerable": false,
@@ -402,6 +407,11 @@ exports[`WarpGraph API surface > all prototype methods have correct property des
     "enumerable": false,
     "type": "method",
   },
+  "verifyIndex": {
+    "configurable": true,
+    "enumerable": false,
+    "type": "method",
+  },
   "watch": {
     "configurable": true,
     "enumerable": false,
@@ -420,7 +430,7 @@ exports[`WarpGraph API surface > all prototype methods have correct property des
 }
 `;
 
-exports[`WarpGraph API surface > prototype method count matches snapshot 1`] = `83`;
+exports[`WarpGraph API surface > prototype method count matches snapshot 1`] = `85`;
 
 exports[`WarpGraph API surface > prototype methods match snapshot 1`] = `
 [
@@ -478,6 +488,7 @@ exports[`WarpGraph API surface > prototype methods match snapshot 1`] = `
   "graphName",
   "hasFrontierChanged",
   "hasNode",
+  "invalidateIndex",
   "join",
   "loadPatchBySha",
   "materialize",
@@ -504,6 +515,7 @@ exports[`WarpGraph API surface > prototype methods match snapshot 1`] = `
   "syncWith",
   "temporal",
   "translationCost",
+  "verifyIndex",
   "watch",
   "writer",
   "writerId",

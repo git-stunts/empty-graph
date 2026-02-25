@@ -60,9 +60,9 @@ export async function createCheckpoint() {
       this._checkpointing = prevCheckpointing;
     }
 
-    // 4. Build index tree from view service (reuse cached if stateHash matches)
-    let indexTree;
-    if (this._viewService) {
+    // 4. Reuse cached index tree or rebuild from view service
+    let indexTree = this._cachedIndexTree;
+    if (!indexTree && this._viewService) {
       const { tree } = this._viewService.build(state);
       indexTree = tree;
     }
