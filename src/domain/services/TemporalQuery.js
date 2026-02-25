@@ -94,10 +94,14 @@ export class TemporalQuery {
    * @param {Object} options
    * @param {Function} options.loadAllPatches - Async function that returns
    *   all patches as Array<{ patch, sha }> in causal order.
+   * @param {Function} [options.loadCheckpoint] - Async function returning
+   *   { state: WarpStateV5, maxLamport: number } or null.
    */
-  constructor({ loadAllPatches }) {
+  constructor({ loadAllPatches, loadCheckpoint }) {
     /** @type {Function} */
     this._loadAllPatches = loadAllPatches;
+    /** @type {Function|null} */
+    this._loadCheckpoint = loadCheckpoint || null;
   }
 
   /**
@@ -128,19 +132,17 @@ export class TemporalQuery {
     const since = options.since ?? 0;
     const allPatches = await this._loadAllPatches();
 
-    const state = createEmptyStateV5();
+    const { state, startIdx } = await this._resolveStart(allPatches, since);
     let nodeEverExisted = false;
 
-    for (const { patch, sha } of allPatches) {
-      // Apply the patch to state
+    for (let i = startIdx; i < allPatches.length; i++) {
+      const { patch, sha } = allPatches[i];
       joinPatch(state, patch, sha);
 
-      // Skip patches before the `since` threshold
       if (patch.lamport < since) {
         continue;
       }
 
-      // Extract node snapshot at this tick
       const snapshot = extractNodeSnapshot(state, nodeId);
 
       if (snapshot.exists) {
@@ -151,7 +153,6 @@ export class TemporalQuery {
       }
     }
 
-    // If the node never existed in the range, return false
     return nodeEverExisted;
   }
 
@@ -181,18 +182,16 @@ export class TemporalQuery {
     const since = options.since ?? 0;
     const allPatches = await this._loadAllPatches();
 
-    const state = createEmptyStateV5();
+    const { state, startIdx } = await this._resolveStart(allPatches, since);
 
-    for (const { patch, sha } of allPatches) {
-      // Apply the patch to state
+    for (let i = startIdx; i < allPatches.length; i++) {
+      const { patch, sha } = allPatches[i];
       joinPatch(state, patch, sha);
 
-      // Skip patches before the `since` threshold
       if (patch.lamport < since) {
         continue;
       }
 
-      // Extract node snapshot at this tick
       const snapshot = extractNodeSnapshot(state, nodeId);
 
       if (snapshot.exists && predicate(snapshot)) {
@@ -201,5 +200,32 @@ export class TemporalQuery {
     }
 
     return false;
+  }
+
+  /**
+   * Resolves the initial state and start index for temporal replay.
+   *
+   * When `since > 0` and a checkpoint is available with
+   * `maxLamport <= since`, uses the checkpoint state and skips
+   * patches already covered by it. Otherwise falls back to an
+   * empty state starting from index 0.
+   *
+   * @param {Array<{patch: Object, sha: string}>} allPatches
+   * @param {number} since - Minimum Lamport tick
+   * @returns {Promise<{state: import('./JoinReducer.js').WarpStateV5, startIdx: number}>}
+   * @private
+   */
+  async _resolveStart(allPatches, since) {
+    if (since > 0 && this._loadCheckpoint) {
+      const ck = await this._loadCheckpoint();
+      if (ck && ck.state && ck.maxLamport <= since) {
+        const idx = allPatches.findIndex(
+          ({ patch }) => patch.lamport > ck.maxLamport,
+        );
+        const startIdx = idx < 0 ? allPatches.length : idx;
+        return { state: ck.state, startIdx };
+      }
+    }
+    return { state: createEmptyStateV5(), startIdx: 0 };
   }
 }

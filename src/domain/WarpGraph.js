@@ -236,6 +236,21 @@ export default class WarpGraph {
   }
 
   /**
+   * Extracts the maximum Lamport timestamp from a WarpStateV5.
+   *
+   * @param {import('./services/JoinReducer.js').WarpStateV5} state
+   * @returns {number} Maximum Lamport value (0 if frontier is empty)
+   * @private
+   */
+  _maxLamportFromState(state) {
+    let max = 0;
+    for (const v of state.observedFrontier.values()) {
+      if (v > max) { max = v; }
+    }
+    return max;
+  }
+
+  /**
    * Opens a multi-writer graph.
    *
    * @param {Object} options
@@ -396,6 +411,11 @@ export default class WarpGraph {
             allPatches.push(...writerPatches);
           }
           return this._sortPatchesCausally(allPatches);
+        },
+        loadCheckpoint: async () => {
+          const ck = await this._loadLatestCheckpoint();
+          if (!ck) { return null; }
+          return { state: ck.state, maxLamport: this._maxLamportFromState(ck.state) };
         },
       });
     }
