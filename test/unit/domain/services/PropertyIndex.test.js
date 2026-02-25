@@ -138,4 +138,28 @@ describe('PropertyIndex', () => {
 
     await expect(reader.getNodeProps(abNodeId)).rejects.toThrow(/missing blob.*oid_missing/i);
   });
+
+  it('serializes deterministically for equivalent property sets across op orders', () => {
+    const order1 = new PropertyIndexBuilder();
+    order1.addProperty('node:alpha', 'name', 'Alice');
+    order1.addProperty('node:beta', 'name', 'Bob');
+    order1.addProperty('node:alpha', 'role', 'admin');
+    order1.addProperty('node:beta', 'active', true);
+
+    const order2 = new PropertyIndexBuilder();
+    order2.addProperty('node:beta', 'active', true);
+    order2.addProperty('node:alpha', 'role', 'admin');
+    order2.addProperty('node:beta', 'name', 'Bob');
+    order2.addProperty('node:alpha', 'name', 'Alice');
+
+    const tree1 = order1.serialize();
+    const tree2 = order2.serialize();
+    expect(Object.keys(tree1).sort()).toEqual(Object.keys(tree2).sort());
+
+    for (const path of Object.keys(tree1)) {
+      const decoded1 = defaultCodec.decode(tree1[path]);
+      const decoded2 = defaultCodec.decode(tree2[path]);
+      expect(decoded1).toEqual(decoded2);
+    }
+  });
 });

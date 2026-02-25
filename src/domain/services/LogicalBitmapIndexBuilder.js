@@ -19,7 +19,7 @@ import computeShardKey from '../utils/shardKey.js';
 import { getRoaringBitmap32 } from '../utils/roaring.js';
 import { ShardIdOverflowError } from '../errors/index.js';
 
-/** Maximum local IDs per shard byte (2^24). */
+/** Maximum local IDs per shard (2^24). */
 const MAX_LOCAL_ID = 1 << 24;
 
 export default class LogicalBitmapIndexBuilder {

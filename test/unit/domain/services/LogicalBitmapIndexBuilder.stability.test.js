@@ -109,4 +109,39 @@ describe('LogicalBitmapIndexBuilder ID stability (F12)', () => {
     // New label gets next ID
     expect(likesId).toBe(2);
   });
+
+  it('does not duplicate shard node mappings after loadExistingMeta + registerNode', () => {
+    const shardNodes = [
+      `aa${'0'.repeat(38)}`,
+      `aa${'1'.repeat(38)}`,
+      `aa${'2'.repeat(38)}`,
+    ];
+
+    const seedBuilder = new LogicalBitmapIndexBuilder();
+    for (const nodeId of shardNodes) {
+      seedBuilder.registerNode(nodeId);
+      seedBuilder.markAlive(nodeId);
+    }
+    const seededTree = seedBuilder.serialize();
+    const seededMeta = /** @type {{ nodeToGlobal: Array<[string, number]>, nextLocalId: number }} */ (
+      defaultCodec.decode(seededTree['meta_aa.cbor'])
+    );
+
+    const rebuild = new LogicalBitmapIndexBuilder();
+    rebuild.loadExistingMeta('aa', seededMeta);
+    for (const nodeId of shardNodes) {
+      rebuild.registerNode(nodeId);
+    }
+
+    const rebuiltTree = rebuild.serialize();
+    const rebuiltMeta = /** @type {{ nodeToGlobal: Array<[string, number]> }} */ (
+      defaultCodec.decode(rebuiltTree['meta_aa.cbor'])
+    );
+    const nodeIds = rebuiltMeta.nodeToGlobal.map(([nodeId]) => nodeId);
+    const uniqueNodeIds = new Set(nodeIds);
+
+    expect(nodeIds.length).toBe(shardNodes.length);
+    expect(uniqueNodeIds.size).toBe(shardNodes.length);
+    expect([...uniqueNodeIds].sort()).toEqual([...shardNodes].sort());
+  });
 });

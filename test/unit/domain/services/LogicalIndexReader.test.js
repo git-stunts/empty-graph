@@ -47,6 +47,21 @@ function fixtureToState(fixture) {
   return state;
 }
 
+/**
+ * Deterministic edge ordering used by NeighborProviderPort contract.
+ * @param {{ neighborId: string, label: string }} a
+ * @param {{ neighborId: string, label: string }} b
+ */
+function compareEdges(a, b) {
+  if (a.neighborId !== b.neighborId) {
+    return a.neighborId < b.neighborId ? -1 : 1;
+  }
+  if (a.label !== b.label) {
+    return a.label < b.label ? -1 : 1;
+  }
+  return 0;
+}
+
 // ── Tests ────────────────────────────────────────────────────────────────────
 
 describe('LogicalIndexReader', () => {
@@ -239,6 +254,24 @@ describe('LogicalIndexReader', () => {
       expect(filtered.length).toBe(1);
       expect(filtered[0].label).toBe('manages');
       expect(filtered[0].neighborId).toBe('B');
+    });
+
+    it('unfiltered results equal filtered-label union and are sorted by (neighborId, label)', () => {
+      const state = fixtureToState(F7_MULTILABEL_SAME_NEIGHBOR);
+      const service = new LogicalIndexBuildService();
+      const { tree } = service.build(state);
+
+      const idx = new LogicalIndexReader().loadFromTree(tree).toLogicalIndex();
+      const labelIds = [...idx.getLabelRegistry().values()].sort((a, b) => a - b);
+
+      const unfiltered = idx.getEdges('A', 'out');
+      const union = labelIds.flatMap((labelId) => idx.getEdges('A', 'out', [labelId]));
+
+      // Contract check: deterministic codepoint ordering.
+      expect(unfiltered).toEqual([...unfiltered].sort(compareEdges));
+
+      // Semantics check: unfiltered == union(filtered for each label).
+      expect([...union].sort(compareEdges)).toEqual(unfiltered);
     });
   });
 
