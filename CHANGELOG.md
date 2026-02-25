@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [12.0.0] — 2026-02-25
+
+### Changed
+
+- **Documentation updated for v12.0.0** — CLAUDE.md, README.md, ARCHITECTURE.md, GUIDE.md, and CLI_GUIDE.md updated to reflect the MaterializedView architecture overhaul: GraphTraversal engine (11 algorithms, `nodeWeightFn`), `graph.traverse` facade, MaterializedViewService, LogicalIndexBuildService/Reader, IncrementalIndexUpdater, NeighborProviderPort abstraction, checkpoint schema 4, and new CLI commands (`verify-index`, `reindex`).
+- **`LogicalIndexReader` per-owner edge lookup** — `resolveAllLabels()` previously scanned the entire edge store per node — O(total edges). Added `_edgeByOwnerFwd`/`_edgeByOwnerRev` secondary indexes built during shard decode, reducing unfiltered `getEdges()` to O(degree).
+- **`LogicalBitmapIndexBuilder.serialize()` O(N×S) elimination** — meta shard serialization scanned the full `_nodeToGlobal` map for every shard. Added per-shard node list (`_shardNodes`) populated during `registerNode()`/`loadExistingMeta()`, reducing cost to O(N).
+- **`ObserverView` batched provider calls** — `buildAdjacencyViaProvider()` now batches `getNeighbors()` calls in chunks of 64 via `Promise.all` instead of sequential awaits.
+- **Seek cache buffer contract typing** — `SeekCachePort` and `index.d.ts` now type seek-cache payloads as `Buffer | Uint8Array`, matching runtime adapter behavior from `@git-stunts/git-cas`.
+- **Docs/runtime consistency cleanup** — corrected `ARCHITECTURE.md` GraphTraversal method descriptions (BFS/DFS array-returning; BFS-based `shortestPath`) and removed branch-specific ROADMAP header metadata.
+- **Backlog reconciliation** — absorbed all 39 BACKLOG.md items into ROADMAP.md with B-numbers B66–B104. Added Milestone 12 (SCALPEL) for algorithmic performance audit fixes. Expanded Standalone Lane from 20 to 52 items across 11 priority tiers. Added cross-reference table and inventory. BACKLOG.md cleared to skeleton.
+- **Seek cache contract alignment** — synchronized `ARCHITECTURE.md` and `index.d.ts` `SeekCachePort` signatures with runtime behavior: key-based methods and optional `indexTreeOid` metadata on cache entries.
+- **MaterializedView/docs runtime naming alignment** — updated architecture lifecycle docs to reference `build() -> persistIndexTree() -> loadFromOids()` plus incremental `applyDiff()` and `verifyIndex()`, and switched Deno compose `--allow-scripts` to package-name form (`npm:roaring,npm:cbor-extract`) with an explicit sync note to reduce version-drift failures.
+
 ### Fixed
 
 - **Bare `Buffer` in MaterializedView domain files** — `LogicalBitmapIndexBuilder`, `LogicalIndexReader`, `PropertyIndexBuilder`, and `IncrementalIndexUpdater` used the Node.js `Buffer` global without importing it. Deno doesn't provide `Buffer` on `globalThis`, causing `_buildView()` to silently fall back to null indexes — the entire O(1) bitmap index subsystem was non-functional in Deno. Replaced all `Buffer.from()` calls with `Uint8Array`-safe `.slice()` and `Uint8Array.from()`. Updated JSDoc types from `Record<string, Buffer>` to `Record<string, Uint8Array>` across builders, readers, and downstream consumers (`MaterializedViewService`, `LogicalIndexBuildService`).
@@ -30,32 +44,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`computeShardKey` crash on null/undefined input** — `computeShardKey()` now returns `'00'` for null, undefined, or non-string inputs instead of throwing. FNV-1a hashing now operates on UTF-8 bytes (via `TextEncoder`) instead of UTF-16 code units for correct cross-runtime shard placement of non-ASCII node IDs.
 - **`MinHeap` constructor crash on null** — `new MinHeap(null)` threw because destructuring defaults (`= {}`) only apply to `undefined`, not `null`. Constructor now uses explicit `options || {}` guard.
 - **Cross-provider error comparison for non-Error throws** — `runCrossProvider()` in the fixture DSL now normalizes thrown values via `normalizeError()` before comparing `.name`/`.message`, so non-Error throws (strings, numbers) are correctly detected as mismatches instead of silently comparing `undefined === undefined`.
-
-### Changed
-
-- **`LogicalIndexReader` per-owner edge lookup** — `resolveAllLabels()` previously scanned the entire edge store per node — O(total edges). Added `_edgeByOwnerFwd`/`_edgeByOwnerRev` secondary indexes built during shard decode, reducing unfiltered `getEdges()` to O(degree).
-- **`LogicalBitmapIndexBuilder.serialize()` O(N×S) elimination** — meta shard serialization scanned the full `_nodeToGlobal` map for every shard. Added per-shard node list (`_shardNodes`) populated during `registerNode()`/`loadExistingMeta()`, reducing cost to O(N).
-- **`ObserverView` batched provider calls** — `buildAdjacencyViaProvider()` now batches `getNeighbors()` calls in chunks of 64 via `Promise.all` instead of sequential awaits.
-- **Seek cache buffer contract typing** — `SeekCachePort` and `index.d.ts` now type seek-cache payloads as `Buffer | Uint8Array`, matching runtime adapter behavior from `@git-stunts/git-cas`.
-- **Docs/runtime consistency cleanup** — corrected `ARCHITECTURE.md` GraphTraversal method descriptions (BFS/DFS array-returning; BFS-based `shortestPath`) and removed branch-specific ROADMAP header metadata.
-- **Backlog reconciliation** — absorbed all 39 BACKLOG.md items into ROADMAP.md with B-numbers B66–B104. Added Milestone 12 (SCALPEL) for algorithmic performance audit fixes. Expanded Standalone Lane from 20 to 52 items across 11 priority tiers. Added cross-reference table and inventory. BACKLOG.md cleared to skeleton.
-- **Seek cache contract alignment** — synchronized `ARCHITECTURE.md` and `index.d.ts` `SeekCachePort` signatures with runtime behavior: key-based methods and optional `indexTreeOid` metadata on cache entries.
-- **MaterializedView/docs runtime naming alignment** — updated architecture lifecycle docs to reference `build() -> persistIndexTree() -> loadFromOids()` plus incremental `applyDiff()` and `verifyIndex()`, and switched Deno compose `--allow-scripts` to package-name form (`npm:roaring,npm:cbor-extract`) with an explicit sync note to reduce version-drift failures.
-
-## [12.0.0] — 2026-02-25
-
-### Changed
-
-- **Documentation updated for v12.0.0** — CLAUDE.md, README.md, ARCHITECTURE.md, GUIDE.md, and CLI_GUIDE.md updated to reflect the MaterializedView architecture overhaul: GraphTraversal engine (11 algorithms, `nodeWeightFn`), `graph.traverse` facade, MaterializedViewService, LogicalIndexBuildService/Reader, IncrementalIndexUpdater, NeighborProviderPort abstraction, checkpoint schema 4, and new CLI commands (`verify-index`, `reindex`).
-
-
-### Added (MaterializedView architecture & indexing)
-
-- **`nodeWeightFn` option for node-weighted graph algorithms** — `weightedShortestPath`, `aStarSearch`, `bidirectionalAStar`, and `weightedLongestPath` now accept `nodeWeightFn(nodeId) => number` as an alternative to `weightFn`. Weight = cost to enter the destination node. Internally memoized (each node resolved at most once). Mutually exclusive with `weightFn` — providing both throws `E_WEIGHT_FN_CONFLICT`.
-- **`graph.traverse` — 7 new facade methods** — `isReachable`, `weightedShortestPath`, `aStarSearch`, `bidirectionalAStar`, `topologicalSort`, `commonAncestors`, and `weightedLongestPath` are now accessible via the public `graph.traverse.*` API, matching the full `GraphTraversal` engine surface. Previously these required constructing `GraphTraversal` + `NeighborProvider` directly.
-
-### Fixed
-
 - **`commonAncestors` error message** — error message now reads `"Node not found: <id>"` (was `"Start node not found"`) with `{ node }` context, since `commonAncestors` accepts multiple nodes, not a single start.
 - **`bidirectionalAStar` direction bypass** — no longer routes through `_prepare`/`assertDirection`, which silently accepted a meaningless `dir` parameter. Now validates `from` inline after `_prepareEngine`.
 - **Traverse facade: phantom `maxDepth` JSDoc** — removed undocumented `maxDepth` param from `weightedShortestPath` and `aStarSearch` JSDoc and `index.d.ts` types (these methods don't support depth limiting).
@@ -72,6 +60,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **CheckpointService: codepoint sort** — tree entry sorting now uses codepoint comparison instead of `localeCompare`, matching Git's byte-order requirement.
 - **BitmapNeighborProvider: constructor guard** — throws when neither `indexReader` nor `logicalIndex` is provided, preventing silent empty-result misconfiguration.
 - **fixtureDsl: complete op fields** — `NodeRemove` ops now include `node` field, `EdgeRemove` ops include `from`, `to`, `label` fields, matching the contract expected by `accumulateOpDiff`.
+
+### Added (MaterializedView architecture & indexing)
+
+- **`nodeWeightFn` option for node-weighted graph algorithms** — `weightedShortestPath`, `aStarSearch`, `bidirectionalAStar`, and `weightedLongestPath` now accept `nodeWeightFn(nodeId) => number` as an alternative to `weightFn`. Weight = cost to enter the destination node. Internally memoized (each node resolved at most once). Mutually exclusive with `weightFn` — providing both throws `E_WEIGHT_FN_CONFLICT`.
+- **`graph.traverse` — 7 new facade methods** — `isReachable`, `weightedShortestPath`, `aStarSearch`, `bidirectionalAStar`, `topologicalSort`, `commonAncestors`, and `weightedLongestPath` are now accessible via the public `graph.traverse.*` API, matching the full `GraphTraversal` engine surface. Previously these required constructing `GraphTraversal` + `NeighborProvider` directly.
 
 ### Added
 

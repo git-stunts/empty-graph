@@ -8,6 +8,18 @@
   <img src="docs/images/hero.gif" alt="git-warp CLI demo" width="600">
 </p>
 
+## What's New in v12.0.0
+
+- **MaterializedViewService** — unified service orchestrating build, persist, and load of bitmap indexes and property readers as a single coherent materialized view. Checkpoints now embed the index (schema:4) for instant hydration on open.
+- **GraphTraversal engine (11 algorithms)** — BFS, DFS, shortest path, Dijkstra, A\*, bidirectional A\*, topological sort, longest path, connected component, reachability, and common ancestors. All accessible via `graph.traverse.*`.
+- **NeighborProviderPort abstraction** — decouples traversal algorithms from storage. Two implementations: `AdjacencyNeighborProvider` (in-memory) and `BitmapNeighborProvider` (O(1) bitmap lookups).
+- **Logical bitmap index** — CBOR-sharded Roaring bitmap index with labeled edges, stable numeric IDs, and property indexes. `IncrementalIndexUpdater` enables O(diff) updates.
+- **`nodeWeightFn`** — node-weighted graph algorithms (Dijkstra, A\*, longest path) as an alternative to edge-weight functions.
+- **CLI: `verify-index` and `reindex`** — new commands for index integrity checks and forced rebuilds.
+- **Cross-runtime hardening** — eliminated bare `Buffer` usage across the index subsystem; bitmap indexes now work on Node, Bun, and Deno.
+
+See the [full changelog](CHANGELOG.md) for details.
+
 ## The Core Idea
 
 **git-warp** is a graph database that doesn't need a database server. It stores all its data inside a Git repository by abusing a clever trick: every piece of data is a Git commit that points to the **empty tree** — a special object that exists in every Git repo. Because the commits don't reference any actual files, they're completely invisible to normal Git operations like `git log`, `git diff`, or `git status`. Your codebase stays untouched, but there's a full graph database living alongside it.
