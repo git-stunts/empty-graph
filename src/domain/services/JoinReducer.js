@@ -390,14 +390,36 @@ function snapshotBeforeOp(state, op) {
   switch (op.type) {
     case 'NodeAdd':
       return { nodeWasAlive: orsetContains(state.nodeAlive, op.node) };
-    case 'NodeRemove':
-      return {};
+    case 'NodeRemove': {
+      const aliveBeforeNodes = new Set();
+      for (const [element, dots] of state.nodeAlive.entries) {
+        if (!orsetContains(state.nodeAlive, element)) { continue; }
+        for (const d of op.observedDots) {
+          if (dots.has(d)) {
+            aliveBeforeNodes.add(element);
+            break;
+          }
+        }
+      }
+      return { aliveBeforeNodes };
+    }
     case 'EdgeAdd': {
       const ek = encodeEdgeKey(op.from, op.to, op.label);
       return { edgeWasAlive: orsetContains(state.edgeAlive, ek), edgeKey: ek };
     }
-    case 'EdgeRemove':
-      return {};
+    case 'EdgeRemove': {
+      const aliveBeforeEdges = new Set();
+      for (const [edgeKey, dots] of state.edgeAlive.entries) {
+        if (!orsetContains(state.edgeAlive, edgeKey)) { continue; }
+        for (const d of op.observedDots) {
+          if (dots.has(d)) {
+            aliveBeforeEdges.add(edgeKey);
+            break;
+          }
+        }
+      }
+      return { aliveBeforeEdges };
+    }
     case 'PropSet': {
       const pk = encodePropKey(op.node, op.key);
       const reg = state.prop.get(pk);
@@ -425,7 +447,7 @@ function accumulateOpDiff(diff, state, op, before) {
       break;
     }
     case 'NodeRemove': {
-      collectNodeRemovals(diff, state, op);
+      collectNodeRemovals(diff, state, before);
       break;
     }
     case 'EdgeAdd': {
@@ -436,7 +458,7 @@ function accumulateOpDiff(diff, state, op, before) {
       break;
     }
     case 'EdgeRemove': {
-      collectEdgeRemovals(diff, state, op);
+      collectEdgeRemovals(diff, state, before);
       break;
     }
     case 'PropSet': {
@@ -458,58 +480,31 @@ function accumulateOpDiff(diff, state, op, before) {
 }
 
 /**
- * Checks each observed dot's owner element; if now dead, records removal.
+ * Records removal only for elements that were alive before AND dead after.
  *
  * @param {import('../types/PatchDiff.js').PatchDiff} diff
  * @param {WarpStateV5} state
- * @param {Object} op
+ * @param {{ aliveBeforeNodes: Set<string> }} before
  */
-function collectNodeRemovals(diff, state, op) {
-  const seen = new Set();
-  for (const [element] of state.nodeAlive.entries) {
-    if (seen.has(element)) {
-      continue;
-    }
+function collectNodeRemovals(diff, state, before) {
+  for (const element of before.aliveBeforeNodes) {
     if (!orsetContains(state.nodeAlive, element)) {
-      // Check if any of the observed dots belonged to this element
-      const dots = state.nodeAlive.entries.get(element);
-      if (dots) {
-        for (const d of op.observedDots) {
-          if (dots.has(d)) {
-            diff.nodesRemoved.push(element);
-            seen.add(element);
-            break;
-          }
-        }
-      }
+      diff.nodesRemoved.push(element);
     }
   }
 }
 
 /**
- * Checks each observed dot's owner edge; if now dead, records removal.
+ * Records removal only for edges that were alive before AND dead after.
  *
  * @param {import('../types/PatchDiff.js').PatchDiff} diff
  * @param {WarpStateV5} state
- * @param {Object} op
+ * @param {{ aliveBeforeEdges: Set<string> }} before
  */
-function collectEdgeRemovals(diff, state, op) {
-  const seen = new Set();
-  for (const [edgeKey] of state.edgeAlive.entries) {
-    if (seen.has(edgeKey)) {
-      continue;
-    }
+function collectEdgeRemovals(diff, state, before) {
+  for (const edgeKey of before.aliveBeforeEdges) {
     if (!orsetContains(state.edgeAlive, edgeKey)) {
-      const dots = state.edgeAlive.entries.get(edgeKey);
-      if (dots) {
-        for (const d of op.observedDots) {
-          if (dots.has(d)) {
-            diff.edgesRemoved.push(decodeEdgeKey(edgeKey));
-            seen.add(edgeKey);
-            break;
-          }
-        }
-      }
+      diff.edgesRemoved.push(decodeEdgeKey(edgeKey));
     }
   }
 }

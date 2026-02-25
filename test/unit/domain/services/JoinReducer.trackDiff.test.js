@@ -146,6 +146,35 @@ describe('JoinReducer diff tracking', () => {
       expect(diff.nodesRemoved).toEqual([]);
       expect(orsetContains(s.nodeAlive, 'n1')).toBe(true);
     });
+
+    it('redundant remove of already-dead node produces no spurious diff (H4)', () => {
+      const state = createEmptyStateV5();
+
+      // n1 is alive, n2 was added and already fully tombstoned (dead)
+      const dot1 = createDot('w1', 1);
+      const dot2 = createDot('w1', 2);
+      orsetAdd(state.nodeAlive, 'n1', dot1);
+      orsetAdd(state.nodeAlive, 'n2', dot2);
+
+      // Tombstone n2 first — it's now dead
+      state.nodeAlive.tombstones.add(encodeDot(dot2));
+      expect(orsetContains(state.nodeAlive, 'n2')).toBe(false);
+      expect(orsetContains(state.nodeAlive, 'n1')).toBe(true);
+
+      // Now apply a remove that observes dot1 (killing n1) AND dot2 (redundant for n2)
+      const patch = makePatch({
+        lamport: 3,
+        ops: [nodeRemove('n1', new Set([encodeDot(dot1), encodeDot(dot2)]))],
+      });
+
+      const { diff } = applyWithDiff(state, patch, 'bbb00003');
+
+      // n1 was alive → dead: should appear
+      expect(diff.nodesRemoved).toContain('n1');
+      // n2 was already dead → should NOT appear
+      expect(diff.nodesRemoved).not.toContain('n2');
+      expect(diff.nodesRemoved).toHaveLength(1);
+    });
   });
 
   // =========================================================================
@@ -227,6 +256,34 @@ describe('JoinReducer diff tracking', () => {
 
       expect(diff.edgesRemoved).toEqual([]);
       expect(orsetContains(s.edgeAlive, edgeKey)).toBe(true);
+    });
+
+    it('redundant remove of already-dead edge produces no spurious diff (H4)', () => {
+      const state = createEmptyStateV5();
+
+      const dot1 = createDot('w1', 1);
+      const dot2 = createDot('w1', 2);
+      const ek1 = encodeEdgeKey('a', 'b', 'rel');
+      const ek2 = encodeEdgeKey('c', 'd', 'rel');
+      orsetAdd(state.edgeAlive, ek1, dot1);
+      orsetAdd(state.edgeAlive, ek2, dot2);
+
+      // Tombstone ek2 — it's already dead
+      state.edgeAlive.tombstones.add(encodeDot(dot2));
+      expect(orsetContains(state.edgeAlive, ek2)).toBe(false);
+
+      // Remove that observes both dots
+      const patch = makePatch({
+        lamport: 3,
+        ops: [edgeRemove('a', 'b', 'rel', new Set([encodeDot(dot1), encodeDot(dot2)]))],
+      });
+
+      const { diff } = applyWithDiff(state, patch, 'ddd00003');
+
+      // ek1 was alive → dead: should appear
+      expect(diff.edgesRemoved).toEqual([{ from: 'a', to: 'b', label: 'rel' }]);
+      // ek2 was already dead → should NOT appear
+      expect(diff.edgesRemoved).not.toContainEqual({ from: 'c', to: 'd', label: 'rel' });
     });
   });
 
