@@ -6,4 +6,10 @@ Items noticed during development that are worth addressing but were out of scope
 
 ---
 
-*\<Empty\>*
+## 2026-02-25 Follow-Ups
+
+- Deno image smoke gate for native fallback prerequisites (`node-gyp` + bootstrap install probe).
+- Safe PR-comment helper script to eliminate shell quoting/substitution errors.
+- CI-ready summary task that combines unresolved-thread count with check statuses.
+- Reduce runtime fragility around external prebuilt binaries by documenting and testing fallback behavior explicitly.
+- Add an explicit local `test:deno:smoke` command for fast pre-push confidence.
