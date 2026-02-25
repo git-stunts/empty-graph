@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **IncrementalIndexUpdater: overflow guard** — `_handleNodeAdd` now throws `ShardIdOverflowError` when a shard's `nextLocalId` reaches 2^24, matching the full-build path and preventing silent globalId collisions across shards.
 - **IncrementalIndexUpdater: undefined label guard** — `_handleEdgeRemove` now returns early when the edge label is not in the label registry, preventing a `"undefined"` bucket from being targeted.
+- **GraphTraversal: bidirectional A\* backward weight direction** — `_biAStarExpand` now passes `weightFn(neighborId, current, label)` when expanding backward, correctly reflecting edge direction for asymmetric weight functions.
 
 ### Added
 

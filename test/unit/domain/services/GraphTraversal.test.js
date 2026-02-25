@@ -351,6 +351,30 @@ describe('GraphTraversal.bidirectionalAStar', () => {
     expect(result.path[result.path.length - 1]).toBe('d');
     expect(result.totalCost).toBe(2);
   });
+
+  it('respects asymmetric weight function in backward expansion', async () => {
+    // Graph: a → b → c  with asymmetric weights
+    // Forward: a→b costs 1, b→c costs 1
+    // Backward expansion sees edges as c←b, b←a but must call weightFn(b,c) and weightFn(a,b)
+    const provider = buildProvider([
+      { from: 'a', to: 'b', label: 'e1' },
+      { from: 'b', to: 'c', label: 'e2' },
+    ]);
+    const engine = new GraphTraversal({ provider });
+
+    const weights = { 'a|b': 10, 'b|a': 999, 'b|c': 5, 'c|b': 999 };
+    const weightFn = (from, to) => weights[`${from}|${to}`] ?? 1;
+
+    const result = await engine.bidirectionalAStar({
+      start: 'a',
+      goal: 'c',
+      weightFn,
+    });
+    // Correct cost: a→b (10) + b→c (5) = 15
+    // Bug would call weightFn(b,a) and weightFn(c,b) for backward, getting 999
+    expect(result.totalCost).toBe(15);
+    expect(result.path).toEqual(['a', 'b', 'c']);
+  });
 });
 
 // ==== connectedComponent Tests ====

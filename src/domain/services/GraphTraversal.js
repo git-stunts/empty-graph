@@ -656,7 +656,9 @@ export default class GraphTraversal {
 
     for (const { neighborId, label } of neighbors) {
       if (visited.has(neighborId)) { continue; }
-      const w = await weightFn(current, neighborId, label);
+      const w = directionForNeighbors === 'in'
+        ? await weightFn(neighborId, current, label)
+        : await weightFn(current, neighborId, label);
       const tentG = /** @type {number} */ (gScore.get(current)) + w;
       const bestG = gScore.has(neighborId) ? /** @type {number} */ (gScore.get(neighborId)) : Infinity;
 
