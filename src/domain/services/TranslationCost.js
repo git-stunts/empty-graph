@@ -15,27 +15,9 @@
 
 import { orsetElements, orsetContains } from '../crdt/ORSet.js';
 import { decodeEdgeKey, decodePropKey, isEdgePropKey } from './KeyCodec.js';
+import { matchGlob } from '../utils/matchGlob.js';
 
 /** @typedef {import('./JoinReducer.js').WarpStateV5} WarpStateV5 */
-
-/**
- * Tests whether a string matches a glob-style pattern.
- *
- * @param {string} pattern - Glob pattern (e.g. 'user:*', '*:admin', '*')
- * @param {string} str - The string to test
- * @returns {boolean} True if the string matches the pattern
- */
-function matchGlob(pattern, str) {
-  if (pattern === '*') {
-    return true;
-  }
-  if (!pattern.includes('*')) {
-    return pattern === str;
-  }
-  const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
-  const regex = new RegExp(`^${escaped.replace(/\*/g, '.*')}$`);
-  return regex.test(str);
-}
 
 /**
  * Computes the set of property keys visible under an observer config.
@@ -199,9 +181,10 @@ function computePropLoss(state, { nodesA, nodesBSet, configA, configB }) {
  * @returns {{ cost: number, breakdown: { nodeLoss: number, edgeLoss: number, propLoss: number } }}
  */
 export function computeTranslationCost(configA, configB, state) {
-  if (!configA || typeof configA.match !== 'string' ||
-      !configB || typeof configB.match !== 'string') {
-    throw new Error('configA.match and configB.match must be strings');
+  const isValidMatch = (m) => typeof m === 'string' || (Array.isArray(m) && m.every(i => typeof i === 'string'));
+  if (!configA || !isValidMatch(configA.match) ||
+      !configB || !isValidMatch(configB.match)) {
+    throw new Error('configA.match and configB.match must be strings or arrays of strings');
   }
   const allNodes = [...orsetElements(state.nodeAlive)];
   const nodesA = allNodes.filter((id) => matchGlob(configA.match, id));

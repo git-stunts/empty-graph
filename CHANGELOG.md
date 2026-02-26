@@ -7,7 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [12.0.0] — 2026-02-25
+## [12.1.0] — 2026-02-25
+
+### Added
+
+- **Multi-pattern glob support** — `graph.observer()`, `query().match()`, and `translationCost()` now accept an array of glob patterns (e.g. `['campaign:*', 'milestone:*']`). Nodes matching *any* pattern in the array are included (OR semantics).
+- **Centralized `matchGlob` utility** (`src/domain/utils/matchGlob.js`) — unified glob matching logic with regex caching and support for array-based multi-pattern matching.
+
+### [12.0.0] — 2026-02-25
 
 ### Changed
 

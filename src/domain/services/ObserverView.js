@@ -13,35 +13,7 @@ import QueryBuilder from './QueryBuilder.js';
 import LogicalTraversal from './LogicalTraversal.js';
 import { orsetContains, orsetElements } from '../crdt/ORSet.js';
 import { decodeEdgeKey } from './KeyCodec.js';
-
-/** @type {Map<string, RegExp>} Module-level cache for compiled glob regexes. */
-const globRegexCache = new Map();
-
-/**
- * Tests whether a string matches a glob-style pattern.
- *
- * Supports `*` as a wildcard matching zero or more characters.
- * A lone `*` matches everything.
- *
- * @param {string} pattern - Glob pattern (e.g. 'user:*', '*:admin', '*')
- * @param {string} str - The string to test
- * @returns {boolean} True if the string matches the pattern
- */
-function matchGlob(pattern, str) {
-  if (pattern === '*') {
-    return true;
-  }
-  if (!pattern.includes('*')) {
-    return pattern === str;
-  }
-  let regex = globRegexCache.get(pattern);
-  if (!regex) {
-    const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
-    regex = new RegExp(`^${escaped.replace(/\*/g, '.*')}$`);
-    globRegexCache.set(pattern, regex);
-  }
-  return regex.test(str);
-}
+import { matchGlob } from '../utils/matchGlob.js';
 
 /**
  * Filters a properties Map based on expose and redact lists.
@@ -187,7 +159,7 @@ export default class ObserverView {
    * @param {Object} options
    * @param {string} options.name - Observer name
    * @param {Object} options.config - Observer configuration
-   * @param {string} options.config.match - Glob pattern for visible nodes
+   * @param {string|string[]} options.config.match - Glob pattern(s) for visible nodes
    * @param {string[]} [options.config.expose] - Property keys to include
    * @param {string[]} [options.config.redact] - Property keys to exclude (takes precedence over expose)
    * @param {import('../WarpGraph.js').default} options.graph - The source WarpGraph instance

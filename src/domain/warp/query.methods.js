@@ -312,14 +312,15 @@ export function query() {
  * @this {import('../WarpGraph.js').default}
  * @param {string} name - Observer name
  * @param {Object} config - Observer configuration
- * @param {string} config.match - Glob pattern for visible nodes
+ * @param {string|string[]} config.match - Glob pattern(s) for visible nodes
  * @param {string[]} [config.expose] - Property keys to include
  * @param {string[]} [config.redact] - Property keys to exclude
  * @returns {Promise<import('../services/ObserverView.js').default>} A read-only observer view
  */
 export async function observer(name, config) {
-  if (!config || typeof config.match !== 'string') {
-    throw new Error('observer config.match must be a string');
+  const isValidMatch = (m) => typeof m === 'string' || (Array.isArray(m) && m.every(i => typeof i === 'string'));
+  if (!config || !isValidMatch(config.match)) {
+    throw new Error('observer config.match must be a string or array of strings');
   }
   await this._ensureFreshState();
   return new ObserverView({ name, config, graph: this });

@@ -31,13 +31,27 @@ describe('WarpGraph QueryBuilder', () => {
     });
   });
 
-  it('throws E_QUERY_MATCH_TYPE for non-string match', () => {
-    expect(() => graph.query().match(['user:*'])).toThrow(QueryError);
+  it('throws E_QUERY_MATCH_TYPE for non-string/non-array match', () => {
+    expect(() => graph.query().match(123)).toThrow(QueryError);
     try {
-      graph.query().match(['user:*']);
+      graph.query().match(123);
     } catch (/** @type {any} */ err) {
       expect(err.code).toBe('E_QUERY_MATCH_TYPE');
     }
+  });
+
+  it('supports multiple glob match patterns', async () => {
+    setupGraphState(graph, (/** @type {any} */ state) => {
+      addNodeToState(state, 'campaign:1', 1);
+      addNodeToState(state, 'milestone:A', 2);
+      addNodeToState(state, 'user:alice', 3);
+    });
+
+    const result = await graph.query().match(['campaign:*', 'milestone:*']).run();
+    expect(result.nodes).toEqual([
+      { id: 'campaign:1' },
+      { id: 'milestone:A' },
+    ]);
   });
 
   it('supports two-hop traversal with ordered results', async () => {

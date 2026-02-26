@@ -127,6 +127,20 @@ describe('ObserverView', () => {
       expect(nodes.sort()).toEqual(['team:eng', 'user:alice']);
     });
 
+    it('observer matching array of patterns shows nodes matching any pattern', async () => {
+      setupGraphState(graph, (state) => {
+        addNode(state, 'campaign:1', 1);
+        addNode(state, 'milestone:A', 2);
+        addNode(state, 'user:alice', 3);
+        addNode(state, 'team:eng', 4);
+      });
+
+      const view = await graph.observer('multiView', { match: ['campaign:*', 'milestone:*'] });
+      const nodes = await view.getNodes();
+
+      expect(nodes.sort()).toEqual(['campaign:1', 'milestone:A']);
+    });
+
     it('empty match pattern shows no nodes', async () => {
       setupGraphState(graph, (state) => {
         addNode(state, 'user:alice', 1);

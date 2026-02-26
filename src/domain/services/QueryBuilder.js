@@ -5,6 +5,7 @@
  */
 
 import QueryError from '../errors/QueryError.js';
+import { matchGlob } from '../utils/matchGlob.js';
 
 const DEFAULT_PATTERN = '*';
 
@@ -48,15 +49,18 @@ const DEFAULT_PATTERN = '*';
  */
 
 /**
- * Asserts that a match pattern is a string.
+ * Asserts that a match pattern is a string or array of strings.
  *
  * @param {unknown} pattern - The pattern to validate
- * @throws {QueryError} If pattern is not a string (code: E_QUERY_MATCH_TYPE)
+ * @throws {QueryError} If pattern is not a string or array of strings (code: E_QUERY_MATCH_TYPE)
  * @private
  */
 function assertMatchPattern(pattern) {
-  if (typeof pattern !== 'string') {
-    throw new QueryError('match() expects a string pattern', {
+  const isString = typeof pattern === 'string';
+  const isStringArray = Array.isArray(pattern) && pattern.every((p) => typeof p === 'string');
+
+  if (!isString && !isStringArray) {
+    throw new QueryError('match() expects a string pattern or array of string patterns', {
       code: 'E_QUERY_MATCH_TYPE',
       context: { receivedType: typeof pattern },
     });
@@ -163,41 +167,6 @@ function assertLabel(label) {
  */
 function sortIds(ids) {
   return [...ids].sort();
-}
-
-/**
- * Escapes special regex characters in a string so it can be used as a literal match.
- *
- * @param {string} value - The string to escape
- * @returns {string} The escaped string safe for use in a RegExp
- * @private
- */
-function escapeRegex(value) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-/**
- * Tests whether a node ID matches a glob-style pattern.
- *
- * Supports:
- * - `*` as the default pattern, matching all node IDs
- * - Wildcard `*` anywhere in the pattern, matching zero or more characters
- * - Literal match when pattern contains no wildcards
- *
- * @param {string} nodeId - The node ID to test
- * @param {string} pattern - The glob pattern (e.g., "user:*", "*:admin", "*")
- * @returns {boolean} True if the node ID matches the pattern
- * @private
- */
-function matchesPattern(nodeId, pattern) {
-  if (pattern === DEFAULT_PATTERN) {
-    return true;
-  }
-  if (pattern.includes('*')) {
-    const regex = new RegExp(`^${escapeRegex(pattern).replace(/\\\*/g, '.*')}$`);
-    return regex.test(nodeId);
-  }
-  return nodeId === pattern;
 }
 
 /**
@@ -505,16 +474,17 @@ export default class QueryBuilder {
   }
 
   /**
-   * Sets the match pattern for filtering nodes by ID.
+   * Sets the match pattern(s) for filtering nodes by ID.
    *
    * Supports glob-style patterns:
    * - `*` matches all nodes
    * - `user:*` matches all nodes starting with "user:"
    * - `*:admin` matches all nodes ending with ":admin"
+   * - Array of patterns: `['campaign:*', 'milestone:*']` (OR semantics)
    *
-   * @param {string} pattern - Glob pattern to match node IDs against
+   * @param {string|string[]} pattern - Glob pattern or array of patterns to match node IDs against
    * @returns {QueryBuilder} This builder for chaining
-   * @throws {QueryError} If pattern is not a string (code: E_QUERY_MATCH_TYPE)
+   * @throws {QueryError} If pattern is not a string or array of strings (code: E_QUERY_MATCH_TYPE)
    */
   match(pattern) {
     assertMatchPattern(pattern);
@@ -682,7 +652,7 @@ export default class QueryBuilder {
     const pattern = this._pattern ?? DEFAULT_PATTERN;
 
     let workingSet;
-    workingSet = allNodes.filter((nodeId) => matchesPattern(nodeId, pattern));
+    workingSet = allNodes.filter((nodeId) => matchGlob(pattern, nodeId));
 
     for (const op of this._operations) {
       if (op.type === 'where') {

@@ -68,6 +68,21 @@ describe('TranslationCost', () => {
       expect(result.breakdown.propLoss).toBe(0);
     });
 
+    it('supports multiple glob match patterns as arrays', () => {
+      const state = createEmptyStateV5();
+      addNode(state, 'campaign:1', 1);
+      addNode(state, 'milestone:A', 2);
+      addNode(state, 'user:alice', 3);
+
+      const configA = { match: ['campaign:*', 'milestone:*'] };
+      const configB = { match: '*' };
+
+      const result = computeTranslationCost(configA, configB, state);
+
+      expect(result.cost).toBe(0);
+      expect(result.breakdown.nodeLoss).toBe(0);
+    });
+
     it('completely disjoint match patterns produce cost 1', () => {
       const state = createEmptyStateV5();
       addNode(state, 'user:alice', 1);
