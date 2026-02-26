@@ -318,7 +318,7 @@ export function query() {
  * @returns {Promise<import('../services/ObserverView.js').default>} A read-only observer view
  */
 export async function observer(name, config) {
-  const isValidMatch = (m) => typeof m === 'string' || (Array.isArray(m) && m.every(i => typeof i === 'string'));
+  const isValidMatch = (/** @type {string|string[]} */ m) => typeof m === 'string' || (Array.isArray(m) && m.every(i => typeof i === 'string'));
   if (!config || !isValidMatch(config.match)) {
     throw new Error('observer config.match must be a string or array of strings');
   }

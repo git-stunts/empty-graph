@@ -170,18 +170,18 @@ function computePropLoss(state, { nodesA, nodesBSet, configA, configB }) {
  * A's view to B's view. It is asymmetric: cost(A->B) != cost(B->A) in general.
  *
  * @param {Object} configA - Observer configuration for A
- * @param {string} configA.match - Glob pattern for visible nodes
+ * @param {string|string[]} configA.match - Glob pattern(s) for visible nodes
  * @param {string[]} [configA.expose] - Property keys to include
  * @param {string[]} [configA.redact] - Property keys to exclude
  * @param {Object} configB - Observer configuration for B
- * @param {string} configB.match - Glob pattern for visible nodes
+ * @param {string|string[]} configB.match - Glob pattern(s) for visible nodes
  * @param {string[]} [configB.expose] - Property keys to include
  * @param {string[]} [configB.redact] - Property keys to exclude
  * @param {WarpStateV5} state - WarpStateV5 materialized state
  * @returns {{ cost: number, breakdown: { nodeLoss: number, edgeLoss: number, propLoss: number } }}
  */
 export function computeTranslationCost(configA, configB, state) {
-  const isValidMatch = (m) => typeof m === 'string' || (Array.isArray(m) && m.every(i => typeof i === 'string'));
+  const isValidMatch = (/** @type {string|string[]} */ m) => typeof m === 'string' || (Array.isArray(m) && m.every(i => typeof i === 'string'));
   if (!configA || !isValidMatch(configA.match) ||
       !configB || !isValidMatch(configB.match)) {
     throw new Error('configA.match and configB.match must be strings or arrays of strings');

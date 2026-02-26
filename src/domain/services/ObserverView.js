@@ -168,7 +168,7 @@ export default class ObserverView {
     /** @type {string} */
     this._name = name;
 
-    /** @type {string} */
+    /** @type {string|string[]} */
     this._matchPattern = config.match;
 
     /** @type {string[]|undefined} */

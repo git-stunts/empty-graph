@@ -6,6 +6,7 @@
  */
 
 import { diffStates, isEmptyDiff } from '../services/StateDiff.js';
+import { matchGlob } from '../utils/matchGlob.js';
 
 /**
  * Subscribes to graph changes.
@@ -101,7 +102,7 @@ export function subscribe({ onChange, onError, replay = false }) {
  * be at least 1000ms.
  *
  * @this {import('../WarpGraph.js').default}
- * @param {string} pattern - Glob pattern (e.g., 'user:*', 'order:123', '*')
+ * @param {string|string[]} pattern - Glob pattern(s) (e.g., 'user:*', 'order:123', '*')
  * @param {Object} options - Watch options
  * @param {(diff: import('../services/StateDiff.js').StateDiffResult) => void} options.onChange - Called with filtered diff when matching changes occur
  * @param {(error: Error) => void} [options.onError] - Called if onChange throws an error
@@ -130,8 +131,9 @@ export function subscribe({ onChange, onError, replay = false }) {
  * unsubscribe();
  */
 export function watch(pattern, { onChange, onError, poll }) {
-  if (typeof pattern !== 'string') {
-    throw new Error('pattern must be a string');
+  const isValidPattern = (/** @type {string|string[]} */ p) => typeof p === 'string' || (Array.isArray(p) && p.every(i => typeof i === 'string'));
+  if (!isValidPattern(pattern)) {
+    throw new Error('pattern must be a string or array of strings');
   }
   if (typeof onChange !== 'function') {
     throw new Error('onChange must be a function');
@@ -142,19 +144,9 @@ export function watch(pattern, { onChange, onError, poll }) {
     }
   }
 
-  // Pattern matching: same logic as QueryBuilder.match()
-  // Pre-compile pattern matcher once for performance
+  // Pattern matching logic
   /** @type {(nodeId: string) => boolean} */
-  let matchesPattern;
-  if (pattern === '*') {
-    matchesPattern = () => true;
-  } else if (pattern.includes('*')) {
-    const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
-    const regex = new RegExp(`^${escaped.replace(/\*/g, '.*')}$`);
-    matchesPattern = (/** @type {string} */ nodeId) => regex.test(nodeId);
-  } else {
-    matchesPattern = (/** @type {string} */ nodeId) => nodeId === pattern;
-  }
+  const matchesPattern = (nodeId) => matchGlob(pattern, nodeId);
 
   // Filtered onChange that only passes matching changes
   const filteredOnChange = (/** @type {import('../services/StateDiff.js').StateDiffResult} */ diff) => {

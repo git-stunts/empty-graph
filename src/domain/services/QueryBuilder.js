@@ -463,7 +463,7 @@ export default class QueryBuilder {
    */
   constructor(graph) {
     this._graph = graph;
-    /** @type {string|null} */
+    /** @type {string|string[]|null} */
     this._pattern = null;
     /** @type {Array<{type: string, fn?: (node: QueryNodeSnapshot) => boolean, label?: string, depth?: [number, number]}>} */
     this._operations = [];
