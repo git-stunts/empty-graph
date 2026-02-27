@@ -15,6 +15,8 @@ Items noticed during development that are worth addressing but were out of scope
 - Pre-merge CI gate: fail when required review quorum is not met.
 - Add a small utility to parse CodeRabbit rate-limit comments and print cooldown-expiry timestamps in local time.
 - Add a helper command to summarize/resolve outdated review threads with explicit scope evidence links.
+- Add a single `pr:ready` command to aggregate checks, unresolved-thread status, Rabbit cooldown, and review quorum.
+- Add optional maintainer-review reminder cadence automation when quorum remains unmet.
 - Reduce runtime fragility around external prebuilt binaries by documenting and testing fallback behavior explicitly.
 - Add an explicit local `test:deno:smoke` command for fast pre-push confidence.
 - Add markdownlint to pre-commit to catch MD024 (duplicate headings) and MD040 (fenced code language) before review.
