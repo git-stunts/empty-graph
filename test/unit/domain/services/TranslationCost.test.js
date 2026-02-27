@@ -83,6 +83,12 @@ describe('TranslationCost', () => {
       expect(result.breakdown.nodeLoss).toBe(0);
     });
 
+    it('rejects empty array as match pattern', () => {
+      const state = createEmptyStateV5();
+      expect(() => computeTranslationCost({ match: [] }, { match: 'user:*' }, state))
+        .toThrow('non-empty');
+    });
+
     it('completely disjoint match patterns produce cost 1', () => {
       const state = createEmptyStateV5();
       addNode(state, 'user:alice', 1);

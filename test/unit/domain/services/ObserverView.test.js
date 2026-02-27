@@ -153,6 +153,11 @@ describe('ObserverView', () => {
       expect(nodes).toEqual([]);
     });
 
+    it('rejects empty array as match pattern', async () => {
+      await expect(graph.observer('bad', { match: [] }))
+        .rejects.toThrow('non-empty');
+    });
+
     it('observer on empty graph returns no nodes', async () => {
       setupGraphState(graph, () => {});
 

@@ -1915,7 +1915,7 @@ export default class WarpGraph {
 
   /** Filtered watcher that only fires for changes matching a glob pattern. */
   watch(
-    pattern: string,
+    pattern: string | string[],
     options: {
       onChange: (diff: StateDiffResult) => void;
       onError?: (error: Error) => void;

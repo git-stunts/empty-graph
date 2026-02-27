@@ -6,6 +6,7 @@
  */
 
 import { diffStates, isEmptyDiff } from '../services/StateDiff.js';
+import { matchGlob } from '../utils/matchGlob.js';
 
 /**
  * Subscribes to graph changes.
@@ -101,13 +102,13 @@ export function subscribe({ onChange, onError, replay = false }) {
  * be at least 1000ms.
  *
  * @this {import('../WarpGraph.js').default}
- * @param {string} pattern - Glob pattern (e.g., 'user:*', 'order:123', '*')
+ * @param {string|string[]} pattern - Glob pattern(s) (e.g., 'user:*', 'order:123', '*')
  * @param {Object} options - Watch options
  * @param {(diff: import('../services/StateDiff.js').StateDiffResult) => void} options.onChange - Called with filtered diff when matching changes occur
  * @param {(error: Error) => void} [options.onError] - Called if onChange throws an error
  * @param {number} [options.poll] - Poll interval in ms (min 1000); checks frontier and auto-materializes
  * @returns {{unsubscribe: () => void}} Subscription handle
- * @throws {Error} If pattern is not a string
+ * @throws {Error} If pattern is not a string or array of strings
  * @throws {Error} If onChange is not a function
  * @throws {Error} If poll is provided but less than 1000
  *
@@ -130,31 +131,22 @@ export function subscribe({ onChange, onError, replay = false }) {
  * unsubscribe();
  */
 export function watch(pattern, { onChange, onError, poll }) {
-  if (typeof pattern !== 'string') {
-    throw new Error('pattern must be a string');
+  const isValidPattern = (/** @type {string|string[]} */ p) => typeof p === 'string' || (Array.isArray(p) && p.length > 0 && p.every(i => typeof i === 'string'));
+  if (!isValidPattern(pattern)) {
+    throw new Error('pattern must be a non-empty string or non-empty array of strings');
   }
   if (typeof onChange !== 'function') {
     throw new Error('onChange must be a function');
   }
   if (poll !== undefined) {
-    if (typeof poll !== 'number' || poll < 1000) {
-      throw new Error('poll must be a number >= 1000');
+    if (typeof poll !== 'number' || !Number.isFinite(poll) || poll < 1000) {
+      throw new Error('poll must be a finite number >= 1000');
     }
   }
 
-  // Pattern matching: same logic as QueryBuilder.match()
-  // Pre-compile pattern matcher once for performance
+  // Pattern matching logic
   /** @type {(nodeId: string) => boolean} */
-  let matchesPattern;
-  if (pattern === '*') {
-    matchesPattern = () => true;
-  } else if (pattern.includes('*')) {
-    const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
-    const regex = new RegExp(`^${escaped.replace(/\*/g, '.*')}$`);
-    matchesPattern = (/** @type {string} */ nodeId) => regex.test(nodeId);
-  } else {
-    matchesPattern = (/** @type {string} */ nodeId) => nodeId === pattern;
-  }
+  const matchesPattern = (nodeId) => matchGlob(pattern, nodeId);
 
   // Filtered onChange that only passes matching changes
   const filteredOnChange = (/** @type {import('../services/StateDiff.js').StateDiffResult} */ diff) => {
@@ -194,7 +186,7 @@ export function watch(pattern, { onChange, onError, poll }) {
   /** @type {ReturnType<typeof setInterval>|null} */
   let pollIntervalId = null;
   let pollInFlight = false;
-  if (poll) {
+  if (poll !== undefined) {
     pollIntervalId = setInterval(() => {
       if (pollInFlight) {
         return;

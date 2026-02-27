@@ -182,10 +182,10 @@ function computePropLoss(state, { nodesA, nodesBSet, configA, configB }) {
  */
 export function computeTranslationCost(configA, configB, state) {
   /** @param {unknown} m */
-  const isValidMatch = (m) => typeof m === 'string' || (Array.isArray(m) && m.every(/** @param {unknown} i */ i => typeof i === 'string'));
+  const isValidMatch = (m) => typeof m === 'string' || (Array.isArray(m) && m.length > 0 && m.every(/** @param {unknown} i */ i => typeof i === 'string'));
   if (!configA || !isValidMatch(configA.match) ||
       !configB || !isValidMatch(configB.match)) {
-    throw new Error('configA.match and configB.match must be strings or arrays of strings');
+    throw new Error('configA.match and configB.match must be non-empty strings or non-empty arrays of strings');
   }
   const allNodes = [...orsetElements(state.nodeAlive)];
   const nodesA = allNodes.filter((id) => matchGlob(configA.match, id));
