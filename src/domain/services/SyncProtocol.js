@@ -411,7 +411,7 @@ export async function processSyncRequest(request, localFrontier, persistence, gr
       // Pre-check ancestry to avoid expensive chain walk (B107 / S3 fix).
       // If the persistence layer provides isAncestor, use it to detect
       // divergence early without walking the full commit chain.
-      const hasIsAncestor = typeof /** @type {{isAncestor?: Function}} */ (persistence).isAncestor === 'function';
+      const hasIsAncestor = typeof /** @type {{isAncestor?: (...args: unknown[]) => unknown}} */ (persistence).isAncestor === 'function';
       if (range.from && hasIsAncestor) {
         const isAnc = await /** @type {{isAncestor: (a: string, b: string) => Promise<boolean>}} */ (/** @type {unknown} */ (persistence)).isAncestor(range.from, range.to);
         if (!isAnc) {
@@ -553,10 +553,9 @@ export function applySyncResponse(response, state, frontier) {
           );
         }
       }
-      // Guard: reject patches containing ops we don't understand.
-      // Currently SCHEMA_V3 is the max, so this is a no-op for this
-      // codebase. If a future schema adds new op types, this check
-      // will prevent silent data loss until the reader is upgraded.
+      // Guard: reject patches exceeding our maximum supported schema version.
+      // isKnownOp() above checks op-type recognition; this checks the schema
+      // version ceiling. Currently SCHEMA_V3 is the max.
       assertOpsCompatible(normalizedPatch.ops, SCHEMA_V3);
       // Apply patch to state
       join(newState, /** @type {Parameters<typeof join>[1]} */ (normalizedPatch), sha);

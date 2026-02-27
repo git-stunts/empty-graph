@@ -387,6 +387,7 @@ describe('WarpGraph coverage gaps', () => {
       await /** @type {any} */ (graph)._onPatchCommitted('writer-1', {});
 
       expect(/** @type {any} */ (graph)._cachedViewHash).toBeNull();
+      expect(/** @type {any} */ (graph)._stateDirty).toBe(true);
     });
   });
 

@@ -20,6 +20,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`syncWith()` returns `skippedWriters`** — callers can now observe which writers were skipped during sync (e.g. due to divergence) via `result.skippedWriters`. (B105)
 - **Removed `_invalidateDerivedCaches()`** — replaced by canonical `_setMaterializedState()` path; derived caches are now rebuilt rather than nulled. (B105)
 
+### Types
+
+- **`index.d.ts` — `skippedWriters` on sync types** — added `skippedWriters` to `SyncResponse`, `ApplySyncResult`, and `syncWith()` return type to match runtime behavior. (H1)
+- **`SyncController.syncWith` JSDoc** — widened `@returns` to include full `skippedWriters` shape with `localSha`/`remoteSha`; made non-optional. (M2/M3)
+- **Replaced bare `Function` type** — `SyncProtocol` `isAncestor` check now uses `(...args: unknown[]) => unknown` instead of `Function`. (L3)
+
+### Tests
+
+- **`_onPatchCommitted` dirty-path assertion** — coverage gap test now also asserts `_stateDirty === true`. (L1)
+
 ## [12.2.0] — 2026-02-27
 
 ### Changed

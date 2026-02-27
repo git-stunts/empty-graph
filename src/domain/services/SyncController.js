@@ -374,7 +374,7 @@ export default class SyncController {
    * @param {(event: {type: string, attempt: number, durationMs?: number, status?: number, error?: Error}) => void} [options.onStatus]
    * @param {boolean} [options.materialize=false] - Auto-materialize after sync
    * @param {{ secret: string, keyId?: string }} [options.auth] - Client auth credentials
-   * @returns {Promise<{applied: number, attempts: number, skippedWriters?: Array<{writerId: string, reason: string}>, state?: import('./JoinReducer.js').WarpStateV5}>}
+   * @returns {Promise<{applied: number, attempts: number, skippedWriters: Array<{writerId: string, reason: string, localSha: string, remoteSha: string|null}>, state?: import('./JoinReducer.js').WarpStateV5}>}
    */
   async syncWith(remote, options = {}) {
     const t0 = this._host._clock.now();
