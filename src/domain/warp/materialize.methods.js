@@ -277,8 +277,11 @@ export async function _materializeGraph() {
   if (!this._stateDirty && this._materializedGraph) {
     return this._materializedGraph;
   }
-  await this.materialize();
-  const state = this._cachedState;
+  const materialized = await this.materialize();
+  const state = this._stateDirty
+    ? /** @type {import('../services/JoinReducer.js').WarpStateV5} */ (materialized)
+    : (this._cachedState
+      || /** @type {import('../services/JoinReducer.js').WarpStateV5} */ (materialized));
   if (!state) {
     return /** @type {object} */ (this._materializedGraph);
   }
