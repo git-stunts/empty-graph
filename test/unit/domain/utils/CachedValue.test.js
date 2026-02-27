@@ -135,7 +135,8 @@ describe('CachedValue', () => {
 
     it('memoizes in-flight compute for concurrent get calls', async () => {
       const clock = createMockClock();
-      let resolveCompute;
+      /** @type {(value: string) => void} */
+      let resolveCompute = () => {};
       const compute = vi.fn().mockImplementation(() => {
         return new Promise((resolve) => {
           resolveCompute = resolve;
