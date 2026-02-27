@@ -387,6 +387,31 @@ describe('SyncController', () => {
       expect(host._materializedGraph).not.toBeNull();
     });
 
+    it('does not advance frontier/counters when _setMaterializedState rejects', async () => {
+      const fakeState = {
+        observedFrontier: new Map(),
+        nodeAlive: { dots: new Map() },
+        edgeAlive: { dots: new Map() },
+      };
+      const newState = { observedFrontier: new Map(), nodeAlive: { dots: new Map() }, edgeAlive: { dots: new Map() } };
+      const previousFrontier = new Map([['alice', 'sha-1']]);
+      const newFrontier = new Map([['alice', 'sha-2']]);
+      applySyncResponseMock.mockReturnValue({ state: newState, frontier: newFrontier, applied: 2 });
+
+      const host = createMockHost({
+        _cachedState: fakeState,
+        _lastFrontier: previousFrontier,
+        _patchesSinceGC: 5,
+        _setMaterializedState: vi.fn().mockRejectedValue(new Error('install failed')),
+      });
+      const ctrl = new SyncController(/** @type {*} */ (host));
+
+      await expect(ctrl.applySyncResponse({ type: 'sync-response', frontier: {}, patches: [] }))
+        .rejects.toThrow('install failed');
+      expect(host._lastFrontier).toBe(previousFrontier);
+      expect(host._patchesSinceGC).toBe(5);
+    });
+
     it('surfaces skippedWriters from response (B105)', async () => {
       const fakeState = {
         observedFrontier: new Map(),

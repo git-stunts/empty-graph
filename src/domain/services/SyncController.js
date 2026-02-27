@@ -334,16 +334,19 @@ export default class SyncController {
     const currentFrontier = this._host._lastFrontier || createFrontier();
     const result = /** @type {{state: import('./JoinReducer.js').WarpStateV5, frontier: Map<string, string>, applied: number}} */ (applySyncResponseImpl(response, this._host._cachedState, currentFrontier));
 
+    // Route through canonical state-install path (B105 / C1 fix).
+    // _setMaterializedState sets _cachedState, clears _stateDirty, computes
+    // state hash, builds adjacency, and rebuilds indexes via _buildView().
+    // Bookkeeping is deferred until after install succeeds so that a failed
+    // _setMaterializedState does not leave _lastFrontier/_patchesSinceGC
+    // advanced while _cachedState remains stale.
+    await this._host._setMaterializedState(result.state);
+
     // Keep _lastFrontier in sync so hasFrontierChanged() won't misreport stale.
     this._host._lastFrontier = result.frontier;
 
     // Track patches for GC
     this._host._patchesSinceGC += result.applied;
-
-    // Route through canonical state-install path (B105 / C1 fix).
-    // _setMaterializedState sets _cachedState, clears _stateDirty, computes
-    // state hash, builds adjacency, and rebuilds indexes via _buildView().
-    await this._host._setMaterializedState(result.state);
 
     return { ...result, writersApplied, skippedWriters: response.skippedWriters || [] };
   }
