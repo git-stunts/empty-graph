@@ -323,6 +323,8 @@ await (await graph.createPatch())
 await graph.hasNode('user:carol'); // true
 ```
 
+When audit is disabled, the eager path computes a `PatchDiff` and passes it through state install, so bitmap indexes can be updated incrementally from the diff. When audit is enabled, the eager path still collects a receipt and installs state with `diff: null` (safe fallback to full view rebuild for that patch).
+
 ### Visibility Rules
 
 Not everything stored in the graph is visible when reading:
@@ -763,14 +765,16 @@ flowchart TB
     ref["refs/warp/‹graph›/<br/>checkpoints/head"] -.-> commit["Checkpoint Commit<br/>eg-kind: checkpoint"]
     commit -->|tree| tree["tree"]
     tree --> sc["state.cbor — authoritative"]
-    tree --> vc["visible.cbor — cache"]
     tree --> fc["frontier.cbor"]
     tree --> av["appliedVV.cbor"]
     tree -.-> pi["provenanceIndex.cbor — optional"]
+    tree -.-> ix["index/* — optional bitmap shards"]
     tree --> gc["_content_* — GC anchors"]
 ```
 
 A **checkpoint** is a snapshot of materialized state at a known point in history. Without checkpoints, materialization replays every patch from every writer. With a checkpoint, it loads the snapshot and only replays patches since then.
+
+During checkpoint-based replay, ancestry validation is done once per writer tip. If a writer tip descends from the checkpoint frontier, the intervening writer-local patch chain is accepted transitively.
 
 ```javascript
 // Create a checkpoint manually

@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Sync bookkeeping race on install failure** — `applySyncResponse` now defers `_lastFrontier`/`_patchesSinceGC` mutations until after `_setMaterializedState` succeeds, preventing inconsistent bookkeeping if state install throws. (CR-50)
 - **Unknown sync ops silently dropped (C2)** — `applySyncResponse` in `SyncProtocol` now validates every op against `isKnownOp()` before `join()`. Unknown ops throw `SchemaUnsupportedError` (fail closed) instead of being silently ignored. (B106)
 - **Sync divergence exception-as-control-flow (S3)** — `processSyncRequest` now performs an `isAncestor()` pre-check (when available on persistence) to detect diverged writers without the expensive chain walk. Falls back to `loadPatchRange` throw for adapters without `isAncestor`. (B107)
+- **Diff-aware eager post-commit path (B114)** — `_onPatchCommitted` now uses `applyWithDiff()` on the non-audit eager path and passes the resulting patch diff through `_setMaterializedState(..., { diff })`, enabling incremental index updates instead of forcing full rebuild work on every clean-cache commit.
+- **Checkpoint ancestry validation complexity (B115)** — `_loadPatchesSince()` now validates `_validatePatchAgainstCheckpoint()` once per writer tip (not once per patch), reducing repeated ancestry walks on long patch chains.
+- **`_setMaterializedState` diff arg compatibility** — state install now accepts both legacy positional diff calls (`_setMaterializedState(state, diff)`) and the new options form (`_setMaterializedState(state, { diff })`) to prevent silent fallback to full index rebuilds at older call sites.
 
 ### Changed
 
@@ -31,6 +34,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`_onPatchCommitted` dirty-path assertion** — coverage gap test now also asserts `_stateDirty === true`. (L1)
 - **`_setMaterializedState` rejection-path test** — verifies `applySyncResponse` does not advance `_lastFrontier`/`_patchesSinceGC` when state install fails. (CR-50)
+- **Eager diff passthrough regressions** — added unit coverage verifying `_onPatchCommitted` forwards a real diff in non-audit mode and `{ diff: null }` in audit mode.
+- **State install diff-call compatibility regressions** — added tests proving `_setMaterializedState` preserves incremental behavior for both positional and object diff arguments.
+- **Tip-only checkpoint validation regression** — added `_loadPatchesSince` test asserting one ancestry validation per non-empty writer chain using the writer tip SHA.
 
 ## [12.2.0] — 2026-02-27
 

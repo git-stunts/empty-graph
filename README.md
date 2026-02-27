@@ -105,7 +105,7 @@ When you want to read the graph, you **materialize** — which means replaying a
 
 Every operation gets a unique **EventId** — `(lamport, writerId, patchSha, opIndex)` — which creates a total ordering that makes merge results identical no matter which machine runs them.
 
-**Checkpoints** snapshot the materialized state into a single commit for fast incremental recovery. Subsequent materializations only need to replay patches created after the checkpoint.
+**Checkpoints** snapshot the materialized state into a single commit for fast incremental recovery. Subsequent materializations only need to replay patches created after the checkpoint. During incremental replay, checkpoint ancestry is validated once per writer tip (not once per patch), which keeps long writer chains efficient.
 
 ## Multi-Writer Collaboration
 
@@ -473,6 +473,8 @@ const graph = await WarpGraph.open({
   checkpointPolicy: { every: 500 },  // auto-checkpoint every 500 patches
 });
 ```
+
+When cached state is clean, local commits take an eager path that applies the patch in-memory and threads a patch diff into view rebuild (`_setMaterializedState(..., { diff })`). That allows incremental bitmap index updates on the hot write path instead of full index rebuilds.
 
 ## Observability
 
