@@ -400,7 +400,7 @@ describe('WarpGraph', () => {
         writerId: 'writer-1',
         lamport: 1,
         patchOid,
-        ops: [{ type: 'NodeAdd', node: 'user:alice', dot: 'writer-1:1' }],
+        ops: [{ type: 'NodeAdd', node: 'user:alice', dot: createDot('writer-1', 1) }],
         parentSha: null,
       });
 
@@ -436,7 +436,7 @@ describe('WarpGraph', () => {
         writerId: 'writer-1',
         lamport: 1,
         patchOid: patchOid1,
-        ops: [{ type: 'NodeAdd', node: 'user:alice', dot: 'writer-1:1' }],
+        ops: [{ type: 'NodeAdd', node: 'user:alice', dot: createDot('writer-1', 1) }],
         parentSha: null,
       });
 
@@ -446,7 +446,7 @@ describe('WarpGraph', () => {
         writerId: 'writer-2',
         lamport: 1,
         patchOid: patchOid2,
-        ops: [{ type: 'NodeAdd', node: 'user:bob', dot: 'writer-2:1' }],
+        ops: [{ type: 'NodeAdd', node: 'user:bob', dot: createDot('writer-2', 1) }],
         parentSha: null,
       });
 
@@ -497,7 +497,7 @@ describe('WarpGraph', () => {
         writerId: 'writer-1',
         lamport: 1,
         patchOid: patchOid1,
-        ops: [{ type: 'NodeAdd', node: 'user:alice', dot: 'writer-1:1' }],
+        ops: [{ type: 'NodeAdd', node: 'user:alice', dot: createDot('writer-1', 1) }],
         parentSha: null,
       });
 
@@ -507,7 +507,7 @@ describe('WarpGraph', () => {
         writerId: 'writer-1',
         lamport: 2,
         patchOid: patchOid2,
-        ops: [{ type: 'NodeAdd', node: 'user:bob', dot: 'writer-1:2' }],
+        ops: [{ type: 'NodeAdd', node: 'user:bob', dot: createDot('writer-1', 2) }],
         parentSha: commitSha1,
         context: { 'writer-1': 2 },
       });
@@ -1524,7 +1524,7 @@ eg-schema: 2`;
           writer: 'writer-a',
           lamport: 3,
           context: { 'writer-a': 3 },
-          ops: [{ type: 'NodeAdd', node: 'user:alice', dot: 'writer-a:3' }],
+          ops: [{ type: 'NodeAdd', node: 'user:alice', dot: createDot('writer-a', 3) }],
         };
         const patchBufferA = encode(patchA);
         const messageA = encodePatchMessage({
@@ -1541,7 +1541,7 @@ eg-schema: 2`;
           writer: 'writer-b',
           lamport: 2,
           context: { 'writer-b': 2 },
-          ops: [{ type: 'NodeAdd', node: 'user:bob', dot: 'writer-b:2' }],
+          ops: [{ type: 'NodeAdd', node: 'user:bob', dot: createDot('writer-b', 2) }],
         };
         const patchBufferB = encode(patchB);
         const messageB = encodePatchMessage({
@@ -1644,7 +1644,7 @@ eg-schema: 2`;
           writer: 'writer-other',
           lamport: 5,
           context: { 'writer-other': 5 },
-          ops: [{ type: 'NodeAdd', node: 'user:bob', dot: 'writer-other:5' }],
+          ops: [{ type: 'NodeAdd', node: 'user:bob', dot: createDot('writer-other', 5) }],
         };
         const patchBuffer = encode(patchFromOther);
         const message = encodePatchMessage({
