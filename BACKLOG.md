@@ -24,3 +24,12 @@ Items noticed during development that are worth addressing but were out of scope
 - Add shared typed test helpers for extracting `vitest` spy call tuples (avoid repeated `unknown` casts in strict TS checks).
 - Add a lightweight "PR hygiene" checklist command that reports: unresolved review threads, pending checks, and merge-blocking conditions in one output.
 - Add an automated docs consistency pass in preflight to verify changelog/readme/guide updates for behavior changes in hot paths (materialize, checkpoint, sync).
+
+## 2026-02-27 PR Feedback Session 2 Backlog Fuel
+
+- Add schema-4 coverage for `_validatePatchAgainstCheckpoint` (`ahead`, `same`, `behind`, `diverged`) to close the current schema gate ambiguity.
+- Add a checkpoint replay integrity assertion helper (optional in hot path, enabled in diagnostics) to detect parent-chain discontinuities early.
+- Add benchmark budgets for eager post-commit and materialize hash cost, and fail CI on agreed regression thresholds.
+- Add a `warp doctor --json` check bundle for frontier/checkpoint/index consistency, with non-destructive defaults and explicit exit codes.
+- Add a frontier-fingerprint-keyed ancestry memo cache with bounded LRU and invalidation metrics.
+- Add an incremental state-hash shadow mode (parity-only) that compares accumulator hash vs `computeStateHashV5` before any default rollout.
