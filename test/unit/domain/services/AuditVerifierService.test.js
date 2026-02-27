@@ -815,6 +815,7 @@ describe('AuditVerifierService — evaluateTrust', () => {
     const result = await verifier.evaluateTrust('events');
 
     expect(result.trust.status).toBe('error');
+    expect(result.trust.source).toBe('ref');
     expect(result.trustVerdict).toBe('fail');
     expect(result.trust.explanations).toHaveLength(1);
     expect(result.trust.explanations[0].reasonCode).toBe('TRUST_RECORD_CHAIN_INVALID');

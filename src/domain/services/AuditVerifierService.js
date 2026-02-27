@@ -34,6 +34,7 @@ import { decodeAuditMessage } from './AuditMessageCodec.js';
 import { TrustRecordService } from '../trust/TrustRecordService.js';
 import { buildState } from '../trust/TrustStateBuilder.js';
 import { evaluateWriters } from '../trust/TrustEvaluator.js';
+import { TRUST_REASON_CODES } from '../trust/reasonCodes.js';
 
 // ============================================================================
 // Constants
@@ -675,7 +676,7 @@ export class AuditVerifierService {
         trustVerdict: 'fail',
         trust: {
           status: 'error',
-          source: options.pin ? 'pinned' : 'none',
+          source: options.pin ? 'pinned' : 'ref',
           sourceDetail: options.pin ?? null,
           evaluatedWriters: [],
           untrustedWriters: [],
@@ -683,7 +684,7 @@ export class AuditVerifierService {
             {
               writerId: '*',
               trusted: false,
-              reasonCode: 'TRUST_RECORD_CHAIN_INVALID',
+              reasonCode: TRUST_REASON_CODES.TRUST_RECORD_CHAIN_INVALID,
               reason: `Trust chain read failed: ${recordsResult.error.message}`,
             },
           ],

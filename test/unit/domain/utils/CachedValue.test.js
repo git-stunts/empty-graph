@@ -218,6 +218,32 @@ describe('CachedValue', () => {
       expect(second).toBe('second');
       expect(compute).toHaveBeenCalledTimes(2);
     });
+
+    it('does not re-cache stale in-flight result after invalidate', async () => {
+      const clock = createMockClock();
+      /** @type {(value: string) => void} */
+      let resolveCompute = () => {};
+      const compute = vi.fn()
+        .mockImplementationOnce(() => {
+          return new Promise((resolve) => {
+            resolveCompute = resolve;
+          });
+        })
+        .mockResolvedValueOnce('fresh');
+      const cache = new CachedValue({ clock, ttlMs: 5000, compute });
+
+      const first = cache.get();
+      cache.invalidate();
+      resolveCompute('stale');
+
+      expect(await first).toBe('stale');
+      expect(cache.hasValue).toBe(false);
+
+      const second = await cache.get();
+      expect(second).toBe('fresh');
+      expect(cache.hasValue).toBe(true);
+      expect(compute).toHaveBeenCalledTimes(2);
+    });
   });
 
   describe('hasValue', () => {

@@ -14,6 +14,7 @@ import defaultCodec from '../../../src/domain/utils/defaultCodec.js';
 import { TrustRecordService } from '../../../src/domain/trust/TrustRecordService.js';
 import { buildState } from '../../../src/domain/trust/TrustStateBuilder.js';
 import { evaluateWriters } from '../../../src/domain/trust/TrustEvaluator.js';
+import { TRUST_REASON_CODES } from '../../../src/domain/trust/reasonCodes.js';
 
 /** @typedef {import('../types.js').CliOptions} CliOptions */
 
@@ -129,7 +130,7 @@ export default async function handleTrust({ options, args }) {
           {
             writerId: '*',
             trusted: false,
-            reasonCode: 'TRUST_RECORD_CHAIN_INVALID',
+            reasonCode: TRUST_REASON_CODES.TRUST_RECORD_CHAIN_INVALID,
             reason: `Trust chain read failed: ${recordsResult.error.message}`,
           },
         ],
