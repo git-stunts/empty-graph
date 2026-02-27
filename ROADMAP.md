@@ -148,14 +148,14 @@
 
 ### M12.T4 — Index Performance (S5 + S6)
 
-- **Status:** `PENDING`
+- **Status:** `DONE`
 - **Size:** L | **Risk:** MEDIUM
 - **Depends on:** —
 
 **Items:**
 
-- **B66** (S5: INCREMENTAL INDEX O(E) SCAN) — Use adjacency map for O(degree) lookup on node re-add instead of scanning all alive edges. Separate genuinely-new nodes (skip scan) from re-added nodes (incident edges only). **File:** `IncrementalIndexUpdater.js:99-128`
-- **B113** (S6: DOUBLE BITMAP DESERIALIZATION) — In `_purgeNodeEdges`, deserialize once, mutate in-place, serialize once. Use `bitmap.clear()` instead of creating new empty bitmap. **File:** `IncrementalIndexUpdater.js:241-320`
+- **B66** ✅ (S5: INCREMENTAL INDEX O(E) SCAN) — Added endpoint adjacency caching for alive edge keys and separated genuinely-new nodes from re-added nodes; re-add restoration now enumerates incident edge candidates rather than always rescanning all alive edges. **File:** `IncrementalIndexUpdater.js`
+- **B113** ✅ (S6: DOUBLE BITMAP DESERIALIZATION) — `_purgeNodeEdges` now deserializes owner-row bitmaps once, mutates in-place (`bitmap.clear()`), and serializes once in both forward and reverse loops. **File:** `IncrementalIndexUpdater.js`
 
 ### M12.T5 — Post-Commit + Ancestry (S7 + S8)
 
@@ -484,8 +484,8 @@ Pick opportunistically between milestones. Recommended order within tiers:
 | S2 | STANK | B116 | M12.T6 |
 | S3 | STANK | B107 | M12.T1 |
 | S4 | STANK | B72 | FIXED (M10) |
-| S5 | STANK | B66 | M12.T4 |
-| S6 | STANK | B113 | M12.T4 |
+| S5 | STANK | B66 | FIXED (M12.T4) |
+| S6 | STANK | B113 | FIXED (M12.T4) |
 | S7 | STANK | B114 | M12.T5 |
 | S8 | STANK | B115 | M12.T5 |
 | S9 | STANK | — | FIXED (M10) |

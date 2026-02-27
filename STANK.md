@@ -167,6 +167,7 @@ Compounding: `join(otherState)` at `patch.methods.js:531` updates `_cachedState`
 
 ### S5. O(E x nodesAdded) Edge Rescan in Incremental Indexing
 
+**Status:** FIXED (M12.T4)
 **Location:** `IncrementalIndexUpdater.js:99-128` / `computeDirtyShards`
 **CLS:** 7/10
 **Complexity:** Current O(E) per qualifying diff -> O(E x |nodesAdded|). Best: O(sum(deg(node))) with endpoint index.
@@ -179,6 +180,7 @@ Compounding: `join(otherState)` at `patch.methods.js:531` updates `_cachedState`
 
 ### S6. Double Bitmap Deserialization in `_purgeNodeEdges`
 
+**Status:** FIXED (M12.T4)
 **Location:** `IncrementalIndexUpdater.js:241-320` / `_purgeNodeEdges`
 **CLS:** 6/10
 

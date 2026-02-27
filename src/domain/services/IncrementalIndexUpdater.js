@@ -40,6 +40,8 @@ export default class IncrementalIndexUpdater {
    */
   constructor({ codec } = {}) {
     this._codec = codec || defaultCodec;
+    /** @type {WeakMap<import('../crdt/ORSet.js').ORSet, Map<string, Set<string>>>} */
+    this._edgeAdjacencyCache = new WeakMap();
   }
 
   /**
@@ -113,11 +115,8 @@ export default class IncrementalIndexUpdater {
       const diffEdgeSet = new Set(
         diff.edgesAdded.map((e) => `${e.from}\0${e.to}\0${e.label}`),
       );
-      for (const edgeKey of orsetElements(state.edgeAlive)) {
+      for (const edgeKey of this._collectReaddedEdgeKeys(state, diff, readdedNodes)) {
         const { from, to, label } = decodeEdgeKey(edgeKey);
-        if (!readdedNodes.has(from) && !readdedNodes.has(to)) {
-          continue;
-        }
         if (!orsetContains(state.nodeAlive, from) || !orsetContains(state.nodeAlive, to)) {
           continue;
         }
@@ -746,6 +745,113 @@ export default class IncrementalIndexUpdater {
    */
   _findGlobalId(meta, nodeId) {
     return meta.nodeToGlobalMap.get(nodeId);
+  }
+
+  /**
+   * Collects alive edge keys incident to re-added nodes.
+   *
+   * Uses an ORSet-keyed adjacency cache so repeated updates can enumerate
+   * candidates by degree rather than scanning all alive edges each time.
+   *
+   * @param {import('./JoinReducer.js').WarpStateV5} state
+   * @param {import('../types/PatchDiff.js').PatchDiff} diff
+   * @param {Set<string>} readdedNodes
+   * @returns {Set<string>}
+   * @private
+   */
+  _collectReaddedEdgeKeys(state, diff, readdedNodes) {
+    const adjacency = this._getOrBuildAliveEdgeAdjacency(state, diff);
+    const keys = new Set();
+    for (const nodeId of readdedNodes) {
+      const incident = adjacency.get(nodeId);
+      if (!incident) {
+        continue;
+      }
+      for (const edgeKey of incident) {
+        keys.add(edgeKey);
+      }
+    }
+    return keys;
+  }
+
+  /**
+   * Gets or builds a node -> alive edgeKey adjacency map for state.edgeAlive.
+   *
+   * For cached maps, applies diff edge transitions to keep membership current.
+   *
+   * @param {import('./JoinReducer.js').WarpStateV5} state
+   * @param {import('../types/PatchDiff.js').PatchDiff} diff
+   * @returns {Map<string, Set<string>>}
+   * @private
+   */
+  _getOrBuildAliveEdgeAdjacency(state, diff) {
+    const { edgeAlive } = state;
+    let adjacency = this._edgeAdjacencyCache.get(edgeAlive);
+    if (!adjacency) {
+      adjacency = new Map();
+      for (const edgeKey of orsetElements(edgeAlive)) {
+        const { from, to } = decodeEdgeKey(edgeKey);
+        this._addEdgeKeyToAdjacency(adjacency, from, edgeKey);
+        this._addEdgeKeyToAdjacency(adjacency, to, edgeKey);
+      }
+      this._edgeAdjacencyCache.set(edgeAlive, adjacency);
+      return adjacency;
+    }
+
+    for (const edge of diff.edgesAdded) {
+      const edgeKey = `${edge.from}\0${edge.to}\0${edge.label}`;
+      if (!orsetContains(edgeAlive, edgeKey)) {
+        continue;
+      }
+      this._addEdgeKeyToAdjacency(adjacency, edge.from, edgeKey);
+      this._addEdgeKeyToAdjacency(adjacency, edge.to, edgeKey);
+    }
+    for (const edge of diff.edgesRemoved) {
+      const edgeKey = `${edge.from}\0${edge.to}\0${edge.label}`;
+      if (orsetContains(edgeAlive, edgeKey)) {
+        continue;
+      }
+      this._removeEdgeKeyFromAdjacency(adjacency, edge.from, edgeKey);
+      this._removeEdgeKeyFromAdjacency(adjacency, edge.to, edgeKey);
+    }
+
+    return adjacency;
+  }
+
+  /**
+   * Adds an edge key to one endpoint's adjacency set.
+   *
+   * @param {Map<string, Set<string>>} adjacency
+   * @param {string} nodeId
+   * @param {string} edgeKey
+   * @private
+   */
+  _addEdgeKeyToAdjacency(adjacency, nodeId, edgeKey) {
+    let set = adjacency.get(nodeId);
+    if (!set) {
+      set = new Set();
+      adjacency.set(nodeId, set);
+    }
+    set.add(edgeKey);
+  }
+
+  /**
+   * Removes an edge key from one endpoint's adjacency set.
+   *
+   * @param {Map<string, Set<string>>} adjacency
+   * @param {string} nodeId
+   * @param {string} edgeKey
+   * @private
+   */
+  _removeEdgeKeyFromAdjacency(adjacency, nodeId, edgeKey) {
+    const set = adjacency.get(nodeId);
+    if (!set) {
+      return;
+    }
+    set.delete(edgeKey);
+    if (set.size === 0) {
+      adjacency.delete(nodeId);
+    }
   }
 
   /**

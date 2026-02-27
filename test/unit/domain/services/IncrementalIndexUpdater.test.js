@@ -167,7 +167,7 @@ describe('IncrementalIndexUpdater', () => {
       expect(index3.isAlive('A')).toBe(true);
     });
 
-    it('skips edge OR-Set scan when adding a genuinely new node', () => {
+    it('skips re-add edge restoration when adding a genuinely new node', () => {
       const state1 = buildState({
         nodes: ['A', 'B'],
         edges: [{ from: 'A', to: 'B', label: 'knows' }],
@@ -180,13 +180,6 @@ describe('IncrementalIndexUpdater', () => {
         edges: [{ from: 'A', to: 'B', label: 'knows' }],
         props: [],
       });
-
-      let scannedEdgeAlive = false;
-      const originalKeys = state2.edgeAlive.entries.keys.bind(state2.edgeAlive.entries);
-      state2.edgeAlive.entries.keys = () => {
-        scannedEdgeAlive = true;
-        return originalKeys();
-      };
 
       const diff = {
         nodesAdded: ['C'],
@@ -203,7 +196,9 @@ describe('IncrementalIndexUpdater', () => {
         loadShard: (path) => tree1[path],
       });
 
-      expect(scannedEdgeAlive).toBe(false);
+      expect(
+        Object.keys(dirtyShards).some((path) => path.startsWith('fwd_') || path.startsWith('rev_')),
+      ).toBe(false);
 
       const tree2 = { ...tree1, ...dirtyShards };
       const index2 = readIndex(tree2);
@@ -285,6 +280,56 @@ describe('IncrementalIndexUpdater', () => {
       expect(index2.getGlobalId('A')).toBe(originalGid);
       // B unaffected
       expect(index2.isAlive('B')).toBe(true);
+    });
+
+    it('purges incident edge rows in both directions when removing a node', () => {
+      const state = buildState({
+        nodes: ['A', 'B', 'C'],
+        edges: [
+          { from: 'A', to: 'B', label: 'knows' },
+          { from: 'B', to: 'A', label: 'likes' },
+          { from: 'C', to: 'A', label: 'follows' },
+          { from: 'B', to: 'C', label: 'peer' },
+        ],
+        props: [],
+      });
+      const tree1 = buildTree(state);
+
+      const diff = {
+        nodesAdded: [],
+        nodesRemoved: ['A'],
+        edgesAdded: [],
+        edgesRemoved: [],
+        propsChanged: [],
+      };
+
+      const updater = new IncrementalIndexUpdater();
+      const dirtyShards = updater.computeDirtyShards({
+        diff,
+        state,
+        loadShard: (path) => tree1[path],
+      });
+
+      const tree2 = { ...tree1, ...dirtyShards };
+      const index2 = readIndex(tree2);
+
+      expect(index2.isAlive('A')).toBe(false);
+
+      const bOut = index2.getEdges('B', 'out');
+      expect(bOut.find((e) => e.neighborId === 'A')).toBeUndefined();
+      expect(bOut.find((e) => e.neighborId === 'C' && e.label === 'peer')).toBeDefined();
+
+      const bIn = index2.getEdges('B', 'in');
+      expect(bIn.find((e) => e.neighborId === 'A')).toBeUndefined();
+
+      const cOut = index2.getEdges('C', 'out');
+      expect(cOut.find((e) => e.neighborId === 'A')).toBeUndefined();
+
+      const cIn = index2.getEdges('C', 'in');
+      expect(cIn.find((e) => e.neighborId === 'B' && e.label === 'peer')).toBeDefined();
+
+      expect(index2.getEdges('A', 'out')).toHaveLength(0);
+      expect(index2.getEdges('A', 'in')).toHaveLength(0);
     });
   });
 
