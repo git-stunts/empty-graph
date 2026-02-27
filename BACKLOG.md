@@ -13,6 +13,8 @@ Items noticed during development that are worth addressing but were out of scope
 - CI-ready `pr:health` task that combines unresolved-thread count, check statuses, and review quorum.
 - Pre-merge CI gate: fail when unresolved review threads remain (including outdated unresolved threads).
 - Pre-merge CI gate: fail when required review quorum is not met.
+- Add a small utility to parse CodeRabbit rate-limit comments and print cooldown-expiry timestamps in local time.
+- Add a helper command to summarize/resolve outdated review threads with explicit scope evidence links.
 - Reduce runtime fragility around external prebuilt binaries by documenting and testing fallback behavior explicitly.
 - Add an explicit local `test:deno:smoke` command for fast pre-push confidence.
 - Add markdownlint to pre-commit to catch MD024 (duplicate headings) and MD040 (fenced code language) before review.
