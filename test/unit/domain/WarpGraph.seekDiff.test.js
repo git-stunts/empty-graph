@@ -106,7 +106,7 @@ describe('WarpGraph.getStateSnapshot()', () => {
 
   it('auto-materializes when autoMaterialize is enabled and no cached state', async () => {
     setupPersistence(persistence, 'alice', [
-      { lamport: 1, ops: [{ type: 'NodeAdd', node: 'n1', dot: { writer: 'alice', counter: 1 } }] },
+      { lamport: 1, ops: [{ type: 'NodeAdd', node: 'n1', dot: { writerId: 'alice', counter: 1 } }] },
     ]);
 
     const graph = await WarpGraph.open({
@@ -124,7 +124,7 @@ describe('WarpGraph.getStateSnapshot()', () => {
 
   it('returns a defensive copy of materialized state', async () => {
     setupPersistence(persistence, 'alice', [
-      { lamport: 1, ops: [{ type: 'NodeAdd', node: 'n1', dot: { writer: 'alice', counter: 1 } }] },
+      { lamport: 1, ops: [{ type: 'NodeAdd', node: 'n1', dot: { writerId: 'alice', counter: 1 } }] },
     ]);
 
     const graph = await WarpGraph.open({
@@ -149,8 +149,8 @@ describe('WarpGraph.getStateSnapshot()', () => {
 
   it('produces distinct state references at different ceilings', async () => {
     setupPersistence(persistence, 'alice', [
-      { lamport: 1, ops: [{ type: 'NodeAdd', node: 'n1', dot: { writer: 'alice', counter: 1 } }] },
-      { lamport: 2, ops: [{ type: 'NodeAdd', node: 'n2', dot: { writer: 'alice', counter: 2 } }] },
+      { lamport: 1, ops: [{ type: 'NodeAdd', node: 'n1', dot: { writerId: 'alice', counter: 1 } }] },
+      { lamport: 2, ops: [{ type: 'NodeAdd', node: 'n2', dot: { writerId: 'alice', counter: 2 } }] },
     ]);
 
     const graph = await WarpGraph.open({
@@ -181,8 +181,8 @@ describe('Structural seek diff (diffStates integration)', () => {
 
   it('forward step shows added nodes', async () => {
     setupPersistence(persistence, 'alice', [
-      { lamport: 1, ops: [{ type: 'NodeAdd', node: 'n1', dot: { writer: 'alice', counter: 1 } }] },
-      { lamport: 2, ops: [{ type: 'NodeAdd', node: 'n2', dot: { writer: 'alice', counter: 2 } }] },
+      { lamport: 1, ops: [{ type: 'NodeAdd', node: 'n1', dot: { writerId: 'alice', counter: 1 } }] },
+      { lamport: 2, ops: [{ type: 'NodeAdd', node: 'n2', dot: { writerId: 'alice', counter: 2 } }] },
     ]);
 
     const graph = await WarpGraph.open({
@@ -208,8 +208,8 @@ describe('Structural seek diff (diffStates integration)', () => {
 
   it('backward step shows removed nodes', async () => {
     setupPersistence(persistence, 'alice', [
-      { lamport: 1, ops: [{ type: 'NodeAdd', node: 'n1', dot: { writer: 'alice', counter: 1 } }] },
-      { lamport: 2, ops: [{ type: 'NodeAdd', node: 'n2', dot: { writer: 'alice', counter: 2 } }] },
+      { lamport: 1, ops: [{ type: 'NodeAdd', node: 'n1', dot: { writerId: 'alice', counter: 1 } }] },
+      { lamport: 2, ops: [{ type: 'NodeAdd', node: 'n2', dot: { writerId: 'alice', counter: 2 } }] },
     ]);
 
     const graph = await WarpGraph.open({
@@ -236,8 +236,8 @@ describe('Structural seek diff (diffStates integration)', () => {
   it('first seek (from empty) shows all as additions', async () => {
     setupPersistence(persistence, 'alice', [
       { lamport: 1, ops: [
-        { type: 'NodeAdd', node: 'n1', dot: { writer: 'alice', counter: 1 } },
-        { type: 'NodeAdd', node: 'n2', dot: { writer: 'alice', counter: 1 } },
+        { type: 'NodeAdd', node: 'n1', dot: { writerId: 'alice', counter: 1 } },
+        { type: 'NodeAdd', node: 'n2', dot: { writerId: 'alice', counter: 1 } },
       ] },
     ]);
 
@@ -259,7 +259,7 @@ describe('Structural seek diff (diffStates integration)', () => {
 
   it('same-tick no-op produces empty diff', async () => {
     setupPersistence(persistence, 'alice', [
-      { lamport: 1, ops: [{ type: 'NodeAdd', node: 'n1', dot: { writer: 'alice', counter: 1 } }] },
+      { lamport: 1, ops: [{ type: 'NodeAdd', node: 'n1', dot: { writerId: 'alice', counter: 1 } }] },
     ]);
 
     const graph = await WarpGraph.open({
@@ -283,7 +283,7 @@ describe('Structural seek diff (diffStates integration)', () => {
   it('detects property changes with old/new values', async () => {
     setupPersistence(persistence, 'alice', [
       { lamport: 1, ops: [
-        { type: 'NodeAdd', node: 'n1', dot: { writer: 'alice', counter: 1 } },
+        { type: 'NodeAdd', node: 'n1', dot: { writerId: 'alice', counter: 1 } },
         { type: 'PropSet', node: 'n1', key: 'name', value: 'Alice' },
       ] },
       { lamport: 2, ops: [

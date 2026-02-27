@@ -169,8 +169,13 @@ describe('JoinReducer validation', () => {
         expect(() => applyOpV2(state(), /** @type {any} */ ({ type: 'NodeRemove', node: 'n' }), eid)).toThrow(PatchError);
       });
 
-      it('throws when observedDots is not an array', () => {
-        expect(() => applyOpV2(state(), /** @type {any} */ ({ type: 'NodeRemove', node: 'n', observedDots: 'bad' }), eid)).toThrow(PatchError);
+      it('throws when observedDots is not iterable', () => {
+        expect(() => applyOpV2(state(), /** @type {any} */ ({ type: 'NodeRemove', node: 'n', observedDots: 42 }), eid)).toThrow(PatchError);
+        expect(() => applyOpV2(state(), /** @type {any} */ ({ type: 'NodeRemove', node: 'n', observedDots: {} }), eid)).toThrow(PatchError);
+      });
+
+      it('accepts Set as observedDots', () => {
+        expect(() => applyOpV2(state(), /** @type {any} */ ({ type: 'NodeRemove', node: 'n', observedDots: new Set() }), eid)).not.toThrow();
       });
 
       it('accepts NodeRemove without node field (informational only)', () => {
@@ -201,8 +206,13 @@ describe('JoinReducer validation', () => {
         expect(() => applyOpV2(state(), /** @type {any} */ ({ type: 'EdgeRemove', from: 'a', to: 'b', label: 'l' }), eid)).toThrow(PatchError);
       });
 
-      it('throws when observedDots is not an array', () => {
+      it('throws when observedDots is not iterable', () => {
+        expect(() => applyOpV2(state(), /** @type {any} */ ({ type: 'EdgeRemove', from: 'a', to: 'b', label: 'l', observedDots: 42 }), eid)).toThrow(PatchError);
         expect(() => applyOpV2(state(), /** @type {any} */ ({ type: 'EdgeRemove', from: 'a', to: 'b', label: 'l', observedDots: {} }), eid)).toThrow(PatchError);
+      });
+
+      it('accepts Set as observedDots', () => {
+        expect(() => applyOpV2(state(), /** @type {any} */ ({ type: 'EdgeRemove', from: 'a', to: 'b', label: 'l', observedDots: new Set() }), eid)).not.toThrow();
       });
 
       it('accepts EdgeRemove without from/to/label (informational only)', () => {

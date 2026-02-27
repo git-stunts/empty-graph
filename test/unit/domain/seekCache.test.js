@@ -16,7 +16,7 @@ function createPatch(writer, lamport, nodeId) {
     writer,
     lamport,
     context: { [writer]: lamport },
-    ops: [{ type: 'NodeAdd', node: nodeId, dot: { writer, counter: lamport } }],
+    ops: [{ type: 'NodeAdd', node: nodeId, dot: { writerId: writer, counter: lamport } }],
   };
 }
 
