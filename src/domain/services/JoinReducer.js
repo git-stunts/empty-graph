@@ -118,15 +118,21 @@ function requireString(op, field) {
 }
 
 /**
- * Asserts that `op[field]` is an array. Throws PatchError if not.
+ * Asserts that `op[field]` is iterable (Array, Set, or any Symbol.iterator).
  * @param {Record<string, unknown>} op
  * @param {string} field
  */
-function requireArray(op, field) {
-  if (!Array.isArray(op[field])) {
+function requireIterable(op, field) {
+  const val = op[field];
+  if (
+    val === null ||
+    val === undefined ||
+    typeof val !== 'object' ||
+    typeof /** @type {Iterable<unknown>} */ (val)[Symbol.iterator] !== 'function'
+  ) {
     throw new PatchError(
-      `${op.type} op requires '${field}' to be an Array, got ${typeof op[field]}`,
-      { context: { opType: op.type, field, actual: typeof op[field] } },
+      `${op.type} op requires '${field}' to be iterable, got ${typeof val}`,
+      { context: { opType: op.type, field, actual: typeof val } },
     );
   }
 }
@@ -180,7 +186,7 @@ function validateOp(op) {
       break;
     case 'NodeRemove':
       // node is optional (informational for receipts); observedDots is required for mutation
-      requireArray(op, 'observedDots');
+      requireIterable(op, 'observedDots');
       break;
     case 'EdgeAdd':
       requireString(op, 'from');
@@ -190,7 +196,7 @@ function validateOp(op) {
       break;
     case 'EdgeRemove':
       // from/to/label are optional (informational for receipts); observedDots is required for mutation
-      requireArray(op, 'observedDots');
+      requireIterable(op, 'observedDots');
       break;
     case 'PropSet':
       requireString(op, 'node');
