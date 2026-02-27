@@ -574,3 +574,270 @@ M12 is top priority. The STANK audit revealed data-loss vectors and O(N^2) paths
 
 BACKLOG.md is now fully absorbed into this file. It can be archived or deleted.
 Rejected items live in `GRAVEYARD.md`. Resurrections require an RFC.
+
+---
+
+## Appendix — Horizon Visions and Defensive Campaigns (2026-02-27)
+
+This appendix captures forward-looking concept work and risk controls identified during PR hardening.
+These are not active milestone commitments yet; they are execution-ready concept dossiers.
+
+### Idea H1 — `warp doctor --history` (Patch Compatibility Auditor)
+
+**Vision**
+`warp doctor --history` should scan reachable patch commits and report compatibility hazards before they become runtime failures.
+The command outputs a deterministic report with per-commit findings, severity, and remediation suggestions.
+
+**Mini-Battle Plan**
+1. Build `HistoryDoctorService` that walks writer chains and decodes patch payloads without materializing full graph state.
+2. Define a compatibility rule registry (`schema`, op shape, trailer integrity, required metadata).
+3. Add CLI subcommand output modes: `text`, `json`, `ndjson`.
+4. Add optional `--since`, `--until`, and `--writer` filters for large repos.
+5. Integrate with `bin/warp-graph.js` and return non-zero status on critical findings.
+
+**Mitigations**
+- Cap commit traversal with explicit bounds and warning banners to prevent runaway scans.
+- Isolate decoding errors per commit so one malformed payload does not stop entire audit.
+- Version the rule registry so new validators remain backward-compatible and explicit.
+
+**Defensive Tests**
+- Unit: corrupted commit message, invalid CBOR payload, missing trailers, mixed schema chains.
+- Integration: audit large synthetic history with bounded memory use.
+- Contract: deterministic output ordering across runs and environments.
+
+### Idea H2 — Causal Cone as First-Class API (`sliceFrom`)
+
+**Vision**
+Expose causal slicing directly: `graph.sliceFrom(target)` should emit the minimal patch set needed to reconstruct target provenance.
+Supports provenance export, partial sync, and reproducible debugging bundles.
+
+**Mini-Battle Plan**
+1. Add domain API for targets: node, edge, property, and receipt target keys.
+2. Implement backward traversal over patch references with deduplicated cone expansion.
+3. Add serializer for portable slice bundles (`initial frontier + patch subset + metadata`).
+4. Add CLI command `warp slice --target ...` for operational use.
+5. Add replay validator: full replay vs slice replay parity for selected targets.
+
+**Mitigations**
+- Guard against cone explosion using configurable depth and patch count limits.
+- Persist target-to-cone cache for repeated debugging workflows.
+- Include explicit provenance-degraded flag when source history is incomplete.
+
+**Defensive Tests**
+- Property-based tests for cone minimality and replay equivalence.
+- Multi-writer regression tests with concurrent add/remove conflicts.
+- Snapshot tests for slice bundle format stability.
+
+### Idea H3 — Patch Dry-Run Explainer
+
+**Vision**
+Introduce a dry-run pathway that predicts semantic impact pre-commit: applied/redundant/shadowed outcomes, LWW winners, and alive-ness transitions.
+This reduces operator mistakes and clarifies concurrent write behavior.
+
+**Mini-Battle Plan**
+1. Implement `PatchPreviewService` that reuses reducer semantics in sandbox mode.
+2. Produce op-by-op explanation payload (`before`, `decision`, `after`, `reason`).
+3. Surface via API `builder.preview()` and CLI `warp patch --preview`.
+4. Add concise text renderer plus machine-readable JSON output.
+5. Add performance guardrail to keep preview under fixed complexity envelope.
+
+**Mitigations**
+- Reuse existing reducer paths to avoid semantic drift between preview and real commit.
+- Include explicit uncertainty markers for missing state or stale materialization.
+- Fall back to summary-only mode under high operation counts.
+
+**Defensive Tests**
+- Golden tests: preview outcomes match actual receipts after real commit.
+- Edge-case tests: concurrent removes, orphaned properties, edge visibility changes.
+- Non-regression tests for deterministic explanation ordering.
+
+### Idea H4 — Worldline Diff Visualizer
+
+**Vision**
+Add a semantic diff engine for comparing two ceilings/worldlines with grouped changes:
+structural deltas, property LWW shifts, frontier movement, and provenance-level explanations.
+
+**Mini-Battle Plan**
+1. Build `WorldlineDiffService` over `materialize({ ceiling })` plus existing diff primitives.
+2. Classify deltas by domain category with explicit causal reason metadata.
+3. Add output presenters: terminal summary and JSON feed for UI tooling.
+4. Add optional `--with-receipts` mode for deep provenance diagnostics.
+5. Add scale optimization using seek cache and memoized snapshots.
+
+**Mitigations**
+- Enforce ceiling validity checks and monotonic ordering constraints.
+- Guard memory use with bounded diff buffers for large histories.
+- Detect provenance degradation and mark confidence in output.
+
+**Defensive Tests**
+- Symmetry tests: `diff(A,B)` inverse aligns with `diff(B,A)` category semantics.
+- Ceiling cache tests: repeated diffs remain stable and performant.
+- Receipt enrichment tests: reason chains are complete and deterministic.
+
+### Idea H5 — Sync Chaos Harness
+
+**Vision**
+Create a deterministic chaos harness that simulates writer concurrency, delivery disorder, and retries to prove convergence and invariants continuously.
+
+**Mini-Battle Plan**
+1. Build seeded scenario runner (`writers`, `latency`, `drop/reorder/retry` profiles).
+2. Reuse existing sync protocol adapters in simulation mode.
+3. Emit invariant ledger: ref linearity, convergence hash, Lamport monotonicity, no data loss.
+4. Add CI matrix for quick smoke and extended nightly chaos profiles.
+5. Publish replay artifacts for failure triage.
+
+**Mitigations**
+- Fixed seed catalogs for reproducible failures.
+- Narrow smoke profile for PR-time speed; deep profile reserved for scheduled runs.
+- Automatic shard of scenarios to keep runtime bounded.
+
+**Defensive Tests**
+- Determinism tests: same seed yields identical event trace and final hash.
+- Invariant tests under fault injection bursts.
+- Regression tests for previously discovered race signatures.
+
+### Idea H6 — Checkpoint Quality Scorer
+
+**Vision**
+Score checkpoints by replay savings, storage overhead, and recoverability to auto-tune checkpoint cadence by real workload behavior.
+
+**Mini-Battle Plan**
+1. Implement scoring model with measurable factors (replay cost, compression ratio, index reuse).
+2. Add telemetry capture at checkpoint create/load/materialize boundaries.
+3. Build advisor mode: recommended `every` policy from observed workload.
+4. Add optional auto-policy mode behind explicit feature flag.
+5. Add operator report command for checkpoint health history.
+
+**Mitigations**
+- Keep auto-policy opt-in and reversible with static fallback.
+- Do not alter cadence while system is in degraded provenance mode.
+- Clamp recommendations within safety bounds.
+
+**Defensive Tests**
+- Simulation tests across write-heavy/read-heavy/mixed workloads.
+- Stability tests to prevent policy oscillation.
+- Safety tests ensuring no regression in recovery correctness.
+
+### Idea H7 — Query Planner Hints
+
+**Vision**
+Introduce planner hints for traversal/query execution based on index freshness, estimated fanout, and cost heuristics.
+Goal: predictable performance without sacrificing correctness.
+
+**Mini-Battle Plan**
+1. Add lightweight cardinality estimators from adjacency/index metadata.
+2. Introduce planner strategy selector with explain output.
+3. Support optional user hints (`preferIndex`, `boundedDepth`, `fanoutCap`).
+4. Add explain-plan output for diagnostics and tuning.
+5. Validate hint behavior against baseline correctness and latency.
+
+**Mitigations**
+- Preserve semantic equivalence regardless of planner path.
+- Disable risky heuristics automatically when index staleness is high.
+- Add strict fallback to canonical traversal path.
+
+**Defensive Tests**
+- Correctness parity tests across planner strategies.
+- Performance guard tests with representative synthetic topologies.
+- Staleness tests ensuring fallback triggers correctly.
+
+### Idea H8 — Signed Provenance Bundles
+
+**Vision**
+Support signed provenance bundles (patches + receipts + metadata) for supply-chain trust and auditable external exchange.
+
+**Mini-Battle Plan**
+1. Define bundle manifest format and canonicalization rules.
+2. Add signing/verification APIs using existing crypto ports.
+3. Integrate CLI (`warp bundle sign`, `warp bundle verify`).
+4. Include trust policy hooks (accepted keys, key rotation, revocation handling).
+5. Add interoperability fixtures for long-term format compatibility.
+
+**Mitigations**
+- Separate authenticity from semantic validity in verification output.
+- Require explicit trust policy to avoid “verified but untrusted” confusion.
+- Add revocation and expiration semantics in manifest.
+
+**Defensive Tests**
+- Canonicalization tests to prevent signature drift.
+- Tamper tests for payload, metadata, and signature blocks.
+- Cross-runtime verification tests (Node/Bun/Deno adapters).
+
+---
+
+## Concern Campaigns (Mitigation and Test Strategy)
+
+### Concern C-H1 — Reducer Validation Compatibility Blast Radius
+
+**Concern**
+Validation hardening can accidentally reject historical payload shapes and break materialization.
+
+**Mitigation Strategy**
+1. Maintain explicit compatibility matrix for accepted historical op shapes.
+2. Gate validator changes behind targeted compatibility fixtures before merge.
+3. Require migration or fallback path for any intentional strictness increase.
+
+**Defensive Tests**
+- Historical fixture suite replaying real legacy payload variants.
+- Fuzz tests for permissive-but-safe coercions.
+- CI check that rejects validator changes without compatibility fixture updates.
+
+### Concern C-H2 — Heavy Pre-Push Suite Slows Development Loop
+
+**Concern**
+Full pre-push validation improves safety but can degrade iteration speed and encourage workaround behavior.
+
+**Mitigation Strategy**
+1. Keep fast local smoke profile (`lint + target tests + typecheck`) as default developer path.
+2. Reserve full matrix for push/CI and nightly confidence runs.
+3. Provide clear tooling that predicts which test slices are required by changed files.
+
+**Defensive Tests**
+- Tooling tests mapping file changes to required test slices.
+- CI parity tests ensuring smoke profile never diverges semantically from full suite.
+- Performance telemetry tests tracking local feedback latency over time.
+
+### Concern C-H3 — Review-Process Friction from Outdated Threads
+
+**Concern**
+Outdated unresolved threads create false blockers and noisy merge-readiness signals.
+
+**Mitigation Strategy**
+1. Add automated unresolved-thread health check in CI/preflight.
+2. Auto-report outdated unresolved threads with direct links and suggested actions.
+3. Introduce safe comment helper to avoid malformed review replies.
+
+**Defensive Tests**
+- Integration tests against mocked PR thread payloads (`resolved`, `outdated`, `active`).
+- CLI script tests validating proper markdown/comment escaping.
+- Preflight tests that fail only on true unresolved blockers per policy.
+
+### Concern C-H4 — Lifecycle Safety Could Regress Through Future Bypasses
+
+**Concern**
+The commit/mutation guard is internal state; future code changes could bypass or partially bypass lifecycle checks.
+
+**Mitigation Strategy**
+1. Keep single guard entrypoint and ban direct mutation of lifecycle flags outside defined methods.
+2. Add concurrency-focused contract tests for in-flight commit behavior.
+3. Add static lint rule or code review checklist item for lifecycle mutations.
+
+**Defensive Tests**
+- Re-entrancy tests with parallel commit/mutation attempts.
+- Failure-path tests confirming flags reset correctly on exceptions.
+- Mutation coverage tests ensuring all mutators hit guard first.
+
+### Concern C-H5 — Reviewer Quorum Availability Risk
+
+**Concern**
+Strict quorum policy can block merges when reviewer availability is limited.
+
+**Mitigation Strategy**
+1. Add explicit fallback policy for time-bound maintainer override with audit trail.
+2. Automate review requests and reminder cadence to reduce idle wait.
+3. Surface quorum status in `pr:health` output alongside check state.
+
+**Defensive Tests**
+- Policy tests for merge-gate decision engine (`checks`, `threads`, `quorum`).
+- Notification workflow tests to verify reminder and escalation paths.
+- Audit log tests ensuring override path is explicit and reviewable.
