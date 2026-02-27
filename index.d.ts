@@ -1061,6 +1061,20 @@ export class SchemaUnsupportedError extends Error {
 }
 
 /**
+ * Error class for malformed or invalid patch operations.
+ */
+export class PatchError extends Error {
+  readonly name: 'PatchError';
+  readonly code: string;
+  readonly context: Record<string, unknown>;
+
+  constructor(message: string, options?: {
+    code?: string;
+    context?: Record<string, unknown>;
+  });
+}
+
+/**
  * Error class for sync transport operations.
  */
 export class SyncError extends Error {

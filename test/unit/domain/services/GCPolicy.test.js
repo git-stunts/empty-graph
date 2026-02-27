@@ -230,7 +230,7 @@ describe('GCPolicy', () => {
         expect(() => executeGC(state, /** @type {any} */ (bad))).toThrow(WarpError);
         try {
           executeGC(state, /** @type {any} */ (bad));
-        } catch (err) {
+        } catch (/** @type {any} */ err) {
           expect(err.code).toBe('E_GC_INVALID_VV');
         }
       }

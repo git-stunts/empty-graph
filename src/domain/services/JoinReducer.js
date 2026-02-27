@@ -17,6 +17,7 @@ import { createTickReceipt, OP_TYPES } from '../types/TickReceipt.js';
 import { encodeDot } from '../crdt/Dot.js';
 import { encodeEdgeKey, decodeEdgeKey, encodePropKey } from './KeyCodec.js';
 import { createEmptyDiff, mergeDiffs } from '../types/PatchDiff.js';
+import PatchError from '../errors/PatchError.js';
 
 // Re-export key codec functions for backward compatibility
 export {
@@ -103,6 +104,107 @@ export function isKnownOp(op) {
 }
 
 /**
+ * Asserts that `op[field]` is a string. Throws PatchError if not.
+ * @param {Record<string, unknown>} op
+ * @param {string} field
+ */
+function requireString(op, field) {
+  if (typeof op[field] !== 'string') {
+    throw new PatchError(
+      `${op.type} op requires '${field}' to be a string, got ${typeof op[field]}`,
+      { context: { opType: op.type, field, actual: typeof op[field] } },
+    );
+  }
+}
+
+/**
+ * Asserts that `op[field]` is an array. Throws PatchError if not.
+ * @param {Record<string, unknown>} op
+ * @param {string} field
+ */
+function requireArray(op, field) {
+  if (!Array.isArray(op[field])) {
+    throw new PatchError(
+      `${op.type} op requires '${field}' to be an Array, got ${typeof op[field]}`,
+      { context: { opType: op.type, field, actual: typeof op[field] } },
+    );
+  }
+}
+
+/**
+ * Asserts that `op.dot` is an object with writerId (string) and counter (number).
+ * @param {Record<string, unknown>} op
+ */
+function requireDot(op) {
+  const { dot } = op;
+  if (!dot || typeof dot !== 'object') {
+    throw new PatchError(
+      `${op.type} op requires 'dot' to be an object, got ${typeof dot}`,
+      { context: { opType: op.type, field: 'dot', actual: typeof dot } },
+    );
+  }
+  const d = /** @type {Record<string, unknown>} */ (dot);
+  if (typeof d.writerId !== 'string') {
+    throw new PatchError(
+      `${op.type} op requires 'dot.writerId' to be a string, got ${typeof d.writerId}`,
+      { context: { opType: op.type, field: 'dot.writerId', actual: typeof d.writerId } },
+    );
+  }
+  if (typeof d.counter !== 'number') {
+    throw new PatchError(
+      `${op.type} op requires 'dot.counter' to be a number, got ${typeof d.counter}`,
+      { context: { opType: op.type, field: 'dot.counter', actual: typeof d.counter } },
+    );
+  }
+}
+
+/**
+ * Validates that an operation has the required fields for its type.
+ * Throws PatchError for malformed ops. Unknown/BlobValue types pass through
+ * for forward compatibility.
+ *
+ * @param {Record<string, unknown>} op
+ */
+function validateOp(op) {
+  if (!op || typeof op.type !== 'string') {
+    throw new PatchError(
+      `Invalid op: expected object with string 'type', got ${op === null || op === undefined ? String(op) : typeof op.type}`,
+      { context: { actual: op === null || op === undefined ? String(op) : typeof op.type } },
+    );
+  }
+
+  switch (op.type) {
+    case 'NodeAdd':
+      requireString(op, 'node');
+      requireDot(op);
+      break;
+    case 'NodeRemove':
+      requireString(op, 'node');
+      requireArray(op, 'observedDots');
+      break;
+    case 'EdgeAdd':
+      requireString(op, 'from');
+      requireString(op, 'to');
+      requireString(op, 'label');
+      requireDot(op);
+      break;
+    case 'EdgeRemove':
+      requireString(op, 'from');
+      requireString(op, 'to');
+      requireString(op, 'label');
+      requireArray(op, 'observedDots');
+      break;
+    case 'PropSet':
+      requireString(op, 'node');
+      requireString(op, 'key');
+      break;
+    default:
+      // BlobValue and unknown types: no validation (forward-compat)
+      break;
+  }
+}
+
+/**
  * Applies a single V2 operation to the given CRDT state.
  *
  * @param {WarpStateV5} state - The mutable CRDT state to update
@@ -110,6 +212,7 @@ export function isKnownOp(op) {
  * @param {import('../utils/EventId.js').EventId} eventId - The event ID for LWW ordering
  */
 export function applyOpV2(state, op, eventId) {
+  validateOp(/** @type {Record<string, unknown>} */ (op));
   switch (op.type) {
     case 'NodeAdd':
       orsetAdd(state.nodeAlive, /** @type {string} */ (op.node), /** @type {import('../crdt/Dot.js').Dot} */ (op.dot));
@@ -603,6 +706,7 @@ export function applyWithDiff(state, patch, patchSha) {
 
   for (let i = 0; i < patch.ops.length; i++) {
     const op = patch.ops[i];
+    validateOp(/** @type {Record<string, unknown>} */ (op));
     const eventId = createEventId(patch.lamport, patch.writer, patchSha, i);
     const typedOp = /** @type {import('../types/WarpTypesV2.js').OpV2} */ (op);
     const before = snapshotBeforeOp(state, typedOp);
@@ -631,6 +735,7 @@ export function applyWithReceipt(state, patch, patchSha) {
   const opResults = [];
   for (let i = 0; i < patch.ops.length; i++) {
     const op = patch.ops[i];
+    validateOp(/** @type {Record<string, unknown>} */ (op));
     const eventId = createEventId(patch.lamport, patch.writer, patchSha, i);
 
     // Determine outcome BEFORE applying the op (state is pre-op)

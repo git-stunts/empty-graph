@@ -9,6 +9,7 @@ export { default as WarpError } from './WarpError.js';
 export { default as ForkError } from './ForkError.js';
 export { default as IndexError } from './IndexError.js';
 export { default as OperationAbortedError } from './OperationAbortedError.js';
+export { default as PatchError } from './PatchError.js';
 export { default as QueryError } from './QueryError.js';
 export { default as SyncError } from './SyncError.js';
 export { default as ShardCorruptionError } from './ShardCorruptionError.js';
