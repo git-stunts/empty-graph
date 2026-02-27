@@ -167,6 +167,50 @@ describe('IncrementalIndexUpdater', () => {
       expect(index3.isAlive('A')).toBe(true);
     });
 
+    it('skips edge OR-Set scan when adding a genuinely new node', () => {
+      const state1 = buildState({
+        nodes: ['A', 'B'],
+        edges: [{ from: 'A', to: 'B', label: 'knows' }],
+        props: [],
+      });
+      const tree1 = buildTree(state1);
+
+      const state2 = buildState({
+        nodes: ['A', 'B', 'C'],
+        edges: [{ from: 'A', to: 'B', label: 'knows' }],
+        props: [],
+      });
+
+      let scannedEdgeAlive = false;
+      const originalKeys = state2.edgeAlive.entries.keys.bind(state2.edgeAlive.entries);
+      state2.edgeAlive.entries.keys = () => {
+        scannedEdgeAlive = true;
+        return originalKeys();
+      };
+
+      const diff = {
+        nodesAdded: ['C'],
+        nodesRemoved: [],
+        edgesAdded: [],
+        edgesRemoved: [],
+        propsChanged: [],
+      };
+
+      const updater = new IncrementalIndexUpdater();
+      const dirtyShards = updater.computeDirtyShards({
+        diff,
+        state: state2,
+        loadShard: (path) => tree1[path],
+      });
+
+      expect(scannedEdgeAlive).toBe(false);
+
+      const tree2 = { ...tree1, ...dirtyShards };
+      const index2 = readIndex(tree2);
+      expect(index2.isAlive('C')).toBe(true);
+      expect(index2.getEdges('A', 'out').find((e) => e.neighborId === 'B' && e.label === 'knows')).toBeDefined();
+    });
+
     it('throws ShardIdOverflowError when shard exceeds 2^24 local IDs', () => {
       // Pick two nodeIds that hash to the same shard
       const nodeA = 'A';

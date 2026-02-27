@@ -65,6 +65,16 @@ export default class IncrementalIndexUpdater {
     const labels = this._loadLabels(loadShard);
     let labelsDirty = false;
 
+    // Determine which added nodes are true re-adds (already have global IDs).
+    // Brand-new nodes cannot have pre-existing indexed edges to restore.
+    const readdedNodes = new Set();
+    for (const nodeId of diff.nodesAdded) {
+      const meta = this._getOrLoadMeta(computeShardKey(nodeId), metaCache, loadShard);
+      if (this._findGlobalId(meta, nodeId) !== undefined) {
+        readdedNodes.add(nodeId);
+      }
+    }
+
     for (const nodeId of diff.nodesAdded) {
       this._handleNodeAdd(nodeId, metaCache, loadShard);
     }
@@ -96,23 +106,16 @@ export default class IncrementalIndexUpdater {
       this._handleEdgeRemove(edge, labels, metaCache, fwdCache, revCache, loadShard);
     }
 
-    // Restore edges for re-added nodes. When a node transitions
-    // not-alive -> alive, edges touching it that are alive in the ORSet
-    // become visible again. The diff only tracks explicit EdgeAdd ops,
-    // not these implicit visibility transitions.
-    //
-    // Known O(E) worst-case: scans all alive edges. For genuinely new nodes
-    // (not re-adds), this scan is unnecessary since they can't have pre-existing
-    // edges. _findGlobalId returns undefined for new nodes, so this could be
-    // short-circuited — deferred for a future optimization pass.
-    if (diff.nodesAdded.length > 0) {
-      const addedSet = new Set(diff.nodesAdded);
+    // Restore edges for re-added nodes only. When a node transitions
+    // not-alive -> alive, alive OR-Set edges touching it become visible again.
+    // Brand-new nodes are skipped because they have no prior global ID.
+    if (readdedNodes.size > 0) {
       const diffEdgeSet = new Set(
         diff.edgesAdded.map((e) => `${e.from}\0${e.to}\0${e.label}`),
       );
       for (const edgeKey of orsetElements(state.edgeAlive)) {
         const { from, to, label } = decodeEdgeKey(edgeKey);
-        if (!addedSet.has(from) && !addedSet.has(to)) {
+        if (!readdedNodes.has(from) && !readdedNodes.has(to)) {
           continue;
         }
         if (!orsetContains(state.nodeAlive, from) || !orsetContains(state.nodeAlive, to)) {
@@ -255,15 +258,16 @@ export default class IncrementalIndexUpdater {
     for (const bucket of Object.keys(fwdData)) {
       const gidStr = String(deadGid);
       if (fwdData[bucket] && fwdData[bucket][gidStr]) {
-        // Before clearing, find the targets so we can clean reverse bitmaps
-        const targets = RoaringBitmap32.deserialize(
+        // Deserialize once, collect targets, then clear+serialize in place.
+        const bm = RoaringBitmap32.deserialize(
           toBytes(fwdData[bucket][gidStr]),
           true,
-        ).toArray();
+        );
+        const targets = bm.toArray();
 
         // Clear this node's outgoing bitmap
-        const empty = new RoaringBitmap32();
-        fwdData[bucket][gidStr] = empty.serialize(true);
+        bm.clear();
+        fwdData[bucket][gidStr] = bm.serialize(true);
 
         // Remove deadGid from each target's reverse bitmap
         for (const targetGid of targets) {
@@ -273,12 +277,12 @@ export default class IncrementalIndexUpdater {
             const revData = this._getOrLoadEdgeShard(revCache, 'rev', targetShard, loadShard);
             const targetGidStr = String(targetGid);
             if (revData[bucket] && revData[bucket][targetGidStr]) {
-              const bm = RoaringBitmap32.deserialize(
+              const targetBm = RoaringBitmap32.deserialize(
                 toBytes(revData[bucket][targetGidStr]),
                 true,
               );
-              bm.remove(deadGid);
-              revData[bucket][targetGidStr] = bm.serialize(true);
+              targetBm.remove(deadGid);
+              revData[bucket][targetGidStr] = targetBm.serialize(true);
             }
           }
         }
@@ -290,13 +294,14 @@ export default class IncrementalIndexUpdater {
     for (const bucket of Object.keys(revData)) {
       const gidStr = String(deadGid);
       if (revData[bucket] && revData[bucket][gidStr]) {
-        const sources = RoaringBitmap32.deserialize(
+        const bm = RoaringBitmap32.deserialize(
           toBytes(revData[bucket][gidStr]),
           true,
-        ).toArray();
+        );
+        const sources = bm.toArray();
 
-        const empty = new RoaringBitmap32();
-        revData[bucket][gidStr] = empty.serialize(true);
+        bm.clear();
+        revData[bucket][gidStr] = bm.serialize(true);
 
         // Remove deadGid from each source's forward bitmap
         for (const sourceGid of sources) {
@@ -306,12 +311,12 @@ export default class IncrementalIndexUpdater {
             const fwdDataPeer = this._getOrLoadEdgeShard(fwdCache, 'fwd', sourceShard, loadShard);
             const sourceGidStr = String(sourceGid);
             if (fwdDataPeer[bucket] && fwdDataPeer[bucket][sourceGidStr]) {
-              const bm = RoaringBitmap32.deserialize(
+              const sourceBm = RoaringBitmap32.deserialize(
                 toBytes(fwdDataPeer[bucket][sourceGidStr]),
                 true,
               );
-              bm.remove(deadGid);
-              fwdDataPeer[bucket][sourceGidStr] = bm.serialize(true);
+              sourceBm.remove(deadGid);
+              fwdDataPeer[bucket][sourceGidStr] = sourceBm.serialize(true);
             }
           }
         }
