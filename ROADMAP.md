@@ -1,7 +1,7 @@
 # ROADMAP — @git-stunts/git-warp
 
-> **Current version:** v12.0.0
-> **Last reconciled:** 2026-02-25 (backlog fully absorbed)
+> **Current version:** v12.1.0
+> **Last reconciled:** 2026-02-26 (backlog fully absorbed)
 
 ---
 
@@ -214,8 +214,8 @@ Items picked up opportunistically without blocking milestones. No milestone assi
 | B86 | **MARKDOWNLINT CI GATE** — catch MD040 (missing code fence language) etc. From B-DOC-1. **File:** GitHub workflow file `.github/workflows/ci.yml` |
 | B87 | **CODE SAMPLE LINTER** — syntax-check JS/TS code blocks in markdown files via `eslint-plugin-markdown` or custom extractor. From B-DOC-2. **Files:** new script, `docs/**/*.md` |
 | B88 | **MERMAID RENDERING SMOKE TEST** — parse all ` ```mermaid ` blocks with `@mermaid-js/mermaid-cli` in CI. From B-DIAG-2. **File:** GitHub workflow file `.github/workflows/ci.yml` or `scripts/` |
-| B89 | **VERSION CONSISTENCY GATE** — CI gate checking every `## [X.Y.Z]` CHANGELOG heading against `package.json`/`jsr.json`. From B-REL-1. **File:** new script in `scripts/` |
-| B90 | **PREFLIGHT BOT CHANGELOG CHECK** — cross-check `package version` against CHANGELOG heading existence. From B-REL-2. **File:** GitHub workflows directory `.github/workflows/` |
+| B89 | ~~**VERSION CONSISTENCY GATE**~~ — **DONE (v12.1.0).** `scripts/release-preflight.sh` checks package.json == jsr.json; `release.yml` verify job enforces tag == package.json == jsr.json + CHANGELOG dated entry + README What's New. |
+| B90 | ~~**PREFLIGHT BOT CHANGELOG CHECK**~~ — **DONE (v12.1.0).** `release.yml` verify job checks CHANGELOG heading for tag version. `release-pr.yml` already runs lint+typecheck+test+pack dry-runs on PRs. |
 
 ### Surface Validator Pack
 
@@ -332,10 +332,11 @@ Pick opportunistically between milestones. Recommended order within tiers:
 | **Milestone (M10)** | 7 | B1, B2(spec), B39, B40, B63, B64, B65 |
 | **Milestone (M11)** | 3 | B2(impl), B3, B11 |
 | **Milestone (M12)** | 5 | B66, B67, B68, B69, B70 |
-| **Standalone** | 54 | B12, B19, B22, B26, B28, B34–B37, B43, B44, B46–B55, B57, B71–B99, B102–B104 |
+| **Standalone** | 52 | B12, B19, B22, B26, B28, B34–B37, B43, B44, B46–B55, B57, B71–B88, B91–B99, B102–B104 |
+| **Standalone (done)** | 2 | B89, B90 |
 | **Deferred** | 8 | B4, B7, B16, B20, B21, B27, B100, B101 |
 | **Rejected** | 7 | B5, B6, B13, B17, B18, B25, B45 |
-| **Total tracked** | **84** | |
+| **Total tracked** | **84** (2 done) | |
 
 ### B-Number Cross-Reference (Backlog → Roadmap)
 
