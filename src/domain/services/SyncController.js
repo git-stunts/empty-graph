@@ -11,6 +11,7 @@
 import SyncError from '../errors/SyncError.js';
 import OperationAbortedError from '../errors/OperationAbortedError.js';
 import { QueryError, E_NO_STATE_MSG } from '../warp/_internal.js';
+import { validateSyncResponse } from './SyncPayloadSchema.js';
 import {
   createSyncRequest as createSyncRequestImpl,
   processSyncRequest as processSyncRequestImpl,
@@ -25,6 +26,7 @@ import { collectGCMetrics } from './GCMetrics.js';
 import HttpSyncServer from './HttpSyncServer.js';
 import { signSyncRequest, canonicalizePath } from './SyncAuthService.js';
 import { isError } from '../types/WarpErrors.js';
+import SyncTrustGate from './SyncTrustGate.js';
 
 /** @typedef {import('../types/WarpPersistence.js').CorePersistence} CorePersistence */
 
@@ -128,10 +130,14 @@ async function buildSyncAuthHeaders({ auth, bodyStr, targetUrl, crypto }) {
 export default class SyncController {
   /**
    * @param {SyncHost} host - The WarpGraph instance (or any object satisfying SyncHost)
+   * @param {Object} [options]
+   * @param {SyncTrustGate} [options.trustGate] - Trust gate for evaluating patch authors
    */
-  constructor(host) {
+  constructor(host, options = {}) {
     /** @type {SyncHost} */
     this._host = host;
+    /** @type {SyncTrustGate|null} */
+    this._trustGate = options.trustGate || null;
   }
 
   /**
@@ -268,7 +274,7 @@ export default class SyncController {
       localFrontier,
       persistence,
       this._host._graphName,
-      { codec: this._host._codec }
+      { codec: this._host._codec, logger: this._host._logger || undefined }
     );
   }
 
@@ -282,11 +288,46 @@ export default class SyncController {
    * @returns {{state: import('./JoinReducer.js').WarpStateV5, frontier: Map<string, string>, applied: number}} Result with updated state and frontier
    * @throws {import('../errors/QueryError.js').default} If no cached state exists (code: `E_NO_STATE`)
    */
-  applySyncResponse(response) {
+  /**
+   * Applies a sync response to the local graph state.
+   * Updates the cached state with received patches.
+   *
+   * When a trust gate is configured, evaluates patch authors (writersApplied)
+   * against trust policy. In enforce mode, untrusted writers cause rejection
+   * before any state mutation.
+   *
+   * **Requires a cached state.**
+   *
+   * @param {import('./SyncProtocol.js').SyncResponse} response - The sync response
+   * @returns {Promise<{state: import('./JoinReducer.js').WarpStateV5, frontier: Map<string, string>, applied: number, trustVerdict?: string, writersApplied?: string[]}>} Result with updated state and frontier
+   * @throws {import('../errors/QueryError.js').default} If no cached state exists (code: `E_NO_STATE`)
+   * @throws {SyncError} If trust gate rejects untrusted writers (code: `E_SYNC_UNTRUSTED_WRITER`)
+   */
+  async applySyncResponse(response) {
     if (!this._host._cachedState) {
       throw new QueryError(E_NO_STATE_MSG, {
         code: 'E_NO_STATE',
       });
+    }
+
+    // Extract actual patch authors for trust evaluation (B1)
+    const writersApplied = SyncTrustGate.extractWritersFromPatches(response.patches || []);
+
+    // Evaluate trust BEFORE applying any patches
+    if (this._trustGate && writersApplied.length > 0) {
+      const verdict = await this._trustGate.evaluate(writersApplied, {
+        graphName: this._host._graphName,
+      });
+      if (!verdict.allowed) {
+        throw new SyncError('Sync rejected: untrusted writer(s)', {
+          code: 'E_SYNC_UNTRUSTED_WRITER',
+          context: {
+            writersApplied,
+            untrustedWriters: verdict.untrustedWriters,
+            verdict: verdict.verdict,
+          },
+        });
+      }
     }
 
     const currentFrontier = this._host._lastFrontier || createFrontier();
@@ -301,10 +342,32 @@ export default class SyncController {
     // Track patches for GC
     this._host._patchesSinceGC += result.applied;
 
+    // Invalidate derived caches (C1) — sync changes underlying state
+    this._invalidateDerivedCaches();
+
     // State is now in sync with the frontier -- clear dirty flag
     this._host._stateDirty = false;
 
-    return result;
+    return { ...result, writersApplied };
+  }
+
+  /**
+   * Invalidates all derived caches on the host graph.
+   *
+   * Called after sync apply or join to ensure stale index/provider/view
+   * data is not returned to callers. The next query or traversal will
+   * trigger a rebuild.
+   *
+   * @private
+   */
+  _invalidateDerivedCaches() {
+    const h = /** @type {import('../WarpGraph.js').default} */ (this._host);
+    h._materializedGraph = null;
+    h._logicalIndex = null;
+    h._propertyReader = null;
+    h._cachedViewHash = null;
+    h._cachedIndexTree = null;
+    h._stateDirty = true;
   }
 
   /**
@@ -468,12 +531,12 @@ export default class SyncController {
         }
       }
 
-      if (!response || typeof response !== 'object' ||
-        response.type !== 'sync-response' ||
-        !response.frontier || typeof response.frontier !== 'object' || Array.isArray(response.frontier) ||
-        !Array.isArray(response.patches)) {
-        throw new SyncError('Invalid sync response', {
-          code: 'E_SYNC_PROTOCOL',
+      // Validate response shape + resource limits via Zod schema (B64).
+      // For HTTP responses, always validate — untrusted boundary.
+      const validation = validateSyncResponse(response);
+      if (!validation.ok) {
+        throw new SyncError(`Invalid sync response: ${validation.error}`, {
+          code: 'E_SYNC_PAYLOAD_INVALID',
         });
       }
 
@@ -482,7 +545,7 @@ export default class SyncController {
         emit('materialized');
       }
 
-      const result = this.applySyncResponse(response);
+      const result = await this.applySyncResponse(response);
       emit('applied', { applied: result.applied });
 
       const durationMs = this._host._clock.now() - attemptStart;

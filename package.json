@@ -1,6 +1,6 @@
 {
   "name": "@git-stunts/git-warp",
-  "version": "12.1.0",
+  "version": "12.2.0",
   "description": "Deterministic WARP graph over Git: graph-native storage, traversal, and tooling.",
   "type": "module",
   "license": "Apache-2.0",
@@ -79,6 +79,7 @@
     "setup:hooks": "node scripts/setup-hooks.js",
     "prepare": "patch-package && node scripts/setup-hooks.js",
     "prepack": "npm run lint && npm run test:local && npm run typecheck:consumer",
+    "release:preflight": "bash scripts/release-preflight.sh",
     "install:git-warp": "bash scripts/install-git-warp.sh",
     "uninstall:git-warp": "bash scripts/uninstall-git-warp.sh",
     "test:node20": "docker compose -f docker-compose.test.yml --profile node20 run --build --rm test-node20",

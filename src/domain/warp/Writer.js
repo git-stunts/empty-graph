@@ -128,12 +128,14 @@ export class Writer {
       const commitMessage = await this._persistence.showNode(expectedOldHead);
       const kind = detectMessageKind(commitMessage);
       if (kind === 'patch') {
-        try {
-          const patchInfo = decodePatchMessage(commitMessage);
-          lamport = patchInfo.lamport + 1;
-        } catch {
-          // Malformed message, start at 1
+        const patchInfo = decodePatchMessage(commitMessage);
+        if (typeof patchInfo.lamport !== 'number' || !Number.isFinite(patchInfo.lamport) || patchInfo.lamport < 1) {
+          throw new WriterError(
+            'E_LAMPORT_CORRUPT',
+            `Malformed Lamport timestamp in commit ${expectedOldHead}: ${JSON.stringify(patchInfo.lamport)}`,
+          );
         }
+        lamport = patchInfo.lamport + 1;
       }
     }
 

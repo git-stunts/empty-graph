@@ -426,7 +426,7 @@ describe('WarpGraph.status() (LH/STATUS/1)', () => {
     };
 
     // 3. Apply the sync response
-    graph.applySyncResponse(syncResponse);
+    await graph.applySyncResponse(syncResponse);
 
     // 4. After sync, listRefs/readRef reflect the remote writer
     const writerRef2 = 'refs/warp/test/writers/writer-2';
@@ -461,7 +461,7 @@ describe('WarpGraph.status() (LH/STATUS/1)', () => {
     };
 
     // 3. Apply the sync response
-    graph.applySyncResponse(syncResponse);
+    await graph.applySyncResponse(syncResponse);
 
     // 4. After sync, readRef reflects the remote writer
     const writerRef2 = 'refs/warp/test/writers/writer-2';

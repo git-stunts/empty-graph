@@ -7,14 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [12.2.0] — 2026-02-27
+
+### Changed
+
+- **`topologicalSort` O(N log N) MinHeap** — replaced O(N²) sorted-array merge with MinHeap-backed ready queue in Kahn's algorithm. Removed dead `_insertSorted` method. (B68)
+- **`QueryBuilder` bounded concurrency + props memo** — `run()` now batches `getNodeProps()` calls in chunks of 100 via `batchMap()` and caches results in a per-run `propsMemo` Map, eliminating redundant property fetches across where-clauses, result building, and aggregation. (B69)
+- **Checkpoint `visible.cbor` removed** — checkpoints no longer write the redundant visible-projection blob. `loadCheckpoint()` never used it for resume (state.cbor is authoritative). Saves one blob write + serialize per checkpoint. (J5)
+
+### Added
+
+- **Fast-return materialization guard** — `_materializeGraph()` now returns cached result immediately when `!_stateDirty && _materializedGraph`, skipping a full `materialize()` round-trip for callers like QueryBuilder and LogicalTraversal. (S9)
+- **`_indexDegraded` flag** — WarpGraph now tracks whether the bitmap index build failed. Set `true` on `_buildView()` catch, `false` on success. Purely additive — no behavioral change yet. (J11)
+- **PatchBuilderV2 snapshot tests (C4)** — 4 tests verifying lazy snapshot capture, stability after mutation, null state handling, and no-capture for add operations.
+- **JoinReducer validation tests (C2/C3)** — 7 tests documenting unknown-op-type silent ignore (forward-compat baseline), empty ops/patches safety, and malformed-op crash behavior on both fast and receipt paths.
+- **BATS trust-sync tests** — `cli-trust-sync.bats` (4 tests) + `seed-trust-sync.js` helper exercising trust evaluation with multiple writers: enforce+untrusted exit 4, warn exit 0, JSON shape with evaluatedWriters/untrustedWriters, trusted-only pass.
+
 ## [12.1.0] — 2026-02-25
 
 ### Added
 
 - **Multi-pattern glob support** — `graph.observer()`, `query().match()`, and `translationCost()` now accept an array of glob patterns (e.g. `['campaign:*', 'milestone:*']`). Nodes matching *any* pattern in the array are included (OR semantics).
 - **Centralized `matchGlob` utility** (`src/domain/utils/matchGlob.js`) — unified glob matching logic with regex caching and support for array-based multi-pattern matching.
+- **Release preflight** — `npm run release:preflight` runs a 10-check local gate before tagging. CI (`release.yml`) now also enforces CHANGELOG and README checks on tag push.
 
-### [12.0.0] — 2026-02-25
+### Fixed
+
+- **Type declarations for multi-pattern glob** — `index.d.ts` `QueryBuilder.match()` and `ObserverConfig.match` now accept `string | string[]`, matching runtime behavior. JSDoc annotations updated in `ObserverView`, `QueryBuilder`, `TranslationCost`, and `query.methods`.
+
+## [12.0.0] — 2026-02-25
 
 ### Changed
 

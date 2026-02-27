@@ -1194,7 +1194,7 @@ export const CONTENT_PROPERTY_KEY: '_content';
  * Configuration for an observer view.
  */
 export interface ObserverConfig {
-  /** Glob pattern(s) for visible nodes (e.g. 'user:*') */
+  /** Glob pattern or array of patterns for visible nodes (e.g. 'user:*' or ['user:*', 'team:*']) */
   match: string | string[];
   /** Property keys to include (whitelist). If omitted, all non-redacted properties are visible. */
   expose?: string[];

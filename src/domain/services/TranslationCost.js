@@ -181,7 +181,8 @@ function computePropLoss(state, { nodesA, nodesBSet, configA, configB }) {
  * @returns {{ cost: number, breakdown: { nodeLoss: number, edgeLoss: number, propLoss: number } }}
  */
 export function computeTranslationCost(configA, configB, state) {
-  const isValidMatch = (/** @type {string|string[]} */ m) => typeof m === 'string' || (Array.isArray(m) && m.every(i => typeof i === 'string'));
+  /** @param {unknown} m */
+  const isValidMatch = (m) => typeof m === 'string' || (Array.isArray(m) && m.every(/** @param {unknown} i */ i => typeof i === 'string'));
   if (!configA || !isValidMatch(configA.match) ||
       !configB || !isValidMatch(configB.match)) {
     throw new Error('configA.match and configB.match must be strings or arrays of strings');

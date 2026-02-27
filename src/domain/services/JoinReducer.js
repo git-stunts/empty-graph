@@ -86,6 +86,29 @@ export function createEmptyStateV5() {
  * @param {import('../utils/EventId.js').EventId} eventId - Event ID for causality tracking
  * @returns {void}
  */
+/**
+ * Known V2 operation types. Used for forward-compatibility validation.
+ * @type {ReadonlySet<string>}
+ */
+const KNOWN_OPS = new Set(['NodeAdd', 'NodeRemove', 'EdgeAdd', 'EdgeRemove', 'PropSet', 'BlobValue']);
+
+/**
+ * Validates that an operation has a known type.
+ *
+ * @param {{ type: string }} op
+ * @returns {boolean} True if the op type is in KNOWN_OPS
+ */
+export function isKnownOp(op) {
+  return op && typeof op.type === 'string' && KNOWN_OPS.has(op.type);
+}
+
+/**
+ * Applies a single V2 operation to the given CRDT state.
+ *
+ * @param {WarpStateV5} state - The mutable CRDT state to update
+ * @param {{type: string, node?: string, dot?: import('../crdt/Dot.js').Dot, observedDots?: string[], from?: string, to?: string, label?: string, key?: string, value?: unknown, oid?: string}} op - The operation to apply
+ * @param {import('../utils/EventId.js').EventId} eventId - The event ID for LWW ordering
+ */
 export function applyOpV2(state, op, eventId) {
   switch (op.type) {
     case 'NodeAdd':

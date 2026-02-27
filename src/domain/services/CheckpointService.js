@@ -11,7 +11,7 @@
  * @see WARP Spec Section 10
  */
 
-import { serializeStateV5, computeStateHashV5 } from './StateSerializerV5.js';
+import { computeStateHashV5 } from './StateSerializerV5.js';
 import {
   serializeFullStateV5,
   deserializeFullStateV5,
@@ -86,7 +86,6 @@ function partitionTreeOids(rawOids) {
  * ```
  * <checkpoint_commit_tree>/
  * ├── state.cbor           # AUTHORITATIVE: Full V5 state (ORSets + props)
- * ├── visible.cbor         # CACHE ONLY: Visible projection for fast queries
  * ├── frontier.cbor        # Writer frontiers
  * ├── appliedVV.cbor       # Version vector of dots in state
  * └── provenanceIndex.cbor # Optional: node-to-patchSha index (HG/IO/2)
@@ -116,7 +115,6 @@ export async function create({ persistence, graphName, state, frontier, parents 
  * ```
  * <checkpoint_tree>/
  * ├── state.cbor           # AUTHORITATIVE: Full V5 state (ORSets + props)
- * ├── visible.cbor         # CACHE ONLY: Visible projection for fast queries
  * ├── frontier.cbor        # Writer frontiers
  * ├── appliedVV.cbor       # Version vector of dots in state
  * └── provenanceIndex.cbor # Optional: node-to-patchSha index (HG/IO/2)
@@ -161,8 +159,7 @@ export async function createV5({
   // 3. Serialize full state (AUTHORITATIVE)
   const stateBuffer = serializeFullStateV5(checkpointState, { codec });
 
-  // 4. Serialize visible projection (CACHE)
-  const visibleBuffer = serializeStateV5(checkpointState, { codec });
+  // 4. Compute state hash
   const stateHash = await computeStateHashV5(checkpointState, { codec, crypto: /** @type {import('../../ports/CryptoPort.js').default} */ (crypto) });
 
   // 5. Serialize frontier and appliedVV
@@ -171,7 +168,6 @@ export async function createV5({
 
   // 6. Write blobs to git
   const stateBlobOid = await persistence.writeBlob(/** @type {Buffer} */ (stateBuffer));
-  const visibleBlobOid = await persistence.writeBlob(/** @type {Buffer} */ (visibleBuffer));
   const frontierBlobOid = await persistence.writeBlob(/** @type {Buffer} */ (frontierBuffer));
   const appliedVVBlobOid = await persistence.writeBlob(/** @type {Buffer} */ (appliedVVBuffer));
 
@@ -207,7 +203,6 @@ export async function createV5({
     `100644 blob ${appliedVVBlobOid}\tappliedVV.cbor`,
     `100644 blob ${frontierBlobOid}\tfrontier.cbor`,
     `100644 blob ${stateBlobOid}\tstate.cbor`,
-    `100644 blob ${visibleBlobOid}\tvisible.cbor`,
   ];
 
   // Add provenance index if present

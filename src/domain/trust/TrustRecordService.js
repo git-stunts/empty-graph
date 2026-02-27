@@ -15,6 +15,13 @@ import { verifyRecordId } from './TrustCanonical.js';
 import TrustError from '../errors/TrustError.js';
 
 /**
+ * Maximum CAS attempts for _persistRecord before giving up.
+ * Handles transient failures (lock contention, I/O race).
+ * @type {number}
+ */
+const MAX_CAS_ATTEMPTS = 3;
+
+/**
  * @typedef {Object} AppendOptions
  * @property {boolean} [skipSignatureVerify=false] - Skip signature verification (for testing)
  */
@@ -104,8 +111,15 @@ export class TrustRecordService {
     if (!tip) {
       try {
         tip = await this._persistence.readRef(ref);
-      } catch {
-        return [];
+      } catch (err) {
+        // Distinguish "ref not found" from operational error (J15)
+        if (err instanceof Error && (err.message?.includes('not found') || err.message?.includes('does not exist'))) {
+          return [];
+        }
+        throw new TrustError(
+          `Failed to read trust chain ref: ${err instanceof Error ? err.message : String(err)}`,
+          { code: 'E_TRUST_READ_FAILED' },
+        );
       }
       if (!tip) {
         return [];
@@ -197,6 +211,62 @@ export class TrustRecordService {
   }
 
   /**
+   * Appends a trust record with automatic retry on CAS conflict.
+   *
+   * On E_TRUST_CAS_CONFLICT, re-reads the chain tip, rebuilds the record
+   * with the new prev pointer, re-signs if a signer is provided, and
+   * retries. This is the higher-level API callers should use when they
+   * want automatic convergence under concurrent appenders.
+   *
+   * @param {string} graphName
+   * @param {Record<string, unknown>} record - Complete signed trust record
+   * @param {Object} [options]
+   * @param {number} [options.maxRetries=3] - Maximum rebuild-and-retry attempts
+   * @param {((record: Record<string, unknown>) => Promise<Record<string, unknown>>)|null} [options.resign] - Function to re-sign a rebuilt record (null for unsigned)
+   * @param {boolean} [options.skipSignatureVerify=false] - Skip signature verification
+   * @returns {Promise<{commitSha: string, ref: string, attempts: number}>}
+   * @throws {TrustError} E_TRUST_CAS_EXHAUSTED if all retries fail
+   */
+  async appendRecordWithRetry(graphName, record, options = {}) {
+    const { maxRetries = 3, resign = null, skipSignatureVerify = false } = options;
+    let currentRecord = record;
+    let attempts = 0;
+
+    for (let i = 0; i <= maxRetries; i++) {
+      attempts++;
+      try {
+        const result = await this.appendRecord(graphName, currentRecord, { skipSignatureVerify });
+        return { ...result, attempts };
+      } catch (err) {
+        if (!(err instanceof TrustError) || err.code !== 'E_TRUST_CAS_CONFLICT') {
+          throw err;
+        }
+
+        if (i === maxRetries) {
+          throw new TrustError(
+            `Trust CAS exhausted after ${attempts} attempts (with retry)`,
+            { code: 'E_TRUST_CAS_EXHAUSTED' },
+          );
+        }
+
+        // Rebuild: re-read chain tip, update prev pointer
+        const freshTipRecordId = err.context?.actualTipRecordId ?? null;
+
+        // Update prev to the new chain tip's recordId
+        currentRecord = { ...currentRecord, prev: freshTipRecordId };
+
+        // Re-sign if signer is provided
+        if (resign) {
+          currentRecord = await resign(currentRecord);
+        }
+      }
+    }
+
+    // Unreachable
+    throw new TrustError('Trust CAS failed', { code: 'E_TRUST_CAS_EXHAUSTED' });
+  }
+
+  /**
    * Validates that a record's signature envelope is structurally complete.
    *
    * Checks for presence of `alg` and `sig` fields. Does NOT perform
@@ -246,7 +316,15 @@ export class TrustRecordService {
   }
 
   /**
-   * Persists a trust record as a Git commit.
+   * Persists a trust record as a Git commit with CAS retry.
+   *
+   * On transient CAS failures (ref unchanged, e.g. lock contention), retries
+   * up to MAX_CAS_ATTEMPTS total. On real concurrent appends (ref advanced),
+   * throws E_TRUST_CAS_CONFLICT so the caller can rebuild + re-sign the record.
+   *
+   * The record's prev, recordId, and signature form a cryptographic chain.
+   * Only the original signer can rebuild, so we never silently rebase.
+   *
    * @param {string} ref
    * @param {Record<string, unknown>} record
    * @param {string|null} parentSha - Resolved tip SHA (null for genesis)
@@ -273,9 +351,44 @@ export class TrustRecordService {
       message,
     });
 
-    // CAS update ref — fails atomically if a concurrent append changed the tip
-    await this._persistence.compareAndSwapRef(ref, commitSha, parentSha);
+    // CAS update ref with retry for transient failures
+    for (let attempt = 1; attempt <= MAX_CAS_ATTEMPTS; attempt++) {
+      try {
+        await this._persistence.compareAndSwapRef(ref, commitSha, parentSha);
+        return commitSha;
+      } catch {
+        // Read fresh tip to distinguish transient vs real conflict
+        const { tipSha: freshTipSha, recordId: freshRecordId } = await this._readTip(ref);
 
-    return commitSha;
+        if (freshTipSha === parentSha) {
+          // Ref unchanged — transient failure (lock contention, I/O race).
+          // Retry the same CAS with same commit.
+          if (attempt === MAX_CAS_ATTEMPTS) {
+            throw new TrustError(
+              `Trust CAS exhausted after ${MAX_CAS_ATTEMPTS} attempts`,
+              { code: 'E_TRUST_CAS_EXHAUSTED' },
+            );
+          }
+          continue;
+        }
+
+        // Ref changed — real concurrent append. Our record's prev no longer
+        // matches the chain tip. The caller must rebuild, re-sign, and retry.
+        throw new TrustError(
+          `Trust CAS conflict: chain advanced from ${parentSha} to ${freshTipSha}`,
+          {
+            code: 'E_TRUST_CAS_CONFLICT',
+            context: {
+              expectedTipSha: parentSha,
+              actualTipSha: freshTipSha,
+              actualTipRecordId: freshRecordId,
+            },
+          },
+        );
+      }
+    }
+
+    // Unreachable, but satisfies type checker
+    throw new TrustError('Trust CAS failed', { code: 'E_TRUST_CAS_EXHAUSTED' });
   }
 }

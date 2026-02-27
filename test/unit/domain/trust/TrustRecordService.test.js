@@ -159,11 +159,22 @@ describe('TrustRecordService.appendRecord', () => {
     ).rejects.toThrow('Prev-link mismatch');
   });
 
-  it('detects concurrent append via CAS failure', async () => {
+  it('detects concurrent append via CAS conflict', async () => {
     await service.appendRecord('test-graph', KEY_ADD_1, { skipSignatureVerify: true });
 
     // Simulate a concurrent append by mutating the ref after _readTip
-    // but before _persistRecord's compareAndSwapRef
+    // but before _persistRecord's compareAndSwapRef.
+    // We must seed a fake commit so _readTip can resolve the concurrent SHA.
+    const fakeBlob = await persistence.writeBlob(
+      Buffer.from(JSON.stringify({ ...KEY_ADD_2, recordId: 'fake'.repeat(16) })),
+    );
+    const fakeTree = await persistence.writeTree([`100644 blob ${fakeBlob}\trecord.cbor`]);
+    const fakeSha = await persistence.commitNodeWithTree({
+      treeOid: fakeTree,
+      parents: [],
+      message: 'trust: concurrent',
+    });
+
     const origReadRef = persistence.readRef.bind(persistence);
     let callCount = 0;
     persistence.readRef = async (/** @type {*} */ ref) => {
@@ -171,14 +182,15 @@ describe('TrustRecordService.appendRecord', () => {
       callCount++;
       // After the first readRef in _readTip, sneak in a ref change
       if (callCount === 1) {
-        persistence.refs.set(ref, 'concurrent-commit-sha');
+        persistence.refs.set(ref, fakeSha);
       }
       return result;
     };
 
+    // B39: Now throws E_TRUST_CAS_CONFLICT (chain advanced) instead of raw CAS error
     await expect(
       service.appendRecord('test-graph', KEY_ADD_2, { skipSignatureVerify: true }),
-    ).rejects.toThrow('CAS failure');
+    ).rejects.toThrow(/CAS conflict|CAS exhausted/);
   });
 });
 

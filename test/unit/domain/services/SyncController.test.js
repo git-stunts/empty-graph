@@ -67,6 +67,11 @@ function createMockHost(overrides = {}) {
     _logTiming: vi.fn(),
     materialize: vi.fn(),
     discoverWriters: vi.fn().mockResolvedValue([]),
+    _materializedGraph: null,
+    _logicalIndex: null,
+    _propertyReader: null,
+    _cachedViewHash: null,
+    _cachedIndexTree: null,
     ...overrides,
   };
 }
@@ -257,15 +262,15 @@ describe('SyncController', () => {
   });
 
   describe('applySyncResponse', () => {
-    it('throws QueryError when no cached state', () => {
+    it('throws QueryError when no cached state', async () => {
       const host = createMockHost({ _cachedState: null });
       const ctrl = new SyncController(/** @type {*} */ (host));
 
-      expect(() => ctrl.applySyncResponse({ type: 'sync-response', frontier: {}, patches: [] }))
-        .toThrow(/No materialized state/);
+      await expect(ctrl.applySyncResponse({ type: 'sync-response', frontier: {}, patches: [] }))
+        .rejects.toThrow(/No materialized state/);
     });
 
-    it('updates host state from applySyncResponseImpl result', () => {
+    it('updates host state from applySyncResponseImpl result', async () => {
       const fakeState = {
         observedFrontier: new Map(),
         nodeAlive: { dots: new Map() },
@@ -284,7 +289,7 @@ describe('SyncController', () => {
       /** @type {{type: 'sync-response', frontier: Record<string, string>, patches: *[]}} */
       const response = { type: 'sync-response', frontier: {}, patches: [] };
 
-      const result = ctrl.applySyncResponse(response);
+      const result = await ctrl.applySyncResponse(response);
 
       expect(result.applied).toBe(3);
       expect(host._cachedState).toBe(newState);
@@ -298,7 +303,7 @@ describe('SyncController', () => {
       );
     });
 
-    it('uses empty frontier when _lastFrontier is null', () => {
+    it('uses empty frontier when _lastFrontier is null', async () => {
       const fakeState = {
         observedFrontier: new Map(),
         nodeAlive: { dots: new Map() },
@@ -314,7 +319,7 @@ describe('SyncController', () => {
       });
       const ctrl = new SyncController(/** @type {*} */ (host));
 
-      ctrl.applySyncResponse({ type: 'sync-response', frontier: {}, patches: [] });
+      await ctrl.applySyncResponse({ type: 'sync-response', frontier: {}, patches: [] });
 
       // Should have passed an empty Map (from createFrontier()) as the frontier arg
       const calledFrontier = applySyncResponseMock.mock.calls[0][2];
@@ -323,7 +328,7 @@ describe('SyncController', () => {
       expect(host._lastFrontier).toBe(newFrontier);
     });
 
-    it('passes _lastFrontier (not observedFrontier) to applySyncResponseImpl', () => {
+    it('passes _lastFrontier (not observedFrontier) to applySyncResponseImpl', async () => {
       const observedFrontier = new Map([['alice', 99]]);
       const lastFrontier = new Map([['alice', 'sha-tip-1']]);
       const fakeState = {
@@ -340,7 +345,7 @@ describe('SyncController', () => {
       });
       const ctrl = new SyncController(/** @type {*} */ (host));
 
-      ctrl.applySyncResponse({ type: 'sync-response', frontier: {}, patches: [] });
+      await ctrl.applySyncResponse({ type: 'sync-response', frontier: {}, patches: [] });
 
       const calledFrontier = applySyncResponseMock.mock.calls[0][2];
       // Must be the SHA frontier map, not the VersionVector
@@ -397,7 +402,7 @@ describe('SyncController', () => {
         expect.any(Map),
         host._persistence,
         'test-graph',
-        { codec: host._codec },
+        expect.objectContaining({ codec: host._codec }),
       );
     });
   });

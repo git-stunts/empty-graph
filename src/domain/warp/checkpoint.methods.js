@@ -9,12 +9,13 @@
 
 import { QueryError, E_NO_STATE_MSG } from './_internal.js';
 import { buildWriterRef, buildCheckpointRef, buildCoverageRef } from '../utils/RefLayout.js';
-import { createFrontier, updateFrontier } from '../services/Frontier.js';
+import { createFrontier, updateFrontier, frontierFingerprint } from '../services/Frontier.js';
 import { loadCheckpoint, create as createCheckpointCommit } from '../services/CheckpointService.js';
 import { decodePatchMessage, detectMessageKind, encodeAnchorMessage } from '../services/WarpMessageCodec.js';
 import { shouldRunGC, executeGC } from '../services/GCPolicy.js';
 import { collectGCMetrics } from '../services/GCMetrics.js';
 import { computeAppliedVV } from '../services/CheckpointSerializerV5.js';
+import { cloneStateV5 } from '../services/JoinReducer.js';
 
 /** @typedef {import('../types/WarpPersistence.js').CorePersistence} CorePersistence */
 
@@ -267,6 +268,12 @@ export async function _hasSchema1Patches() {
  * Post-materialize GC check. Warn by default; execute only when enabled.
  * GC failure never breaks materialize.
  *
+ * Uses clone-then-swap pattern for snapshot isolation (B63):
+ * 1. Snapshot frontier fingerprint before GC
+ * 2. Clone state, run executeGC on clone
+ * 3. Compare frontier after GC — if changed, discard clone + mark dirty
+ * 4. If unchanged, swap compacted clone into _cachedState
+ *
  * @this {import('../WarpGraph.js').default}
  * @param {import('../services/JoinReducer.js').WarpStateV5} state
  * @private
@@ -287,8 +294,35 @@ export function _maybeRunGC(state) {
     }
 
     if (/** @type {import('../services/GCPolicy.js').GCPolicy} */ (this._gcPolicy).enabled) {
-      const appliedVV = computeAppliedVV(state);
-      const result = executeGC(state, appliedVV);
+      // Snapshot frontier before GC
+      const preGcFingerprint = this._lastFrontier
+        ? frontierFingerprint(this._lastFrontier)
+        : null;
+
+      // Clone state so executeGC doesn't mutate live state
+      const clonedState = cloneStateV5(state);
+      const appliedVV = computeAppliedVV(clonedState);
+      const result = executeGC(clonedState, appliedVV);
+
+      // Check if frontier changed during GC (concurrent write)
+      const postGcFingerprint = this._lastFrontier
+        ? frontierFingerprint(this._lastFrontier)
+        : null;
+
+      if (preGcFingerprint !== postGcFingerprint) {
+        // Frontier changed — discard compacted state, mark dirty
+        this._stateDirty = true;
+        if (this._logger) {
+          this._logger.warn(
+            'Auto-GC discarded: frontier changed during compaction (concurrent write)',
+            { reasons, preGcFingerprint, postGcFingerprint },
+          );
+        }
+        return;
+      }
+
+      // Frontier unchanged — swap in compacted state
+      this._cachedState = clonedState;
       this._lastGCTime = this._clock.now();
       this._patchesSinceGC = 0;
       if (this._logger) {
@@ -348,11 +382,17 @@ export function maybeRunGC() {
  * Explicitly runs GC on the cached state.
  * Compacts tombstoned dots that are covered by the appliedVV.
  *
+ * Uses clone-then-swap pattern for snapshot isolation (B63):
+ * clones state, runs executeGC on clone, verifies frontier unchanged,
+ * then swaps in compacted clone. If frontier changed during GC,
+ * throws E_GC_STALE so the caller can retry after re-materializing.
+ *
  * **Requires a cached state.**
  *
  * @this {import('../WarpGraph.js').default}
  * @returns {{nodesCompacted: number, edgesCompacted: number, tombstonesRemoved: number, durationMs: number}}
  * @throws {QueryError} If no cached state exists (code: `E_NO_STATE`)
+ * @throws {QueryError} If frontier changed during GC (code: `E_GC_STALE`)
  *
  * @example
  * await graph.materialize();
@@ -368,13 +408,30 @@ export function runGC() {
       });
     }
 
-    // Compute appliedVV from current state
-    const appliedVV = computeAppliedVV(this._cachedState);
+    // Snapshot frontier before GC
+    const preGcFingerprint = this._lastFrontier
+      ? frontierFingerprint(this._lastFrontier)
+      : null;
 
-    // Execute GC (mutates cached state)
-    const result = executeGC(this._cachedState, appliedVV);
+    // Clone state so executeGC doesn't mutate live state until verified
+    const clonedState = cloneStateV5(this._cachedState);
+    const appliedVV = computeAppliedVV(clonedState);
+    const result = executeGC(clonedState, appliedVV);
 
-    // Update GC tracking
+    // Verify frontier unchanged (concurrent write detection)
+    const postGcFingerprint = this._lastFrontier
+      ? frontierFingerprint(this._lastFrontier)
+      : null;
+
+    if (preGcFingerprint !== postGcFingerprint) {
+      throw new QueryError(
+        'GC aborted: frontier changed during compaction (concurrent write detected)',
+        { code: 'E_GC_STALE' },
+      );
+    }
+
+    // Frontier unchanged — swap in compacted state
+    this._cachedState = clonedState;
     this._lastGCTime = this._clock.now();
     this._patchesSinceGC = 0;
 

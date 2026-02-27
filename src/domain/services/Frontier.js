@@ -92,6 +92,24 @@ export function cloneFrontier(frontier) {
 }
 
 /**
+ * Produces a stable, deterministic fingerprint of a frontier.
+ *
+ * Sorts entries by writer ID and JSON-stringifies the sorted pairs.
+ * Two frontiers produce the same fingerprint iff they have identical
+ * writer→SHA mappings. Used for snapshot isolation checks (B63)
+ * and diagnostic logging.
+ *
+ * @param {Frontier} frontier
+ * @returns {string} Deterministic JSON string of sorted entries
+ */
+export function frontierFingerprint(frontier) {
+  const sorted = [...frontier.entries()].sort(
+    ([a], [b]) => (a < b ? -1 : a > b ? 1 : 0),
+  );
+  return JSON.stringify(sorted);
+}
+
+/**
  * Merges two frontiers, taking the "later" entry for each writer.
  * Note: This is a simple merge that takes entries from both.
  * For proper "later" detection, you'd need to compare patch ancestry.

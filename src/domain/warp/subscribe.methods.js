@@ -108,7 +108,7 @@ export function subscribe({ onChange, onError, replay = false }) {
  * @param {(error: Error) => void} [options.onError] - Called if onChange throws an error
  * @param {number} [options.poll] - Poll interval in ms (min 1000); checks frontier and auto-materializes
  * @returns {{unsubscribe: () => void}} Subscription handle
- * @throws {Error} If pattern is not a string
+ * @throws {Error} If pattern is not a string or array of strings
  * @throws {Error} If onChange is not a function
  * @throws {Error} If poll is provided but less than 1000
  *

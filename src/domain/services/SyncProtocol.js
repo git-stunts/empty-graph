@@ -37,6 +37,7 @@
  */
 
 import defaultCodec from '../utils/defaultCodec.js';
+import nullLogger from '../utils/nullLogger.js';
 import { decodePatchMessage, assertOpsCompatible, SCHEMA_V3 } from './WarpMessageCodec.js';
 import { join, cloneStateV5 } from './JoinReducer.js';
 import { cloneFrontier, updateFrontier } from './Frontier.js';
@@ -267,11 +268,9 @@ export function computeSyncDelta(localFrontier, remoteFrontier) {
       newWritersForRemote.push(writerId);
     } else if (remoteSha !== localSha) {
       // Different heads - remote might need patches from its head to local head
-      // Only add if not already in needFromRemote (avoid double-counting)
-      // This handles the case where local is ahead of remote
-      if (!needFromRemote.has(writerId)) {
-        needFromLocal.set(writerId, { from: remoteSha, to: localSha });
-      }
+      // Always add both directions — ancestry is verified during loadPatchRange()
+      // which will throw E_SYNC_DIVERGENCE if neither side descends from the other (S3)
+      needFromLocal.set(writerId, { from: remoteSha, to: localSha });
     }
   }
 
@@ -315,6 +314,8 @@ export function computeSyncDelta(localFrontier, remoteFrontier) {
  *   - `writerId`: The writer who created this patch
  *   - `sha`: The commit SHA this patch came from (for frontier updates)
  *   - `patch`: The decoded patch object with ops and context
+ * @property {Array<{writerId: string, reason: string, localSha: string, remoteSha: string|null}>} [skippedWriters] - Writers that were skipped during sync
+ *   (e.g. due to trust gate filtering, divergence, or missing refs)
  */
 
 /**
@@ -375,6 +376,7 @@ export function createSyncRequest(frontier) {
  * @param {string} graphName - Graph name for error messages and logging
  * @param {Object} [options]
  * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for deserialization
+ * @param {import('../../ports/LoggerPort.js').default} [options.logger] - Logger for divergence warnings
  * @returns {Promise<SyncResponse>} Response containing local frontier and patches.
  *   Patches are ordered chronologically within each writer.
  * @throws {Error} If patch loading fails for reasons other than divergence
@@ -388,7 +390,9 @@ export function createSyncRequest(frontier) {
  *   res.json(response);
  * });
  */
-export async function processSyncRequest(request, localFrontier, persistence, graphName, { codec } = /** @type {{ codec?: import('../../ports/CodecPort.js').default }} */ ({})) {
+export async function processSyncRequest(request, localFrontier, persistence, graphName, { codec, logger } = /** @type {{ codec?: import('../../ports/CodecPort.js').default, logger?: import('../../ports/LoggerPort.js').default }} */ ({})) {
+  const log = logger || nullLogger;
+
   // Convert incoming frontier from object to Map
   const remoteFrontier = new Map(Object.entries(request.frontier));
 
@@ -397,6 +401,8 @@ export async function processSyncRequest(request, localFrontier, persistence, gr
 
   // Load patches that the requester needs (from local to requester)
   const patches = [];
+  /** @type {Array<{writerId: string, reason: string, localSha: string, remoteSha: string|null}>} */
+  const skippedWriters = [];
 
   for (const [writerId, range] of delta.needFromRemote) {
     try {
@@ -413,9 +419,21 @@ export async function processSyncRequest(request, localFrontier, persistence, gr
         patches.push({ writerId, sha, patch });
       }
     } catch (err) {
-      // If we detect divergence, skip this writer
-      // The requester may need to handle this separately
+      // If we detect divergence, log and skip this writer (B65).
+      // The requester will not receive patches for this writer.
       if ((err instanceof Error && 'code' in err && /** @type {{ code: string }} */ (err).code === 'E_SYNC_DIVERGENCE') || (err instanceof Error && err.message?.includes('Divergence detected'))) {
+        const entry = {
+          writerId,
+          reason: 'E_SYNC_DIVERGENCE',
+          localSha: range.to,
+          remoteSha: range.from ?? '',
+        };
+        skippedWriters.push(entry);
+        log.warn('Sync divergence detected — skipping writer', {
+          code: 'E_SYNC_DIVERGENCE',
+          graphName,
+          ...entry,
+        });
         continue;
       }
       throw err;
@@ -433,6 +451,7 @@ export async function processSyncRequest(request, localFrontier, persistence, gr
     type: /** @type {'sync-response'} */ ('sync-response'),
     frontier: frontierObj,
     patches,
+    skippedWriters,
   };
 }
 

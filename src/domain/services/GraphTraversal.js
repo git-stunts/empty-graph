@@ -830,44 +830,30 @@ export default class GraphTraversal {
       }
     }
 
-    // Phase 2: Kahn's — collect zero-indegree nodes, sort them lex, yield in order
-    /** @type {string[]} */
-    const ready = [];
+    // Phase 2: Kahn's — MinHeap for O(N log N) zero-indegree processing
+    const ready = new MinHeap({ tieBreaker: lexTieBreaker });
     for (const nodeId of discovered) {
       if ((inDegree.get(nodeId) || 0) === 0) {
-        ready.push(nodeId);
+        ready.insert(nodeId, 0);
       }
     }
-    ready.sort(lexTieBreaker);
 
+    /** @type {string[]} */
     const sorted = [];
-    let rHead = 0;
-    while (rHead < ready.length && sorted.length < maxNodes) {
+    while (!ready.isEmpty() && sorted.length < maxNodes) {
       if (sorted.length % 1000 === 0) {
         checkAborted(signal, 'topologicalSort');
       }
-      const nodeId = /** @type {string} */ (ready[rHead++]);
+      const nodeId = /** @type {string} */ (ready.extractMin());
       sorted.push(nodeId);
 
       const neighbors = adjList.get(nodeId) || [];
-      /** @type {string[]} */
-      const newlyReady = [];
       for (const neighborId of neighbors) {
         const deg = /** @type {number} */ (inDegree.get(neighborId)) - 1;
         inDegree.set(neighborId, deg);
         if (deg === 0) {
-          newlyReady.push(neighborId);
+          ready.insert(neighborId, 0);
         }
-      }
-      // Insert newly ready nodes in sorted position
-      if (newlyReady.length > 0) {
-        newlyReady.sort(lexTieBreaker);
-        // Compact consumed prefix before merge to keep rHead at 0
-        if (rHead > 0) {
-          ready.splice(0, rHead);
-          rHead = 0;
-        }
-        this._insertSorted(ready, newlyReady);
       }
     }
 
@@ -875,7 +861,7 @@ export default class GraphTraversal {
       sortedLength: sorted.length,
       discoveredSize: discovered.size,
       maxNodes,
-      readyRemaining: rHead < ready.length,
+      readyRemaining: !ready.isEmpty(),
     });
     if (hasCycle && throwOnCycle) {
       // Find a back-edge as witness
@@ -1209,31 +1195,4 @@ export default class GraphTraversal {
     return candidatePred < current;
   }
 
-  /**
-   * Inserts sorted items into a sorted array maintaining order.
-   * Both input arrays must be sorted by lexTieBreaker.
-   *
-   * @param {string[]} target - Sorted array to insert into (mutated in place)
-   * @param {string[]} items - Sorted items to insert
-   * @private
-   */
-  _insertSorted(target, items) {
-    // O(n+k) merge: build merged array from two sorted inputs
-    const merged = [];
-    let ti = 0;
-    let ii = 0;
-    while (ti < target.length && ii < items.length) {
-      if (target[ti] <= items[ii]) {
-        merged.push(target[ti++]);
-      } else {
-        merged.push(items[ii++]);
-      }
-    }
-    while (ti < target.length) { merged.push(target[ti++]); }
-    while (ii < items.length) { merged.push(items[ii++]); }
-    target.length = 0;
-    for (let i = 0; i < merged.length; i++) {
-      target.push(merged[i]);
-    }
-  }
 }

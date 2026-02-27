@@ -155,8 +155,8 @@ describe('GraphTraversal.topologicalSort', () => {
     });
   });
 
-  // M8 regression: _insertSorted O(n+k) merge replaces O(k*n) splice
-  describe('M8 — _insertSorted merge correctness', () => {
+  // M8→M10: MinHeap replaces sorted-array merge for O(N log N) topo sort
+  describe('M10 — MinHeap lex-order correctness', () => {
     it('maintains deterministic lex order when many nodes become ready simultaneously', async () => {
       // Diamond with multiple convergence points:
       // root -> {A, B, C, D, E} each -> sink

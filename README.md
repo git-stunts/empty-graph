@@ -8,15 +8,12 @@
   <img src="docs/images/hero.gif" alt="git-warp CLI demo" width="600">
 </p>
 
-## What's New in v12.0.0
+## What's New in v12.2.0
 
-- **MaterializedViewService** — unified service orchestrating build, persist, and load of bitmap indexes and property readers as a single coherent materialized view. Checkpoints now embed the index (schema:4) for instant hydration on open.
-- **GraphTraversal engine (11 algorithms)** — BFS, DFS, shortest path, Dijkstra, A\*, bidirectional A\*, topological sort, longest path, connected component, reachability, and common ancestors. All accessible via `graph.traverse.*`.
-- **NeighborProviderPort abstraction** — decouples traversal algorithms from storage. Two implementations: `AdjacencyNeighborProvider` (in-memory) and `BitmapNeighborProvider` (O(1) bitmap lookups).
-- **Logical bitmap index** — CBOR-sharded Roaring bitmap index with labeled edges, stable numeric IDs, and property indexes. `IncrementalIndexUpdater` enables O(diff) updates.
-- **`nodeWeightFn`** — node-weighted graph algorithms (Dijkstra, A\*, longest path) as an alternative to edge-weight functions.
-- **CLI: `verify-index` and `reindex`** — new commands for index integrity checks and forced rebuilds.
-- **Cross-runtime hardening** — eliminated bare `Buffer` usage across the index subsystem; bitmap indexes now work on Node, Bun, and Deno.
+- **O(N log N) topological sort** — `topologicalSort()` now uses a MinHeap ready queue instead of sorted-array merging, eliminating the O(N²) hot path for large DAGs.
+- **QueryBuilder batching + memoization** — property fetches are now bounded (chunks of 100) and cached per-run, reducing redundant I/O across where-clauses, result building, and aggregation.
+- **Fast materialization guard** — `_materializeGraph()` skips full materialization when cached state is clean, improving query/traversal latency.
+- **Checkpoint `visible.cbor` removed** — checkpoints no longer write the unused visible-projection blob, saving one serialize + blob write per checkpoint.
 
 See the [full changelog](CHANGELOG.md) for details.
 

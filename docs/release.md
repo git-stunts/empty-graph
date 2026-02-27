@@ -32,25 +32,59 @@ Both registries use OIDC trusted publishing -- no stored tokens.
 - GitHub environments `npm` and `jsr` exist (OIDC -- no secrets required).
 - npm and JSR trusted publisher connections are configured (see above).
 
+## Preflight checklist
+
+Run the local preflight before tagging:
+
+```bash
+npm run release:preflight
+```
+
+This script (`scripts/release-preflight.sh`) checks:
+
+| # | Check | Blocking? |
+|---|-------|-----------|
+| 1 | `package.json` version == `jsr.json` version | Yes |
+| 2 | Clean working tree (no uncommitted changes) | Yes |
+| 3 | On `main` branch | Warning |
+| 4 | CHANGELOG has a dated `[X.Y.Z] — YYYY-MM-DD` entry | Yes |
+| 5 | README "What's New" section updated for version | Yes |
+| 6 | ESLint clean | Yes |
+| 7 | Type firewall (tsc + IRONCLAD policy + consumer + surface) | Yes |
+| 8 | Unit tests pass | Yes |
+| 9 | `npm pack --dry-run` + `jsr publish --dry-run` | Yes |
+| 10 | `npm audit` (runtime deps, high/critical) | Warning |
+
+If all checks pass, the script prints the exact tag + push commands.
+
 ## Steps
 
-1. Update `package.json` and `jsr.json` versions to the target version.
-2. Merge to `main` (all checks green).
-3. Tag the release:
+1. Prepare the release content:
+   - Bump version in **both** `package.json` and `jsr.json`.
+   - Move `[Unreleased]` items in `CHANGELOG.md` to a dated `[X.Y.Z] — YYYY-MM-DD` section.
+   - Update the `## What's New in vX.Y.Z` section in `README.md`.
+   - Commit: `git commit -m "release: vX.Y.Z"`
+2. Run preflight:
+   ```bash
+   npm run release:preflight
+   ```
+3. Merge to `main` (all CI checks green).
+4. Tag the release:
    - Stable: `git tag -s vX.Y.Z -m "release: vX.Y.Z"`
    - RC: `git tag -s vX.Y.Z-rc.N -m "release: vX.Y.Z-rc.N"`
-4. Push the tag:
+5. Push the tag:
    ```bash
    git push origin vX.Y.Z
    ```
-5. Watch the Actions pipeline:
-   - **CI** -- full test suite (lint, Docker tests, BATS CLI)
-   - **verify** -- version match, dry-run pack, dry-run JSR
+6. Watch the Actions pipeline:
+   - **tag-guard** -- validates tag format (`vX.Y.Z` or `vX.Y.Z-(rc|beta|alpha).N`)
+   - **CI** -- full test suite (type firewall, lint, Docker tests across Node/Bun/Deno)
+   - **verify** -- version match (package.json == jsr.json == tag), CHANGELOG entry, README What's New, dry-run pack, dry-run JSR
    - **publish_npm** -- publishes to npm via OIDC with provenance
    - **publish_jsr** -- publishes to JSR via OIDC
    - **github_release** -- creates GitHub Release with auto-generated notes
-6. If one registry fails, re-run only that job from the Actions UI.
-7. Confirm:
+7. If one registry fails, re-run only that job from the Actions UI.
+8. Confirm:
    - npm dist-tag is correct (`latest` for stable, `next`/`beta`/`alpha` for prereleases)
    - JSR version is visible
    - GitHub Release notes are generated
