@@ -9,7 +9,10 @@ import { COMMANDS } from './cli/commands/registry.js';
 
 const VIEW_SUPPORTED_COMMANDS = ['info', 'check', 'history', 'path', 'materialize', 'query', 'seek'];
 
-// C8: Capture output format early so the error handler can use it
+// Output format must be captured from raw process.argv BEFORE parseArgs() runs.
+// If parseArgs() itself throws (e.g., unknown flag, malformed input), the `options`
+// object will not exist, so the error handler cannot read `options.json`. By
+// pre-scanning argv, the error handler can still emit structured output.
 const hasJsonFlag = process.argv.includes('--json');
 const hasNdjsonFlag = process.argv.includes('--ndjson');
 
