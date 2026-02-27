@@ -21,8 +21,11 @@ Items noticed during development that are worth addressing but were out of scope
 ## 2026-02-27 PR Feedback Session — Backlog Fuel
 
 - Add a `scripts/pr-feedback-status.js` helper that classifies unresolved PR comments by severity and skips explicitly addressed items.
+- Add a `scripts/pr-ready.js` command that merges PR comments/checks/reviews/cooldown into a single merge-readiness verdict.
 - Add a trust payload parity test suite that asserts CLI `trust` and `AuditVerifierService.evaluateTrust()` emit shape-compatible error payloads.
 - Add adapter-level typed error contracts (`E_REF_NOT_FOUND`, `E_REF_IO`) to remove trust-path string matching on error messages.
 - Add `CachedValue` semantic tests for `null` payload caching behavior and document whether `null` is a valid cached value.
 - Add a reusable `gh` cooldown utility that computes and prints cooldown-expiry timestamps from CodeRabbit comments.
+- Add a CI artifact/comment that summarizes unresolved reviewer issues by severity and links to evidence lines.
+- Add branch-governance checks that enforce minimum human review count before merge readiness is reported.
 - Add a contributor guide section for “review-loop hygiene” (commit sizing, cooldown strategy, and when to request bot review).
