@@ -169,6 +169,9 @@ export class PatchBuilderV2 {
      * @type {Set<string>}
      */
     this._writes = new Set();
+
+    /** @type {boolean} */
+    this._committed = false;
   }
 
   /**
@@ -186,6 +189,16 @@ export class PatchBuilderV2 {
       this._snapshotState = this._getCurrentState() || null;
     }
     return this._snapshotState;
+  }
+
+  /**
+   * Throws if this builder has already been committed.
+   * @private
+   */
+  _assertNotCommitted() {
+    if (this._committed) {
+      throw new Error('PatchBuilder already committed — create a new builder');
+    }
   }
 
   /**
@@ -210,6 +223,7 @@ export class PatchBuilderV2 {
    *   .addEdge('user:alice', 'user:bob', 'follows');
    */
   addNode(nodeId) {
+    this._assertNotCommitted();
     const dot = vvIncrement(this._vv, this._writerId);
     this._ops.push(createNodeAddV2(nodeId, dot));
     // Provenance: NodeAdd writes the node
@@ -244,6 +258,7 @@ export class PatchBuilderV2 {
    * builder.removeNode('user:alice'); // Also removes all connected edges
    */
   removeNode(nodeId) {
+    this._assertNotCommitted();
     // Get observed dots from current state (orsetGetDots returns already-encoded dot strings)
     const state = this._getSnapshotState();
 
@@ -324,6 +339,7 @@ export class PatchBuilderV2 {
    *   .addEdge('user:alice', 'user:bob', 'collaborates_with');
    */
   addEdge(from, to, label) {
+    this._assertNotCommitted();
     const dot = vvIncrement(this._vv, this._writerId);
     this._ops.push(createEdgeAddV2(from, to, label, dot));
     const edgeKey = encodeEdgeKey(from, to, label);
@@ -361,6 +377,7 @@ export class PatchBuilderV2 {
    *   .removeNode('user:alice');
    */
   removeEdge(from, to, label) {
+    this._assertNotCommitted();
     // Get observed dots from current state (orsetGetDots returns already-encoded dot strings)
     const state = this._getSnapshotState();
     const edgeKey = encodeEdgeKey(from, to, label);
@@ -401,6 +418,7 @@ export class PatchBuilderV2 {
    *   .setProperty('user:alice', 'age', 30);
    */
   setProperty(nodeId, key, value) {
+    this._assertNotCommitted();
     // Props don't use dots - they use EventId from patch context
     this._ops.push(createPropSetV2(nodeId, key, value));
     // Provenance: PropSet reads the node (implicit existence check) and writes the node
@@ -447,6 +465,7 @@ export class PatchBuilderV2 {
    *   .setEdgeProperty('user:alice', 'user:bob', 'follows', 'public', true);
    */
   setEdgeProperty(from, to, label, key, value) {
+    this._assertNotCommitted();
     // Validate edge exists in this patch or in current state
     const ek = encodeEdgeKey(from, to, label);
     if (!this._edgesAdded.has(ek)) {
@@ -485,6 +504,7 @@ export class PatchBuilderV2 {
    * @returns {Promise<PatchBuilderV2>} This builder instance for method chaining
    */
   async attachContent(nodeId, content) {
+    this._assertNotCommitted();
     const oid = await this._persistence.writeBlob(content);
     this.setProperty(nodeId, CONTENT_PROPERTY_KEY, oid);
     this._contentBlobs.push(oid);
@@ -502,6 +522,7 @@ export class PatchBuilderV2 {
    * @returns {Promise<PatchBuilderV2>} This builder instance for method chaining
    */
   async attachEdgeContent(from, to, label, content) {
+    this._assertNotCommitted();
     const oid = await this._persistence.writeBlob(content);
     this.setEdgeProperty(from, to, label, CONTENT_PROPERTY_KEY, oid);
     this._contentBlobs.push(oid);
@@ -584,6 +605,7 @@ export class PatchBuilderV2 {
    * }
    */
   async commit() {
+    this._assertNotCommitted();
     // 1. Reject empty patches
     if (this._ops.length === 0) {
       throw new Error('Cannot commit empty patch: no operations added');
@@ -692,6 +714,7 @@ export class PatchBuilderV2 {
       }
     }
 
+    this._committed = true;
     return newCommitSha;
   }
 
