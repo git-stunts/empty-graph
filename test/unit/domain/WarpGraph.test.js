@@ -1520,7 +1520,7 @@ eg-schema: 2`;
         const writer2Patches = [
           { sha: '3'.repeat(40), patch: { schema: 2, writer: 'writer-2', lamport: 1, context: { 'writer-2': 1 }, ops: [] } },
         ];
-        const writer3Patches = [];
+        const writer3Patches = /** @type {any[]} */ ([]);
 
         const loadWriterPatchesSpy = vi
           .spyOn(graph, /** @type {any} */ ('_loadWriterPatches'))

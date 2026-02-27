@@ -429,7 +429,7 @@ describe('WarpGraph coverage gaps', () => {
       });
 
       expect(setStateSpy).toHaveBeenCalledTimes(1);
-      const [, options] = setStateSpy.mock.calls[0];
+      const [, options] = /** @type {[unknown, any]} */ (setStateSpy.mock.calls[0]);
       expect(options).toBeDefined();
       expect(options.diff).toBeDefined();
       expect(options.diff.nodesAdded).toContain('user:alice');
