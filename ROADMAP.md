@@ -125,13 +125,13 @@
 
 ### M12.T2 — Cache Coherence (S1)
 
-- **Status:** `PENDING`
-- **Size:** XL | **Risk:** HIGH
+- **Status:** `DONE`
+- **Size:** S | **Risk:** HIGH
 - **Depends on:** M12.T1
 
 **Items:**
 
-- **B108** (S1: UNIFIED CACHE STATE) — Replace 8+ independent cache fields in WarpGraph.js with `CacheState` object carrying per-component dirty bits (`{ state, adjacency, index, frontier }`). Single `invalidate(component?)` method. Route `join()` and sync-apply through canonical state-install path. **Files:** `WarpGraph.js`, `materializeAdvanced.methods.js`, `patch.methods.js`, `SyncController.js`
+- **B108** ✅ (S1: CACHE COHERENCE) — Fixed `join()` to install merged state as canonical (`_stateDirty = false`, adjacency built synchronously) instead of setting `_stateDirty = true` which caused `_ensureFreshState()` to discard the merge result. Cleared `_cachedViewHash` in all dirty paths (`_onPatchCommitted` fallback, `_maybeRunGC` frontier-changed). Full `CacheState` object refactor deferred — actual bugs were surgical. **Files:** `patch.methods.js`, `checkpoint.methods.js`
 
 ### M12.T3 — Remaining CRITs (C3, C5, C7, C8)
 

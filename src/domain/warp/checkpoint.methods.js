@@ -312,6 +312,7 @@ export function _maybeRunGC(state) {
       if (preGcFingerprint !== postGcFingerprint) {
         // Frontier changed — discard compacted state, mark dirty
         this._stateDirty = true;
+        this._cachedViewHash = null;
         if (this._logger) {
           this._logger.warn(
             'Auto-GC discarded: frontier changed during compaction (concurrent write)',

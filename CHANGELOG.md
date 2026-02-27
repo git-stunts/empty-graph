@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`join()` overwrites merged state (S1)** — `join()` now installs the merged state as canonical (`_stateDirty = false`) with synchronous adjacency build, instead of setting `_stateDirty = true` which caused `_ensureFreshState()` to throw `E_STALE_STATE` or trigger a full `materialize()` that discarded the merge result. Version vector is cloned from the merged frontier. (B108)
+- **`_cachedViewHash` leak in dirty paths** — `_onPatchCommitted` fallback path and `_maybeRunGC` frontier-changed path now clear `_cachedViewHash` when setting `_stateDirty = true`, maintaining the coherence invariant. (B108)
 - **Sync stale-read after apply (C1)** — `applySyncResponse` now routes through `_setMaterializedState()` instead of raw `_cachedState` assignment, rebuilding adjacency, indexes, and view. Previously queries after sync could return stale index/provider data. (B105)
 - **Unknown sync ops silently dropped (C2)** — `applySyncResponse` in `SyncProtocol` now validates every op against `isKnownOp()` before `join()`. Unknown ops throw `SchemaUnsupportedError` (fail closed) instead of being silently ignored. (B106)
 - **Sync divergence exception-as-control-flow (S3)** — `processSyncRequest` now performs an `isAncestor()` pre-check (when available on persistence) to detect diverged writers without the expensive chain walk. Falls back to `loadPatchRange` throw for adapters without `isAncestor`. (B107)
