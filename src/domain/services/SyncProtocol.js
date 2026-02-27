@@ -411,8 +411,9 @@ export async function processSyncRequest(request, localFrontier, persistence, gr
       // Pre-check ancestry to avoid expensive chain walk (B107 / S3 fix).
       // If the persistence layer provides isAncestor, use it to detect
       // divergence early without walking the full commit chain.
-      if (range.from && typeof persistence.isAncestor === 'function') {
-        const isAnc = await persistence.isAncestor(range.from, range.to);
+      const hasIsAncestor = typeof /** @type {{isAncestor?: Function}} */ (persistence).isAncestor === 'function';
+      if (range.from && hasIsAncestor) {
+        const isAnc = await /** @type {{isAncestor: (a: string, b: string) => Promise<boolean>}} */ (/** @type {unknown} */ (persistence)).isAncestor(range.from, range.to);
         if (!isAnc) {
           const entry = {
             writerId,

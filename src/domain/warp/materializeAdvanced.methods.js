@@ -25,7 +25,7 @@ import BitmapNeighborProvider from '../services/BitmapNeighborProvider.js';
 
 /**
  * @typedef {{ outgoing: Map<string, Array<{neighborId: string, label: string}>>, incoming: Map<string, Array<{neighborId: string, label: string}>> }} AdjacencyMap
- * @typedef {{ state: WarpStateV5, stateHash: string, adjacency: AdjacencyMap }} MaterializedResult
+ * @typedef {{ state: WarpStateV5, stateHash: string|null, adjacency: AdjacencyMap }} MaterializedResult
  */
 
 import { buildWriterRef } from '../utils/RefLayout.js';
