@@ -574,3 +574,231 @@ M12 is top priority. The STANK audit revealed data-loss vectors and O(N^2) paths
 
 BACKLOG.md is now fully absorbed into this file. It can be archived or deleted.
 Rejected items live in `GRAVEYARD.md`. Resurrections require an RFC.
+
+---
+
+## Strategic Addendum — Post-M12 Acceleration + Risk Hardening (2026-02-27)
+
+This section appends forward-looking concepts and risk controls discovered while implementing B114/B115.
+These are intentionally detailed, but remain unnumbered candidates until explicitly promoted into milestone inventory.
+
+### Innovation Concept I1 — Incremental Canonical State Hashing
+
+**Vision**
+Eliminate full canonical sort/serialize/hash on every clean-cache write. Move from O(V+E+P) hash recompute to O(changed-entities) incremental hash maintenance, while preserving deterministic state hash parity with `computeStateHashV5()`.
+
+**Why this matters**
+Diff-aware eager post-commit reduced index rebuild cost, but hash recomputation can still dominate large state commits. This is now the next hot-path bottleneck.
+
+**Mini battle plan**
+1. Add a feature-gated `StateHashAccumulator` service with deterministic per-collection digests (`nodes`, `edges`, `props`) and a final root digest composition.
+2. Extend patch-apply/reducer output to emit hash-relevant delta facts in stable sorted form.
+3. Thread optional accumulator updates through `_onPatchCommitted` and `_setMaterializedState`.
+4. On divergence, cache miss, or migration boundaries, fall back to full `computeStateHashV5()` and re-seed accumulator.
+5. Ship shadow mode first: compute both hashes and assert equality in tests and optionally in debug logs.
+
+**Mitigations**
+- Keep full-hash fallback always available and default-enabled under a kill switch.
+- Scope rollout to non-audit mode first, then widen after parity confidence is proven.
+- Persist no new on-disk format until parity and determinism are validated over replay fixtures.
+
+**Defensive tests**
+- Determinism property test: randomized patch order producing equivalent state yields identical incremental hash.
+- Differential test: for every patch fixture, `incrementalHash === computeStateHashV5(fullState)`.
+- Replay/resume test: checkpoint load + incremental updates produce same hash as cold materialize.
+- Kill-switch test: disabling accumulator always forces full-hash behavior.
+- Corruption test: injected accumulator mismatch triggers full recompute + warning.
+
+### Innovation Concept I2 — Memoized Ancestry Cache Across Materialize/Sync Cycles
+
+**Vision**
+Introduce a bounded, frontier-aware ancestry memoization layer so repeated `_isAncestor()` checks within the same frontier epoch become O(1) lookups, reducing repeated DAG walks in sync and checkpoint replay flows.
+
+**Why this matters**
+B115 removes per-patch validation overhead, but ancestry checks still occur in multiple call paths and can recur under repeated sync exchanges.
+
+**Mini battle plan**
+1. Add `AncestryCache` keyed by `(writerId, ancestorSha, descendantSha, frontierFingerprint)`.
+2. Wire cache lookup into `_relationToCheckpointHead` and sync divergence pre-check paths.
+3. Add LRU + epoch invalidation on frontier movement.
+4. Emit cache metrics (`hits`, `misses`, `evictions`) in debug observability hooks.
+5. Add an emergency bypass option to disable cache for diagnostics.
+
+**Mitigations**
+- Tie cache validity to frontier fingerprint to prevent stale ancestry answers.
+- Never cache errors from storage-layer failures.
+- Use strict memory cap and eviction policy to avoid unbounded growth.
+
+**Defensive tests**
+- Correctness test: cached answers match uncached `_isAncestor()` over randomized chains/forks.
+- Invalidation test: frontier update invalidates stale entries.
+- Stress test: large writer set with churn remains within configured memory bounds.
+- Failure-path test: transient `getNodeInfo` errors do not poison cache.
+
+### Innovation Concept I3 — Audit-Mode Diff Synthesis
+
+**Vision**
+Retain audit receipts and still unlock incremental index updates by synthesizing `PatchDiff` from applied outcomes when audit mode is enabled.
+
+**Why this matters**
+Current audit path uses `diff: null`, which is safe but forfeits B114 hot-path gains for audit-enabled deployments.
+
+**Mini battle plan**
+1. Define a deterministic adapter from receipt outcomes to `PatchDiff` (or a subset sufficient for index updates).
+2. Implement `applyWithReceiptAndDiff` or companion translator utility.
+3. Gate rollout behind an audit-performance flag.
+4. Validate parity by comparing synthesized diff effects against full rebuild results.
+5. Expand to default-on after burn-in.
+
+**Mitigations**
+- If translation ambiguity exists, fall back to `diff: null` for that patch.
+- Keep audit commit semantics unchanged; performance optimization must be side-effect free.
+- Add structured warning when synthesis is skipped.
+
+**Defensive tests**
+- Equivalence test: audit-mode synthesized diff path produces identical logical index/query answers as full rebuild.
+- Partial-diff fallback test: unsupported receipt shapes trigger safe full rebuild.
+- Regression test: audit receipt persistence remains byte-for-byte compatible.
+
+### Innovation Concept I4 — Performance Budget Guardrails in CI
+
+**Vision**
+Turn hot-path performance expectations into enforceable, trend-aware CI checks to prevent accidental regressions in materialize, eager commit, and ancestry validation.
+
+**Why this matters**
+Performance fixes are vulnerable to silent regressions without explicit budgets and telemetry snapshots.
+
+**Mini battle plan**
+1. Add benchmark harness with stable fixture generator and repeat-run median reporting.
+2. Capture baseline medians in repository-managed budget files.
+3. Add CI job that flags regressions above tolerance thresholds.
+4. Add local dev command to run quick smoke benchmarks before push.
+5. Publish historical trend artifact per PR for review.
+
+**Mitigations**
+- Use percentile/median thresholds to reduce flakiness.
+- Separate noisy micro-benchmarks from deterministic scenario benchmarks.
+- Allow explicit, reviewed budget updates when justified.
+
+**Defensive tests**
+- Harness self-test: fixture generation is deterministic.
+- Budget parser test: malformed budget files fail loudly.
+- CI integration test: intentional slowdown fixture triggers regression failure.
+
+### Innovation Concept I5 — `warp doctor` Integrity and Performance Diagnostics
+
+**Vision**
+Provide a first-class diagnostics command that reports health and readiness: frontier consistency, checkpoint integrity, index staleness, ancestry anomalies, and GC/checkpoint recommendations.
+
+**Why this matters**
+Operators need fast, explainable diagnosis before data repair, performance tuning, or migration decisions.
+
+**Mini battle plan**
+1. Define command contract and structured output schema (`--json` + human mode).
+2. Implement read-only checks for refs/frontier/checkpoint/index shard metadata.
+3. Add actionable recommendations with explicit confidence levels.
+4. Add remediation pointers (`runGC`, `createCheckpoint`, `materialize`) without mutating by default.
+5. Add machine-consumable exit codes for CI/preflight integration.
+
+**Mitigations**
+- Keep default mode non-destructive.
+- Mark uncertain checks as warnings, not hard failures.
+- Include command runtime budget to avoid pathological scans by default.
+
+**Defensive tests**
+- Golden-output tests for both human and JSON modes.
+- Corruption fixture tests (missing blobs, mismatched shard frontier) emit expected findings.
+- Exit-code contract tests for clean/warn/fail states.
+
+### Innovation Concept I6 — Frontier-Aware Query Result Cache
+
+**Vision**
+Cache expensive read/query results keyed by frontier fingerprint + query signature + observer projection, with strict invalidation rules to preserve correctness.
+
+**Why this matters**
+Read-heavy workloads repeatedly recompute equivalent traversals even when frontier is unchanged.
+
+**Mini battle plan**
+1. Introduce cache interface and canonical query signature generation.
+2. Bind cache entries to frontier fingerprint and observer config hash.
+3. Integrate with query builder execution path as optional optimization layer.
+4. Add metrics and hit-rate instrumentation.
+5. Roll out to specific query families first (neighbors/path/property-heavy).
+
+**Mitigations**
+- Hard invalidate on any frontier movement.
+- Include projection/redaction config in key to avoid cross-view leakage.
+- Cap memory and provide TTL plus LRU eviction.
+
+**Defensive tests**
+- Correctness test: cached and uncached query outputs match across varied projections.
+- Invalidation test: commit advances frontier and invalidates stale entries.
+- Isolation test: different observer configs never share cached results.
+- Memory test: eviction policy bounds retained entries.
+
+### Concern Hardening C1 — Schema 4 Checkpoint Ancestry Validation Gap
+
+**Concern**
+`_validatePatchAgainstCheckpoint()` currently gates only schema 2/3 checkpoints, while schema 4 checkpoints are used in replay paths. This can unintentionally bypass ancestry validation for schema 4.
+
+**Mitigation vision**
+Unify checkpoint ancestry semantics across all active checkpoint schema versions (2/3/4), with explicit compatibility handling for future versions.
+
+**Mini battle plan**
+1. Update `_validatePatchAgainstCheckpoint` gate to include schema 4.
+2. Add explicit comment and helper (`isCheckpointSchemaWithFrontier`) to avoid future drift.
+3. Add coverage for schema 4 acceptance/rejection branches.
+4. Add one migration-compatibility test to ensure schema 2/3 behavior remains unchanged.
+
+**Defensive tests**
+- Schema 4 `ahead` case passes.
+- Schema 4 `same` and `behind` cases reject with backfill error.
+- Schema 4 `diverged` case rejects with fork error.
+- Mixed-schema replay fixture verifies no behavior regression.
+
+### Concern Hardening C2 — Remaining Full-Hash Hot Path Cost
+
+**Concern**
+Even with diff-aware view updates, `_setMaterializedState()` computes canonical state hash from full state each call, preserving O(V+E+P) work on eager writes.
+
+**Mitigation vision**
+Stage incremental hash support with strict parity checks and safe rollback to full recomputation.
+
+**Mini battle plan**
+1. Instrument and log current hash cost distribution under representative fixtures.
+2. Land incremental hash accumulator behind feature flag.
+3. Run shadow parity in CI and local stress tests.
+4. Flip default only after parity and performance gates hold across multiple releases.
+
+**Defensive tests**
+- Benchmark regression tests around hash-heavy workloads.
+- Differential hash parity tests across random patch streams.
+- Feature-flag toggling tests proving behavior equivalence.
+
+### Concern Hardening C3 — Tip-Only Validation Assumes Chain Integrity
+
+**Concern**
+B115 validates ancestry once at writer tip. This is valid under linear chain assumptions, but chain-order integrity should be asserted defensively to catch storage anomalies/corruption.
+
+**Mitigation vision**
+Preserve tip-only performance while adding optional integrity assertions that verify contiguous parent linkage for loaded writer patch ranges.
+
+**Mini battle plan**
+1. Add optional integrity checker (`assertContiguousWriterChain`) for debug/preflight modes.
+2. Run integrity assertion in targeted contexts: checkpoint replay and `warp doctor`.
+3. Decide runtime default: off in hot path, on in diagnostics/CI corruption suites.
+4. Emit actionable diagnostics when chain discontinuity is detected.
+
+**Defensive tests**
+- Positive chain test: contiguous range passes with zero warnings.
+- Discontinuity test: injected parent mismatch throws/flags deterministic error.
+- Missing commit metadata test: checker fails closed with explicit reason.
+- Performance test: integrity checker remains disabled in default hot path.
+
+### Suggested Sequencing (If Promoted)
+
+1. Start with concern hardening C1 (low effort, high correctness leverage).
+2. Implement I4 (performance guardrails) before deeper performance refactors.
+3. Land I2 ancestry cache and C3 integrity diagnostics in parallel tracks.
+4. Proceed with I1 incremental hash and then I3 audit diff synthesis.
+5. Add I5 (`warp doctor`) and I6 query caching once observability and guardrails are in place.
