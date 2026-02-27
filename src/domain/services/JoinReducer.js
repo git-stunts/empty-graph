@@ -179,7 +179,7 @@ function validateOp(op) {
       requireDot(op);
       break;
     case 'NodeRemove':
-      requireString(op, 'node');
+      // node is optional (informational for receipts); observedDots is required for mutation
       requireArray(op, 'observedDots');
       break;
     case 'EdgeAdd':
@@ -189,9 +189,7 @@ function validateOp(op) {
       requireDot(op);
       break;
     case 'EdgeRemove':
-      requireString(op, 'from');
-      requireString(op, 'to');
-      requireString(op, 'label');
+      // from/to/label are optional (informational for receipts); observedDots is required for mutation
       requireArray(op, 'observedDots');
       break;
     case 'PropSet':

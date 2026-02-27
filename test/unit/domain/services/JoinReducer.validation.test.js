@@ -165,12 +165,16 @@ describe('JoinReducer validation', () => {
     });
 
     describe('NodeRemove', () => {
-      it('throws when node is missing', () => {
-        expect(() => applyOpV2(state(), /** @type {any} */ ({ type: 'NodeRemove', observedDots: [] }), eid)).toThrow(PatchError);
+      it('throws when observedDots is missing', () => {
+        expect(() => applyOpV2(state(), /** @type {any} */ ({ type: 'NodeRemove', node: 'n' }), eid)).toThrow(PatchError);
       });
 
       it('throws when observedDots is not an array', () => {
         expect(() => applyOpV2(state(), /** @type {any} */ ({ type: 'NodeRemove', node: 'n', observedDots: 'bad' }), eid)).toThrow(PatchError);
+      });
+
+      it('accepts NodeRemove without node field (informational only)', () => {
+        expect(() => applyOpV2(state(), /** @type {any} */ ({ type: 'NodeRemove', observedDots: [] }), eid)).not.toThrow();
       });
     });
 
@@ -193,20 +197,16 @@ describe('JoinReducer validation', () => {
     });
 
     describe('EdgeRemove', () => {
-      it('throws when from is missing', () => {
-        expect(() => applyOpV2(state(), /** @type {any} */ ({ type: 'EdgeRemove', to: 'b', label: 'l', observedDots: [] }), eid)).toThrow(PatchError);
-      });
-
-      it('throws when to is missing', () => {
-        expect(() => applyOpV2(state(), /** @type {any} */ ({ type: 'EdgeRemove', from: 'a', label: 'l', observedDots: [] }), eid)).toThrow(PatchError);
-      });
-
-      it('throws when label is missing', () => {
-        expect(() => applyOpV2(state(), /** @type {any} */ ({ type: 'EdgeRemove', from: 'a', to: 'b', observedDots: [] }), eid)).toThrow(PatchError);
+      it('throws when observedDots is missing', () => {
+        expect(() => applyOpV2(state(), /** @type {any} */ ({ type: 'EdgeRemove', from: 'a', to: 'b', label: 'l' }), eid)).toThrow(PatchError);
       });
 
       it('throws when observedDots is not an array', () => {
         expect(() => applyOpV2(state(), /** @type {any} */ ({ type: 'EdgeRemove', from: 'a', to: 'b', label: 'l', observedDots: {} }), eid)).toThrow(PatchError);
+      });
+
+      it('accepts EdgeRemove without from/to/label (informational only)', () => {
+        expect(() => applyOpV2(state(), /** @type {any} */ ({ type: 'EdgeRemove', observedDots: [] }), eid)).not.toThrow();
       });
     });
 
