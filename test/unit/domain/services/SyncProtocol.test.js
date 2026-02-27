@@ -684,4 +684,167 @@ describe('SyncProtocol', () => {
       expect(orsetContains(result2.state.nodeAlive, 'x')).toBe(true);
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // B106 — Unknown op type rejection
+  // ---------------------------------------------------------------------------
+  describe('applySyncResponse — unknown op validation (B106)', () => {
+    it('throws SchemaUnsupportedError when patch contains unknown op type', () => {
+      const patch = createTestPatch({
+        writer: 'alice',
+        lamport: 1,
+        ops: [
+          { type: 'NodeAdd', node: 'n1', dot: createDot('alice', 1) },
+          { type: 'FutureOp', node: 'n2' }, // unknown op
+        ],
+        context: createVersionVector(),
+      });
+
+      const response = {
+        type: /** @type {'sync-response'} */ ('sync-response'),
+        frontier: { alice: SHA_A },
+        patches: [{ writerId: 'alice', sha: SHA_A, patch }],
+      };
+
+      const state = createEmptyStateV5();
+      const frontier = createFrontier();
+
+      expect(() => applySyncResponse(response, state, frontier)).toThrow(/unknown op type.*FutureOp/i);
+    });
+
+    it('allows patches with only known op types', () => {
+      const patch = createTestPatch({
+        writer: 'alice',
+        lamport: 1,
+        ops: [
+          { type: 'NodeAdd', node: 'n1', dot: createDot('alice', 1) },
+        ],
+        context: createVersionVector(),
+      });
+
+      const response = {
+        type: /** @type {'sync-response'} */ ('sync-response'),
+        frontier: { alice: SHA_A },
+        patches: [{ writerId: 'alice', sha: SHA_A, patch }],
+      };
+
+      const state = createEmptyStateV5();
+      const frontier = createFrontier();
+
+      const result = /** @type {any} */ (applySyncResponse(response, state, frontier));
+      expect(result.applied).toBe(1);
+      expect(orsetContains(result.state.nodeAlive, 'n1')).toBe(true);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // B107 — isAncestor pre-check in processSyncRequest
+  // ---------------------------------------------------------------------------
+  describe('processSyncRequest — isAncestor pre-check (B107)', () => {
+    it('skips diverged writer via isAncestor without chain walk', async () => {
+      const commits = {};
+      const blobs = {};
+
+      // Normal chain for w2: SHA_C
+      const patchW2 = createTestPatch({ writer: 'w2', lamport: 1 });
+      setupCommit(commits, blobs, SHA_C, patchW2, OID_C, []);
+
+      const persistence = createMockPersistence(commits, blobs);
+      // Add isAncestor: SHA_A is NOT an ancestor of SHA_B (diverged)
+      persistence.isAncestor = vi.fn().mockImplementation(async (/** @type {string} */ pot, /** @type {string} */ desc) => {
+        if (pot === SHA_A && desc === SHA_B) { return false; }
+        return true;
+      });
+
+      const logger = {
+        debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(),
+        child: vi.fn(),
+      };
+
+      // Requester has SHA_A for w1, local has SHA_B — diverged
+      const request = { type: 'sync-request', frontier: { w1: SHA_A } };
+      const localFrontier = new Map([['w1', SHA_B], ['w2', SHA_C]]);
+
+      const response = /** @type {any} */ (await processSyncRequest(
+        /** @type {*} */ (request),
+        localFrontier,
+        /** @type {any} */ (persistence),
+        'events',
+        { logger },
+      ));
+
+      // w1 should be skipped via isAncestor, no chain walk needed
+      expect(persistence.isAncestor).toHaveBeenCalledWith(SHA_A, SHA_B);
+      // getNodeInfo should NOT have been called for w1 (no chain walk)
+      const nodeInfoCalls = persistence.getNodeInfo.mock.calls.map((/** @type {any} */ c) => c[0]);
+      expect(nodeInfoCalls).not.toContain(SHA_B);
+
+      // w2 patches should still be returned (new writer for requester)
+      expect(response.patches.some((/** @type {any} */ p) => p.writerId === 'w2')).toBe(true);
+
+      // skippedWriters should contain w1
+      expect(response.skippedWriters).toContainEqual(expect.objectContaining({
+        writerId: 'w1',
+        reason: 'E_SYNC_DIVERGENCE',
+      }));
+
+      // Logger should have warned
+      expect(logger.warn).toHaveBeenCalled();
+    });
+
+    it('proceeds with chain walk when isAncestor returns true', async () => {
+      const commits = {};
+      const blobs = {};
+
+      // Normal chain: SHA_A -> SHA_B
+      const patchA = createTestPatch({ writer: 'w1', lamport: 1 });
+      const patchB = createTestPatch({ writer: 'w1', lamport: 2 });
+      setupCommit(commits, blobs, SHA_A, patchA, OID_A, []);
+      setupCommit(commits, blobs, SHA_B, patchB, OID_B, [SHA_A]);
+
+      const persistence = createMockPersistence(commits, blobs);
+      persistence.isAncestor = vi.fn().mockResolvedValue(true);
+
+      const request = { type: 'sync-request', frontier: { w1: SHA_A } };
+      const localFrontier = new Map([['w1', SHA_B]]);
+
+      const response = /** @type {any} */ (await processSyncRequest(
+        /** @type {*} */ (request),
+        localFrontier,
+        /** @type {any} */ (persistence),
+        'events',
+      ));
+
+      expect(persistence.isAncestor).toHaveBeenCalledWith(SHA_A, SHA_B);
+      expect(response.patches).toHaveLength(1);
+      expect(response.patches[0].sha).toBe(SHA_B);
+    });
+
+    it('falls back to chain walk when isAncestor is not available', async () => {
+      const commits = {};
+      const blobs = {};
+
+      const patchA = createTestPatch({ writer: 'w1', lamport: 1 });
+      const patchB = createTestPatch({ writer: 'w1', lamport: 2 });
+      setupCommit(commits, blobs, SHA_A, patchA, OID_A, []);
+      setupCommit(commits, blobs, SHA_B, patchB, OID_B, [SHA_A]);
+
+      // No isAncestor on persistence
+      const persistence = createMockPersistence(commits, blobs);
+
+      const request = { type: 'sync-request', frontier: { w1: SHA_A } };
+      const localFrontier = new Map([['w1', SHA_B]]);
+
+      const response = /** @type {any} */ (await processSyncRequest(
+        /** @type {*} */ (request),
+        localFrontier,
+        /** @type {any} */ (persistence),
+        'events',
+      ));
+
+      // Should still work via chain walk
+      expect(response.patches).toHaveLength(1);
+      expect(response.patches[0].sha).toBe(SHA_B);
+    });
+  });
 });

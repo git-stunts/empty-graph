@@ -247,6 +247,148 @@ describe('WarpGraph coverage gaps', () => {
       expect(receipt.nodesAdded).toBe(1);
       expect(receipt.nodesRemoved).toBe(0);
     });
+
+    // ── B108 cache coherence regression tests ──────────────────────────────
+
+    it('sets _stateDirty = false and _materializedGraph is not null after join()', async () => {
+      const graph = await WarpGraph.open({
+        persistence,
+        graphName: 'test-graph',
+        writerId: 'writer-1',
+        crypto,
+      });
+
+      /** @type {any} */ (graph)._cachedState = createEmptyStateV5();
+      /** @type {any} */ (graph)._stateDirty = false;
+
+      const otherState = createEmptyStateV5();
+      const dot = createDot('writer-2', 1);
+      orsetAdd(otherState.nodeAlive, 'user:alice', dot);
+
+      graph.join(otherState);
+
+      expect(/** @type {any} */ (graph)._stateDirty).toBe(false);
+      expect(/** @type {any} */ (graph)._materializedGraph).not.toBeNull();
+      expect(/** @type {any} */ (graph)._materializedGraph.state).toBeDefined();
+      expect(/** @type {any} */ (graph)._materializedGraph.adjacency).toBeDefined();
+      expect(/** @type {any} */ (graph)._materializedGraph.stateHash).toBeNull();
+    });
+
+    it('preserves merged state — _ensureFreshState() does not throw or rematerialize', async () => {
+      const graph = await WarpGraph.open({
+        persistence,
+        graphName: 'test-graph',
+        writerId: 'writer-1',
+        crypto,
+        autoMaterialize: false,
+      });
+
+      /** @type {any} */ (graph)._cachedState = createEmptyStateV5();
+      /** @type {any} */ (graph)._stateDirty = false;
+
+      const otherState = createEmptyStateV5();
+      const dot = createDot('writer-2', 1);
+      orsetAdd(otherState.nodeAlive, 'user:alice', dot);
+
+      graph.join(otherState);
+
+      // _ensureFreshState should NOT throw E_STALE_STATE
+      await expect(/** @type {any} */ (graph)._ensureFreshState()).resolves.toBeUndefined();
+    });
+
+    it('builds adjacency so traversal works without rematerialization', async () => {
+      const graph = await WarpGraph.open({
+        persistence,
+        graphName: 'test-graph',
+        writerId: 'writer-1',
+        crypto,
+      });
+
+      const baseState = createEmptyStateV5();
+      const dotA = createDot('writer-1', 1);
+      const dotB = createDot('writer-1', 2);
+      orsetAdd(baseState.nodeAlive, 'user:alice', dotA);
+      orsetAdd(baseState.nodeAlive, 'user:bob', dotB);
+      const edgeDot = createDot('writer-1', 3);
+      orsetAdd(baseState.edgeAlive, 'user:alice\0user:bob\0knows', edgeDot);
+      /** @type {any} */ (graph)._cachedState = baseState;
+      /** @type {any} */ (graph)._stateDirty = false;
+
+      const otherState = createEmptyStateV5();
+      const dotC = createDot('writer-2', 1);
+      orsetAdd(otherState.nodeAlive, 'user:alice', dotC);
+      orsetAdd(otherState.nodeAlive, 'user:bob', dotC);
+      const edgeDot2 = createDot('writer-2', 2);
+      orsetAdd(otherState.edgeAlive, 'user:alice\0user:bob\0knows', edgeDot2);
+
+      graph.join(otherState);
+
+      const adj = /** @type {any} */ (graph)._materializedGraph.adjacency;
+      expect(adj.outgoing.has('user:alice')).toBe(true);
+      expect(adj.incoming.has('user:bob')).toBe(true);
+    });
+
+    it('clears _cachedViewHash after join()', async () => {
+      const graph = await WarpGraph.open({
+        persistence,
+        graphName: 'test-graph',
+        writerId: 'writer-1',
+        crypto,
+      });
+
+      /** @type {any} */ (graph)._cachedState = createEmptyStateV5();
+      /** @type {any} */ (graph)._stateDirty = false;
+      /** @type {any} */ (graph)._cachedViewHash = 'stale-hash-value';
+
+      const otherState = createEmptyStateV5();
+      graph.join(otherState);
+
+      expect(/** @type {any} */ (graph)._cachedViewHash).toBeNull();
+    });
+
+    it('updates _versionVector from merged frontier', async () => {
+      const graph = await WarpGraph.open({
+        persistence,
+        graphName: 'test-graph',
+        writerId: 'writer-1',
+        crypto,
+      });
+
+      const baseState = createEmptyStateV5();
+      baseState.observedFrontier.set('writer-1', 3);
+      /** @type {any} */ (graph)._cachedState = baseState;
+      /** @type {any} */ (graph)._stateDirty = false;
+
+      const otherState = createEmptyStateV5();
+      otherState.observedFrontier.set('writer-2', 5);
+
+      graph.join(otherState);
+
+      expect(/** @type {any} */ (graph)._versionVector.get('writer-1')).toBe(3);
+      expect(/** @type {any} */ (graph)._versionVector.get('writer-2')).toBe(5);
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // 3b. _onPatchCommitted dirty path clears _cachedViewHash (B108)
+  // --------------------------------------------------------------------------
+  describe('_onPatchCommitted dirty path', () => {
+    it('clears _cachedViewHash when taking the dirty path', async () => {
+      const graph = await WarpGraph.open({
+        persistence,
+        graphName: 'test-graph',
+        writerId: 'writer-1',
+        crypto,
+      });
+
+      // No cached state → dirty path
+      /** @type {any} */ (graph)._cachedViewHash = 'stale-hash';
+
+      await /** @type {any} */ (graph)._onPatchCommitted('writer-1', {});
+
+      expect(/** @type {any} */ (graph)._cachedViewHash).toBeNull();
+      expect(/** @type {any} */ (graph)._stateDirty).toBe(true);
+    });
   });
 
   // --------------------------------------------------------------------------

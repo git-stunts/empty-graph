@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`join()` overwrites merged state (S1)** — `join()` now installs the merged state as canonical (`_stateDirty = false`) with synchronous adjacency build, instead of setting `_stateDirty = true` which caused `_ensureFreshState()` to throw `E_STALE_STATE` or trigger a full `materialize()` that discarded the merge result. Version vector is cloned from the merged frontier. (B108)
+- **`_cachedViewHash` leak in dirty paths** — `_onPatchCommitted` fallback path and `_maybeRunGC` frontier-changed path now clear `_cachedViewHash` when setting `_stateDirty = true`, maintaining the coherence invariant. (B108)
+- **Sync stale-read after apply (C1)** — `applySyncResponse` now routes through `_setMaterializedState()` instead of raw `_cachedState` assignment, rebuilding adjacency, indexes, and view. Previously queries after sync could return stale index/provider data. (B105)
+- **Sync bookkeeping race on install failure** — `applySyncResponse` now defers `_lastFrontier`/`_patchesSinceGC` mutations until after `_setMaterializedState` succeeds, preventing inconsistent bookkeeping if state install throws. (CR-50)
+- **Unknown sync ops silently dropped (C2)** — `applySyncResponse` in `SyncProtocol` now validates every op against `isKnownOp()` before `join()`. Unknown ops throw `SchemaUnsupportedError` (fail closed) instead of being silently ignored. (B106)
+- **Sync divergence exception-as-control-flow (S3)** — `processSyncRequest` now performs an `isAncestor()` pre-check (when available on persistence) to detect diverged writers without the expensive chain walk. Falls back to `loadPatchRange` throw for adapters without `isAncestor`. (B107)
+
+### Changed
+
+- **`syncWith()` returns `skippedWriters`** — callers can now observe which writers were skipped during sync (e.g. due to divergence) via `result.skippedWriters`. (B105)
+- **Removed `_invalidateDerivedCaches()`** — replaced by canonical `_setMaterializedState()` path; derived caches are now rebuilt rather than nulled. (B105)
+
+### Types
+
+- **`index.d.ts` — `skippedWriters` on sync types** — added `skippedWriters` to `SyncResponse`, `ApplySyncResult`, and `syncWith()` return type to match runtime behavior. (H1)
+- **`SyncController.syncWith` JSDoc** — widened `@returns` to include full `skippedWriters` shape with `localSha`/`remoteSha`; made non-optional. (M2/M3)
+- **Replaced bare `Function` type** — `SyncProtocol` `isAncestor` check now uses `(...args: unknown[]) => unknown` instead of `Function`. (L3)
+
+### Tests
+
+- **`_onPatchCommitted` dirty-path assertion** — coverage gap test now also asserts `_stateDirty === true`. (L1)
+- **`_setMaterializedState` rejection-path test** — verifies `applySyncResponse` does not advance `_lastFrontier`/`_patchesSinceGC` when state install fails. (CR-50)
+
 ## [12.2.0] — 2026-02-27
 
 ### Changed

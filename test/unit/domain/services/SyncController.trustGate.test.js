@@ -26,7 +26,8 @@ const { applySyncResponse: applySyncResponseMock } =
  * @returns {Record<string, unknown>}
  */
 function createMockHost(overrides = {}) {
-  return {
+  /** @type {Record<string, unknown>} */
+  const host = {
     _cachedState: null,
     _lastFrontier: null,
     _stateDirty: false,
@@ -51,6 +52,15 @@ function createMockHost(overrides = {}) {
     _cachedIndexTree: null,
     ...overrides,
   };
+  // Wire default _setMaterializedState after spread so it can reference `host`
+  if (!host._setMaterializedState) {
+    host._setMaterializedState = vi.fn(async (/** @type {unknown} */ state) => {
+      host._cachedState = state;
+      host._stateDirty = false;
+      host._materializedGraph = { state, stateHash: 'mock-hash', adjacency: {} };
+    });
+  }
+  return host;
 }
 
 /**
@@ -271,8 +281,8 @@ describe('SyncController — trust gate integration (Invariant 2)', () => {
     expect(applySyncResponseMock).toHaveBeenCalledOnce();
   });
 
-  // ── Test 9: Derived caches invalidated after successful sync ──────────────
-  it('invalidates derived caches after successful applySyncResponse', async () => {
+  // ── Test 9: Derived caches rebuilt after successful sync (B105) ───────────
+  it('rebuilds derived caches via _setMaterializedState after successful applySyncResponse', async () => {
     const host = createMockHost({
       _cachedState: createEmptyStateV5(),
       _lastFrontier: createFrontier(),
@@ -288,10 +298,9 @@ describe('SyncController — trust gate integration (Invariant 2)', () => {
     const ctrl = new SyncController(/** @type {*} */ (host));
     await ctrl.applySyncResponse(buildSyncResponse(['writer-a']));
 
-    expect(host._materializedGraph).toBeNull();
-    expect(host._logicalIndex).toBeNull();
-    expect(host._propertyReader).toBeNull();
-    expect(host._cachedViewHash).toBeNull();
-    expect(host._cachedIndexTree).toBeNull();
+    // _setMaterializedState should have been called to rebuild caches
+    expect(/** @type {import('vitest').Mock} */ (host._setMaterializedState)).toHaveBeenCalledOnce();
+    // _materializedGraph is rebuilt (not null) — the mock sets it
+    expect(host._materializedGraph).not.toBeNull();
   });
 });

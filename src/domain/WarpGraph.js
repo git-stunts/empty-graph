@@ -39,7 +39,7 @@ const DEFAULT_ADJACENCY_CACHE_SIZE = 3;
 /**
  * @typedef {Object} MaterializedGraph
  * @property {import('./services/JoinReducer.js').WarpStateV5} state
- * @property {string} stateHash
+ * @property {string|null} stateHash
  * @property {{outgoing: Map<string, Array<{neighborId: string, label: string}>>, incoming: Map<string, Array<{neighborId: string, label: string}>>}} adjacency
  * @property {import('./services/BitmapNeighborProvider.js').default} [provider]
  */

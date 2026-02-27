@@ -39,7 +39,8 @@
 import defaultCodec from '../utils/defaultCodec.js';
 import nullLogger from '../utils/nullLogger.js';
 import { decodePatchMessage, assertOpsCompatible, SCHEMA_V3 } from './WarpMessageCodec.js';
-import { join, cloneStateV5 } from './JoinReducer.js';
+import { join, cloneStateV5, isKnownOp } from './JoinReducer.js';
+import SchemaUnsupportedError from '../errors/SchemaUnsupportedError.js';
 import { cloneFrontier, updateFrontier } from './Frontier.js';
 import { vvDeserialize } from '../crdt/VersionVector.js';
 
@@ -252,7 +253,8 @@ export function computeSyncDelta(localFrontier, remoteFrontier) {
       newWritersForLocal.push(writerId);
     } else if (localSha !== remoteSha) {
       // Different heads - local needs patches from its head to remote head
-      // Note: We assume remote is ahead; the caller should verify ancestry
+      // Direction is intentionally deferred: ancestry is verified by
+      // isAncestor() pre-check or loadPatchRange() in processSyncRequest()
       needFromRemote.set(writerId, { from: localSha, to: remoteSha });
     }
     // If localSha === remoteSha, already in sync for this writer
@@ -406,6 +408,29 @@ export async function processSyncRequest(request, localFrontier, persistence, gr
 
   for (const [writerId, range] of delta.needFromRemote) {
     try {
+      // Pre-check ancestry to avoid expensive chain walk (B107 / S3 fix).
+      // If the persistence layer provides isAncestor, use it to detect
+      // divergence early without walking the full commit chain.
+      const hasIsAncestor = typeof /** @type {{isAncestor?: (...args: unknown[]) => unknown}} */ (persistence).isAncestor === 'function';
+      if (range.from && hasIsAncestor) {
+        const isAnc = await /** @type {{isAncestor: (a: string, b: string) => Promise<boolean>}} */ (/** @type {unknown} */ (persistence)).isAncestor(range.from, range.to);
+        if (!isAnc) {
+          const entry = {
+            writerId,
+            reason: 'E_SYNC_DIVERGENCE',
+            localSha: range.to,
+            remoteSha: range.from,
+          };
+          skippedWriters.push(entry);
+          log.warn('Sync divergence detected — skipping writer', {
+            code: 'E_SYNC_DIVERGENCE',
+            graphName,
+            ...entry,
+          });
+          continue;
+        }
+      }
+
       const writerPatches = await loadPatchRange(
         persistence,
         graphName,
@@ -518,10 +543,19 @@ export function applySyncResponse(response, state, frontier) {
     for (const { sha, patch } of writerPatches) {
       // Normalize patch context (in case it came from network serialization)
       const normalizedPatch = normalizePatch(patch);
-      // Guard: reject patches containing ops we don't understand.
-      // Currently SCHEMA_V3 is the max, so this is a no-op for this
-      // codebase. If a future schema adds new op types, this check
-      // will prevent silent data loss until the reader is upgraded.
+      // Guard: reject patches with genuinely unknown op types (B106 / C2 fix).
+      // This prevents silent data loss when a newer writer sends ops we
+      // don't recognise — fail closed rather than silently ignoring.
+      for (const op of normalizedPatch.ops) {
+        if (!isKnownOp(op)) {
+          throw new SchemaUnsupportedError(
+            `Patch ${sha} contains unknown op type: ${op.type}`
+          );
+        }
+      }
+      // Guard: reject patches exceeding our maximum supported schema version.
+      // isKnownOp() above checks op-type recognition; this checks the schema
+      // version ceiling. Currently SCHEMA_V3 is the max.
       assertOpsCompatible(normalizedPatch.ops, SCHEMA_V3);
       // Apply patch to state
       join(newState, /** @type {Parameters<typeof join>[1]} */ (normalizedPatch), sha);

@@ -12,7 +12,7 @@ import { QueryError, E_NO_STATE_MSG, E_STALE_STATE_MSG } from './_internal.js';
 import { PatchBuilderV2 } from '../services/PatchBuilderV2.js';
 import { joinStates, join as joinPatch } from '../services/JoinReducer.js';
 import { orsetElements } from '../crdt/ORSet.js';
-import { vvIncrement } from '../crdt/VersionVector.js';
+import { vvIncrement, vvClone } from '../crdt/VersionVector.js';
 import { buildWriterRef, buildWritersPrefix, parseWriterIdFromRef } from '../utils/RefLayout.js';
 import { decodePatchMessage, detectMessageKind } from '../services/WarpMessageCodec.js';
 import { Writer } from './Writer.js';
@@ -247,6 +247,7 @@ export async function _onPatchCommitted(writerId, { patch: committed, sha } = {}
     }
   } else {
     this._stateDirty = true;
+    this._cachedViewHash = null;
     if (this._auditService) {
       this._auditSkipCount++;
       this._logger?.warn('[warp:audit]', {
@@ -527,16 +528,22 @@ export function join(otherState) {
       !this._frontierEquals(this._cachedState.observedFrontier, mergedState.observedFrontier),
   };
 
-  // Update cached state
+  // Install merged state as canonical (B108 — cache coherence fix)
   this._cachedState = mergedState;
+  this._versionVector = vvClone(mergedState.observedFrontier);
 
-  // Invalidate derived caches (C1) — join changes underlying state
-  this._materializedGraph = null;
+  // Build adjacency synchronously (crypto hash deferred to next _buildView)
+  const adjacency = this._buildAdjacency(mergedState);
+  this._materializedGraph = { state: mergedState, stateHash: null, adjacency };
+
+  // Clear index caches — queries degrade to linear scan until next _buildView
   this._logicalIndex = null;
   this._propertyReader = null;
   this._cachedViewHash = null;
   this._cachedIndexTree = null;
-  this._stateDirty = true;
+
+  // State IS fresh — don't force rematerialization
+  this._stateDirty = false;
 
   return { state: mergedState, receipt };
 }

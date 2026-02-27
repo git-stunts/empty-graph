@@ -51,6 +51,7 @@ import SyncTrustGate from './SyncTrustGate.js';
  * @property {number} _patchesSinceCheckpoint
  * @property {(op: string, t0: number, opts?: {metrics?: string, error?: Error}) => void} _logTiming
  * @property {(options?: Record<string, unknown>) => Promise<unknown>} materialize
+ * @property {(state: import('../services/JoinReducer.js').WarpStateV5) => Promise<unknown>} _setMaterializedState
  * @property {() => Promise<string[]>} discoverWriters
  */
 
@@ -299,7 +300,7 @@ export default class SyncController {
    * **Requires a cached state.**
    *
    * @param {import('./SyncProtocol.js').SyncResponse} response - The sync response
-   * @returns {Promise<{state: import('./JoinReducer.js').WarpStateV5, frontier: Map<string, string>, applied: number, trustVerdict?: string, writersApplied?: string[]}>} Result with updated state and frontier
+   * @returns {Promise<{state: import('./JoinReducer.js').WarpStateV5, frontier: Map<string, string>, applied: number, trustVerdict?: string, writersApplied?: string[], skippedWriters: Array<{writerId: string, reason: string, localSha: string, remoteSha: string|null}>}>} Result with updated state and frontier
    * @throws {import('../errors/QueryError.js').default} If no cached state exists (code: `E_NO_STATE`)
    * @throws {SyncError} If trust gate rejects untrusted writers (code: `E_SYNC_UNTRUSTED_WRITER`)
    */
@@ -333,8 +334,13 @@ export default class SyncController {
     const currentFrontier = this._host._lastFrontier || createFrontier();
     const result = /** @type {{state: import('./JoinReducer.js').WarpStateV5, frontier: Map<string, string>, applied: number}} */ (applySyncResponseImpl(response, this._host._cachedState, currentFrontier));
 
-    // Update cached state
-    this._host._cachedState = result.state;
+    // Route through canonical state-install path (B105 / C1 fix).
+    // _setMaterializedState sets _cachedState, clears _stateDirty, computes
+    // state hash, builds adjacency, and rebuilds indexes via _buildView().
+    // Bookkeeping is deferred until after install succeeds so that a failed
+    // _setMaterializedState does not leave _lastFrontier/_patchesSinceGC
+    // advanced while _cachedState remains stale.
+    await this._host._setMaterializedState(result.state);
 
     // Keep _lastFrontier in sync so hasFrontierChanged() won't misreport stale.
     this._host._lastFrontier = result.frontier;
@@ -342,32 +348,7 @@ export default class SyncController {
     // Track patches for GC
     this._host._patchesSinceGC += result.applied;
 
-    // Invalidate derived caches (C1) — sync changes underlying state
-    this._invalidateDerivedCaches();
-
-    // State is now in sync with the frontier -- clear dirty flag
-    this._host._stateDirty = false;
-
-    return { ...result, writersApplied };
-  }
-
-  /**
-   * Invalidates all derived caches on the host graph.
-   *
-   * Called after sync apply or join to ensure stale index/provider/view
-   * data is not returned to callers. The next query or traversal will
-   * trigger a rebuild.
-   *
-   * @private
-   */
-  _invalidateDerivedCaches() {
-    const h = /** @type {import('../WarpGraph.js').default} */ (this._host);
-    h._materializedGraph = null;
-    h._logicalIndex = null;
-    h._propertyReader = null;
-    h._cachedViewHash = null;
-    h._cachedIndexTree = null;
-    h._stateDirty = true;
+    return { ...result, writersApplied, skippedWriters: response.skippedWriters || [] };
   }
 
   /**
@@ -396,7 +377,7 @@ export default class SyncController {
    * @param {(event: {type: string, attempt: number, durationMs?: number, status?: number, error?: Error}) => void} [options.onStatus]
    * @param {boolean} [options.materialize=false] - Auto-materialize after sync
    * @param {{ secret: string, keyId?: string }} [options.auth] - Client auth credentials
-   * @returns {Promise<{applied: number, attempts: number, state?: import('./JoinReducer.js').WarpStateV5}>}
+   * @returns {Promise<{applied: number, attempts: number, skippedWriters: Array<{writerId: string, reason: string, localSha: string, remoteSha: string|null}>, state?: import('./JoinReducer.js').WarpStateV5}>}
    */
   async syncWith(remote, options = {}) {
     const t0 = this._host._clock.now();
@@ -550,7 +531,7 @@ export default class SyncController {
 
       const durationMs = this._host._clock.now() - attemptStart;
       emit('complete', { durationMs, applied: result.applied });
-      return { applied: result.applied, attempts: attempt };
+      return { applied: result.applied, attempts: attempt, skippedWriters: result.skippedWriters || [] };
     };
 
     try {

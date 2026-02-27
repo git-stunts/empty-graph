@@ -1530,6 +1530,7 @@ export interface SyncResponse {
   type: 'sync-response';
   frontier: Record<string, string>;
   patches: Array<{ writerId: string; sha: string; patch: unknown }>;
+  skippedWriters?: Array<{ writerId: string; reason: string; localSha: string; remoteSha: string | null }>;
 }
 
 /**
@@ -1539,6 +1540,7 @@ export interface ApplySyncResult {
   state: WarpStateV5;
   frontier: Map<string, number>;
   applied: number;
+  skippedWriters: Array<{ writerId: string; reason: string; localSha: string; remoteSha: string | null }>;
 }
 
 /**
@@ -1831,7 +1833,7 @@ export default class WarpGraph {
     auth?: SyncAuthClientOptions;
     /** Auto-materialize after sync; when true, result includes `state` */
     materialize?: boolean;
-  }): Promise<{ applied: number; attempts: number; state?: WarpStateV5 }>;
+  }): Promise<{ applied: number; attempts: number; skippedWriters: Array<{ writerId: string; reason: string; localSha: string; remoteSha: string | null }>; state?: WarpStateV5 }>;
 
   /**
    * Creates a fork of this graph at a specific point in a writer's history.

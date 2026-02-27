@@ -49,7 +49,8 @@ const { applySyncResponse: applySyncResponseMock, syncNeeded: syncNeededMock, pr
  * @returns {Record<string, unknown>}
  */
 function createMockHost(overrides = {}) {
-  return {
+  /** @type {Record<string, unknown>} */
+  const host = {
     _cachedState: null,
     _lastFrontier: null,
     _stateDirty: false,
@@ -74,6 +75,15 @@ function createMockHost(overrides = {}) {
     _cachedIndexTree: null,
     ...overrides,
   };
+  // Wire default _setMaterializedState after spread so it can reference `host`
+  if (!host._setMaterializedState) {
+    host._setMaterializedState = vi.fn(async (/** @type {unknown} */ state) => {
+      host._cachedState = state;
+      host._stateDirty = false;
+      host._materializedGraph = { state, stateHash: 'mock-hash', adjacency: {} };
+    });
+  }
+  return host;
 }
 
 describe('SyncController', () => {
@@ -352,6 +362,105 @@ describe('SyncController', () => {
       expect(calledFrontier).toBe(lastFrontier);
       expect(calledFrontier.get('alice')).toBe('sha-tip-1');
     });
+
+    it('calls _setMaterializedState to rebuild derived caches (B105)', async () => {
+      const fakeState = {
+        observedFrontier: new Map(),
+        nodeAlive: { dots: new Map() },
+        edgeAlive: { dots: new Map() },
+      };
+      const newState = { observedFrontier: new Map(), nodeAlive: { dots: new Map() }, edgeAlive: { dots: new Map() } };
+      const newFrontier = new Map([['alice', 'sha-2']]);
+      applySyncResponseMock.mockReturnValue({ state: newState, frontier: newFrontier, applied: 1 });
+
+      const host = createMockHost({
+        _cachedState: fakeState,
+        _lastFrontier: new Map([['alice', 'sha-1']]),
+      });
+      const ctrl = new SyncController(/** @type {*} */ (host));
+
+      await ctrl.applySyncResponse({ type: 'sync-response', frontier: {}, patches: [] });
+
+      expect(/** @type {import('vitest').Mock} */ (host._setMaterializedState)).toHaveBeenCalledOnce();
+      expect(/** @type {import('vitest').Mock} */ (host._setMaterializedState)).toHaveBeenCalledWith(newState);
+      // _materializedGraph should be rebuilt (not null)
+      expect(host._materializedGraph).not.toBeNull();
+    });
+
+    it('does not advance frontier/counters when _setMaterializedState rejects', async () => {
+      const fakeState = {
+        observedFrontier: new Map(),
+        nodeAlive: { dots: new Map() },
+        edgeAlive: { dots: new Map() },
+      };
+      const newState = { observedFrontier: new Map(), nodeAlive: { dots: new Map() }, edgeAlive: { dots: new Map() } };
+      const previousFrontier = new Map([['alice', 'sha-1']]);
+      const newFrontier = new Map([['alice', 'sha-2']]);
+      applySyncResponseMock.mockReturnValue({ state: newState, frontier: newFrontier, applied: 2 });
+
+      const host = createMockHost({
+        _cachedState: fakeState,
+        _lastFrontier: previousFrontier,
+        _patchesSinceGC: 5,
+        _setMaterializedState: vi.fn().mockRejectedValue(new Error('install failed')),
+      });
+      const ctrl = new SyncController(/** @type {*} */ (host));
+
+      await expect(ctrl.applySyncResponse({ type: 'sync-response', frontier: {}, patches: [] }))
+        .rejects.toThrow('install failed');
+      expect(host._lastFrontier).toBe(previousFrontier);
+      expect(host._patchesSinceGC).toBe(5);
+    });
+
+    it('surfaces skippedWriters from response (B105)', async () => {
+      const fakeState = {
+        observedFrontier: new Map(),
+        nodeAlive: { dots: new Map() },
+        edgeAlive: { dots: new Map() },
+      };
+      const newFrontier = new Map([['alice', 'sha-2']]);
+      applySyncResponseMock.mockReturnValue({ state: fakeState, frontier: newFrontier, applied: 0 });
+
+      const host = createMockHost({
+        _cachedState: fakeState,
+        _lastFrontier: new Map(),
+      });
+      const ctrl = new SyncController(/** @type {*} */ (host));
+
+      const skippedWriters = [{ writerId: 'bob', reason: 'E_SYNC_DIVERGENCE', localSha: 'sha-b1', remoteSha: 'sha-b0' }];
+      const result = await ctrl.applySyncResponse({
+        type: 'sync-response',
+        frontier: {},
+        patches: [],
+        skippedWriters,
+      });
+
+      expect(result.skippedWriters).toEqual(skippedWriters);
+    });
+
+    it('returns empty skippedWriters when response has none', async () => {
+      const fakeState = {
+        observedFrontier: new Map(),
+        nodeAlive: { dots: new Map() },
+        edgeAlive: { dots: new Map() },
+      };
+      const newFrontier = new Map();
+      applySyncResponseMock.mockReturnValue({ state: fakeState, frontier: newFrontier, applied: 0 });
+
+      const host = createMockHost({
+        _cachedState: fakeState,
+        _lastFrontier: new Map(),
+      });
+      const ctrl = new SyncController(/** @type {*} */ (host));
+
+      const result = await ctrl.applySyncResponse({
+        type: 'sync-response',
+        frontier: {},
+        patches: [],
+      });
+
+      expect(result.skippedWriters).toEqual([]);
+    });
   });
 
   describe('syncNeeded', () => {
@@ -514,6 +623,39 @@ describe('SyncController', () => {
 
       expect(result.state).toBe(fakeState);
       expect(result.applied).toBe(1);
+    });
+
+    it('surfaces skippedWriters from applySyncResponse in syncWith return', async () => {
+      const fakeState = {
+        observedFrontier: new Map(),
+        nodeAlive: { dots: new Map() },
+        edgeAlive: { dots: new Map() },
+      };
+      const newFrontier = new Map([['alice', 'sha-a2']]);
+      applySyncResponseMock.mockReturnValue({ state: fakeState, frontier: newFrontier, applied: 0 });
+
+      const skippedWriters = [{ writerId: 'bob', reason: 'E_SYNC_DIVERGENCE', localSha: 'sha-b', remoteSha: 'sha-b0' }];
+      const peerResponse = {
+        type: 'sync-response',
+        frontier: { alice: 'sha-a2' },
+        patches: [],
+        skippedWriters,
+      };
+      const remotePeer = {
+        processSyncRequest: vi.fn().mockResolvedValue(peerResponse),
+        getFrontier: vi.fn().mockResolvedValue(new Map()),
+      };
+
+      const host = createMockHost({
+        _cachedState: fakeState,
+        _lastFrontier: new Map(),
+        discoverWriters: vi.fn().mockResolvedValue([]),
+      });
+      const ctrl = new SyncController(/** @type {*} */ (host));
+
+      const result = await ctrl.syncWith(/** @type {*} */ (remotePeer));
+
+      expect(result.skippedWriters).toEqual(skippedWriters);
     });
   });
 
