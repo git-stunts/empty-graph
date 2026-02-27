@@ -15,3 +15,14 @@ Items noticed during development that are worth addressing but were out of scope
 - Add an explicit local `test:deno:smoke` command for fast pre-push confidence.
 - Add markdownlint to pre-commit to catch MD024 (duplicate headings) and MD040 (fenced code language) before review.
 - Consider a `no-empty-catch` ESLint rule (or at least `no-catch-without-comment`) to prevent silent error swallowing.
+
+---
+
+## 2026-02-27 PR Feedback Session — Backlog Fuel
+
+- Add a `scripts/pr-feedback-status.js` helper that classifies unresolved PR comments by severity and skips explicitly addressed items.
+- Add a trust payload parity test suite that asserts CLI `trust` and `AuditVerifierService.evaluateTrust()` emit shape-compatible error payloads.
+- Add adapter-level typed error contracts (`E_REF_NOT_FOUND`, `E_REF_IO`) to remove trust-path string matching on error messages.
+- Add `CachedValue` semantic tests for `null` payload caching behavior and document whether `null` is a valid cached value.
+- Add a reusable `gh` cooldown utility that computes and prints cooldown-expiry timestamps from CodeRabbit comments.
+- Add a contributor guide section for “review-loop hygiene” (commit sizing, cooldown strategy, and when to request bot review).
