@@ -314,6 +314,8 @@ export function computeSyncDelta(localFrontier, remoteFrontier) {
  *   - `writerId`: The writer who created this patch
  *   - `sha`: The commit SHA this patch came from (for frontier updates)
  *   - `patch`: The decoded patch object with ops and context
+ * @property {Array<{writerId: string, reason: string, localSha: string, remoteSha: string|null}>} [skippedWriters] - Writers that were skipped during sync
+ *   (e.g. due to trust gate filtering, divergence, or missing refs)
  */
 
 /**

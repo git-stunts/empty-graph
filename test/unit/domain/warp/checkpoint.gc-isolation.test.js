@@ -61,7 +61,7 @@ describe('B63 — GC snapshot isolation', () => {
       const host = createMockHost();
       const originalState = host._cachedState;
 
-      _maybeRunGC.call(host, host._cachedState);
+      _maybeRunGC.call(/** @type {any} */ (host), host._cachedState);
 
       // State should be replaced with compacted clone
       expect(host._cachedState).not.toBe(originalState);
@@ -90,7 +90,7 @@ describe('B63 — GC snapshot isolation', () => {
         configurable: true,
       });
 
-      _maybeRunGC.call(host, originalState);
+      _maybeRunGC.call(/** @type {any} */ (host), originalState);
 
       expect(host._logger.warn).toHaveBeenCalledWith(
         expect.stringContaining('frontier changed during compaction'),
@@ -116,7 +116,7 @@ describe('B63 — GC snapshot isolation', () => {
       });
       const originalState = host._cachedState;
 
-      _maybeRunGC.call(host, host._cachedState);
+      _maybeRunGC.call(/** @type {any} */ (host), host._cachedState);
 
       // State should be unchanged — GC didn't run
       expect(host._cachedState).toBe(originalState);
@@ -128,7 +128,7 @@ describe('B63 — GC snapshot isolation', () => {
       });
 
       // Should not throw
-      expect(() => _maybeRunGC.call(host, createEmptyStateV5())).not.toThrow();
+      expect(() => _maybeRunGC.call(/** @type {any} */ (host), createEmptyStateV5())).not.toThrow();
     });
   });
 
@@ -137,7 +137,7 @@ describe('B63 — GC snapshot isolation', () => {
       const host = createMockHost();
       const originalState = host._cachedState;
 
-      const result = runGC.call(host);
+      const result = /** @type {any} */ (runGC).call(host);
 
       expect(host._cachedState).not.toBe(originalState);
       expect(host._patchesSinceGC).toBe(0);
@@ -163,7 +163,7 @@ describe('B63 — GC snapshot isolation', () => {
       });
 
       try {
-        runGC.call(host);
+        /** @type {any} */ (runGC).call(host);
         expect.fail('Should have thrown');
       } catch (err) {
         expect(/** @type {*} */ (err).code).toBe('E_GC_STALE');
@@ -174,7 +174,7 @@ describe('B63 — GC snapshot isolation', () => {
     it('throws E_NO_STATE when no cached state exists', () => {
       const host = createMockHost({ _cachedState: null });
 
-      expect(() => runGC.call(host)).toThrow(/materialize/i);
+      expect(() => /** @type {any} */ (runGC).call(host)).toThrow(/materialize/i);
     });
   });
 });

@@ -217,6 +217,7 @@ describe('Invariant 3 — CAS convergence (appendRecordWithRetry)', () => {
   it('two concurrent appenders both eventually succeed (test 12)', async () => {
     // Track the shared chain state. Both appenders target the same chain.
     // First attempt for each: CAS conflict. Second attempt: succeed.
+    /** @type {any[]} */
     const committed = [];
     let appendCallCount = 0;
 

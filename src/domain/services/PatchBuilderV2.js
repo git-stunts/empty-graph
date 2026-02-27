@@ -108,9 +108,9 @@ export class PatchBuilderV2 {
      * Lazily populated on first call to _getSnapshotState().
      * Prevents TOCTOU races where concurrent writes change state
      * between remove operations in the same patch.
-     * @type {import('./JoinReducer.js').WarpStateV5|null|undefined}
+     * @type {import('./JoinReducer.js').WarpStateV5|null}
      */
-    this._snapshotState = undefined; // undefined = not yet captured
+    this._snapshotState = /** @type {import('./JoinReducer.js').WarpStateV5|null} */ (/** @type {unknown} */ (undefined)); // undefined = not yet captured
 
     /** @type {string|null} */
     this._expectedParentSha = expectedParentSha;

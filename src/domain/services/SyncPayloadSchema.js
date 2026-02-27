@@ -1,12 +1,12 @@
 /**
- * SyncPayloadSchema — Zod schemas for sync protocol messages.
+ * SyncPayloadSchema -- Zod schemas for sync protocol messages.
  *
  * Validates both shape and resource limits for sync requests and responses
  * at the trust boundary (HTTP ingress/egress). Prevents malformed or
  * oversized payloads from reaching the CRDT merge engine.
  *
  * @module domain/services/SyncPayloadSchema
- * @see B64 — Sync ingress payload validation
+ * @see B64 -- Sync ingress payload validation
  */
 
 import { z } from 'zod';

@@ -1,5 +1,5 @@
 /**
- * SyncTrustGate — Encapsulates trust evaluation for sync operations.
+ * SyncTrustGate -- Encapsulates trust evaluation for sync operations.
  *
  * Evaluates whether inbound patch authors are trusted according to the
  * trust record chain. Used by SyncController to validate HTTP sync
@@ -9,7 +9,7 @@
  * frontier keys (which are claims, not effects).
  *
  * @module domain/services/SyncTrustGate
- * @see B1 — Signed sync ingress
+ * @see B1 -- Signed sync ingress
  */
 
 import nullLogger from '../utils/nullLogger.js';
@@ -25,13 +25,13 @@ import nullLogger from '../utils/nullLogger.js';
  * @property {string} verdict - Human-readable verdict
  */
 
-/** @type {(untrusted: string[]) => TrustGateResult} */
+/** @type {() => TrustGateResult} */
 const PASS = () => ({ allowed: true, untrustedWriters: [], verdict: 'pass' });
 
 export default class SyncTrustGate {
   /**
    * @param {Object} options
-   * @param {import('../trust/TrustEvaluator.js').default} [options.trustEvaluator] - Trust evaluator instance
+   * @param {{evaluateWriters: (writerIds: string[]) => Promise<{trusted: Set<string>}>}} [options.trustEvaluator] - Trust evaluator instance
    * @param {TrustMode} [options.trustMode='off'] - Trust enforcement mode
    * @param {import('../../ports/LoggerPort.js').default} [options.logger] - Logger
    */

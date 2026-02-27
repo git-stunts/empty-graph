@@ -64,7 +64,7 @@ describe('CRDT spec compliance (Phase 5 / Invariant 7 / Test 24)', () => {
       // Entries: same keys, same dot sets
       expect([...ab.entries.keys()].sort()).toEqual([...ba.entries.keys()].sort());
       for (const key of ab.entries.keys()) {
-        expect([...ab.entries.get(key)].sort()).toEqual([...ba.entries.get(key)].sort());
+        expect([...(ab.entries.get(key) ?? [])].sort()).toEqual([...(ba.entries.get(key) ?? [])].sort());
       }
 
       // Tombstones: same sets
@@ -162,8 +162,8 @@ describe('CRDT spec compliance (Phase 5 / Invariant 7 / Test 24)', () => {
 
       // Same dots for each node
       for (const node of nodes1) {
-        expect([...state1.nodeAlive.entries.get(node)].sort())
-          .toEqual([...state2.nodeAlive.entries.get(node)].sort());
+        expect([...(state1.nodeAlive.entries.get(node) ?? [])].sort())
+          .toEqual([...(state2.nodeAlive.entries.get(node) ?? [])].sort());
       }
 
       // Same observed frontiers

@@ -35,7 +35,7 @@ const SHA_D = 'd'.repeat(40);
  * Shorthand: build a patch object inline.
  * Context is a plain object (SyncProtocol normalizes it to a Map).
  */
-function mkPatch({ writer, lamport, ops, context }) {
+function mkPatch(/** @type {any} */ { writer, lamport, ops, context }) {
   return {
     schema: 2,
     writer,
@@ -48,7 +48,7 @@ function mkPatch({ writer, lamport, ops, context }) {
 /**
  * Wraps a patch into a sync-response envelope.
  */
-function mkResponse(frontier, patches) {
+function mkResponse(/** @type {any} */ frontier, /** @type {any} */ patches) {
   return {
     type: /** @type {'sync-response'} */ ('sync-response'),
     frontier,
@@ -60,7 +60,7 @@ function mkResponse(frontier, patches) {
  * Collects the structural signature of a WarpStateV5 for equivalence checks:
  * sorted alive-node set, sorted alive-edge set, sorted prop entries.
  */
-function stateSignature(state) {
+function stateSignature(/** @type {any} */ state) {
   const nodes = orsetElements(state.nodeAlive).sort();
   const edges = orsetElements(state.edgeAlive).sort();
   const props = [...state.prop.entries()]
@@ -106,10 +106,10 @@ describe('SyncProtocol — state coherence (Phase 4, Invariant 5)', () => {
     const frontier0 = createFrontier();
 
     // First application
-    const r1 = applySyncResponse(/** @type {*} */ (response), state0, frontier0);
+    const r1 = /** @type {any} */ (applySyncResponse(/** @type {*} */ (response), state0, frontier0));
 
     // Second application (same response into already-updated state)
-    const r2 = applySyncResponse(/** @type {*} */ (response), r1.state, r1.frontier);
+    const r2 = /** @type {any} */ (applySyncResponse(/** @type {*} */ (response), r1.state, r1.frontier));
 
     // Structural equivalence: alive nodes, edges, props must match
     const sig1 = stateSignature(r1.state);
@@ -163,12 +163,12 @@ describe('SyncProtocol — state coherence (Phase 4, Invariant 5)', () => {
     // Apply A then B
     const state0 = createEmptyStateV5();
     const frontier0 = createFrontier();
-    const rAB = applySyncResponse(/** @type {*} */ (responseAB), state0, frontier0);
+    const rAB = /** @type {any} */ (applySyncResponse(/** @type {*} */ (responseAB), state0, frontier0));
 
     // Apply B then A (fresh start)
     const state1 = createEmptyStateV5();
     const frontier1 = createFrontier();
-    const rBA = applySyncResponse(/** @type {*} */ (responseBA), state1, frontier1);
+    const rBA = /** @type {any} */ (applySyncResponse(/** @type {*} */ (responseBA), state1, frontier1));
 
     const sigAB = stateSignature(rAB.state);
     const sigBA = stateSignature(rBA.state);
@@ -215,7 +215,7 @@ describe('SyncProtocol — state coherence (Phase 4, Invariant 5)', () => {
     );
 
     const state = createEmptyStateV5();
-    const result = applySyncResponse(/** @type {*} */ (response), state, frontier);
+    const result = /** @type {any} */ (applySyncResponse(/** @type {*} */ (response), state, frontier));
 
     // Every writer present in the original frontier must still be present
     // and their entry must be >= the original value (i.e. not reverted).
@@ -239,7 +239,9 @@ describe('SyncProtocol — state coherence (Phase 4, Invariant 5)', () => {
   // Test 21 — Divergence is observable
   // -----------------------------------------------------------------------
   it('T21: processSyncRequest surfaces skippedWriters on divergence', async () => {
+    /** @type {Record<string, any>} */
     const commits = {};
+    /** @type {Record<string, any>} */
     const blobs = {};
 
     // Two disconnected chains for writer w1 — no parent link
@@ -259,11 +261,11 @@ describe('SyncProtocol — state coherence (Phase 4, Invariant 5)', () => {
     blobs[OID_B] = encode(patchB);
 
     const persistence = {
-      showNode: vi.fn(async (sha) => {
+      showNode: vi.fn(async (/** @type {any} */ sha) => {
         if (commits[sha]?.message) { return commits[sha].message; }
         throw new Error(`Commit not found: ${sha}`);
       }),
-      getNodeInfo: vi.fn(async (sha) => {
+      getNodeInfo: vi.fn(async (/** @type {any} */ sha) => {
         if (commits[sha]) {
           return {
             sha,
@@ -275,7 +277,7 @@ describe('SyncProtocol — state coherence (Phase 4, Invariant 5)', () => {
         }
         throw new Error(`Commit not found: ${sha}`);
       }),
-      readBlob: vi.fn(async (oid) => {
+      readBlob: vi.fn(async (/** @type {any} */ oid) => {
         if (blobs[oid]) { return blobs[oid]; }
         throw new Error(`Blob not found: ${oid}`);
       }),
@@ -287,13 +289,13 @@ describe('SyncProtocol — state coherence (Phase 4, Invariant 5)', () => {
     const request = { type: 'sync-request', frontier: { w1: SHA_A } };
     const localFrontier = new Map([['w1', SHA_B]]);
 
-    const response = await processSyncRequest(
+    const response = /** @type {any} */ (await processSyncRequest(
       /** @type {*} */ (request),
       localFrontier,
-      persistence,
+      /** @type {any} */ (persistence),
       'events',
       { logger },
-    );
+    ));
 
     // Patches for diverged writer should be empty
     expect(response.patches).toHaveLength(0);
@@ -302,7 +304,7 @@ describe('SyncProtocol — state coherence (Phase 4, Invariant 5)', () => {
     expect(response.skippedWriters).toBeDefined();
     expect(response.skippedWriters.length).toBeGreaterThanOrEqual(1);
 
-    const skipped = response.skippedWriters.find((s) => s.writerId === 'w1');
+    const skipped = response.skippedWriters.find((/** @type {any} */ s) => s.writerId === 'w1');
     expect(skipped).toBeDefined();
     expect(skipped.reason).toBe('E_SYNC_DIVERGENCE');
 

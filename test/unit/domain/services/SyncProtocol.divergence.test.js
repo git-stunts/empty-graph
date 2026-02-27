@@ -17,11 +17,11 @@ const SHA_C = 'c'.repeat(40);
 const OID_A = '1'.repeat(40);
 const OID_B = '2'.repeat(40);
 
-function createTestPatch({ writer, lamport }) {
+function createTestPatch(/** @type {any} */ { writer, lamport }) {
   return { schema: 2, writer, lamport, ops: [], context: createVersionVector() };
 }
 
-function setupCommit(commits, blobs, sha, patch, patchOid, parents = []) {
+function setupCommit(/** @type {Record<string, any>} */ commits, /** @type {Record<string, any>} */ blobs, /** @type {string} */ sha, /** @type {any} */ patch, /** @type {string} */ patchOid, /** @type {string[]} */ parents = []) {
   const message = encodePatchMessage({
     graph: 'events',
     writer: patch.writer,
@@ -33,19 +33,19 @@ function setupCommit(commits, blobs, sha, patch, patchOid, parents = []) {
   blobs[patchOid] = encode(patch);
 }
 
-function createMockPersistence(commits = {}, blobs = {}) {
+function createMockPersistence(/** @type {Record<string, any>} */ commits = {}, /** @type {Record<string, any>} */ blobs = {}) {
   return {
-    showNode: vi.fn(async (sha) => {
+    showNode: vi.fn(async (/** @type {any} */ sha) => {
       if (commits[sha]?.message) { return commits[sha].message; }
       throw new Error(`Commit not found: ${sha}`);
     }),
-    getNodeInfo: vi.fn(async (sha) => {
+    getNodeInfo: vi.fn(async (/** @type {any} */ sha) => {
       if (commits[sha]) {
         return { sha, message: commits[sha].message, author: 'test', date: new Date().toISOString(), parents: commits[sha].parents || [] };
       }
       throw new Error(`Commit not found: ${sha}`);
     }),
-    readBlob: vi.fn(async (oid) => {
+    readBlob: vi.fn(async (/** @type {any} */ oid) => {
       if (blobs[oid]) { return blobs[oid]; }
       throw new Error(`Blob not found: ${oid}`);
     }),
@@ -81,7 +81,7 @@ describe('B65 — Sync divergence logging', () => {
     const localFrontier = new Map([['w1', SHA_B]]);
 
     const response = await processSyncRequest(
-      /** @type {*} */ (request), localFrontier, persistence, 'events', { logger },
+      /** @type {*} */ (request), localFrontier, /** @type {any} */ (persistence), 'events', { logger },
     );
 
     // Should return empty patches (diverged writer skipped)
@@ -115,7 +115,7 @@ describe('B65 — Sync divergence logging', () => {
     const localFrontier = new Map([['w1', SHA_B]]);
 
     const response = await processSyncRequest(
-      /** @type {*} */ (request), localFrontier, persistence, 'events', { logger },
+      /** @type {*} */ (request), localFrontier, /** @type {any} */ (persistence), 'events', { logger },
     );
 
     expect(response.patches).toHaveLength(1);
@@ -138,7 +138,7 @@ describe('B65 — Sync divergence logging', () => {
     const localFrontier = new Map([['w1', SHA_B]]);
 
     const response = await processSyncRequest(
-      /** @type {*} */ (request), localFrontier, persistence, 'events',
+      /** @type {*} */ (request), localFrontier, /** @type {any} */ (persistence), 'events',
     );
 
     expect(response.patches).toHaveLength(0);
@@ -162,7 +162,7 @@ describe('B65 — Sync divergence logging', () => {
     const localFrontier = new Map([['w1', SHA_A], ['w2', SHA_C]]);
 
     const response = await processSyncRequest(
-      /** @type {*} */ (request), localFrontier, persistence, 'events', { logger },
+      /** @type {*} */ (request), localFrontier, /** @type {any} */ (persistence), 'events', { logger },
     );
 
     // w1 skipped (diverged), w2 returned

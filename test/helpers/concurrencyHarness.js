@@ -20,11 +20,12 @@
  * @returns {{ promise: Promise<void>, release: () => void }}
  */
 export function createBarrier() {
-  let release;
+  /** @type {(value?: any) => void} */
+  let release = () => {};
   const promise = new Promise((resolve) => {
     release = resolve;
   });
-  return { promise, release: /** @type {() => void} */ (release) };
+  return { promise, release };
 }
 
 /**
