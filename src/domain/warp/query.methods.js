@@ -332,11 +332,11 @@ export async function observer(name, config) {
  *
  * @this {import('../WarpGraph.js').default}
  * @param {Object} configA - Observer configuration for A
- * @param {string} configA.match - Glob pattern for visible nodes
+ * @param {string|string[]} configA.match - Glob pattern(s) for visible nodes
  * @param {string[]} [configA.expose] - Property keys to include
  * @param {string[]} [configA.redact] - Property keys to exclude
  * @param {Object} configB - Observer configuration for B
- * @param {string} configB.match - Glob pattern for visible nodes
+ * @param {string|string[]} configB.match - Glob pattern(s) for visible nodes
  * @param {string[]} [configB.expose] - Property keys to include
  * @param {string[]} [configB.redact] - Property keys to exclude
  * @returns {Promise<{cost: number, breakdown: {nodeLoss: number, edgeLoss: number, propLoss: number}}>}
