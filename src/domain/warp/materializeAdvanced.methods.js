@@ -107,12 +107,23 @@ export function _buildAdjacency(state) {
  *
  * @this {import('../WarpGraph.js').default}
  * @param {import('../services/JoinReducer.js').WarpStateV5} state
- * @param {{diff?: import('../types/PatchDiff.js').PatchDiff|null}} [options] - Optional settings
+ * @param {import('../types/PatchDiff.js').PatchDiff|{diff?: import('../types/PatchDiff.js').PatchDiff|null}} [optionsOrDiff]
+ *   Either a PatchDiff (legacy positional form) or options object.
  * @returns {Promise<MaterializedResult>}
  * @private
  */
-export async function _setMaterializedState(state, options) {
-  const diff = options?.diff ?? undefined;
+export async function _setMaterializedState(state, optionsOrDiff) {
+  /** @type {import('../types/PatchDiff.js').PatchDiff|undefined} */
+  let diff;
+  if (
+    optionsOrDiff &&
+    typeof optionsOrDiff === 'object' &&
+    Object.prototype.hasOwnProperty.call(optionsOrDiff, 'diff')
+  ) {
+    diff = /** @type {{diff?: import('../types/PatchDiff.js').PatchDiff|null}} */ (optionsOrDiff).diff ?? undefined;
+  } else {
+    diff = /** @type {import('../types/PatchDiff.js').PatchDiff|undefined} */ (optionsOrDiff ?? undefined);
+  }
   this._cachedState = state;
   this._stateDirty = false;
   this._versionVector = vvClone(state.observedFrontier);

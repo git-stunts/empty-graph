@@ -1496,6 +1496,66 @@ eg-schema: 2`;
         ).rejects.toThrow('Writer fork detected for writer-1: incoming patch does not extend checkpoint head');
       });
     });
+
+    describe('_loadPatchesSince', () => {
+      it('validates ancestry once per writer tip and aggregates patches', async () => {
+        const persistence = createMockPersistence();
+        persistence.listRefs.mockResolvedValue([]);
+        persistence.readRef.mockResolvedValue(null);
+
+        const graph = await WarpGraph.open(/** @type {any} */ ({
+          persistence,
+          graphName: 'events',
+          writerId: 'node-1',
+          schema: 2,
+        }));
+
+        const writerIds = ['writer-1', 'writer-2', 'writer-3'];
+        vi.spyOn(graph, 'discoverWriters').mockResolvedValue(writerIds);
+
+        const writer1Patches = [
+          { sha: '1'.repeat(40), patch: { schema: 2, writer: 'writer-1', lamport: 1, context: { 'writer-1': 1 }, ops: [] } },
+          { sha: '2'.repeat(40), patch: { schema: 2, writer: 'writer-1', lamport: 2, context: { 'writer-1': 2 }, ops: [] } },
+        ];
+        const writer2Patches = [
+          { sha: '3'.repeat(40), patch: { schema: 2, writer: 'writer-2', lamport: 1, context: { 'writer-2': 1 }, ops: [] } },
+        ];
+        const writer3Patches = [];
+
+        const loadWriterPatchesSpy = vi
+          .spyOn(graph, /** @type {any} */ ('_loadWriterPatches'))
+          .mockResolvedValueOnce(writer1Patches)
+          .mockResolvedValueOnce(writer2Patches)
+          .mockResolvedValueOnce(writer3Patches);
+        const validateSpy = vi
+          .spyOn(graph, /** @type {any} */ ('_validatePatchAgainstCheckpoint'))
+          .mockResolvedValue(undefined);
+
+        const checkpoint = {
+          schema: 2,
+          frontier: new Map([
+            ['writer-1', 'a'.repeat(40)],
+            ['writer-2', 'b'.repeat(40)],
+            ['writer-3', 'c'.repeat(40)],
+          ]),
+          state: createEmptyStateV5(),
+          stateHash: 'd'.repeat(64),
+        };
+
+        const result = await /** @type {any} */ (graph)._loadPatchesSince(checkpoint);
+
+        expect(loadWriterPatchesSpy).toHaveBeenNthCalledWith(1, 'writer-1', 'a'.repeat(40));
+        expect(loadWriterPatchesSpy).toHaveBeenNthCalledWith(2, 'writer-2', 'b'.repeat(40));
+        expect(loadWriterPatchesSpy).toHaveBeenNthCalledWith(3, 'writer-3', 'c'.repeat(40));
+
+        // Tip-only ancestry validation: one call per non-empty writer.
+        expect(validateSpy).toHaveBeenCalledTimes(2);
+        expect(validateSpy).toHaveBeenNthCalledWith(1, 'writer-1', '2'.repeat(40), checkpoint);
+        expect(validateSpy).toHaveBeenNthCalledWith(2, 'writer-2', '3'.repeat(40), checkpoint);
+
+        expect(result).toEqual([...writer1Patches, ...writer2Patches]);
+      });
+    });
   });
 
   describe('version vector correctness (Task 3)', () => {

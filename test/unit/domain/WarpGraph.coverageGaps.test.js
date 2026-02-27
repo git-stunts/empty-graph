@@ -391,6 +391,153 @@ describe('WarpGraph coverage gaps', () => {
     });
   });
 
+  describe('_onPatchCommitted eager path', () => {
+    it('passes computed diff to _setMaterializedState when audit is disabled', async () => {
+      const graph = await WarpGraph.open({
+        persistence,
+        graphName: 'test-graph',
+        writerId: 'writer-1',
+        crypto,
+      });
+
+      /** @type {any} */ (graph)._cachedState = createEmptyStateV5();
+      /** @type {any} */ (graph)._stateDirty = false;
+      /** @type {any} */ (graph)._provenanceIndex = null;
+      /** @type {any} */ (graph)._lastFrontier = null;
+
+      const setStateSpy = vi
+        .spyOn(graph, /** @type {any} */ ('_setMaterializedState'))
+        .mockResolvedValue(/** @type {any} */ ({}));
+
+      const committedPatch = {
+        schema: 2,
+        writer: 'writer-1',
+        lamport: 1,
+        context: { 'writer-1': 1 },
+        ops: [
+          {
+            type: 'NodeAdd',
+            node: 'user:alice',
+            dot: createDot('writer-1', 1),
+          },
+        ],
+      };
+
+      await /** @type {any} */ (graph)._onPatchCommitted('writer-1', {
+        patch: committedPatch,
+        sha: 'a'.repeat(40),
+      });
+
+      expect(setStateSpy).toHaveBeenCalledTimes(1);
+      const [, options] = setStateSpy.mock.calls[0];
+      expect(options).toBeDefined();
+      expect(options.diff).toBeDefined();
+      expect(options.diff.nodesAdded).toContain('user:alice');
+    });
+
+    it('passes diff:null to _setMaterializedState when audit is enabled', async () => {
+      const graph = await WarpGraph.open({
+        persistence,
+        graphName: 'test-graph',
+        writerId: 'writer-1',
+        crypto,
+      });
+
+      /** @type {any} */ (graph)._cachedState = createEmptyStateV5();
+      /** @type {any} */ (graph)._stateDirty = false;
+      /** @type {any} */ (graph)._provenanceIndex = null;
+      /** @type {any} */ (graph)._lastFrontier = null;
+      const commitSpy = vi.fn().mockResolvedValue(undefined);
+      /** @type {any} */ (graph)._auditService = { commit: commitSpy };
+
+      const setStateSpy = vi
+        .spyOn(graph, /** @type {any} */ ('_setMaterializedState'))
+        .mockResolvedValue(/** @type {any} */ ({}));
+
+      const committedPatch = {
+        schema: 2,
+        writer: 'writer-1',
+        lamport: 2,
+        context: { 'writer-1': 2 },
+        ops: [
+          {
+            type: 'NodeAdd',
+            node: 'user:bob',
+            dot: createDot('writer-1', 2),
+          },
+        ],
+      };
+
+      await /** @type {any} */ (graph)._onPatchCommitted('writer-1', {
+        patch: committedPatch,
+        sha: 'b'.repeat(40),
+      });
+
+      expect(setStateSpy).toHaveBeenCalledTimes(1);
+      const [, options] = setStateSpy.mock.calls[0];
+      expect(options).toEqual({ diff: null });
+      expect(commitSpy).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('_setMaterializedState diff argument compatibility', () => {
+    it('accepts legacy positional diff argument', async () => {
+      const graph = await WarpGraph.open({
+        persistence,
+        graphName: 'test-graph',
+        writerId: 'writer-1',
+        crypto,
+      });
+
+      const state = createEmptyStateV5();
+      const diff = {
+        nodesAdded: ['user:alice'],
+        nodesRemoved: [],
+        edgesAdded: [],
+        edgesRemoved: [],
+        propsChanged: [],
+      };
+
+      const buildViewSpy = vi
+        .spyOn(graph, /** @type {any} */ ('_buildView'))
+        .mockImplementation(() => {});
+
+      await /** @type {any} */ (graph)._setMaterializedState(state, diff);
+
+      expect(buildViewSpy).toHaveBeenCalledTimes(1);
+      const [, , appliedDiff] = buildViewSpy.mock.calls[0];
+      expect(appliedDiff).toBe(diff);
+    });
+
+    it('accepts options object with diff', async () => {
+      const graph = await WarpGraph.open({
+        persistence,
+        graphName: 'test-graph',
+        writerId: 'writer-1',
+        crypto,
+      });
+
+      const state = createEmptyStateV5();
+      const diff = {
+        nodesAdded: ['user:bob'],
+        nodesRemoved: [],
+        edgesAdded: [],
+        edgesRemoved: [],
+        propsChanged: [],
+      };
+
+      const buildViewSpy = vi
+        .spyOn(graph, /** @type {any} */ ('_buildView'))
+        .mockImplementation(() => {});
+
+      await /** @type {any} */ (graph)._setMaterializedState(state, { diff });
+
+      expect(buildViewSpy).toHaveBeenCalledTimes(1);
+      const [, , appliedDiff] = buildViewSpy.mock.calls[0];
+      expect(appliedDiff).toBe(diff);
+    });
+  });
+
   // --------------------------------------------------------------------------
   // 4. maybeRunGC()
   // --------------------------------------------------------------------------
