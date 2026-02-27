@@ -22,7 +22,7 @@ Items noticed during development that are worth addressing but were out of scope
 - Add a small `scripts/coderabbit-cooldown` utility to parse "Rate limit exceeded" comments, compute expiry in local timezone, and print safe retry timestamps.
 - Add a CI helper that fails fast when docs reference removed checkpoint artifacts (for example stale mentions like `visible.cbor`) to prevent docs/runtime drift.
 - Add shared typed test helpers for extracting `vitest` spy call tuples (avoid repeated `unknown` casts in strict TS checks).
-- Add a lightweight "PR hygiene" checklist command that reports: unresolved review threads, pending checks, and merge-blocking conditions in one output.
+- Add `scripts/pr-ready` to aggregate unresolved review threads, pending/failed checks, CodeRabbit status, and required human-review count (`>=2`) in one deterministic output.
 - Add an automated docs consistency pass in preflight to verify changelog/readme/guide updates for behavior changes in hot paths (materialize, checkpoint, sync).
 
 ## 2026-02-27 PR Feedback Session 2 Backlog Fuel
@@ -33,3 +33,8 @@ Items noticed during development that are worth addressing but were out of scope
 - Add a `warp doctor --json` check bundle for frontier/checkpoint/index consistency, with non-destructive defaults and explicit exit codes.
 - Add a frontier-fingerprint-keyed ancestry memo cache with bounded LRU and invalidation metrics.
 - Add an incremental state-hash shadow mode (parity-only) that compares accumulator hash vs `computeStateHashV5` before any default rollout.
+
+## 2026-02-27 PR Feedback Session 3 Alignment
+
+- Add a CLI-safe helper for posting review trigger comments (`@coderabbitai review please`) only when cooldown has expired.
+- Add a merge-gate script check that fails fast when CI is pending, Rabbit is unsatisfied, unresolved comments exist, or required reviewer count is unmet.
