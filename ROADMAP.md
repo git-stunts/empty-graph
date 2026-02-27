@@ -1,7 +1,7 @@
 # ROADMAP — @git-stunts/git-warp
 
 > **Current version:** v12.2.0
-> **Last reconciled:** 2026-02-26 (backlog fully absorbed)
+> **Last reconciled:** 2026-02-27 (STANK.md fully absorbed)
 
 ---
 
@@ -88,6 +88,175 @@
 
 ---
 
+## Milestone 12 — SCALPEL ⚠️ TOP PRIORITY
+
+**Theme:** Comprehensive STANK audit cleanup — correctness, performance & code quality
+**Objective:** Fix ALL issues from the 2026-02-25 cognitive complexity audit (STANK.md). Eliminate data-loss vectors (CRITs), rewrite broken abstractions (STANKs), clean up fragile code (JANK), and polish minor issues (TSK TSK). 46 total issues; 11 already fixed, 35 remaining.
+**Triage date:** 2026-02-27
+**Audit source:** `STANK.md`
+
+### Already Fixed (M10 + prior M12 work)
+
+| STANK ID | B# | Fix |
+|----------|-----|-----|
+| C4 | — | `_snapshotState` lazy capture in PatchBuilderV2 |
+| C6 | — | `E_LAMPORT_CORRUPT` throw in Writer.js |
+| S4 | B72 | `'0'.repeat(40)` in compareAndSwapRef |
+| S9 | — | Fast-return guard in `_materializeGraph()` |
+| J1 | B68 | MinHeap topological sort in GraphTraversal |
+| J2 | B69 | `batchMap()` + propsMemo in QueryBuilder |
+| J5 | — | Dead `visible.cbor` write removed from CheckpointService |
+| J8 | — | Temp array pattern in `orsetCompact` |
+| J11 | — | `_indexDegraded` flag in WarpGraph |
+| C2 | — | `isKnownOp()` exists (tests added, sync-path wiring in M12.T1) |
+| C3 | — | Receipt validation tests added (runtime guards in M12.T3) |
+
+### M12.T1 — Sync Safety (C1 + C2 + S3)
+
+- **Status:** `DONE`
+- **Size:** L | **Risk:** HIGH
+- **Depends on:** —
+
+**Items:**
+
+- **B105** ✅ (C1: SYNC DIVERGENCE + STALE CACHE) — Route `applySyncResponse` through `_setMaterializedState()` instead of raw `_cachedState` assignment. Surface `skippedWriters` in `syncWith` return value. **Files:** `SyncController.js`
+- **B106** ✅ (C2: FORWARD-COMPATIBLE OPS ALLOWLIST) — Call `isKnownOp()` before `join()` in sync apply path. Fail closed on unknown ops with `SchemaUnsupportedError`. **Files:** `SyncProtocol.js`
+- **B107** ✅ (S3: BIDIRECTIONAL SYNC DELTA) — Add `isAncestor()` pre-check in `processSyncRequest` to detect divergence early without chain walk. Updated misleading comment in `computeSyncDelta`. Kept `loadPatchRange` throw as fallback for persistence layers without `isAncestor`. **File:** `SyncProtocol.js`
+
+### M12.T2 — Cache Coherence (S1)
+
+- **Status:** `PENDING`
+- **Size:** XL | **Risk:** HIGH
+- **Depends on:** M12.T1
+
+**Items:**
+
+- **B108** (S1: UNIFIED CACHE STATE) — Replace 8+ independent cache fields in WarpGraph.js with `CacheState` object carrying per-component dirty bits (`{ state, adjacency, index, frontier }`). Single `invalidate(component?)` method. Route `join()` and sync-apply through canonical state-install path. **Files:** `WarpGraph.js`, `materializeAdvanced.methods.js`, `patch.methods.js`, `SyncController.js`
+
+### M12.T3 — Remaining CRITs (C3, C5, C7, C8)
+
+- **Status:** `PENDING`
+- **Size:** M | **Risk:** MEDIUM
+- **Depends on:** M12.T2
+
+**Items:**
+
+- **B109** (C3: RECEIPT PATH RUNTIME GUARDS) — Add structural validation before switch-case casts in `applyWithReceipt`. Assert required fields per op type (`node`, `dot`, `observedDots`, etc.). Throw `PatchError` on validation failure. **File:** `JoinReducer.js:614-637`
+- **B110** (C5: PROVENANCE SEMANTICS RENAME) — Rename `_reads` to `_observedOperands` in PatchBuilderV2. Add JSDoc explaining semantic model per op type. Keep `.reads` getter name for API compat. **File:** `PatchBuilderV2.js:135-156`
+- **B111** (C7: GC TRANSACTION BOUNDARY) — Clone state before compaction in `executeGC`. Swap on success, discard on failure. Validate `appliedVV` parameter shape. **File:** `GCPolicy.js:101-122`
+- **B112** (C8: ERROR HANDLER FORMAT) — Document intentional `process.argv` fallback in error handler (parsing may have thrown, so `options` may not exist). Add comment. **File:** `warp-graph.js:81-82`
+
+### M12.T4 — Index Performance (S5 + S6)
+
+- **Status:** `PENDING`
+- **Size:** L | **Risk:** MEDIUM
+- **Depends on:** —
+
+**Items:**
+
+- **B66** (S5: INCREMENTAL INDEX O(E) SCAN) — Use adjacency map for O(degree) lookup on node re-add instead of scanning all alive edges. Separate genuinely-new nodes (skip scan) from re-added nodes (incident edges only). **File:** `IncrementalIndexUpdater.js:99-128`
+- **B113** (S6: DOUBLE BITMAP DESERIALIZATION) — In `_purgeNodeEdges`, deserialize once, mutate in-place, serialize once. Use `bitmap.clear()` instead of creating new empty bitmap. **File:** `IncrementalIndexUpdater.js:241-320`
+
+### M12.T5 — Post-Commit + Ancestry (S7 + S8)
+
+- **Status:** `PENDING`
+- **Size:** L | **Risk:** MEDIUM
+- **Depends on:** M12.T2
+
+**Items:**
+
+- **B114** (S7: DIFF-AWARE EAGER POST-COMMIT) — Pass patch diff to `_setMaterializedState()` in `_onPatchCommitted` so `_buildView` can do incremental update instead of full rebuild. **File:** `patch.methods.js:221-231`
+- **B115** (S8: MEMOIZED ANCESTRY WALKING) — Validate writer relation once per tip/range in `_loadPatchesSince`, not once per patch SHA. Memoize ancestry results per writer. **File:** `checkpoint.methods.js:187-202`
+
+### M12.T6 — Edge Property Encoding (S2)
+
+- **Status:** `PENDING`
+- **Size:** XL | **Risk:** HIGH
+- **Depends on:** M12.T3
+
+**Items:**
+
+- **B116** (S2: EXPLICIT EDGEPROPSET OP) — Promote edge properties to explicit `EdgePropSet` operation type in patch schema (schema version 4). Migration: detect `\x01`-prefixed `PropSet` ops in schema <= 3 and translate on read. New writes emit `EdgePropSet`. **Files:** `WarpTypesV2.js`, `JoinReducer.js`, `PatchBuilderV2.js`, `KeyCodec.js`, `MessageSchemaDetector.js`
+
+### M12.T7 — Corruption Guard
+
+- **Status:** `PENDING`
+- **Size:** S | **Risk:** LOW
+- **Depends on:** —
+
+**Items:**
+
+- **B70** (PATCHBUILDER ASSERTNOTCOMMITTED) — Add `_committed` flag + `assertNotCommitted()` guard on all mutating methods in `PatchBuilderV2`. **Files:** `PatchBuilderV2.js`, `PatchBuilderV2.test.js`
+
+### M12.T8 — JANK Batch (J3, J4, J6, J7, J9, J10, J12–J19)
+
+- **Status:** `PENDING`
+- **Size:** L | **Risk:** LOW
+- **Depends on:** —
+
+**Items:**
+
+- **B117** (JANK BATCH) — 14 independent JANK fixes from STANK.md. Each is a small, isolated change:
+  - **J3:** Single `rev-parse` with exit-code handling in `readRef` (drop redundant `refExists` pre-check). **File:** `GitGraphAdapter.js:540-561`
+  - **J4:** Pooled concurrent blob reads in `readTree` (batch size 10-20). **File:** `GitGraphAdapter.js:458-467`
+  - **J6:** Use adjacency/neighbor index in `findAttachedData` instead of full E+P scan. **File:** `PatchBuilderV2.js:45-64`
+  - **J7:** Cache schema version after first `setEdgeProperty()`. **File:** `PatchBuilderV2.js:498,610`
+  - **J9:** Memoize in-flight promise in `CachedValue.get()`. **File:** `CachedValue.js:69-80`
+  - **J10:** Delete `fnv1a.js` (charCodeAt variant). Consolidate on `shardKey.js` (UTF-8 bytes). **Files:** `fnv1a.js`, callers
+  - **J12:** Freeze or clone state before returning from public materialization APIs. **Files:** `materialize.methods.js:230`, `materializeAdvanced.methods.js:223,460`
+  - **J13:** Remove redundant CAS pre-check in `PatchSession.commit()`. Let builder CAS be single source of truth. **File:** `PatchSession.js:212-221`
+  - **J14:** Catch only "not found" in checkpoint load; re-throw decode/corruption errors. **File:** `checkpoint.methods.js:168`
+  - **J15:** Return typed ok/error result from `TrustRecordService.readRecords` so verifier can distinguish failure from empty config. **Files:** `TrustRecordService.js:111`, `AuditVerifierService.js:672`
+  - **J16:** Rename `_hasSchema1Patches` to `_tipHasSchema1Patches` (or document tip-only semantics). **File:** `checkpoint.methods.js:237-248`
+  - **J17:** Add phase comments to `extractBaseArgs` state machine. **File:** `infrastructure.js:219-279`
+  - **J18:** Move `NATIVE_ROARING_AVAILABLE` into instance or lazy getter with test-reset support. **File:** `BitmapIndexBuilder.js:24-32`
+  - **J19:** Pre-compute labels key string in `_getNeighbors` cache key. **File:** `GraphTraversal.js:168-169`
+
+### M12.T9 — TSK TSK Cleanup (T1–T38)
+
+- **Status:** `PENDING`
+- **Size:** L | **Risk:** LOW
+- **Depends on:** —
+
+**Items:**
+
+- **B67** (T1: JOINREDUCER RECEIPT O(N*M)) — Maintain `dot -> elementId` reverse index in receipt-path removal outcome. **File:** `JoinReducer.js:192-278`
+- **B73** (T2: `orsetClone` VIA JOIN WITH EMPTY SET) — Add `orsetClone()` that directly copies entries + tombstones. **File:** `JoinReducer.js:854-862`
+- **B74** (T32: WRITER REENTRANCY COMMENT) — Document `_commitInProgress` safety. **File:** `Writer.js:180-195`
+- **B75** (T9: VV COUNTER=0 ELISION) — Document invariant + assert at serialization. **File:** `VersionVector.js:189-190`
+- **B118** (TSK TSK BATCH) — 34 remaining TSK TSK fixes grouped by file cluster. See STANK.md T3–T38 (excluding T2, T9, T32 tracked above):
+  - **JoinReducer cluster** (T3): Document optional `edgeBirthEvent`
+  - **CheckpointService cluster** (T4, T25, T26): Document schema:3 gap; always clone in compact path; index CONTENT_PROPERTY_KEY
+  - **GitGraphAdapter cluster** (T5, T6, T7): Inline delegation wrappers; extract shared commit logic; document NUL stripping
+  - **CRDT/Utils cluster** (T8, T10, T11, T12, T20, T21, T22, T37, T38): Skip sort for pre-sorted CBOR input; document lwwMax null-handling; consistent orsetJoin cloning; document SHA comparison order; head-index for DagTraversal/DagTopology `Array.shift()`; document Dot colon-parsing; cache `decodeDot()` in orsetSerialize; cache sorted keys in vvSerialize
+  - **Service/Error cluster** (T13–T19, T23–T24, T27–T31, T33–T36): Deep freeze simplification; mulberry32 docs; DRY `'props_'` prefix; WriterError constructor; StorageError hierarchy; canonicalStringify cycle detection; matchGlob cache eviction; LRUCache access tracking; SyncProtocol Map<->Object; redundant patch grouping; infrastructure preprocessView; schemas coerce bounds; StorageError context merging; RefLayout parseWriterIdFromRef; EventId validation; PatchSession post-commit error type; MaterializedViewService sample fallback; IncrementalIndexUpdater max-ID loop; getRoaringBitmap32 memoization
+
+**M12 Gate:** All 46 STANK.md issues resolved (fixed, documented as intentional, or explicitly deferred with trigger). Full test suite green. `WarpGraph.noCoordination.test.js` passes. No new tsc errors. Lint clean.
+
+### M12 Internal Dependency Graph
+
+```text
+M12.T1 (Sync) ──→ M12.T2 (Cache) ──→ M12.T3 (CRITs) ──→ M12.T6 (EdgeProp)
+                         │
+                         └──→ M12.T5 (Post-Commit)
+
+M12.T4 (Index) ─────────────────────── (independent)
+M12.T7 (Corruption) ────────────────── (independent)
+M12.T8 (JANK) ──────────────────────── (independent)
+M12.T9 (TSK TSK) ───────────────────── (independent, lowest priority)
+```
+
+### M12 Verification Protocol
+
+For every task:
+1. **Before starting:** Run `npm run test:local` and record pass count as baseline
+2. **After each file edit:** Run the file's specific test suite
+3. **Before committing:** Full `npm run test:local` — must match or exceed baseline
+4. **Critical gate:** `test/unit/domain/WarpGraph.noCoordination.test.js` must pass
+5. **Lint gate:** `npm run lint` must pass
+
+---
+
 ## Milestone 11 — COMPASS II
 
 **Theme:** Developer experience
@@ -122,42 +291,6 @@
 
 ---
 
-## Milestone 12 — SCALPEL
-
-**Theme:** Algorithmic performance & correctness guards
-**Objective:** Fix CRIT/STANK hotspots from the 2026-02-25 cognitive complexity audit. Eliminate O(N^2) and O(N*E) paths in core services.
-**Triage date:** 2026-02-25
-
-### M12.T1 — Critical Performance Fix
-
-- **Status:** `PENDING`
-
-**Items:**
-
-- **B66** (INCREMENTAL INDEX O(E) SCAN) — `IncrementalIndexUpdater.apply()` scans every alive edge on node re-add. O(N * E) with batch re-adds on a 1M-edge graph. Fix: use adjacency map (already in materialized state) for O(degree) lookup. Promoted from B-AUDIT-2 (CRIT). **File:** `src/domain/services/IncrementalIndexUpdater.js:107-127`
-
-### M12.T2 — Corruption Guard
-
-- **Status:** `PENDING`
-
-**Items:**
-
-- **B70** (PATCHBUILDER ASSERTNOTCOMMITTED) — `PatchBuilderV2` silently allows method calls after `commit()`, producing corrupt patches or silent no-ops. Add `_committed` flag + `assertNotCommitted()` guard on all mutating methods. From B-CODE-1. **Files:** `src/domain/services/PatchBuilderV2.js`, `test/unit/domain/services/PatchBuilderV2.test.js`
-
-### M12.T3 — Algorithmic Rewrites
-
-- **Status:** `PENDING`
-
-**Items:**
-
-- **B67** (JOINREDUCER RECEIPT O(N*M)) — `nodeRemoveOutcome()`/`edgeRemoveOutcome()` scan all OR-Set entries per observed dot. Fix: maintain persistent `dot → elementId` reverse index populated during `orsetAdd`. Promoted from B-AUDIT-3 (STANK). **Files:** `src/domain/services/JoinReducer.js:192-212, 258-278`
-- **B68** (TOPOLOGICALSORT O(N^2)) — ✅ Replaced sorted-array merge with MinHeap ready queue. O(N log N). Removed dead `_insertSorted` method. Promoted from B-AUDIT-5 (STANK). **File:** `src/domain/services/GraphTraversal.js`
-- **B69** (QUERYBUILDER UNBOUNDED FAN-OUT) — ✅ Added `batchMap()` (bounded concurrency, limit=100) + per-run `propsMemo` cache. Where-clause, result-building, and aggregation paths all use both. Promoted from B-AUDIT-6 (JANK). **File:** `src/domain/services/QueryBuilder.js`
-
-**M12 Gate:** B66 uses adjacency map (benchmark proves O(degree)); B67 reverse index passes receipt correctness tests; B68 topologicalSort benchmarks O(N log N); B69 fused where-pass green; B70 PatchBuilder throws on post-commit mutation.
-
----
-
 ## Standalone Lane (Ongoing)
 
 Items picked up opportunistically without blocking milestones. No milestone assignment.
@@ -170,10 +303,6 @@ Items picked up opportunistically without blocking milestones. No milestone assi
 | B47 | **`orsetAdd` DOT ARGUMENT VALIDATION** — domain boundary validation, prevents silent corruption |
 | B26 | **DER SPKI PREFIX CONSTANT** — named constant with RFC 8410 reference |
 | B71 | **PATCHBUILDER `console.warn` BYPASSES LOGGERPORT** — replace direct `console.warn()` with `this._logger?.warn()` in `removeNode`. From B-AUDIT-9 (JANK). **File:** `src/domain/services/PatchBuilderV2.js:252-256` |
-| B72 | **ZERO-OID CONSTRUCTION FRAGILE** — `'0'.repeat(newOid.length)` assumes SHA-1. Replace with `ZERO_OID` constant + length assert. From B-AUDIT-12 (TSK TSK). **File:** `src/infrastructure/adapters/GitGraphAdapter.js:579` |
-| B73 | **`orsetClone` VIA JOIN WITH EMPTY SET** — add `orsetClone()` that directly copies entries + tombstones instead of joining with empty set. From B-AUDIT-14 (TSK TSK). **File:** `src/domain/services/JoinReducer.js:854-862` |
-| B74 | **WRITER `commitPatch` REENTRANCY COMMENT** — document why `_commitInProgress` check-and-set is safe (JS single-threaded, synchronous check cannot be preempted). From B-AUDIT-17 (TSK TSK). **File:** `src/domain/warp/Writer.js:180-195` |
-| B75 | **VV COUNTER=0 ELISION** — document invariant ("VV entries with counter=0 are equivalent to absent entries") and assert at serialization time. From B-AUDIT-8 (JANK). **File:** `src/domain/crdt/VersionVector.js:189-190` |
 
 ### Near-Term
 
@@ -287,29 +416,30 @@ B5, B6, B13, B17, B18, B25, B45 — rejected 2026-02-17 with cause recorded in `
 
 ## Execution Order
 
-### Milestones: M10 → M11 → M12
+### Milestones: M10 → M12 → M11
 
-1. **M10 SENTINEL** — Trust + sync safety + correctness (B1, B39, B40, B63, B64, B65, B2 spec)
-2. **M11 COMPASS II** — Developer experience (B2 impl, B3, B11)
-3. **M12 SCALPEL** — Algorithmic performance + corruption guards (B66, B67, B68, B69, B70)
+1. **M10 SENTINEL** — Trust + sync safety + correctness (B1, B39, B40, B63, B64, B65, B2 spec) — DONE except B2 spec
+2. **M12 SCALPEL** — Comprehensive STANK audit cleanup (B105–B118, B66, B67, B70, B73–B75) — **TOP PRIORITY**
+3. **M11 COMPASS II** — Developer experience (B2 impl, B3, B11) — after STANK cleanup
 
-### Critical Path
+### M12 Critical Path
 
 ```text
-B1  ──→ [M10 GATE] ──→ B2(impl) ──→ [M11 GATE] ──→ B66 ──→ [M12 GATE]
-B39 ──┘      │          B3                            B70
-B40 ──┘      │          B11                           B67
-B63 ──┘      │                                        B68
-B64 ──┘      │                                        B69
-B65 ──┘      │
-B2(spec) ────┘
+T1 (Sync) ──→ T2 (Cache) ──→ T3 (CRITs) ──→ T6 (EdgeProp) ──→ [M12 GATE]
+                    │
+                    └──→ T5 (Post-Commit)
+
+T4 (Index) ─────── (independent, start anytime)
+T7 (Corruption) ── (independent, start anytime)
+T8 (JANK) ──────── (independent, start anytime)
+T9 (TSK TSK) ───── (independent, lowest priority)
 ```
 
 ### Standalone Priority Sequence
 
 Pick opportunistically between milestones. Recommended order within tiers:
 
-1. **Immediate** (B46, B47, B26, B71–B75) — any order, each ≤30 min
+1. **Immediate** (B46, B47, B26, B71) — any order, each <=30 min
 2. **Near-term correctness** (B44, B76, B80, B81) — prioritize items touching core services
 3. **Near-term DX** (B36, B37, B43, B82) — test ergonomics and developer velocity
 4. **Near-term docs/types** (B34, B35, B50, B52, B55) — alignment and documentation
@@ -331,12 +461,60 @@ Pick opportunistically between milestones. Recommended order within tiers:
 |--------|-------|-----|
 | **Milestone (M10)** | 7 | B1, B2(spec), B39, B40, B63, B64, B65 |
 | **Milestone (M11)** | 3 | B2(impl), B3, B11 |
-| **Milestone (M12)** | 5 | B66, B67, B68, B69, B70 |
-| **Standalone** | 52 | B12, B19, B22, B26, B28, B34–B37, B43, B44, B46–B55, B57, B71–B88, B91–B99, B102–B104 |
-| **Standalone (done)** | 2 | B89, B90 |
+| **Milestone (M12)** | 19 | B66, B67, B70, B73, B75, B105–B118 |
+| **Standalone** | 46 | B12, B19, B22, B26, B28, B34–B37, B43, B44, B46–B55, B57, B71, B76–B88, B91–B99, B102–B104 |
+| **Standalone (done)** | 3 | B72, B89, B90 |
 | **Deferred** | 8 | B4, B7, B16, B20, B21, B27, B100, B101 |
 | **Rejected** | 7 | B5, B6, B13, B17, B18, B25, B45 |
-| **Total tracked** | **84** (2 done) | |
+| **Total tracked** | **93** (3 done) | |
+
+### STANK.md Cross-Reference
+
+| STANK ID | Severity | B# | Disposition |
+|----------|----------|-----|-------------|
+| C1 | CRIT | B105 | M12.T1 |
+| C2 | CRIT | B106 | M12.T1 |
+| C3 | CRIT | B109 | M12.T3 |
+| C4 | CRIT | — | FIXED (M10) |
+| C5 | CRIT | B110 | M12.T3 |
+| C6 | CRIT | — | FIXED (M10) |
+| C7 | CRIT | B111 | M12.T3 |
+| C8 | CRIT | B112 | M12.T3 |
+| S1 | STANK | B108 | M12.T2 |
+| S2 | STANK | B116 | M12.T6 |
+| S3 | STANK | B107 | M12.T1 |
+| S4 | STANK | B72 | FIXED (M10) |
+| S5 | STANK | B66 | M12.T4 |
+| S6 | STANK | B113 | M12.T4 |
+| S7 | STANK | B114 | M12.T5 |
+| S8 | STANK | B115 | M12.T5 |
+| S9 | STANK | — | FIXED (M10) |
+| J1 | JANK | B68 | FIXED (M10) |
+| J2 | JANK | B69 | FIXED (M10) |
+| J3 | JANK | B117 | M12.T8 |
+| J4 | JANK | B117 | M12.T8 |
+| J5 | JANK | — | FIXED (M10) |
+| J6 | JANK | B117 | M12.T8 |
+| J7 | JANK | B117 | M12.T8 |
+| J8 | JANK | — | FIXED (M10) |
+| J9 | JANK | B117 | M12.T8 |
+| J10 | JANK | B117 | M12.T8 |
+| J11 | JANK | — | FIXED (M10) |
+| J12 | JANK | B117 | M12.T8 |
+| J13 | JANK | B117 | M12.T8 |
+| J14 | JANK | B117 | M12.T8 |
+| J15 | JANK | B117 | M12.T8 |
+| J16 | JANK | B117 | M12.T8 |
+| J17 | JANK | B117 | M12.T8 |
+| J18 | JANK | B117 | M12.T8 |
+| J19 | JANK | B117 | M12.T8 |
+| T1 | TSK TSK | B67 | M12.T9 |
+| T2 | TSK TSK | B73 | M12.T9 |
+| T3–T8 | TSK TSK | B118 | M12.T9 |
+| T9 | TSK TSK | B75 | M12.T9 |
+| T10–T31 | TSK TSK | B118 | M12.T9 |
+| T32 | TSK TSK | B74 | M12.T9 |
+| T33–T38 | TSK TSK | B118 | M12.T9 |
 
 ### B-Number Cross-Reference (Backlog → Roadmap)
 
@@ -346,19 +524,19 @@ Pick opportunistically between milestones. Recommended order within tiers:
 | B-AUDIT-2 (CRIT) | B66 | M12 |
 | B-AUDIT-3 (STANK) | B67 | M12 |
 | B-AUDIT-4 (STANK) | B76 | Standalone Near-Term |
-| B-AUDIT-5 (STANK) | B68 | M12 |
-| B-AUDIT-6 (JANK) | B69 | M12 |
+| B-AUDIT-5 (STANK) | B68 | M12 (DONE) |
+| B-AUDIT-6 (JANK) | B69 | M12 (DONE) |
 | B-AUDIT-7 (JANK) | B64 | M10 |
-| B-AUDIT-8 (JANK) | B75 | Standalone Immediate |
+| B-AUDIT-8 (JANK) | B75 | M12.T9 |
 | B-AUDIT-9 (JANK) | B71 | Standalone Immediate |
 | B-AUDIT-10 (JANK) | B80 | Standalone Near-Term |
 | B-AUDIT-11 (JANK) | B65 | M10 |
-| B-AUDIT-12 (TSK TSK) | B72 | Standalone Immediate |
+| B-AUDIT-12 (TSK TSK) | B72 | Standalone (DONE) |
 | B-AUDIT-13 (TSK TSK) | B77 | Standalone Near-Term |
-| B-AUDIT-14 (TSK TSK) | B73 | Standalone Immediate |
+| B-AUDIT-14 (TSK TSK) | B73 | M12.T9 |
 | B-AUDIT-15 (TSK TSK) | B78 | Standalone Near-Term |
 | B-AUDIT-16 (TSK TSK) | B79 | Standalone Near-Term |
-| B-AUDIT-17 (TSK TSK) | B74 | Standalone Immediate |
+| B-AUDIT-17 (TSK TSK) | B74 | M12.T9 |
 | B-CI-1 | B83 | CI & Tooling Pack |
 | B-CI-2 | B84 | CI & Tooling Pack |
 | B-CI-3 | B85 | CI & Tooling Pack |
@@ -375,22 +553,24 @@ Pick opportunistically between milestones. Recommended order within tiers:
 | B-DOC-1 | B86 | CI & Tooling Pack |
 | B-DOC-2 | B87 | CI & Tooling Pack |
 | B-DOC-3 | B102 | Process |
-| B-CODE-1 | B70 | M12 |
+| B-CODE-1 | B70 | M12.T7 |
 | B-CODE-2 | B81 | Standalone Near-Term |
 | B-DX-1 | B82 | Standalone Near-Term |
 | B-DX-2 | B103 | Process |
 | B-DIAG-1 | B104 | Process |
 | B-DIAG-2 | B88 | CI & Tooling Pack |
 | B-DIAG-3 | B101 | Deferred |
-| B-REL-1 | B89 | CI & Tooling Pack |
-| B-REL-2 | B90 | CI & Tooling Pack |
+| B-REL-1 | B89 | CI & Tooling Pack (DONE) |
+| B-REL-2 | B90 | CI & Tooling Pack (DONE) |
 
 ---
 
 ## Final Command
 
 Every milestone has a hard gate. No milestone blurs into the next.
-Execution: M10 SENTINEL → M11 COMPASS II → M12 SCALPEL. Standalone items fill the gaps.
+Execution: M10 SENTINEL → **M12 SCALPEL** → M11 COMPASS II. Standalone items fill the gaps.
+
+M12 is top priority. The STANK audit revealed data-loss vectors and O(N^2) paths in core services. These must be resolved before new features land.
 
 BACKLOG.md is now fully absorbed into this file. It can be archived or deleted.
 Rejected items live in `GRAVEYARD.md`. Resurrections require an RFC.

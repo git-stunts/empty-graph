@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Sync stale-read after apply (C1)** — `applySyncResponse` now routes through `_setMaterializedState()` instead of raw `_cachedState` assignment, rebuilding adjacency, indexes, and view. Previously queries after sync could return stale index/provider data. (B105)
+- **Unknown sync ops silently dropped (C2)** — `applySyncResponse` in `SyncProtocol` now validates every op against `isKnownOp()` before `join()`. Unknown ops throw `SchemaUnsupportedError` (fail closed) instead of being silently ignored. (B106)
+- **Sync divergence exception-as-control-flow (S3)** — `processSyncRequest` now performs an `isAncestor()` pre-check (when available on persistence) to detect diverged writers without the expensive chain walk. Falls back to `loadPatchRange` throw for adapters without `isAncestor`. (B107)
+
+### Changed
+
+- **`syncWith()` returns `skippedWriters`** — callers can now observe which writers were skipped during sync (e.g. due to divergence) via `result.skippedWriters`. (B105)
+- **Removed `_invalidateDerivedCaches()`** — replaced by canonical `_setMaterializedState()` path; derived caches are now rebuilt rather than nulled. (B105)
+
 ## [12.2.0] — 2026-02-27
 
 ### Changed
