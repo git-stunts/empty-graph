@@ -1,10 +1,21 @@
-import { describe, it, expect } from 'vitest';
-import BitmapIndexBuilder, { SHARD_VERSION } from '../../../../src/domain/services/BitmapIndexBuilder.js';
+import { describe, it, expect, beforeEach } from 'vitest';
+import BitmapIndexBuilder, {
+  SHARD_VERSION,
+  resetNativeRoaringFlag,
+} from '../../../../src/domain/services/BitmapIndexBuilder.js';
 
 describe('BitmapIndexBuilder', () => {
+  beforeEach(() => {
+    resetNativeRoaringFlag();
+  });
+
   describe('SHARD_VERSION export', () => {
     it('exports SHARD_VERSION as 2 (current format)', () => {
       expect(SHARD_VERSION).toBe(2);
+    });
+
+    it('exports resetNativeRoaringFlag for test isolation', () => {
+      expect(() => resetNativeRoaringFlag()).not.toThrow();
     });
   });
 
