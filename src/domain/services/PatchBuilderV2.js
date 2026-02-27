@@ -103,6 +103,15 @@ export class PatchBuilderV2 {
     /** @type {Function} */
     this._getCurrentState = getCurrentState; // Function to get current materialized state
 
+    /**
+     * Snapshot of state captured at construction time (C4).
+     * Lazily populated on first call to _getSnapshotState().
+     * Prevents TOCTOU races where concurrent writes change state
+     * between remove operations in the same patch.
+     * @type {import('./JoinReducer.js').WarpStateV5|null|undefined}
+     */
+    this._snapshotState = undefined; // undefined = not yet captured
+
     /** @type {string|null} */
     this._expectedParentSha = expectedParentSha;
 
@@ -154,6 +163,23 @@ export class PatchBuilderV2 {
      * @type {Set<string>}
      */
     this._writes = new Set();
+  }
+
+  /**
+   * Returns a snapshot of the current state, captured lazily on first call (C4).
+   *
+   * All remove operations within this patch observe dots from the same
+   * state snapshot, preventing TOCTOU races where concurrent writers
+   * change state between operations.
+   *
+   * @returns {import('./JoinReducer.js').WarpStateV5|null}
+   * @private
+   */
+  _getSnapshotState() {
+    if (this._snapshotState === undefined) {
+      this._snapshotState = this._getCurrentState() || null;
+    }
+    return this._snapshotState;
   }
 
   /**
@@ -213,7 +239,7 @@ export class PatchBuilderV2 {
    */
   removeNode(nodeId) {
     // Get observed dots from current state (orsetGetDots returns already-encoded dot strings)
-    const state = this._getCurrentState();
+    const state = this._getSnapshotState();
 
     // Cascade mode: auto-generate EdgeRemove ops for all connected edges before NodeRemove.
     // Generated ops appear in the patch for auditability.
@@ -330,7 +356,7 @@ export class PatchBuilderV2 {
    */
   removeEdge(from, to, label) {
     // Get observed dots from current state (orsetGetDots returns already-encoded dot strings)
-    const state = this._getCurrentState();
+    const state = this._getSnapshotState();
     const edgeKey = encodeEdgeKey(from, to, label);
     const observedDots = state ? [...orsetGetDots(state.edgeAlive, edgeKey)] : [];
     this._ops.push(createEdgeRemoveV2(from, to, label, observedDots));
@@ -418,7 +444,7 @@ export class PatchBuilderV2 {
     // Validate edge exists in this patch or in current state
     const ek = encodeEdgeKey(from, to, label);
     if (!this._edgesAdded.has(ek)) {
-      const state = this._getCurrentState();
+      const state = this._getSnapshotState();
       if (!state || !orsetContains(state.edgeAlive, ek)) {
         throw new Error(`Cannot set property on unknown edge (${from} → ${to} [${label}]): add the edge first`);
       }

@@ -530,6 +530,14 @@ export function join(otherState) {
   // Update cached state
   this._cachedState = mergedState;
 
+  // Invalidate derived caches (C1) — join changes underlying state
+  this._materializedGraph = null;
+  this._logicalIndex = null;
+  this._propertyReader = null;
+  this._cachedViewHash = null;
+  this._cachedIndexTree = null;
+  this._stateDirty = true;
+
   return { state: mergedState, receipt };
 }
 

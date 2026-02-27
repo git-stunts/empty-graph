@@ -9,6 +9,10 @@ import { COMMANDS } from './cli/commands/registry.js';
 
 const VIEW_SUPPORTED_COMMANDS = ['info', 'check', 'history', 'path', 'materialize', 'query', 'seek'];
 
+// C8: Capture output format early so the error handler can use it
+const hasJsonFlag = process.argv.includes('--json');
+const hasNdjsonFlag = process.argv.includes('--ndjson');
+
 /**
  * CLI entry point. Parses arguments, dispatches to the appropriate command handler,
  * and emits the result to stdout (JSON or human-readable).
@@ -78,8 +82,8 @@ main().catch((error) => {
     payload.error.cause = error.cause instanceof Error ? error.cause.message : error.cause;
   }
 
-  if (process.argv.includes('--json') || process.argv.includes('--ndjson')) {
-    const stringify = process.argv.includes('--ndjson') ? compactStringify : stableStringify;
+  if (hasJsonFlag || hasNdjsonFlag) {
+    const stringify = hasNdjsonFlag ? compactStringify : stableStringify;
     process.stdout.write(`${stringify(payload)}\n`);
   } else {
     process.stderr.write(renderError(payload));

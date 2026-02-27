@@ -268,11 +268,9 @@ export function computeSyncDelta(localFrontier, remoteFrontier) {
       newWritersForRemote.push(writerId);
     } else if (remoteSha !== localSha) {
       // Different heads - remote might need patches from its head to local head
-      // Only add if not already in needFromRemote (avoid double-counting)
-      // This handles the case where local is ahead of remote
-      if (!needFromRemote.has(writerId)) {
-        needFromLocal.set(writerId, { from: remoteSha, to: localSha });
-      }
+      // Always add both directions — ancestry is verified during loadPatchRange()
+      // which will throw E_SYNC_DIVERGENCE if neither side descends from the other (S3)
+      needFromLocal.set(writerId, { from: remoteSha, to: localSha });
     }
   }
 
@@ -401,6 +399,8 @@ export async function processSyncRequest(request, localFrontier, persistence, gr
 
   // Load patches that the requester needs (from local to requester)
   const patches = [];
+  /** @type {Array<{writerId: string, reason: string, localSha: string, remoteSha: string|null}>} */
+  const skippedWriters = [];
 
   for (const [writerId, range] of delta.needFromRemote) {
     try {
@@ -417,15 +417,20 @@ export async function processSyncRequest(request, localFrontier, persistence, gr
         patches.push({ writerId, sha, patch });
       }
     } catch (err) {
-      // If we detect divergence, log and skip this writer.
+      // If we detect divergence, log and skip this writer (B65).
       // The requester will not receive patches for this writer.
       if ((err instanceof Error && 'code' in err && /** @type {{ code: string }} */ (err).code === 'E_SYNC_DIVERGENCE') || (err instanceof Error && err.message?.includes('Divergence detected'))) {
+        const entry = {
+          writerId,
+          reason: 'E_SYNC_DIVERGENCE',
+          localSha: range.to,
+          remoteSha: range.from ?? '',
+        };
+        skippedWriters.push(entry);
         log.warn('Sync divergence detected — skipping writer', {
           code: 'E_SYNC_DIVERGENCE',
           graphName,
-          writerId,
-          localSha: range.to,
-          remoteSha: range.from,
+          ...entry,
         });
         continue;
       }
@@ -444,6 +449,7 @@ export async function processSyncRequest(request, localFrontier, persistence, gr
     type: /** @type {'sync-response'} */ ('sync-response'),
     frontier: frontierObj,
     patches,
+    skippedWriters,
   };
 }
 

@@ -575,8 +575,8 @@ export default class GitGraphAdapter extends GraphPersistencePort {
   async compareAndSwapRef(ref, newOid, expectedOid) {
     this._validateRef(ref);
     this._validateOid(newOid);
-    // null means "ref must not exist" → use zero OID
-    const oldArg = expectedOid || '0'.repeat(newOid.length);
+    // null means "ref must not exist" → use zero OID (always 40 chars for SHA-1)
+    const oldArg = expectedOid || '0'.repeat(40);
     if (expectedOid) {
       this._validateOid(expectedOid);
     }

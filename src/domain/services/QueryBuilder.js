@@ -10,6 +10,27 @@ import { matchGlob } from '../utils/matchGlob.js';
 const DEFAULT_PATTERN = '*';
 
 /**
+ * Processes items in batches with bounded concurrency.
+ *
+ * @template T, R
+ * @param {T[]} items - Items to process
+ * @param {(item: T) => Promise<R>} fn - Async function to apply to each item
+ * @param {number} [limit=100] - Maximum concurrent operations per batch
+ * @returns {Promise<R[]>} Results in input order
+ */
+async function batchMap(items, fn, limit = 100) {
+  const results = [];
+  for (let i = 0; i < items.length; i += limit) {
+    const batch = items.slice(i, i + limit);
+    const batchResults = await Promise.all(batch.map(fn));
+    for (const r of batchResults) {
+      results.push(r);
+    }
+  }
+  return results;
+}
+
+/**
  * @typedef {Object} QueryNodeSnapshot
  * @property {string} id - The unique identifier of the node
  * @property {Record<string, unknown>} props - Frozen snapshot of node properties
@@ -652,22 +673,33 @@ export default class QueryBuilder {
 
     const pattern = this._pattern ?? DEFAULT_PATTERN;
 
+    // Per-run props memo to avoid redundant getNodeProps calls
+    /** @type {Map<string, Map<string, unknown>>} */
+    const propsMemo = new Map();
+    const getProps = async (/** @type {string} */ nodeId) => {
+      const cached = propsMemo.get(nodeId);
+      if (cached !== undefined) {
+        return cached;
+      }
+      const propsMap = (await this._graph.getNodeProps(nodeId)) || new Map();
+      propsMemo.set(nodeId, propsMap);
+      return propsMap;
+    };
+
     let workingSet;
     workingSet = allNodes.filter((nodeId) => matchGlob(pattern, nodeId));
 
     for (const op of this._operations) {
       if (op.type === 'where') {
-        const snapshots = await Promise.all(
-          workingSet.map(async (nodeId) => {
-            const propsMap = (await this._graph.getNodeProps(nodeId)) || new Map();
-            const edgesOut = adjacency.outgoing.get(nodeId) || [];
-            const edgesIn = adjacency.incoming.get(nodeId) || [];
-            return {
-              nodeId,
-              snapshot: createNodeSnapshot({ id: nodeId, propsMap, edgesOut, edgesIn }),
-            };
-          })
-        );
+        const snapshots = await batchMap(workingSet, async (nodeId) => {
+          const propsMap = await getProps(nodeId);
+          const edgesOut = adjacency.outgoing.get(nodeId) || [];
+          const edgesIn = adjacency.incoming.get(nodeId) || [];
+          return {
+            nodeId,
+            snapshot: createNodeSnapshot({ id: nodeId, propsMap, edgesOut, edgesIn }),
+          };
+        });
         const predicate = /** @type {(node: QueryNodeSnapshot) => boolean} */ (op.fn);
         const filtered = snapshots
           .filter(({ snapshot }) => predicate(snapshot))
@@ -698,7 +730,7 @@ export default class QueryBuilder {
     }
 
     if (this._aggregate) {
-      return await this._runAggregate(workingSet, stateHash);
+      return await this._runAggregate(workingSet, stateHash, getProps);
     }
 
     const selected = this._select;
@@ -718,22 +750,20 @@ export default class QueryBuilder {
     const includeId = !selectFields || selectFields.includes('id');
     const includeProps = !selectFields || selectFields.includes('props');
 
-    const nodes = await Promise.all(
-      workingSet.map(async (nodeId) => {
-        const entry = {};
-        if (includeId) {
-          entry.id = nodeId;
+    const nodes = await batchMap(workingSet, async (nodeId) => {
+      const entry = {};
+      if (includeId) {
+        entry.id = nodeId;
+      }
+      if (includeProps) {
+        const propsMap = await getProps(nodeId);
+        const props = buildPropsSnapshot(propsMap);
+        if (selectFields || Object.keys(props).length > 0) {
+          entry.props = props;
         }
-        if (includeProps) {
-          const propsMap = (await this._graph.getNodeProps(nodeId)) || new Map();
-          const props = buildPropsSnapshot(propsMap);
-          if (selectFields || Object.keys(props).length > 0) {
-            entry.props = props;
-          }
-        }
-        return entry;
-      })
-    );
+      }
+      return entry;
+    });
 
     return { stateHash, nodes };
   }
@@ -747,10 +777,11 @@ export default class QueryBuilder {
    *
    * @param {string[]} workingSet - Array of matched node IDs
    * @param {string} stateHash - Hash of the materialized state
+   * @param {(nodeId: string) => Promise<Map<string, unknown>>} getProps - Memoized props fetcher
    * @returns {Promise<AggregateResult>} Object containing stateHash and requested aggregation values
    * @private
    */
-  async _runAggregate(workingSet, stateHash) {
+  async _runAggregate(workingSet, stateHash, getProps) {
     const spec = /** @type {AggregateSpec} */ (this._aggregate);
     /** @type {AggregateResult} */
     const result = { stateHash };
@@ -773,8 +804,10 @@ export default class QueryBuilder {
         });
       }
 
-      for (const nodeId of workingSet) {
-        const propsMap = (await this._graph.getNodeProps(nodeId)) || new Map();
+      // Pre-fetch all props with bounded concurrency
+      const propsList = await batchMap(workingSet, getProps);
+
+      for (const propsMap of propsList) {
         for (const { segments, values } of propsByAgg.values()) {
           /** @type {unknown} */
           let value = propsMap.get(segments[0]);

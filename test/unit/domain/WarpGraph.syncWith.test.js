@@ -25,7 +25,7 @@ describe('WarpGraph syncWith', () => {
   beforeEach(async () => {
     graph = await createGraph();
     /** @type {any} */ (graph)._cachedState = {};
-    vi.spyOn(/** @type {any} */ (graph)._syncController, 'applySyncResponse').mockReturnValue({ applied: 0 });
+    vi.spyOn(/** @type {any} */ (graph)._syncController, 'applySyncResponse').mockResolvedValue({ applied: 0 });
     vi.spyOn(/** @type {any} */ (graph)._syncController, 'createSyncRequest').mockResolvedValue({ type: 'sync-request', frontier: {} });
   });
 

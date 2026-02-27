@@ -242,6 +242,9 @@ export async function materialize(options) {
  * @private
  */
 export async function _materializeGraph() {
+  if (!this._stateDirty && this._materializedGraph) {
+    return this._materializedGraph;
+  }
   const state = await this.materialize();
   if (!this._materializedGraph || this._materializedGraph.state !== state) {
     await this._setMaterializedState(/** @type {import('../services/JoinReducer.js').WarpStateV5} */ (state));

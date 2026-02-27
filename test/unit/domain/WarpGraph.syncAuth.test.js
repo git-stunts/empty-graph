@@ -21,7 +21,7 @@ function mockClientGraph(/** @type {WarpGraph} */ graph) {
   const g = /** @type {Record<string, unknown>} */ (/** @type {unknown} */ (graph));
   g._cachedState = {};
   const sc = /** @type {Record<string, unknown>} */ (g._syncController);
-  sc.applySyncResponse = vi.fn().mockReturnValue({ applied: 0 });
+  sc.applySyncResponse = vi.fn().mockResolvedValue({ applied: 0 });
   sc.createSyncRequest = vi.fn().mockResolvedValue({ type: 'sync-request', frontier: {} });
 }
 

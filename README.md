@@ -8,10 +8,12 @@
   <img src="docs/images/hero.gif" alt="git-warp CLI demo" width="600">
 </p>
 
-## What's New in v12.1.0
+## What's New in v12.2.0
 
-- **Multi-pattern glob support** — `graph.observer()`, `query().match()`, and `translationCost()` now accept an array of glob patterns (e.g. `['campaign:*', 'milestone:*']`). Nodes matching *any* pattern in the array are included (OR semantics).
-- **Release preflight** — `npm run release:preflight` runs a 10-check local gate (version agreement, CHANGELOG, README, lint, types, tests, pack dry-runs) before tagging.
+- **O(N log N) topological sort** — `topologicalSort()` now uses a MinHeap ready queue instead of sorted-array merging, eliminating the O(N²) hot path for large DAGs.
+- **QueryBuilder batching + memoization** — property fetches are now bounded (chunks of 100) and cached per-run, reducing redundant I/O across where-clauses, result building, and aggregation.
+- **Fast materialization guard** — `_materializeGraph()` skips full materialization when cached state is clean, improving query/traversal latency.
+- **Checkpoint `visible.cbor` removed** — checkpoints no longer write the unused visible-projection blob, saving one serialize + blob write per checkpoint.
 
 See the [full changelog](CHANGELOG.md) for details.
 

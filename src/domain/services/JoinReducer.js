@@ -86,6 +86,22 @@ export function createEmptyStateV5() {
  * @param {import('../utils/EventId.js').EventId} eventId - Event ID for causality tracking
  * @returns {void}
  */
+/**
+ * Known V2 operation types. Used for forward-compatibility validation.
+ * @type {ReadonlySet<string>}
+ */
+const KNOWN_OPS = new Set(['NodeAdd', 'NodeRemove', 'EdgeAdd', 'EdgeRemove', 'PropSet', 'BlobValue']);
+
+/**
+ * Validates that an operation has a known type.
+ *
+ * @param {{ type: string }} op
+ * @returns {boolean} True if the op type is in KNOWN_OPS
+ */
+export function isKnownOp(op) {
+  return op && typeof op.type === 'string' && KNOWN_OPS.has(op.type);
+}
+
 export function applyOpV2(state, op, eventId) {
   switch (op.type) {
     case 'NodeAdd':

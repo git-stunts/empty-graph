@@ -111,8 +111,15 @@ export class TrustRecordService {
     if (!tip) {
       try {
         tip = await this._persistence.readRef(ref);
-      } catch {
-        return [];
+      } catch (err) {
+        // Distinguish "ref not found" from operational error (J15)
+        if (err instanceof Error && (err.message?.includes('not found') || err.message?.includes('does not exist'))) {
+          return [];
+        }
+        throw new TrustError(
+          `Failed to read trust chain ref: ${err instanceof Error ? err.message : String(err)}`,
+          { code: 'E_TRUST_READ_FAILED' },
+        );
       }
       if (!tip) {
         return [];
@@ -201,6 +208,62 @@ export class TrustRecordService {
     }
 
     return { valid: errors.length === 0, errors };
+  }
+
+  /**
+   * Appends a trust record with automatic retry on CAS conflict.
+   *
+   * On E_TRUST_CAS_CONFLICT, re-reads the chain tip, rebuilds the record
+   * with the new prev pointer, re-signs if a signer is provided, and
+   * retries. This is the higher-level API callers should use when they
+   * want automatic convergence under concurrent appenders.
+   *
+   * @param {string} graphName
+   * @param {Record<string, unknown>} record - Complete signed trust record
+   * @param {Object} [options]
+   * @param {number} [options.maxRetries=3] - Maximum rebuild-and-retry attempts
+   * @param {((record: Record<string, unknown>) => Promise<Record<string, unknown>>)|null} [options.resign] - Function to re-sign a rebuilt record (null for unsigned)
+   * @param {boolean} [options.skipSignatureVerify=false] - Skip signature verification
+   * @returns {Promise<{commitSha: string, ref: string, attempts: number}>}
+   * @throws {TrustError} E_TRUST_CAS_EXHAUSTED if all retries fail
+   */
+  async appendRecordWithRetry(graphName, record, options = {}) {
+    const { maxRetries = 3, resign = null, skipSignatureVerify = false } = options;
+    let currentRecord = record;
+    let attempts = 0;
+
+    for (let i = 0; i <= maxRetries; i++) {
+      attempts++;
+      try {
+        const result = await this.appendRecord(graphName, currentRecord, { skipSignatureVerify });
+        return { ...result, attempts };
+      } catch (err) {
+        if (!(err instanceof TrustError) || err.code !== 'E_TRUST_CAS_CONFLICT') {
+          throw err;
+        }
+
+        if (i === maxRetries) {
+          throw new TrustError(
+            `Trust CAS exhausted after ${attempts} attempts (with retry)`,
+            { code: 'E_TRUST_CAS_EXHAUSTED' },
+          );
+        }
+
+        // Rebuild: re-read chain tip, update prev pointer
+        const freshTipRecordId = err.context?.actualTipRecordId ?? null;
+
+        // Update prev to the new chain tip's recordId
+        currentRecord = { ...currentRecord, prev: freshTipRecordId };
+
+        // Re-sign if signer is provided
+        if (resign) {
+          currentRecord = await resign(currentRecord);
+        }
+      }
+    }
+
+    // Unreachable
+    throw new TrustError('Trust CAS failed', { code: 'E_TRUST_CAS_EXHAUSTED' });
   }
 
   /**

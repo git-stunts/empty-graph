@@ -290,19 +290,48 @@ export function orsetJoin(a, b) {
  *   All replicas are known to have observed at least this causal context.
  */
 export function orsetCompact(set, includedVV) {
+  // Collect deletions in temp arrays to avoid mutation-during-iteration (J8)
+  /** @type {Array<{element: string, dot: string}>} */
+  const toDelete = [];
+
   for (const [element, dots] of set.entries) {
     for (const encodedDot of dots) {
       const dot = decodeDot(encodedDot);
       // Only compact if: (1) dot is tombstoned AND (2) dot <= includedVV
       if (set.tombstones.has(encodedDot) && vvContains(includedVV, dot)) {
-        dots.delete(encodedDot);
-        set.tombstones.delete(encodedDot);
+        toDelete.push({ element, dot: encodedDot });
       }
     }
-    if (dots.size === 0) {
-      set.entries.delete(element);
-    }
   }
+
+  // Apply deletions
+  for (const { element, dot: encodedDot } of toDelete) {
+    const dots = set.entries.get(element);
+    if (dots) {
+      dots.delete(encodedDot);
+      if (dots.size === 0) {
+        set.entries.delete(element);
+      }
+    }
+    set.tombstones.delete(encodedDot);
+  }
+}
+
+/**
+ * Creates a deep clone of an ORSet.
+ *
+ * @param {ORSet} set - The ORSet to clone
+ * @returns {ORSet} A new ORSet with independent data structures
+ */
+export function orsetClone(set) {
+  const result = createORSet();
+  for (const [element, dots] of set.entries) {
+    result.entries.set(element, new Set(dots));
+  }
+  for (const dot of set.tombstones) {
+    result.tombstones.add(dot);
+  }
+  return result;
 }
 
 /**

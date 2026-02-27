@@ -195,6 +195,9 @@ export default class WarpGraph {
 
     /** @type {Record<string, Uint8Array>|null} */
     this._cachedIndexTree = null;
+
+    /** @type {boolean} */
+    this._indexDegraded = false;
   }
 
   /**

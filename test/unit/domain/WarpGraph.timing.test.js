@@ -249,7 +249,7 @@ describe('WarpGraph operation timing (LH/TIMING/1)', () => {
 
       // Pre-cache state so sync doesn't need to materialize
       /** @type {any} */ (graph)._cachedState = createEmptyStateV5();
-      /** @type {any} */ (graph)._syncController.applySyncResponse = vi.fn().mockReturnValue({ applied: 5 });
+      /** @type {any} */ (graph)._syncController.applySyncResponse = vi.fn().mockResolvedValue({ applied: 5 });
       /** @type {any} */ (graph)._syncController.createSyncRequest = vi.fn().mockResolvedValue({ type: 'sync-request', frontier: {} });
 
       const responsePayload = { type: 'sync-response', frontier: {}, patches: [] };
@@ -273,7 +273,7 @@ describe('WarpGraph operation timing (LH/TIMING/1)', () => {
       });
 
       /** @type {any} */ (graph)._cachedState = createEmptyStateV5();
-      /** @type {any} */ (graph)._syncController.applySyncResponse = vi.fn().mockReturnValue({ applied: 0 });
+      /** @type {any} */ (graph)._syncController.applySyncResponse = vi.fn().mockResolvedValue({ applied: 0 });
       /** @type {any} */ (graph)._syncController.createSyncRequest = vi.fn().mockResolvedValue({ type: 'sync-request', frontier: {} });
 
       const responsePayload = { type: 'sync-response', frontier: {}, patches: [] };

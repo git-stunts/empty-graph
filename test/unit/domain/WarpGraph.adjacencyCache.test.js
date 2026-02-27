@@ -82,7 +82,9 @@ describe('WarpGraph adjacency cache', () => {
     const buildSpy = vi.spyOn(graph, '_buildAdjacency');
 
     await graph._materializeGraph();
+    graph._stateDirty = true;
     await graph._materializeGraph();
+    graph._stateDirty = true;
     await graph._materializeGraph();
 
     expect(buildSpy).toHaveBeenCalledTimes(3);

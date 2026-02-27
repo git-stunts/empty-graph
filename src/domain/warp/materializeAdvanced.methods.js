@@ -167,6 +167,7 @@ export function _buildView(state, stateHash, diff) {
     this._propertyReader = result.propertyReader;
     this._cachedViewHash = stateHash;
     this._cachedIndexTree = result.tree;
+    this._indexDegraded = false;
 
     const provider = new BitmapNeighborProvider({ logicalIndex: result.logicalIndex });
     if (this._materializedGraph) {
@@ -176,6 +177,7 @@ export function _buildView(state, stateHash, diff) {
     this._logger?.warn('[warp] index build failed, falling back to linear scan', {
       error: /** @type {Error} */ (err).message,
     });
+    this._indexDegraded = true;
     this._logicalIndex = null;
     this._propertyReader = null;
     this._cachedIndexTree = null;
