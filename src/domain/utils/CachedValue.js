@@ -54,6 +54,9 @@ class CachedValue {
     /** @type {T|null} */
     this._value = null;
 
+    /** @type {Promise<T>|null} */
+    this._inflight = null;
+
     /** @type {number} */
     this._cachedAt = 0;
 
@@ -71,12 +74,25 @@ class CachedValue {
       return /** @type {T} */ (this._value);
     }
 
-    const value = await this._compute();
-    this._value = value;
-    this._cachedAt = this._clock.now();
-    this._cachedAtIso = this._clock.timestamp();
+    if (this._inflight) {
+      return await this._inflight;
+    }
 
-    return value;
+    this._inflight = Promise.resolve(this._compute()).then(
+      (value) => {
+        this._value = value;
+        this._cachedAt = this._clock.now();
+        this._cachedAtIso = this._clock.timestamp();
+        this._inflight = null;
+        return value;
+      },
+      (err) => {
+        this._inflight = null;
+        throw err;
+      },
+    );
+
+    return await this._inflight;
   }
 
   /**
@@ -100,6 +116,7 @@ class CachedValue {
    */
   invalidate() {
     this._value = null;
+    this._inflight = null;
     this._cachedAt = 0;
     this._cachedAtIso = null;
   }

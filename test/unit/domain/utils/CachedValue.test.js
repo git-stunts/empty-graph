@@ -132,6 +132,28 @@ describe('CachedValue', () => {
 
       expect(value).toBe('async value');
     });
+
+    it('memoizes in-flight compute for concurrent get calls', async () => {
+      const clock = createMockClock();
+      let resolveCompute;
+      const compute = vi.fn().mockImplementation(() => {
+        return new Promise((resolve) => {
+          resolveCompute = resolve;
+        });
+      });
+      const cache = new CachedValue({ clock, ttlMs: 5000, compute });
+
+      const first = cache.get();
+      const second = cache.get();
+
+      expect(compute).toHaveBeenCalledTimes(1);
+      resolveCompute('computed');
+
+      const [firstValue, secondValue] = await Promise.all([first, second]);
+      expect(firstValue).toBe('computed');
+      expect(secondValue).toBe('computed');
+      expect(compute).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('getWithMetadata', () => {
