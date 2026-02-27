@@ -226,7 +226,7 @@ export interface HopOptions {
  * Fluent query builder.
  */
 export class QueryBuilder {
-  match(pattern: string): QueryBuilder;
+  match(pattern: string | string[]): QueryBuilder;
   where(fn: ((node: QueryNodeSnapshot) => boolean) | Record<string, unknown>): QueryBuilder;
   outgoing(label?: string, options?: HopOptions): QueryBuilder;
   incoming(label?: string, options?: HopOptions): QueryBuilder;
@@ -1194,8 +1194,8 @@ export const CONTENT_PROPERTY_KEY: '_content';
  * Configuration for an observer view.
  */
 export interface ObserverConfig {
-  /** Glob pattern for visible nodes (e.g. 'user:*') */
-  match: string;
+  /** Glob pattern or array of patterns for visible nodes (e.g. 'user:*' or ['user:*', 'team:*']) */
+  match: string | string[];
   /** Property keys to include (whitelist). If omitted, all non-redacted properties are visible. */
   expose?: string[];
   /** Property keys to exclude (blacklist). Takes precedence over expose. */

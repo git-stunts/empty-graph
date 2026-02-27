@@ -13,6 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Multi-pattern glob support** — `graph.observer()`, `query().match()`, and `translationCost()` now accept an array of glob patterns (e.g. `['campaign:*', 'milestone:*']`). Nodes matching *any* pattern in the array are included (OR semantics).
 - **Centralized `matchGlob` utility** (`src/domain/utils/matchGlob.js`) — unified glob matching logic with regex caching and support for array-based multi-pattern matching.
+- **Release preflight** — `npm run release:preflight` runs a 10-check local gate before tagging. CI (`release.yml`) now also enforces CHANGELOG and README checks on tag push.
+
+### Fixed
+
+- **Type declarations for multi-pattern glob** — `index.d.ts` `QueryBuilder.match()` and `ObserverConfig.match` now accept `string | string[]`, matching runtime behavior. JSDoc annotations updated in `ObserverView`, `QueryBuilder`, `TranslationCost`, and `query.methods`.
 
 ### [12.0.0] — 2026-02-25
 

@@ -66,7 +66,7 @@ function sortNeighbors(list) {
  * Builds filtered adjacency maps by scanning all edges in the OR-Set.
  *
  * @param {import('./JoinReducer.js').WarpStateV5} state
- * @param {string} pattern
+ * @param {string|string[]} pattern
  * @returns {{ outgoing: Map<string, NeighborEntry[]>, incoming: Map<string, NeighborEntry[]> }}
  */
 function buildAdjacencyFromEdges(state, pattern) {
@@ -168,7 +168,7 @@ export default class ObserverView {
     /** @type {string} */
     this._name = name;
 
-    /** @type {string} */
+    /** @type {string|string[]} */
     this._matchPattern = config.match;
 
     /** @type {string[]|undefined} */
