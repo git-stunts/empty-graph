@@ -35,7 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Type declarations for multi-pattern glob** — `index.d.ts` `QueryBuilder.match()` and `ObserverConfig.match` now accept `string | string[]`, matching runtime behavior. JSDoc annotations updated in `ObserverView`, `QueryBuilder`, `TranslationCost`, and `query.methods`.
 
-### [12.0.0] — 2026-02-25
+## [12.0.0] — 2026-02-25
 
 ### Changed
 
