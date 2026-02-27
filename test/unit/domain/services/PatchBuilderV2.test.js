@@ -764,9 +764,50 @@ describe('PatchBuilderV2', () => {
       expect(() => builder.setEdgeProperty('a', 'b', 'rel', 'since', '2026-01-01')).toThrow('PatchBuilder already committed — create a new builder');
     });
 
+    it('throws after commit when calling attachContent', async () => {
+      const { builder, persistence } = await createCommittedBuilder();
+      const initialWriteBlobCalls = persistence.writeBlob.mock.calls.length;
+      await expect(builder.attachContent('x', 'payload')).rejects.toThrow('PatchBuilder already committed — create a new builder');
+      expect(persistence.writeBlob).toHaveBeenCalledTimes(initialWriteBlobCalls);
+    });
+
+    it('throws after commit when calling attachEdgeContent', async () => {
+      const { builder, persistence } = await createCommittedBuilder();
+      const initialWriteBlobCalls = persistence.writeBlob.mock.calls.length;
+      await expect(builder.attachEdgeContent('a', 'b', 'rel', 'payload')).rejects.toThrow('PatchBuilder already committed — create a new builder');
+      expect(persistence.writeBlob).toHaveBeenCalledTimes(initialWriteBlobCalls);
+    });
+
     it('throws after commit when calling commit again', async () => {
       const { builder } = await createCommittedBuilder();
       await expect(builder.commit()).rejects.toThrow('PatchBuilder already committed — create a new builder');
+    });
+
+    it('throws during an in-flight commit when mutating or committing again', async () => {
+      /** @type {(value: string|null) => void} */
+      let releaseReadRef = () => {};
+      const readRefPromise = /** @type {Promise<string|null>} */ (new Promise((resolve) => {
+        releaseReadRef = resolve;
+      }));
+      const persistence = createMockPersistence();
+      persistence.readRef.mockImplementation(() => readRefPromise);
+      const builder = new PatchBuilderV2(/** @type {any} */ ({
+        persistence,
+        graphName: 'test-graph',
+        writerId: 'writer1',
+        lamport: 1,
+        versionVector: createVersionVector(),
+        getCurrentState: () => null,
+      }));
+
+      builder.addNode('x');
+      const pendingCommit = builder.commit();
+
+      expect(() => builder.addNode('y')).toThrow('PatchBuilder already committed — create a new builder');
+      await expect(builder.commit()).rejects.toThrow('PatchBuilder already committed — create a new builder');
+
+      releaseReadRef(null);
+      await expect(pendingCommit).resolves.toBe('c'.repeat(40));
     });
 
     it('allows reading ops/reads/writes/versionVector after commit', async () => {
@@ -806,6 +847,7 @@ describe('PatchBuilderV2', () => {
       builder.addNode('x');
       await expect(builder.commit()).rejects.toThrow('simulated updateRef failure');
       expect(/** @type {any} */ (builder)._committed).toBe(false);
+      expect(/** @type {any} */ (builder)._committing).toBe(false);
     });
   });
 

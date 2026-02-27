@@ -172,6 +172,9 @@ export class PatchBuilderV2 {
 
     /** @type {boolean} */
     this._committed = false;
+
+    /** @type {boolean} */
+    this._committing = false;
   }
 
   /**
@@ -192,11 +195,11 @@ export class PatchBuilderV2 {
   }
 
   /**
-   * Throws if this builder has already been committed.
+   * Throws if this builder is no longer open for mutation.
    * @private
    */
   _assertNotCommitted() {
-    if (this._committed) {
+    if (this._committed || this._committing) {
       throw new Error('PatchBuilder already committed — create a new builder');
     }
   }
@@ -564,20 +567,24 @@ export class PatchBuilderV2 {
    * Commits the patch to the graph.
    *
    * This method performs the following steps atomically:
-   * 1. Validates the patch is non-empty
-   * 2. Checks for concurrent modifications (compare-and-swap on writer ref)
-   * 3. Calculates the next lamport timestamp from the parent commit
-   * 4. Builds the PatchV2 structure with the resolved lamport
-   * 5. Encodes the patch as CBOR and writes it as a Git blob
-   * 6. Creates a Git tree containing the patch blob
-   * 7. Creates a commit with proper trailers linking to the parent
-   * 8. Updates the writer ref to point to the new commit
-   * 9. Invokes the success callback if provided (for eager re-materialization)
+   * 1. Verifies this builder is still open (not committed and not in-flight)
+   * 2. Validates the patch is non-empty
+   * 3. Checks for concurrent modifications (compare-and-swap on writer ref)
+   * 4. Calculates the next lamport timestamp from the parent commit
+   * 5. Builds the PatchV2 structure with the resolved lamport
+   * 6. Encodes the patch as CBOR and writes it as a Git blob
+   * 7. Creates a Git tree containing the patch blob
+   * 8. Creates a commit with proper trailers linking to the parent
+   * 9. Updates the writer ref to point to the new commit
+   * 10. Invokes the success callback if provided (for eager re-materialization)
    *
    * The commit is written to the writer's patch chain at:
    * `refs/warp/<graphName>/writers/<writerId>`
    *
    * @returns {Promise<string>} The commit SHA of the new patch commit
+   * @throws {Error} If this builder has already been committed, or a commit
+   *   is currently in-flight on this builder.
+   *   Message: `"PatchBuilder already committed — create a new builder"`
    * @throws {Error} If the patch is empty (no operations were added).
    *   Message: `"Cannot commit empty patch: no operations added"`
    * @throws {WriterError} If a concurrent commit was detected (another process
@@ -606,116 +613,121 @@ export class PatchBuilderV2 {
    */
   async commit() {
     this._assertNotCommitted();
-    // 1. Reject empty patches
-    if (this._ops.length === 0) {
-      throw new Error('Cannot commit empty patch: no operations added');
-    }
+    this._committing = true;
+    try {
+      // 2. Reject empty patches
+      if (this._ops.length === 0) {
+        throw new Error('Cannot commit empty patch: no operations added');
+      }
 
-    // 2. Race detection: check if writer ref has advanced since builder creation
-    const writerRef = buildWriterRef(this._graphName, this._writerId);
-    const currentRefSha = await this._persistence.readRef(writerRef);
+      // 3. Race detection: check if writer ref has advanced since builder creation
+      const writerRef = buildWriterRef(this._graphName, this._writerId);
+      const currentRefSha = await this._persistence.readRef(writerRef);
 
-    if (currentRefSha !== this._expectedParentSha) {
-      const err = /** @type {WriterError & { expectedSha: string|null, actualSha: string|null }} */ (new WriterError(
-        'WRITER_CAS_CONFLICT',
-        'Commit failed: writer ref was updated by another process. Re-materialize and retry.'
-      ));
-      err.expectedSha = this._expectedParentSha;
-      err.actualSha = currentRefSha;
-      throw err;
-    }
+      if (currentRefSha !== this._expectedParentSha) {
+        const err = /** @type {WriterError & { expectedSha: string|null, actualSha: string|null }} */ (new WriterError(
+          'WRITER_CAS_CONFLICT',
+          'Commit failed: writer ref was updated by another process. Re-materialize and retry.'
+        ));
+        err.expectedSha = this._expectedParentSha;
+        err.actualSha = currentRefSha;
+        throw err;
+      }
 
-    // 3. Calculate lamport and parent from current ref state.
-    // Start from this._lamport (set by _nextLamport() in createPatch()), which already
-    // incorporates the globally-observed max Lamport tick via _maxObservedLamport.
-    // This ensures a first-time writer whose own chain is empty still commits at a tick
-    // above any previously-observed writer, winning LWW tiebreakers correctly.
-    let lamport = this._lamport;
-    let parentCommit = null;
+      // 4. Calculate lamport and parent from current ref state.
+      // Start from this._lamport (set by _nextLamport() in createPatch()), which already
+      // incorporates the globally-observed max Lamport tick via _maxObservedLamport.
+      // This ensures a first-time writer whose own chain is empty still commits at a tick
+      // above any previously-observed writer, winning LWW tiebreakers correctly.
+      let lamport = this._lamport;
+      let parentCommit = null;
 
-    if (currentRefSha) {
-      parentCommit = currentRefSha;
-      // Read the current patch commit to get its lamport timestamp and take the max,
-      // so the chain stays monotonic even if the ref advanced since createPatch().
-      const commitMessage = await this._persistence.showNode(currentRefSha);
-      const kind = detectMessageKind(commitMessage);
+      if (currentRefSha) {
+        parentCommit = currentRefSha;
+        // Read the current patch commit to get its lamport timestamp and take the max,
+        // so the chain stays monotonic even if the ref advanced since createPatch().
+        const commitMessage = await this._persistence.showNode(currentRefSha);
+        const kind = detectMessageKind(commitMessage);
 
-      if (kind === 'patch') {
-        let patchInfo;
-        try {
-          patchInfo = decodePatchMessage(commitMessage);
-        } catch (err) {
-          throw new Error(
-            `Failed to parse lamport from writer ref ${writerRef}: ` +
-            `commit ${currentRefSha} has invalid patch message format`,
-            { cause: err }
-          );
+        if (kind === 'patch') {
+          let patchInfo;
+          try {
+            patchInfo = decodePatchMessage(commitMessage);
+          } catch (err) {
+            throw new Error(
+              `Failed to parse lamport from writer ref ${writerRef}: ` +
+              `commit ${currentRefSha} has invalid patch message format`,
+              { cause: err }
+            );
+          }
+          lamport = Math.max(this._lamport, patchInfo.lamport + 1);
         }
-        lamport = Math.max(this._lamport, patchInfo.lamport + 1);
+        // Non-patch ref (checkpoint, etc.): keep lamport from this._lamport
+        // (already incorporates _maxObservedLamport), matching _nextLamport() behavior.
       }
-      // Non-patch ref (checkpoint, etc.): keep lamport from this._lamport
-      // (already incorporates _maxObservedLamport), matching _nextLamport() behavior.
-    }
 
-    // 4. Build PatchV2 structure with correct lamport
-    // Note: Dots were assigned using constructor lamport, but commit lamport may differ.
-    // For now, we use the calculated lamport for the patch metadata.
-    // The dots themselves are independent of patch lamport (they use VV counters).
-    const schema = this._ops.some(op => op.type === 'PropSet' && op.node.charCodeAt(0) === 1) ? 3 : 2;
-    // Use createPatchV2 for consistent patch construction (DRY with build())
-    const patch = createPatchV2({
-      schema,
-      writer: this._writerId,
-      lamport,
-      context: vvSerialize(this._vv),
-      ops: this._ops,
-      reads: [...this._observedOperands].sort(),
-      writes: [...this._writes].sort(),
-    });
+      // 5. Build PatchV2 structure with correct lamport
+      // Note: Dots were assigned using constructor lamport, but commit lamport may differ.
+      // For now, we use the calculated lamport for the patch metadata.
+      // The dots themselves are independent of patch lamport (they use VV counters).
+      const schema = this._ops.some(op => op.type === 'PropSet' && op.node.charCodeAt(0) === 1) ? 3 : 2;
+      // Use createPatchV2 for consistent patch construction (DRY with build())
+      const patch = createPatchV2({
+        schema,
+        writer: this._writerId,
+        lamport,
+        context: vvSerialize(this._vv),
+        ops: this._ops,
+        reads: [...this._observedOperands].sort(),
+        writes: [...this._writes].sort(),
+      });
 
-    // 5. Encode patch as CBOR and write as a Git blob
-    const patchCbor = this._codec.encode(patch);
-    const patchBlobOid = await this._persistence.writeBlob(/** @type {Buffer} */ (patchCbor));
+      // 6. Encode patch as CBOR and write as a Git blob
+      const patchCbor = this._codec.encode(patch);
+      const patchBlobOid = await this._persistence.writeBlob(/** @type {Buffer} */ (patchCbor));
 
-    // 6. Create tree with the patch blob + any content blobs (deduplicated)
-    // Format for mktree: "mode type oid\tpath"
-    const treeEntries = [`100644 blob ${patchBlobOid}\tpatch.cbor`];
-    const uniqueBlobs = [...new Set(this._contentBlobs)];
-    for (const blobOid of uniqueBlobs) {
-      treeEntries.push(`100644 blob ${blobOid}\t_content_${blobOid}`);
-    }
-    const treeOid = await this._persistence.writeTree(treeEntries);
-
-    // 7. Create commit with proper trailers linking to the parent
-    const commitMessage = encodePatchMessage({
-      graph: this._graphName,
-      writer: this._writerId,
-      lamport,
-      patchOid: patchBlobOid,
-      schema,
-    });
-    const parents = parentCommit ? [parentCommit] : [];
-    const newCommitSha = await this._persistence.commitNodeWithTree({
-      treeOid,
-      parents,
-      message: commitMessage,
-    });
-
-    // 8. Update writer ref to point to new commit
-    await this._persistence.updateRef(writerRef, newCommitSha);
-
-    // 9. Notify success callback (updates graph's version vector + eager re-materialize)
-    if (this._onCommitSuccess) {
-      try {
-        await this._onCommitSuccess({ patch, sha: newCommitSha });
-      } catch (err) {
-        // Commit is already persisted — log but don't fail the caller.
-        this._logger.warn(`[warp] onCommitSuccess callback failed (sha=${newCommitSha}):`, err);
+      // 7. Create tree with the patch blob + any content blobs (deduplicated)
+      // Format for mktree: "mode type oid\tpath"
+      const treeEntries = [`100644 blob ${patchBlobOid}\tpatch.cbor`];
+      const uniqueBlobs = [...new Set(this._contentBlobs)];
+      for (const blobOid of uniqueBlobs) {
+        treeEntries.push(`100644 blob ${blobOid}\t_content_${blobOid}`);
       }
-    }
+      const treeOid = await this._persistence.writeTree(treeEntries);
 
-    this._committed = true;
-    return newCommitSha;
+      // 8. Create commit with proper trailers linking to the parent
+      const commitMessage = encodePatchMessage({
+        graph: this._graphName,
+        writer: this._writerId,
+        lamport,
+        patchOid: patchBlobOid,
+        schema,
+      });
+      const parents = parentCommit ? [parentCommit] : [];
+      const newCommitSha = await this._persistence.commitNodeWithTree({
+        treeOid,
+        parents,
+        message: commitMessage,
+      });
+
+      // 9. Update writer ref to point to new commit
+      await this._persistence.updateRef(writerRef, newCommitSha);
+
+      // 10. Notify success callback (updates graph's version vector + eager re-materialize)
+      if (this._onCommitSuccess) {
+        try {
+          await this._onCommitSuccess({ patch, sha: newCommitSha });
+        } catch (err) {
+          // Commit is already persisted — log but don't fail the caller.
+          this._logger.warn(`[warp] onCommitSuccess callback failed (sha=${newCommitSha}):`, err);
+        }
+      }
+
+      this._committed = true;
+      return newCommitSha;
+    } finally {
+      this._committing = false;
+    }
   }
 
   /**
