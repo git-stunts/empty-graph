@@ -4,6 +4,7 @@
 
 import { orsetCompact } from '../crdt/ORSet.js';
 import { collectGCMetrics } from './GCMetrics.js';
+import WarpError from '../errors/WarpError.js';
 
 /**
  * @typedef {Object} GCPolicy
@@ -92,21 +93,41 @@ export function shouldRunGC(metrics, policy) {
 
 /**
  * Executes GC on state. Only compacts tombstoned dots <= appliedVV.
- * Mutates state in place.
+ * Mutates state **in place** — callers must clone-then-swap to preserve
+ * a rollback copy (see CheckpointService for the canonical pattern).
  *
  * @param {import('./JoinReducer.js').WarpStateV5} state - State to compact (mutated!)
  * @param {import('../crdt/VersionVector.js').VersionVector} appliedVV - Version vector cutoff
  * @returns {GCExecuteResult}
+ * @throws {WarpError} E_GC_INVALID_VV if appliedVV is not a Map
+ * @throws {WarpError} E_GC_COMPACT_FAILED if orsetCompact throws
  */
 export function executeGC(state, appliedVV) {
+  if (!(appliedVV instanceof Map)) {
+    throw new WarpError(
+      'executeGC requires appliedVV to be a Map (VersionVector)',
+      'E_GC_INVALID_VV',
+    );
+  }
+
   const startTime = performance.now();
 
   // Collect metrics before compaction
   const beforeMetrics = collectGCMetrics(state);
 
-  // Compact both ORSets
-  orsetCompact(state.nodeAlive, appliedVV);
-  orsetCompact(state.edgeAlive, appliedVV);
+  // Compact both ORSets — wrap each phase so partial failure is diagnosable
+  let nodesDone = false;
+  try {
+    orsetCompact(state.nodeAlive, appliedVV);
+    nodesDone = true;
+    orsetCompact(state.edgeAlive, appliedVV);
+  } catch {
+    throw new WarpError(
+      `GC compaction failed during ${nodesDone ? 'edgeAlive' : 'nodeAlive'} phase`,
+      'E_GC_COMPACT_FAILED',
+      { context: { phase: nodesDone ? 'edgeAlive' : 'nodeAlive', partialCompaction: nodesDone } },
+    );
+  }
 
   // Collect metrics after compaction
   const afterMetrics = collectGCMetrics(state);

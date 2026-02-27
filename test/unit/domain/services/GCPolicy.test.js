@@ -4,6 +4,7 @@ import {
   shouldRunGC,
   executeGC,
 } from '../../../../src/domain/services/GCPolicy.js';
+import WarpError from '../../../../src/domain/errors/WarpError.js';
 import {
   collectGCMetrics,
   countLiveDots,
@@ -220,6 +221,19 @@ describe('GCPolicy', () => {
       expect(result.nodesCompacted).toBe(0);
       expect(result.tombstonesRemoved).toBe(1);
       expect(result.durationMs).toBeGreaterThanOrEqual(0);
+    });
+
+    it('throws E_GC_INVALID_VV when appliedVV is not a Map', () => {
+      const state = createEmptyStateV5();
+
+      for (const bad of [{}, null, undefined]) {
+        expect(() => executeGC(state, /** @type {any} */ (bad))).toThrow(WarpError);
+        try {
+          executeGC(state, /** @type {any} */ (bad));
+        } catch (err) {
+          expect(err.code).toBe('E_GC_INVALID_VV');
+        }
+      }
     });
 
     it('compacts both nodes and edges in one call', () => {
