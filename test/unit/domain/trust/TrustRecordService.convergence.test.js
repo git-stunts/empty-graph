@@ -338,7 +338,12 @@ describe('Invariant 3 — CAS convergence (appendRecordWithRetry)', () => {
     expect(result.attempts).toBeGreaterThanOrEqual(2);
 
     // Now read back the chain and verify prev pointers
-    const records = await service.readRecords('test-graph');
+    const readResult = await service.readRecords('test-graph');
+    expect(readResult.ok).toBe(true);
+    if (!readResult.ok) {
+      throw readResult.error;
+    }
+    const records = readResult.records;
 
     // Should have at least 2 records: genesis + the concurrent append
     expect(records.length).toBeGreaterThanOrEqual(2);

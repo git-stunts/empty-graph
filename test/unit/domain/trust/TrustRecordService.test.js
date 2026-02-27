@@ -208,16 +208,38 @@ describe('TrustRecordService.readRecords', () => {
     });
   });
 
-  it('returns empty array when no chain exists', async () => {
-    const records = await service.readRecords('test-graph');
-    expect(records).toEqual([]);
+  it('returns ok=true with empty records when no chain exists', async () => {
+    const result = await service.readRecords('test-graph');
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw result.error;
+    }
+    expect(result.records).toEqual([]);
+  });
+
+  it('returns ok=false when trust ref read fails', async () => {
+    persistence.readRef = async () => {
+      throw new Error('permission denied');
+    };
+
+    const result = await service.readRecords('test-graph');
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      throw new Error('Expected readRecords to fail');
+    }
+    expect(result.error.message).toContain('Failed to read trust chain ref');
   });
 
   it('reads back appended records in order', async () => {
     await service.appendRecord('test-graph', KEY_ADD_1, { skipSignatureVerify: true });
     await service.appendRecord('test-graph', KEY_ADD_2, { skipSignatureVerify: true });
 
-    const records = await service.readRecords('test-graph');
+    const result = await service.readRecords('test-graph');
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw result.error;
+    }
+    const records = result.records;
     expect(records).toHaveLength(2);
     expect(records[0].recordId).toBe(KEY_ADD_1.recordId);
     expect(records[1].recordId).toBe(KEY_ADD_2.recordId);
@@ -228,7 +250,12 @@ describe('TrustRecordService.readRecords', () => {
     await service.appendRecord('test-graph', KEY_ADD_2, { skipSignatureVerify: true });
     await service.appendRecord('test-graph', WRITER_BIND_ADD_ALICE, { skipSignatureVerify: true });
 
-    const records = await service.readRecords('test-graph');
+    const result = await service.readRecords('test-graph');
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw result.error;
+    }
+    const records = result.records;
     expect(records).toHaveLength(3);
     expect(records[0].recordType).toBe('KEY_ADD');
     expect(records[1].recordType).toBe('KEY_ADD');

@@ -667,7 +667,37 @@ export class AuditVerifierService {
       codec: this._codec,
     });
 
-    const records = await recordService.readRecords(graphName, options.pin ? { tip: options.pin } : {});
+    const recordsResult = await recordService.readRecords(graphName, options.pin ? { tip: options.pin } : {});
+    if (!recordsResult.ok) {
+      return {
+        trustSchemaVersion: 1,
+        mode: 'signed_evidence_v1',
+        trustVerdict: 'fail',
+        trust: {
+          status: 'error',
+          source: options.pin ? 'pinned' : 'none',
+          sourceDetail: options.pin ?? null,
+          evaluatedWriters: [],
+          untrustedWriters: [],
+          explanations: [
+            {
+              writerId: '*',
+              trusted: false,
+              reasonCode: 'TRUST_RECORD_CHAIN_INVALID',
+              reason: `Trust chain read failed: ${recordsResult.error.message}`,
+            },
+          ],
+          evidenceSummary: {
+            recordsScanned: 0,
+            activeKeys: 0,
+            revokedKeys: 0,
+            activeBindings: 0,
+            revokedBindings: 0,
+          },
+        },
+      };
+    }
+    const { records } = recordsResult;
 
     if (records.length === 0) {
       return {
@@ -704,4 +734,3 @@ export class AuditVerifierService {
     return evaluateWriters(writerIds, trustState, policy);
   }
 }
-
