@@ -23,6 +23,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **JoinReducer validation tests (C2/C3)** — 7 tests documenting unknown-op-type silent ignore (forward-compat baseline), empty ops/patches safety, and malformed-op crash behavior on both fast and receipt paths.
 - **BATS trust-sync tests** — `cli-trust-sync.bats` (4 tests) + `seed-trust-sync.js` helper exercising trust evaluation with multiple writers: enforce+untrusted exit 4, warn exit 0, JSON shape with evaluatedWriters/untrustedWriters, trusted-only pass.
 
+### Fixed
+
+- **Poll validation hardened** — `watch()` now rejects `NaN` and `Infinity` via `Number.isFinite()` and uses `poll !== undefined` instead of truthiness gating to prevent silent no-ops.
+- **Empty array pattern rejection** — `observer()`, `watch()`, and `translationCost()` now reject empty arrays (`[]`) as match patterns instead of silently creating no-op watchers.
+- **JSDoc type consistency** — `translationCost()` param types updated from `{string}` to `{string|string[]}` and `watch()` `@throws` updated to reflect array support.
+
 ## [12.1.0] — 2026-02-25
 
 ### Added
