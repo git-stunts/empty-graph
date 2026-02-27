@@ -408,7 +408,8 @@ describe('HttpSyncServer auth integration', () => {
       await server.listen(9999);
       const handler = mock.getHandler();
 
-      const bodyObj = { type: 'sync-request', frontier: {}, patches: { eve: [] } };
+      // Writer whitelist is checked via frontier keys (B1)
+      const bodyObj = { type: 'sync-request', frontier: { eve: 'a'.repeat(40) } };
       const { body, headers } = await signedBody(bodyObj);
       const res = await handler({
         method: 'POST',
@@ -431,7 +432,8 @@ describe('HttpSyncServer auth integration', () => {
       await server.listen(9999);
       const handler = mock.getHandler();
 
-      const bodyObj = { type: 'sync-request', frontier: {}, patches: { eve: [] } };
+      // Writer whitelist is checked via frontier keys (B1)
+      const bodyObj = { type: 'sync-request', frontier: { eve: 'a'.repeat(40) } };
       const { body, headers } = await signedBody(bodyObj);
       const res = await handler({
         method: 'POST',
@@ -460,7 +462,8 @@ describe('HttpSyncServer auth integration', () => {
       const handler = mock.getHandler();
 
       // Sign with WRONG secret (auth fails) and include a FORBIDDEN writer (eve)
-      const bodyObj = { type: 'sync-request', frontier: {}, patches: { eve: [] } };
+      // Writer whitelist is checked via frontier keys (B1)
+      const bodyObj = { type: 'sync-request', frontier: { eve: 'a'.repeat(40) } };
       const body = Buffer.from(JSON.stringify(bodyObj));
       const headers = await signSyncRequest(
         { method: 'POST', path: '/sync', contentType: 'application/json', body, secret: 'wrong-secret', keyId: KEY_ID },

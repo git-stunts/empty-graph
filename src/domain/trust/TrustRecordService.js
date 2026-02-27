@@ -15,6 +15,13 @@ import { verifyRecordId } from './TrustCanonical.js';
 import TrustError from '../errors/TrustError.js';
 
 /**
+ * Maximum CAS attempts for _persistRecord before giving up.
+ * Handles transient failures (lock contention, I/O race).
+ * @type {number}
+ */
+const MAX_CAS_ATTEMPTS = 3;
+
+/**
  * @typedef {Object} AppendOptions
  * @property {boolean} [skipSignatureVerify=false] - Skip signature verification (for testing)
  */
@@ -246,7 +253,15 @@ export class TrustRecordService {
   }
 
   /**
-   * Persists a trust record as a Git commit.
+   * Persists a trust record as a Git commit with CAS retry.
+   *
+   * On transient CAS failures (ref unchanged, e.g. lock contention), retries
+   * up to MAX_CAS_ATTEMPTS total. On real concurrent appends (ref advanced),
+   * throws E_TRUST_CAS_CONFLICT so the caller can rebuild + re-sign the record.
+   *
+   * The record's prev, recordId, and signature form a cryptographic chain.
+   * Only the original signer can rebuild, so we never silently rebase.
+   *
    * @param {string} ref
    * @param {Record<string, unknown>} record
    * @param {string|null} parentSha - Resolved tip SHA (null for genesis)
@@ -273,9 +288,44 @@ export class TrustRecordService {
       message,
     });
 
-    // CAS update ref — fails atomically if a concurrent append changed the tip
-    await this._persistence.compareAndSwapRef(ref, commitSha, parentSha);
+    // CAS update ref with retry for transient failures
+    for (let attempt = 1; attempt <= MAX_CAS_ATTEMPTS; attempt++) {
+      try {
+        await this._persistence.compareAndSwapRef(ref, commitSha, parentSha);
+        return commitSha;
+      } catch {
+        // Read fresh tip to distinguish transient vs real conflict
+        const { tipSha: freshTipSha, recordId: freshRecordId } = await this._readTip(ref);
 
-    return commitSha;
+        if (freshTipSha === parentSha) {
+          // Ref unchanged — transient failure (lock contention, I/O race).
+          // Retry the same CAS with same commit.
+          if (attempt === MAX_CAS_ATTEMPTS) {
+            throw new TrustError(
+              `Trust CAS exhausted after ${MAX_CAS_ATTEMPTS} attempts`,
+              { code: 'E_TRUST_CAS_EXHAUSTED' },
+            );
+          }
+          continue;
+        }
+
+        // Ref changed — real concurrent append. Our record's prev no longer
+        // matches the chain tip. The caller must rebuild, re-sign, and retry.
+        throw new TrustError(
+          `Trust CAS conflict: chain advanced from ${parentSha} to ${freshTipSha}`,
+          {
+            code: 'E_TRUST_CAS_CONFLICT',
+            context: {
+              expectedTipSha: parentSha,
+              actualTipSha: freshTipSha,
+              actualTipRecordId: freshRecordId,
+            },
+          },
+        );
+      }
+    }
+
+    // Unreachable, but satisfies type checker
+    throw new TrustError('Trust CAS failed', { code: 'E_TRUST_CAS_EXHAUSTED' });
   }
 }

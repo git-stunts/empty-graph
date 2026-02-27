@@ -397,7 +397,7 @@ describe('SyncController', () => {
         expect.any(Map),
         host._persistence,
         'test-graph',
-        { codec: host._codec },
+        expect.objectContaining({ codec: host._codec }),
       );
     });
   });

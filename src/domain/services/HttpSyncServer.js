@@ -10,6 +10,7 @@
 
 import { z } from 'zod';
 import SyncAuthService from './SyncAuthService.js';
+import { validateSyncRequest } from './SyncPayloadSchema.js';
 
 const DEFAULT_MAX_REQUEST_BYTES = 4 * 1024 * 1024;
 const MAX_REQUEST_BYTES_CEILING = 128 * 1024 * 1024; // 134217728
@@ -117,26 +118,7 @@ function jsonResponse(data) {
   };
 }
 
-/**
- * Validates that a sync request object has the expected shape.
- *
- * @param {unknown} parsed - Parsed JSON body
- * @returns {boolean} True if valid
- * @private
- */
-function isValidSyncRequest(parsed) {
-  if (!parsed || typeof parsed !== 'object') {
-    return false;
-  }
-  const rec = /** @type {Record<string, unknown>} */ (parsed);
-  if (rec.type !== 'sync-request') {
-    return false;
-  }
-  if (!rec.frontier || typeof rec.frontier !== 'object' || Array.isArray(rec.frontier)) {
-    return false;
-  }
-  return true;
-}
+// isValidSyncRequest replaced by SyncPayloadSchema.validateSyncRequest (B64)
 
 /**
  * Checks the content-type header. Returns an error response if the
@@ -200,6 +182,7 @@ function checkBodySize(body, maxBytes) {
 
 /**
  * Parses and validates the request body as a sync request.
+ * Uses Zod-based SyncPayloadSchema for shape + resource limit validation.
  *
  * @param {Buffer|undefined} body
  * @returns {{ error: { status: number, headers: Object, body: string }, parsed: null } | { error: null, parsed: import('./SyncProtocol.js').SyncRequest }}
@@ -215,11 +198,12 @@ function parseBody(body) {
     return { error: errorResponse(400, 'Invalid JSON'), parsed: null };
   }
 
-  if (!isValidSyncRequest(parsed)) {
-    return { error: errorResponse(400, 'Invalid sync request'), parsed: null };
+  const validation = validateSyncRequest(parsed);
+  if (!validation.ok) {
+    return { error: errorResponse(400, `Invalid sync request: ${validation.error}`), parsed: null };
   }
 
-  return { error: null, parsed };
+  return { error: null, parsed: /** @type {import('./SyncProtocol.js').SyncRequest} */ (validation.value) };
 }
 
 /**
@@ -298,12 +282,17 @@ export default class HttpSyncServer {
       this._auth.recordLogOnlyPassthrough();
     }
 
-    // Writer whitelist (uses parsed body for writer IDs)
-    if (parsed.patches && typeof parsed.patches === 'object') {
-      const writerIds = Object.keys(parsed.patches);
-      const writerResult = this._auth.enforceWriters(writerIds);
-      if (!writerResult.ok) {
-        return errorResponse(writerResult.status, writerResult.reason);
+    // Writer whitelist: for sync-requests, extract writer IDs from frontier
+    // keys (the writers the peer claims to have). Sync-requests don't carry
+    // patches — the server generates the response. For sync-responses with
+    // patches, trust-gate should be on patch authors (handled client-side).
+    if (parsed.frontier && typeof parsed.frontier === 'object') {
+      const writerIds = Object.keys(/** @type {Record<string, string>} */ (parsed.frontier));
+      if (writerIds.length > 0) {
+        const writerResult = this._auth.enforceWriters(writerIds);
+        if (!writerResult.ok) {
+          return errorResponse(writerResult.status, writerResult.reason);
+        }
       }
     }
 

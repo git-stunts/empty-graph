@@ -37,6 +37,7 @@
  */
 
 import defaultCodec from '../utils/defaultCodec.js';
+import nullLogger from '../utils/nullLogger.js';
 import { decodePatchMessage, assertOpsCompatible, SCHEMA_V3 } from './WarpMessageCodec.js';
 import { join, cloneStateV5 } from './JoinReducer.js';
 import { cloneFrontier, updateFrontier } from './Frontier.js';
@@ -375,6 +376,7 @@ export function createSyncRequest(frontier) {
  * @param {string} graphName - Graph name for error messages and logging
  * @param {Object} [options]
  * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for deserialization
+ * @param {import('../../ports/LoggerPort.js').default} [options.logger] - Logger for divergence warnings
  * @returns {Promise<SyncResponse>} Response containing local frontier and patches.
  *   Patches are ordered chronologically within each writer.
  * @throws {Error} If patch loading fails for reasons other than divergence
@@ -388,7 +390,9 @@ export function createSyncRequest(frontier) {
  *   res.json(response);
  * });
  */
-export async function processSyncRequest(request, localFrontier, persistence, graphName, { codec } = /** @type {{ codec?: import('../../ports/CodecPort.js').default }} */ ({})) {
+export async function processSyncRequest(request, localFrontier, persistence, graphName, { codec, logger } = /** @type {{ codec?: import('../../ports/CodecPort.js').default, logger?: import('../../ports/LoggerPort.js').default }} */ ({})) {
+  const log = logger || nullLogger;
+
   // Convert incoming frontier from object to Map
   const remoteFrontier = new Map(Object.entries(request.frontier));
 
@@ -413,9 +417,16 @@ export async function processSyncRequest(request, localFrontier, persistence, gr
         patches.push({ writerId, sha, patch });
       }
     } catch (err) {
-      // If we detect divergence, skip this writer
-      // The requester may need to handle this separately
+      // If we detect divergence, log and skip this writer.
+      // The requester will not receive patches for this writer.
       if ((err instanceof Error && 'code' in err && /** @type {{ code: string }} */ (err).code === 'E_SYNC_DIVERGENCE') || (err instanceof Error && err.message?.includes('Divergence detected'))) {
+        log.warn('Sync divergence detected — skipping writer', {
+          code: 'E_SYNC_DIVERGENCE',
+          graphName,
+          writerId,
+          localSha: range.to,
+          remoteSha: range.from,
+        });
         continue;
       }
       throw err;

@@ -11,6 +11,7 @@
 import SyncError from '../errors/SyncError.js';
 import OperationAbortedError from '../errors/OperationAbortedError.js';
 import { QueryError, E_NO_STATE_MSG } from '../warp/_internal.js';
+import { validateSyncResponse } from './SyncPayloadSchema.js';
 import {
   createSyncRequest as createSyncRequestImpl,
   processSyncRequest as processSyncRequestImpl,
@@ -268,7 +269,7 @@ export default class SyncController {
       localFrontier,
       persistence,
       this._host._graphName,
-      { codec: this._host._codec }
+      { codec: this._host._codec, logger: this._host._logger || undefined }
     );
   }
 
@@ -468,12 +469,12 @@ export default class SyncController {
         }
       }
 
-      if (!response || typeof response !== 'object' ||
-        response.type !== 'sync-response' ||
-        !response.frontier || typeof response.frontier !== 'object' || Array.isArray(response.frontier) ||
-        !Array.isArray(response.patches)) {
-        throw new SyncError('Invalid sync response', {
-          code: 'E_SYNC_PROTOCOL',
+      // Validate response shape + resource limits via Zod schema (B64).
+      // For HTTP responses, always validate — untrusted boundary.
+      const validation = validateSyncResponse(response);
+      if (!validation.ok) {
+        throw new SyncError(`Invalid sync response: ${validation.error}`, {
+          code: 'E_SYNC_PAYLOAD_INVALID',
         });
       }
 

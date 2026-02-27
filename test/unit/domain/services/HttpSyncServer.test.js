@@ -209,7 +209,7 @@ describe('HttpSyncServer', () => {
         body: Buffer.from(JSON.stringify({ type: 'not-sync' })),
       });
       expect(res.status).toBe(400);
-      expect(JSON.parse(res.body)).toEqual({ error: 'Invalid sync request' });
+      expect(JSON.parse(res.body).error).toMatch(/Invalid sync request/);
     });
 
     it('returns 400 when frontier is an array', async () => {
@@ -220,7 +220,7 @@ describe('HttpSyncServer', () => {
         body: Buffer.from(JSON.stringify({ type: 'sync-request', frontier: [] })),
       });
       expect(res.status).toBe(400);
-      expect(JSON.parse(res.body)).toEqual({ error: 'Invalid sync request' });
+      expect(JSON.parse(res.body).error).toMatch(/Invalid sync request/);
     });
 
     it('returns 400 when frontier is missing', async () => {
@@ -231,7 +231,7 @@ describe('HttpSyncServer', () => {
         body: Buffer.from(JSON.stringify({ type: 'sync-request' })),
       });
       expect(res.status).toBe(400);
-      expect(JSON.parse(res.body)).toEqual({ error: 'Invalid sync request' });
+      expect(JSON.parse(res.body).error).toMatch(/Invalid sync request/);
     });
 
     it('returns 200 with canonical JSON for valid sync request', async () => {
@@ -293,7 +293,7 @@ describe('HttpSyncServer', () => {
         body: undefined,
       });
       expect(res.status).toBe(400);
-      expect(JSON.parse(res.body)).toEqual({ error: 'Invalid sync request' });
+      expect(JSON.parse(res.body).error).toMatch(/Invalid sync request/);
     });
   });
 
