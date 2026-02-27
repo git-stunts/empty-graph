@@ -319,9 +319,9 @@ export function query() {
  */
 export async function observer(name, config) {
   /** @param {unknown} m */
-  const isValidMatch = (m) => typeof m === 'string' || (Array.isArray(m) && m.every(/** @param {unknown} i */ i => typeof i === 'string'));
+  const isValidMatch = (m) => typeof m === 'string' || (Array.isArray(m) && m.length > 0 && m.every(/** @param {unknown} i */ i => typeof i === 'string'));
   if (!config || !isValidMatch(config.match)) {
-    throw new Error('observer config.match must be a string or array of strings');
+    throw new Error('observer config.match must be a non-empty string or non-empty array of strings');
   }
   await this._ensureFreshState();
   return new ObserverView({ name, config, graph: this });

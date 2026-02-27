@@ -31,7 +31,7 @@ describe('WarpGraph.watch() (PL/WATCH/1)', () => {
 
     it('throws if pattern is not a string', () => {
       expect(() => graph.watch(123, { onChange: () => {} }))
-        .toThrow('pattern must be a string');
+        .toThrow('pattern must be a non-empty string or non-empty array of strings');
     });
 
     it('throws if onChange is not a function', () => {
@@ -468,12 +468,27 @@ describe('WarpGraph.watch() polling (PL/WATCH/2)', () => {
   describe('validation', () => {
     it('throws if poll is less than 1000', () => {
       expect(() => graph.watch('user:*', { onChange: () => {}, poll: 500 }))
-        .toThrow('poll must be a number >= 1000');
+        .toThrow('poll must be a finite number >= 1000');
     });
 
     it('throws if poll is not a number', () => {
       expect(() => graph.watch('user:*', { onChange: () => {}, poll: 'fast' }))
-        .toThrow('poll must be a number >= 1000');
+        .toThrow('poll must be a finite number >= 1000');
+    });
+
+    it('throws if poll is NaN', () => {
+      expect(() => graph.watch('user:*', { onChange: () => {}, poll: NaN }))
+        .toThrow('poll must be a finite number >= 1000');
+    });
+
+    it('throws if poll is Infinity', () => {
+      expect(() => graph.watch('user:*', { onChange: () => {}, poll: Infinity }))
+        .toThrow('poll must be a finite number >= 1000');
+    });
+
+    it('throws if pattern is an empty array', () => {
+      expect(() => graph.watch([], { onChange: () => {} }))
+        .toThrow('pattern must be a non-empty string or non-empty array of strings');
     });
 
     it('accepts poll of exactly 1000', () => {

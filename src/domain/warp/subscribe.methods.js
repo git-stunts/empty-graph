@@ -131,16 +131,16 @@ export function subscribe({ onChange, onError, replay = false }) {
  * unsubscribe();
  */
 export function watch(pattern, { onChange, onError, poll }) {
-  const isValidPattern = (/** @type {string|string[]} */ p) => typeof p === 'string' || (Array.isArray(p) && p.every(i => typeof i === 'string'));
+  const isValidPattern = (/** @type {string|string[]} */ p) => typeof p === 'string' || (Array.isArray(p) && p.length > 0 && p.every(i => typeof i === 'string'));
   if (!isValidPattern(pattern)) {
-    throw new Error('pattern must be a string or array of strings');
+    throw new Error('pattern must be a non-empty string or non-empty array of strings');
   }
   if (typeof onChange !== 'function') {
     throw new Error('onChange must be a function');
   }
   if (poll !== undefined) {
-    if (typeof poll !== 'number' || poll < 1000) {
-      throw new Error('poll must be a number >= 1000');
+    if (typeof poll !== 'number' || !Number.isFinite(poll) || poll < 1000) {
+      throw new Error('poll must be a finite number >= 1000');
     }
   }
 
@@ -186,7 +186,7 @@ export function watch(pattern, { onChange, onError, poll }) {
   /** @type {ReturnType<typeof setInterval>|null} */
   let pollIntervalId = null;
   let pollInFlight = false;
-  if (poll) {
+  if (poll !== undefined) {
     pollIntervalId = setInterval(() => {
       if (pollInFlight) {
         return;
