@@ -838,12 +838,13 @@ export default class GraphTraversal {
       }
     }
 
+    /** @type {string[]} */
     const sorted = [];
     while (!ready.isEmpty() && sorted.length < maxNodes) {
       if (sorted.length % 1000 === 0) {
         checkAborted(signal, 'topologicalSort');
       }
-      const nodeId = ready.extractMin();
+      const nodeId = /** @type {string} */ (ready.extractMin());
       sorted.push(nodeId);
 
       const neighbors = adjList.get(nodeId) || [];
