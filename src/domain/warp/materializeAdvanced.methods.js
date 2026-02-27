@@ -107,11 +107,12 @@ export function _buildAdjacency(state) {
  *
  * @this {import('../WarpGraph.js').default}
  * @param {import('../services/JoinReducer.js').WarpStateV5} state
- * @param {import('../types/PatchDiff.js').PatchDiff} [diff] - Optional diff for incremental index
+ * @param {{diff?: import('../types/PatchDiff.js').PatchDiff|null}} [options] - Optional settings
  * @returns {Promise<MaterializedResult>}
  * @private
  */
-export async function _setMaterializedState(state, diff) {
+export async function _setMaterializedState(state, options) {
+  const diff = options?.diff ?? undefined;
   this._cachedState = state;
   this._stateDirty = false;
   this._versionVector = vvClone(state.observedFrontier);
