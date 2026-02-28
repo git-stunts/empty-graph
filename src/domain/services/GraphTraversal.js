@@ -165,7 +165,9 @@ export default class GraphTraversal {
       return await this._provider.getNeighbors(nodeId, direction, options);
     }
 
-    const labelsKey = options?.labels ? JSON.stringify([...options.labels].sort()) : '*';
+    const labelsKey = options?.labels
+      ? [...options.labels].sort().join('\0')
+      : '*';
     const key = `${nodeId}\0${direction}\0${labelsKey}`;
     const cached = cache.get(key);
     if (cached !== undefined) {

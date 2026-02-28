@@ -54,6 +54,12 @@ class CachedValue {
     /** @type {T|null} */
     this._value = null;
 
+    /** @type {Promise<T>|null} */
+    this._inflight = null;
+
+    /** @type {number} */
+    this._generation = 0;
+
     /** @type {number} */
     this._cachedAt = 0;
 
@@ -71,12 +77,33 @@ class CachedValue {
       return /** @type {T} */ (this._value);
     }
 
-    const value = await this._compute();
-    this._value = value;
-    this._cachedAt = this._clock.now();
-    this._cachedAtIso = this._clock.timestamp();
+    if (this._inflight) {
+      return await this._inflight;
+    }
 
-    return value;
+    const generation = this._generation;
+
+    this._inflight = Promise.resolve(this._compute()).then(
+      (value) => {
+        // Ignore stale in-flight completion if cache was invalidated mid-flight.
+        if (generation !== this._generation) {
+          return value;
+        }
+        this._value = value;
+        this._cachedAt = this._clock.now();
+        this._cachedAtIso = this._clock.timestamp();
+        this._inflight = null;
+        return value;
+      },
+      (err) => {
+        if (generation === this._generation) {
+          this._inflight = null;
+        }
+        throw err;
+      },
+    );
+
+    return await this._inflight;
   }
 
   /**
@@ -99,7 +126,9 @@ class CachedValue {
    * Invalidates the cached value, forcing recomputation on next get().
    */
   invalidate() {
+    this._generation += 1;
     this._value = null;
+    this._inflight = null;
     this._cachedAt = 0;
     this._cachedAtIso = null;
   }

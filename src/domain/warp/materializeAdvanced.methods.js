@@ -22,6 +22,7 @@ import BitmapNeighborProvider from '../services/BitmapNeighborProvider.js';
 
 /** @typedef {import('../types/WarpPersistence.js').CorePersistence} CorePersistence */
 /** @typedef {import('../services/JoinReducer.js').WarpStateV5} WarpStateV5 */
+/** @typedef {import('../types/TickReceipt.js').TickReceipt} TickReceipt */
 
 /**
  * @typedef {{ outgoing: Map<string, Array<{neighborId: string, label: string}>>, incoming: Map<string, Array<{neighborId: string, label: string}>> }} AdjacencyMap
@@ -30,6 +31,30 @@ import BitmapNeighborProvider from '../services/BitmapNeighborProvider.js';
 
 import { buildWriterRef } from '../utils/RefLayout.js';
 import { decodePatchMessage, detectMessageKind } from '../services/WarpMessageCodec.js';
+
+/**
+ * Creates a shallow-frozen public view of materialized state.
+ *
+ * @param {WarpStateV5} state
+ * @returns {WarpStateV5}
+ */
+function freezePublicState(state) {
+  return Object.freeze({ ...state });
+}
+
+/**
+ * Creates a shallow-frozen public materialization result with receipts.
+ *
+ * @param {WarpStateV5} state
+ * @param {TickReceipt[]} receipts
+ * @returns {{state: WarpStateV5, receipts: TickReceipt[]}}
+ */
+function freezePublicStateWithReceipts(state, receipts) {
+  return Object.freeze({
+    state: freezePublicState(state),
+    receipts,
+  });
+}
 
 /**
  * Resolves the effective ceiling from options and instance state.
@@ -222,7 +247,7 @@ export async function _materializeWithCeiling(ceiling, collectReceipts, t0) {
     cf.size === frontier.size &&
     [...frontier].every(([w, sha]) => cf.get(w) === sha)
   ) {
-    return this._cachedState;
+    return freezePublicState(this._cachedState);
   }
 
   const writerIds = [...frontier.keys()];
@@ -236,9 +261,9 @@ export async function _materializeWithCeiling(ceiling, collectReceipts, t0) {
     this._cachedFrontier = frontier;
     this._logTiming('materialize', t0, { metrics: '0 patches (ceiling)' });
     if (collectReceipts) {
-      return { state, receipts: [] };
+      return freezePublicStateWithReceipts(state, []);
     }
-    return state;
+    return freezePublicState(state);
   }
 
   // Persistent cache check — skip when collectReceipts is requested
@@ -259,7 +284,7 @@ export async function _materializeWithCeiling(ceiling, collectReceipts, t0) {
             await this._restoreIndexFromCache(cached.indexTreeOid);
           }
           this._logTiming('materialize', t0, { metrics: `cache hit (ceiling=${ceiling})` });
-          return state;
+          return freezePublicState(state);
         } catch {
           // Corrupted payload — self-heal by removing the bad entry
           try { await this._seekCache.delete(cacheKey); } catch { /* best-effort */ }
@@ -322,9 +347,12 @@ export async function _materializeWithCeiling(ceiling, collectReceipts, t0) {
   this._logTiming('materialize', t0, { metrics: `${allPatches.length} patches (ceiling=${ceiling})` });
 
   if (collectReceipts) {
-    return { state, receipts: /** @type {import('../types/TickReceipt.js').TickReceipt[]} */ (receipts) };
+    return freezePublicStateWithReceipts(
+      state,
+      /** @type {TickReceipt[]} */ (receipts),
+    );
   }
-  return state;
+  return freezePublicState(state);
 }
 
 /**
@@ -459,7 +487,7 @@ export async function materializeAt(checkpointSha) {
     codec: this._codec,
   });
   await this._setMaterializedState(state);
-  return state;
+  return freezePublicState(state);
 }
 
 /**

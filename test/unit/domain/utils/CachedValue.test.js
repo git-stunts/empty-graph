@@ -132,6 +132,29 @@ describe('CachedValue', () => {
 
       expect(value).toBe('async value');
     });
+
+    it('memoizes in-flight compute for concurrent get calls', async () => {
+      const clock = createMockClock();
+      /** @type {(value: string) => void} */
+      let resolveCompute = () => {};
+      const compute = vi.fn().mockImplementation(() => {
+        return new Promise((resolve) => {
+          resolveCompute = resolve;
+        });
+      });
+      const cache = new CachedValue({ clock, ttlMs: 5000, compute });
+
+      const first = cache.get();
+      const second = cache.get();
+
+      expect(compute).toHaveBeenCalledTimes(1);
+      resolveCompute('computed');
+
+      const [firstValue, secondValue] = await Promise.all([first, second]);
+      expect(firstValue).toBe('computed');
+      expect(secondValue).toBe('computed');
+      expect(compute).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('getWithMetadata', () => {
@@ -193,6 +216,32 @@ describe('CachedValue', () => {
 
       expect(first).toBe('first');
       expect(second).toBe('second');
+      expect(compute).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not re-cache stale in-flight result after invalidate', async () => {
+      const clock = createMockClock();
+      /** @type {(value: string) => void} */
+      let resolveCompute = () => {};
+      const compute = vi.fn()
+        .mockImplementationOnce(() => {
+          return new Promise((resolve) => {
+            resolveCompute = resolve;
+          });
+        })
+        .mockResolvedValueOnce('fresh');
+      const cache = new CachedValue({ clock, ttlMs: 5000, compute });
+
+      const first = cache.get();
+      cache.invalidate();
+      resolveCompute('stale');
+
+      expect(await first).toBe('stale');
+      expect(cache.hasValue).toBe(false);
+
+      const second = await cache.get();
+      expect(second).toBe('fresh');
+      expect(cache.hasValue).toBe(true);
       expect(compute).toHaveBeenCalledTimes(2);
     });
   });

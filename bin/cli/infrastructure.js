@@ -223,6 +223,7 @@ function extractBaseArgs(argv) {
   const rest = [];
   /** @type {string|undefined} */
   let command;
+  // Phase 1: Pre-command — scan for base flags (--repo, --json, --view, etc.)
   let pastCommand = false;
 
   for (let i = 0; i < argv.length; i++) {
@@ -266,7 +267,13 @@ function extractBaseArgs(argv) {
       continue;
     }
 
-    if (!pastCommand && !arg.startsWith('-')) {
+    if (pastCommand) {
+      // Phase 2: Post-command — remaining args are command-specific, stop scanning
+      rest.push(arg);
+      continue;
+    }
+
+    if (!arg.startsWith('-')) {
       command = arg;
       pastCommand = true;
       continue;

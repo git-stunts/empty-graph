@@ -110,7 +110,12 @@ describe('Chain integration (B15)', () => {
       await service.appendRecord('test-graph', record, { skipSignatureVerify: true });
     }
 
-    const records = await service.readRecords('test-graph');
+    const readResult = await service.readRecords('test-graph');
+    expect(readResult.ok).toBe(true);
+    if (!readResult.ok) {
+      throw readResult.error;
+    }
+    const records = readResult.records;
     expect(records).toHaveLength(GOLDEN_CHAIN.length);
 
     for (let i = 0; i < records.length; i++) {
@@ -124,7 +129,12 @@ describe('Chain integration (B15)', () => {
       await service.appendRecord('test-graph', record, { skipSignatureVerify: true });
     }
 
-    const records = await service.readRecords('test-graph');
+    const readResult = await service.readRecords('test-graph');
+    expect(readResult.ok).toBe(true);
+    if (!readResult.ok) {
+      throw readResult.error;
+    }
+    const records = readResult.records;
     for (const record of records) {
       expect(verifyRecordId(record)).toBe(true);
     }
@@ -135,7 +145,12 @@ describe('Chain integration (B15)', () => {
       await service.appendRecord('test-graph', record, { skipSignatureVerify: true });
     }
 
-    const records = await service.readRecords('test-graph');
+    const readResult = await service.readRecords('test-graph');
+    expect(readResult.ok).toBe(true);
+    if (!readResult.ok) {
+      throw readResult.error;
+    }
+    const records = readResult.records;
     const result = service.verifyChain(records);
     expect(result.valid).toBe(true);
     expect(result.errors).toHaveLength(0);
@@ -146,7 +161,12 @@ describe('Chain integration (B15)', () => {
       await service.appendRecord('test-graph', record, { skipSignatureVerify: true });
     }
 
-    const records = await service.readRecords('test-graph');
+    const readResult = await service.readRecords('test-graph');
+    expect(readResult.ok).toBe(true);
+    if (!readResult.ok) {
+      throw readResult.error;
+    }
+    const records = readResult.records;
 
     expect(records[0].prev).toBeNull();
     for (let i = 1; i < records.length; i++) {
@@ -159,7 +179,12 @@ describe('Chain integration (B15)', () => {
       await service.appendRecord('test-graph', record, { skipSignatureVerify: true });
     }
 
-    const records = await service.readRecords('test-graph');
+    const readResult = await service.readRecords('test-graph');
+    expect(readResult.ok).toBe(true);
+    if (!readResult.ok) {
+      throw readResult.error;
+    }
+    const records = readResult.records;
     const goldenIds = GOLDEN_CHAIN.map(/** @param {*} r */ (r) => r.recordId);
     const readIds = records.map(/** @param {*} r */ (r) => r.recordId);
     expect(readIds).toEqual(goldenIds);

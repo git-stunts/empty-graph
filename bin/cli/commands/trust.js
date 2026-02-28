@@ -14,6 +14,7 @@ import defaultCodec from '../../../src/domain/utils/defaultCodec.js';
 import { TrustRecordService } from '../../../src/domain/trust/TrustRecordService.js';
 import { buildState } from '../../../src/domain/trust/TrustStateBuilder.js';
 import { evaluateWriters } from '../../../src/domain/trust/TrustEvaluator.js';
+import { TRUST_REASON_CODES } from '../../../src/domain/trust/reasonCodes.js';
 
 /** @typedef {import('../types.js').CliOptions} CliOptions */
 
@@ -112,8 +113,43 @@ export default async function handleTrust({ options, args }) {
   const { pin, source, sourceDetail, status } = resolveTrustPin(trustPin);
 
   // Read trust records
-  const records = await recordService.readRecords(graphName, pin ? { tip: pin } : {});
+  const recordsResult = await recordService.readRecords(graphName, pin ? { tip: pin } : {});
+  if (!recordsResult.ok) {
+    const payload = {
+      graph: graphName,
+      trustSchemaVersion: 1,
+      mode: 'signed_evidence_v1',
+      trustVerdict: 'fail',
+      trust: {
+        status: 'error',
+        source,
+        sourceDetail,
+        evaluatedWriters: [],
+        untrustedWriters: [],
+        explanations: [
+          {
+            writerId: '*',
+            trusted: false,
+            reasonCode: TRUST_REASON_CODES.TRUST_RECORD_CHAIN_INVALID,
+            reason: `Trust chain read failed: ${recordsResult.error.message}`,
+          },
+        ],
+        evidenceSummary: {
+          recordsScanned: 0,
+          activeKeys: 0,
+          revokedKeys: 0,
+          activeBindings: 0,
+          revokedBindings: 0,
+        },
+      },
+    };
+    return {
+      payload,
+      exitCode: mode === 'enforce' ? EXIT_CODES.TRUST_FAIL : EXIT_CODES.OK,
+    };
+  }
 
+  const { records } = recordsResult;
   if (records.length === 0) {
     return buildNotConfiguredResult(graphName);
   }
