@@ -1,7 +1,7 @@
 import WarpError from './WarpError.js';
 
 /**
- * Typed error codes for Git adapter boundary failures.
+ * Typed error codes for persistence adapter boundary failures.
  *
  * Replaces generic `Error` throws with machine-readable codes so callers
  * can branch on `err.code` instead of brittle `err.message.includes()`.
@@ -10,22 +10,22 @@ import WarpError from './WarpError.js';
  *
  * | Code | Description |
  * |------|-------------|
- * | `E_MISSING_OBJECT` | Git object (commit, blob, tree) does not exist |
- * | `E_REF_NOT_FOUND` | Git ref does not resolve to any object |
+ * | `E_MISSING_OBJECT` | Stored object (commit, blob, tree) does not exist |
+ * | `E_REF_NOT_FOUND` | Ref does not resolve to any object |
  * | `E_REF_IO` | Ref update/delete failed (lock contention, permission, etc.) |
  *
- * @class GitAdapterError
+ * @class PersistenceError
  * @extends WarpError
  *
- * @property {string} name - Always 'GitAdapterError' for instanceof checks
+ * @property {string} name - Always 'PersistenceError' for instanceof checks
  * @property {string} code - Machine-readable error code for programmatic handling
  * @property {Object} context - Serializable context object with error details
  */
-export default class GitAdapterError extends WarpError {
-  /** Git object (commit, blob, tree) does not exist. */
+export default class PersistenceError extends WarpError {
+  /** Stored object (commit, blob, tree) does not exist. */
   static E_MISSING_OBJECT = 'E_MISSING_OBJECT';
 
-  /** Git ref does not resolve to any object. */
+  /** Ref does not resolve to any object. */
   static E_REF_NOT_FOUND = 'E_REF_NOT_FOUND';
 
   /** Ref update/delete failed (lock contention, permission, etc.). */

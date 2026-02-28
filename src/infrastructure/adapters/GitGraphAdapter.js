@@ -45,7 +45,7 @@
 
 import { Buffer } from 'node:buffer';
 import { retry } from '@git-stunts/alfred';
-import GitAdapterError from '../../domain/errors/GitAdapterError.js';
+import PersistenceError from '../../domain/errors/PersistenceError.js';
 import GraphPersistencePort from '../../ports/GraphPersistencePort.js';
 import { validateOid, validateRef, validateLimit, validateConfigKey } from './adapterValidation.js';
 
@@ -211,32 +211,32 @@ function isRefIoError(err) {
 }
 
 /**
- * Wraps a raw Git error in a typed GitAdapterError when the failure
+ * Wraps a raw Git error in a typed PersistenceError when the failure
  * matches a known pattern. Returns the original error unchanged if
  * no pattern matches.
  * @param {GitError} err - The raw error from Git plumbing
  * @param {{ ref?: string, oid?: string }} [hint={}] - Optional context hints
- * @returns {GitAdapterError|GitError}
+ * @returns {PersistenceError|GitError}
  */
 function wrapGitError(err, hint = {}) {
   if (isMissingObjectError(err)) {
-    return new GitAdapterError(
+    return new PersistenceError(
       hint.oid ? `Missing Git object: ${hint.oid}` : err.message,
-      GitAdapterError.E_MISSING_OBJECT,
+      PersistenceError.E_MISSING_OBJECT,
       { cause: /** @type {Error} */ (err), context: { ...hint } },
     );
   }
   if (isRefNotFoundError(err)) {
-    return new GitAdapterError(
+    return new PersistenceError(
       hint.ref ? `Ref not found: ${hint.ref}` : err.message,
-      GitAdapterError.E_REF_NOT_FOUND,
+      PersistenceError.E_REF_NOT_FOUND,
       { cause: /** @type {Error} */ (err), context: { ...hint } },
     );
   }
   if (isRefIoError(err)) {
-    return new GitAdapterError(
+    return new PersistenceError(
       hint.ref ? `Ref I/O error: ${hint.ref}` : err.message,
-      GitAdapterError.E_REF_IO,
+      PersistenceError.E_REF_IO,
       { cause: /** @type {Error} */ (err), context: { ...hint } },
     );
   }
@@ -431,9 +431,9 @@ export default class GitGraphAdapter extends GraphPersistencePort {
 
     const parts = output.split('\x00');
     if (parts.length < 5) {
-      throw new GitAdapterError(
+      throw new PersistenceError(
         `Invalid commit format for SHA ${sha}`,
-        GitAdapterError.E_MISSING_OBJECT,
+        PersistenceError.E_MISSING_OBJECT,
         { context: { oid: sha } },
       );
     }
