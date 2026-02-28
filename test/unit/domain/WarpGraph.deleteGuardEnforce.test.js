@@ -178,7 +178,7 @@ describe('WarpGraph deleteGuard enforcement (HS/DELGUARD/2)', () => {
         graphName: 'test',
         writerId: 'w1',
         onDeleteWithData: 'warn',
-        logger: { info: vi.fn(), warn: warnSpy, error: vi.fn(), debug: vi.fn() },
+        logger: { info: vi.fn(), warn: warnSpy, error: vi.fn(), debug: vi.fn(), child: vi.fn() },
       });
 
       // Create a node with a property
@@ -210,7 +210,7 @@ describe('WarpGraph deleteGuard enforcement (HS/DELGUARD/2)', () => {
         graphName: 'test',
         writerId: 'w1',
         onDeleteWithData: 'warn',
-        logger: { info: vi.fn(), warn: warnSpy, error: vi.fn(), debug: vi.fn() },
+        logger: { info: vi.fn(), warn: warnSpy, error: vi.fn(), debug: vi.fn(), child: vi.fn() },
       });
 
       await (await graph.createPatch())
@@ -299,7 +299,7 @@ describe('WarpGraph deleteGuard enforcement (HS/DELGUARD/2)', () => {
         graphName: 'test',
         writerId: 'w1',
         onDeleteWithData: 'warn',
-        logger: { info: vi.fn(), warn: warnSpy, error: vi.fn(), debug: vi.fn() },
+        logger: { info: vi.fn(), warn: warnSpy, error: vi.fn(), debug: vi.fn(), child: vi.fn() },
       });
 
       await (await graph.createPatch())

@@ -291,7 +291,7 @@ export async function writer(writerId) {
     onDeleteWithData: this._onDeleteWithData,
     onCommitSuccess: /** @type {(result: {patch: Object, sha: string}) => void} */ (/** @type {unknown} */ ((/** @type {{patch?: import('../types/WarpTypesV2.js').PatchV2, sha?: string}} */ opts) => this._onPatchCommitted(resolvedWriterId, opts))),
     codec: this._codec,
-    logger: this._logger,
+    logger: this._logger || undefined,
   });
 }
 
@@ -350,7 +350,7 @@ export async function createWriter(opts = {}) {
     onDeleteWithData: this._onDeleteWithData,
     onCommitSuccess: /** @type {(result: {patch: Object, sha: string}) => void} */ (/** @type {unknown} */ ((/** @type {{patch?: import('../types/WarpTypesV2.js').PatchV2, sha?: string}} */ commitOpts) => this._onPatchCommitted(freshWriterId, commitOpts))),
     codec: this._codec,
-    logger: this._logger,
+    logger: this._logger || undefined,
   });
 }
 
