@@ -513,11 +513,11 @@ Pick opportunistically between milestones. Recommended order within tiers:
 | **Milestone (M11)** | 3 | B2(impl), B3, B11 |
 | **Milestone (M12)** | 18 | B66, B67, B70, B73, B75, B105–B115, B117, B118 |
 | **Milestone (M13)** | 1 | B116 |
-| **Standalone** | 57 | B12, B19, B22, B26, B28, B34–B37, B43, B44, B46–B55, B57, B71, B76–B88, B91–B99, B102–B104, B119–B129 |
-| **Standalone (done)** | 3 | B72, B89, B90 |
+| **Standalone** | 52 | B12, B19, B22, B28, B34–B37, B43, B44, B48–B55, B57, B76–B88, B91–B99, B102–B104, B119–B125, B127–B129 |
+| **Standalone (done)** | 8 | B26, B46, B47, B71, B72, B89, B90, B126 |
 | **Deferred** | 8 | B4, B7, B16, B20, B21, B27, B100, B101 |
 | **Rejected** | 7 | B5, B6, B13, B17, B18, B25, B45 |
-| **Total tracked** | **104** (3 done) | |
+| **Total tracked** | **104** (8 done) | |
 
 ### STANK.md Cross-Reference
 

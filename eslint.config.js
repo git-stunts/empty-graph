@@ -270,7 +270,7 @@ export default tseslint.config(
     },
   },
 
-  // ── Domain purity: ban Date.now() and new Date() — use ClockPort instead ──
+  // ── Domain purity: ban Date.now(), new Date(), and Date() — use ClockPort ──
   {
     files: ["src/domain/**/*.js"],
     rules: {
@@ -282,6 +282,10 @@ export default tseslint.config(
         {
           "selector": "NewExpression[callee.name='Date']",
           "message": "new Date() is banned in domain code. Use ClockPort / ClockAdapter instead.",
+        },
+        {
+          "selector": "CallExpression[callee.name='Date']",
+          "message": "Date() is banned in domain code. Use ClockPort / ClockAdapter instead.",
         },
       ],
     },

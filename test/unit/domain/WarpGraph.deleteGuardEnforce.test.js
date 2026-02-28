@@ -169,13 +169,13 @@ describe('WarpGraph deleteGuard enforcement (HS/DELGUARD/2)', () => {
   // Warn mode
   // ---------------------------------------------------------------------------
 
-  describe('warn mode', () => {
-    /** @param {import('vitest').Mock} warnSpy */
-    function mockLogger(warnSpy) {
-      const logger = { info: vi.fn(), warn: warnSpy, error: vi.fn(), debug: vi.fn(), child: () => logger };
-      return logger;
-    }
+  /** @param {import('vitest').Mock} warnSpy */
+  function mockLogger(warnSpy) {
+    const logger = { info: vi.fn(), warn: warnSpy, error: vi.fn(), debug: vi.fn(), child: () => logger };
+    return logger;
+  }
 
+  describe('warn mode', () => {
     it('logs warning via logger when deleting node with properties', async () => {
       repo = await createGitRepo('delguard');
       const warnSpy = vi.fn();
@@ -296,13 +296,12 @@ describe('WarpGraph deleteGuard enforcement (HS/DELGUARD/2)', () => {
     it('warn mode works through writer().commitPatch()', async () => {
       repo = await createGitRepo('delguard');
       const warnSpy = vi.fn();
-      const logger = { info: vi.fn(), warn: warnSpy, error: vi.fn(), debug: vi.fn(), child: () => logger };
       const graph = await WarpGraph.open({
         persistence: repo.persistence,
         graphName: 'test',
         writerId: 'w1',
         onDeleteWithData: 'warn',
-        logger,
+        logger: mockLogger(warnSpy),
       });
 
       await (await graph.createPatch())
@@ -331,13 +330,12 @@ describe('WarpGraph deleteGuard enforcement (HS/DELGUARD/2)', () => {
     it('does not throw or warn when deleting node with attached data', async () => {
       repo = await createGitRepo('delguard');
       const warnSpy = vi.fn();
-      const logger = { info: vi.fn(), warn: warnSpy, error: vi.fn(), debug: vi.fn(), child: () => logger };
       const graph = await WarpGraph.open({
         persistence: repo.persistence,
         graphName: 'test',
         writerId: 'w1',
         onDeleteWithData: 'cascade',
-        logger,
+        logger: mockLogger(warnSpy),
       });
 
       await (await graph.createPatch())

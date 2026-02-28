@@ -194,7 +194,7 @@ If any one of these is wrong, materialization diverges silently between readers.
 
 The safest approach: normalize all ops to the new format at read time, before they reach the reducer.
 
-```
+```text
 Git commit (raw bytes)
   → CBOR decode
   → Op normalization layer (NEW)
