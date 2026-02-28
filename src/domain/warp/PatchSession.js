@@ -9,8 +9,8 @@
  * @see WARP Writer Spec v1
  */
 
-import { buildWriterRef } from '../utils/RefLayout.js';
 import WriterError from '../errors/WriterError.js';
+import { buildWriterRef } from '../utils/RefLayout.js';
 
 /**
  * Fluent patch session for building and committing graph mutations.
@@ -199,25 +199,13 @@ export class PatchSession {
    * @example
    * const sha = await patch.commit();
    */
+  // eslint-disable-next-line complexity -- maps multiple commit-failure modes into stable WriterError codes
   async commit() {
     this._ensureNotCommitted();
 
     // Validate not empty
     if (this._builder.ops.length === 0) {
       throw new WriterError('EMPTY_PATCH', 'Cannot commit empty patch: no operations added');
-    }
-
-    const writerRef = buildWriterRef(this._graphName, this._writerId);
-
-    // Pre-commit CAS check: verify ref hasn't moved
-    const currentHead = await this._persistence.readRef(writerRef);
-    if (currentHead !== this._expectedOldHead) {
-      throw new WriterError(
-        'WRITER_REF_ADVANCED',
-        `Writer ref ${writerRef} has advanced since beginPatch(). ` +
-        `Expected ${this._expectedOldHead || '(none)'}, found ${currentHead || '(none)'}. ` +
-        `Call beginPatch() again to retry.`
-      );
     }
 
     try {
@@ -228,6 +216,21 @@ export class PatchSession {
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
       const cause = err instanceof Error ? err : undefined;
+      const casError = /** @type {{code?: unknown, expectedSha?: unknown, actualSha?: unknown}|null} */ (
+        (err && typeof err === 'object') ? err : null
+      );
+      if (casError?.code === 'WRITER_CAS_CONFLICT') {
+        const writerRef = buildWriterRef(this._graphName, this._writerId);
+        const expectedSha = typeof casError.expectedSha === 'string' ? casError.expectedSha : this._expectedOldHead;
+        const actualSha = typeof casError.actualSha === 'string' ? casError.actualSha : null;
+        throw new WriterError(
+          'WRITER_REF_ADVANCED',
+          `Writer ref ${writerRef} has advanced since beginPatch(). ` +
+          `Expected ${expectedSha || '(none)'}, found ${actualSha || '(none)'}. ` +
+          'Call beginPatch() again to retry.',
+          cause
+        );
+      }
       if (errMsg.includes('Concurrent commit detected') ||
           errMsg.includes('has advanced')) {
         throw new WriterError('WRITER_REF_ADVANCED', errMsg, cause);

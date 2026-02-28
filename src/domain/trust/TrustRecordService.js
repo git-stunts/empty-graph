@@ -26,6 +26,10 @@ const MAX_CAS_ATTEMPTS = 3;
  * @property {boolean} [skipSignatureVerify=false] - Skip signature verification (for testing)
  */
 
+/**
+ * @typedef {{ok: true, records: Array<Record<string, unknown>>} | {ok: false, error: Error}} ReadRecordsResult
+ */
+
 export class TrustRecordService {
   /**
    * @param {Object} options
@@ -102,55 +106,65 @@ export class TrustRecordService {
    * @param {string} graphName
    * @param {Object} [options]
    * @param {string} [options.tip] - Override tip commit (for pinned reads)
-   * @returns {Promise<Array<Record<string, unknown>>>}
+   * @returns {Promise<ReadRecordsResult>}
    */
   async readRecords(graphName, options = {}) {
     const ref = buildTrustRecordRef(graphName);
     let tip = options.tip ?? null;
 
-    if (!tip) {
-      try {
-        tip = await this._persistence.readRef(ref);
-      } catch (err) {
-        // Distinguish "ref not found" from operational error (J15)
-        if (err instanceof Error && (err.message?.includes('not found') || err.message?.includes('does not exist'))) {
-          return [];
-        }
-        throw new TrustError(
-          `Failed to read trust chain ref: ${err instanceof Error ? err.message : String(err)}`,
-          { code: 'E_TRUST_READ_FAILED' },
-        );
-      }
+    try {
       if (!tip) {
-        return [];
+        try {
+          tip = await this._persistence.readRef(ref);
+        } catch (err) {
+          // Distinguish "ref not found" from operational error (J15)
+          if (err instanceof Error && (err.message?.includes('not found') || err.message?.includes('does not exist'))) {
+            return { ok: true, records: [] };
+          }
+          return {
+            ok: false,
+            error: new TrustError(
+              `Failed to read trust chain ref: ${err instanceof Error ? err.message : String(err)}`,
+              { code: 'E_TRUST_READ_FAILED' },
+            ),
+          };
+        }
+        if (!tip) {
+          return { ok: true, records: [] };
+        }
       }
+
+      const records = [];
+      let current = tip;
+
+      while (current) {
+        const info = await this._persistence.getNodeInfo(current);
+        const entries = await this._persistence.readTreeOids(
+          await this._persistence.getCommitTree(current),
+        );
+        const blobOid = entries['record.cbor'];
+        if (!blobOid) {
+          break;
+        }
+        const record = /** @type {Record<string, unknown>} */ (this._codec.decode(
+          await this._persistence.readBlob(blobOid),
+        ));
+
+        records.unshift(record);
+
+        if (info.parents.length === 0) {
+          break;
+        }
+        current = info.parents[0];
+      }
+
+      return { ok: true, records };
+    } catch (err) {
+      return {
+        ok: false,
+        error: err instanceof Error ? err : new Error(String(err)),
+      };
     }
-
-    const records = [];
-    let current = tip;
-
-    while (current) {
-      const info = await this._persistence.getNodeInfo(current);
-      const entries = await this._persistence.readTreeOids(
-        await this._persistence.getCommitTree(current),
-      );
-      const blobOid = entries['record.cbor'];
-      if (!blobOid) {
-        break;
-      }
-      const record = /** @type {Record<string, unknown>} */ (this._codec.decode(
-        await this._persistence.readBlob(blobOid),
-      ));
-
-      records.unshift(record);
-
-      if (info.parents.length === 0) {
-        break;
-      }
-      current = info.parents[0];
-    }
-
-    return records;
   }
 
   /**

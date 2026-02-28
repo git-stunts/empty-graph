@@ -802,3 +802,355 @@ Preserve tip-only performance while adding optional integrity assertions that ve
 3. Land I2 ancestry cache and C3 integrity diagnostics in parallel tracks.
 4. Proceed with I1 incremental hash and then I3 audit diff synthesis.
 5. Add I5 (`warp doctor`) and I6 query caching once observability and guardrails are in place.
+
+---
+
+## Horizon Appendix — Post-Cooldown Concept + Concern Pack (2026-02-27)
+
+This appendix is intentionally additive and non-disruptive to current milestone accounting.
+These entries are drafted as fully-fleshed candidates for prioritization after review cooldown.
+
+### Concept Vision Pack
+
+#### H1 — Time-Travel Delta Engine (`warp diff --ceiling A --ceiling B`)
+
+**Vision:**
+Turn seek/materialize ceilings into a first-class forensic primitive. Users should be able to ask, “what changed between causal horizons A and B?” and get deterministic node/edge/property deltas, optional provenance attribution, and machine-readable output for automation.
+
+**Mini battle plan:**
+1. Contract phase:
+- Define CLI UX: `warp diff --ceiling <a> --ceiling <b> [--json|--ndjson] [--summary|--full]`.
+- Define output schema: `{addedNodes, removedNodes, addedEdges, removedEdges, changedProps}` with stable ordering.
+- Define ceiling semantics for edge cases: `A==B`, `A=0`, missing writers, pinned frontiers.
+2. MVP phase:
+- Reuse existing materialization path with two state snapshots and deterministic diffing.
+- Add fast path for `A==B` and zero delta.
+- Return compact summary by default; full payload via explicit flag.
+3. Hardening phase:
+- Integrate optional provenance slices (`--with-provenance`) for changed items.
+- Add guardrails for large output (`--max-items`, truncation marker).
+- Add performance budget checks in CI for medium-sized graphs.
+
+**Defensive tests:**
+- Property test: `diff(A, A)` is always empty.
+- Consistency test: `apply(diff(A,B), stateA) == stateB` for supported operations.
+- Determinism test: repeated diff calls produce byte-identical JSON after canonical sort.
+- Multi-writer edge test: concurrent add/remove/prop updates respect CRDT semantics.
+
+**Primary risks:**
+- Memory pressure from dual-state materialization on large graphs.
+- User confusion between structural and semantic/provenance diff modes.
+
+---
+
+#### H2 — Trust-Aware Query Mode
+
+**Vision:**
+Make trust policy operational at query time, not just verification time. Users can choose whether traversal/query results include all data, only trusted-writer data, or annotated data with trust confidence.
+
+**Mini battle plan:**
+1. Contract phase:
+- Define modes: `--trust-mode off|annotate|enforce`.
+- Define filtering semantics: writer-level inclusion/exclusion and fallback behavior when trust is degraded.
+- Define payload shape for annotations (`writerId`, `trustStatus`, `reasonCode`).
+2. MVP phase:
+- Evaluate trust once per query request, cache per-request assessment.
+- Apply writer-based filtering in traversal/query result assembly.
+- Emit warnings when mode is `annotate` and untrusted contributors are present.
+3. Hardening phase:
+- Add explicit degraded state handling (`trust chain unreadable` != `not configured`).
+- Add policy knobs for mixed-trust graphs.
+- Add metrics for trust-filter impact (dropped results, affected subgraphs).
+
+**Defensive tests:**
+- Contract tests for each mode and failure state (configured, not_configured, degraded/error).
+- Regression tests ensuring `off` mode behavior matches current baseline exactly.
+- Security test: enforce mode must never leak untrusted-writer artifacts.
+- Snapshot tests for annotated output payload.
+
+**Primary risks:**
+- Breaking user expectations if implicit filtering occurs without clear diagnostics.
+- Increased latency if trust evaluation repeats unnecessarily.
+
+---
+
+#### H3 — Provenance Heatmap + Causal Cone Visualizer
+
+**Vision:**
+Provide immediate intuition about write hotspots and causal dependency depth. Given a target node/edge/property, render a causal cone and highlight churn intensity to support debugging, incident response, and evolution analysis.
+
+**Mini battle plan:**
+1. Contract phase:
+- Define API/CLI: `warp provenance heatmap`, `warp provenance cone --target ...`.
+- Define visualization payload schema (nodes, edges, weights, timestamps).
+- Define deterministic layout seed handling for reproducible diagrams.
+2. MVP phase:
+- Use existing provenance index to compute cone and patch frequency.
+- Export JSON + optional Mermaid/HTML render.
+- Provide summary stats: depth, fan-in, high-churn nodes.
+3. Hardening phase:
+- Add sampling for very large cones.
+- Add filters by writer/time range/operation type.
+- Add “explain this value” one-shot workflow for support/debug.
+
+**Defensive tests:**
+- Cone correctness tests against hand-built miniature patch histories.
+- Stability tests: same input and seed yields same output ordering/layout hints.
+- Performance tests on synthetic high-fan-in graphs.
+- Fuzz tests for malformed target identifiers.
+
+**Primary risks:**
+- Large cone explosion without sampling limits.
+- Visualization layer becoming a maintenance burden if tightly coupled to core.
+
+---
+
+#### H4 — Checkpoint Policy Advisor
+
+**Vision:**
+Shift checkpoint tuning from guesswork to measured policy recommendations. Advisor inspects patch cadence, materialize timings, and cache behavior to propose `checkpointPolicy.every` and optional GC cadence.
+
+**Mini battle plan:**
+1. Contract phase:
+- Define advisor command: `warp checkpoint advise [--window <n>]`.
+- Define output: recommended policy, confidence, expected gains, tradeoffs.
+- Define telemetry inputs and privacy boundaries.
+2. MVP phase:
+- Collect/aggregate core signals already emitted by timing/logger paths.
+- Compute heuristic recommendation bands (conservative/balanced/aggressive).
+- Expose dry-run simulation: “what if policy X?”.
+3. Hardening phase:
+- Add workload profiles (read-heavy, write-heavy, mixed).
+- Add guardrails to avoid over-checkpointing thrash.
+- Store policy-change audit trail.
+
+**Defensive tests:**
+- Scenario tests with synthetic workloads and expected recommendation ranges.
+- Regression tests: no recommendation when evidence quality is low.
+- Safety tests: advisor never suggests invalid/degenerate values.
+- Determinism tests for same telemetry window.
+
+**Primary risks:**
+- Overfitting heuristics to narrow workload assumptions.
+- Recommendation trust erosion if confidence scoring is opaque.
+
+---
+
+#### H5 — Conflict Simulator Mode
+
+**Vision:**
+Provide a deterministic sandbox for modeling concurrent writer behavior before production rollout. Teams can simulate interleavings, inspect receipts/conflicts, and validate convergence guarantees under stress.
+
+**Mini battle plan:**
+1. Contract phase:
+- Define scenario format (`writers`, `ops`, `interleavings`, `seed`).
+- Define outputs: final state hash, per-op receipts, conflict report.
+- Define replay compatibility with real patch format.
+2. MVP phase:
+- Build runner that executes scenarios through existing reducer semantics.
+- Add deterministic seed-based interleaving generator.
+- Emit machine-readable artifacts for CI diffing.
+3. Hardening phase:
+- Add canned scenarios for known footguns.
+- Add minimization helper to shrink failing scenarios.
+- Add compatibility mode for historical schema versions.
+
+**Defensive tests:**
+- Convergence tests: multiple interleavings produce equivalent final state.
+- Differential tests: simulator output matches live engine replay output.
+- Flake resistance tests with repeated seeded runs.
+- Input validation tests for malformed scenarios.
+
+**Primary risks:**
+- Divergence between simulator and real pipeline if abstractions drift.
+- Misleading confidence if scenarios are too simplistic.
+
+---
+
+#### H6 — Offline Bundle Export/Import for Air-Gapped Sync
+
+**Vision:**
+Enable secure graph/trust transfer where network sync is unavailable. Bundle includes selected refs, trust records, integrity manifests, and optional signatures; import verifies before applying.
+
+**Mini battle plan:**
+1. Contract phase:
+- Define bundle manifest format and signature envelope.
+- Define CLI: `warp bundle export` / `warp bundle import --verify`.
+- Define partial export scope (graph-only, trust-only, checkpoint-only).
+2. MVP phase:
+- Implement deterministic packing of refs + blobs + metadata.
+- Implement verification pipeline (hashes, trust chain integrity, manifest schema).
+- Add dry-run import report.
+3. Hardening phase:
+- Add chunking/streaming for large bundles.
+- Add compatibility matrix across versions.
+- Add replay protection and origin identity metadata.
+
+**Defensive tests:**
+- Tamper tests: modified bundle must fail verification deterministically.
+- Round-trip tests: export→import yields identical frontier/state hash.
+- Backward compatibility tests across supported schema versions.
+- Large-bundle stress tests.
+
+**Primary risks:**
+- Security footguns in partially verified imports.
+- Operational complexity for version negotiation.
+
+---
+
+#### H7 — Query Plan Telemetry + Explain Mode
+
+**Vision:**
+Introduce explainability for query/traversal execution: which index path was used, when fallback happened, and where time/memory were spent. Reduce “why is this slow?” debugging time.
+
+**Mini battle plan:**
+1. Contract phase:
+- Define `--explain` payload for query/traverse commands.
+- Define stable telemetry fields (indexUsed, fallbackReason, neighborFetchCount, cacheHits).
+- Define redaction policy for sensitive IDs in logs.
+2. MVP phase:
+- Instrument traversal/query engine at key decision points.
+- Emit explain report in JSON/NDJSON.
+- Add summary in human-readable CLI output.
+3. Hardening phase:
+- Add per-phase timings and warning thresholds.
+- Add regression benchmark gates to detect performance drift.
+- Add trace correlation IDs for distributed workflows.
+
+**Defensive tests:**
+- Snapshot tests for explain payload schema stability.
+- Unit tests for fallback reason classification.
+- Regression tests that telemetry collection does not alter behavior.
+- Overhead tests to cap instrumentation cost.
+
+**Primary risks:**
+- Telemetry overhead in hot loops.
+- Schema churn breaking downstream tooling.
+
+---
+
+#### H8 — Kairos Timeline Command (Branch Event Geometry)
+
+**Vision:**
+Expose branch-event structure directly: fork/join timelines, writer divergence windows, and convergence points. Make Chronos (linear patch ticks) and Kairos (branch structure) both inspectable in one tool.
+
+**Mini battle plan:**
+1. Contract phase:
+- Define output model for event graph: nodes (events), edges (causal/branch links), annotations.
+- Define CLI: `warp timeline kairos [--from ... --to ... --format mermaid|json]`.
+- Define ordering rules for stable output across runs.
+2. MVP phase:
+- Build event graph from writer refs + ancestry relationships.
+- Render textual summary + JSON graph payload.
+- Include quick metrics (fork count, max divergence depth, mean convergence latency).
+3. Hardening phase:
+- Add filters by writer/subgraph/time.
+- Add compact mode for CI/report integration.
+- Integrate with provenance cone command for cross-navigation.
+
+**Defensive tests:**
+- Determinism tests for event ordering and IDs.
+- Correctness tests on synthetic fork/join histories.
+- Performance tests on long multi-writer histories.
+- Output parser tests for Mermaid and JSON modes.
+
+**Primary risks:**
+- Ambiguity in representing complex multi-parent histories.
+- User overload if visuals are too dense by default.
+
+---
+
+### Concern Hardening Pack
+
+#### C-H1 — Fragile Error-String Matching for Trust Ref Absence
+
+**Concern:**
+`readRecords()` currently infers “ref missing” by substring matching on error messages.
+This is adapter-dependent and brittle under localization or message wording changes.
+
+**Mitigation strategy:**
+1. Introduce typed persistence error codes (`E_REF_NOT_FOUND`, `E_REF_IO`, etc.).
+2. Update trust read path to branch on error code, not string text.
+3. Keep temporary compatibility shim with explicit TODO removal milestone.
+
+**Defensive tests:**
+- Adapter contract tests that assert standardized error codes.
+- Trust read tests with localized/custom error messages to verify no false classification.
+- Regression tests for existing adapters to ensure old behavior remains correct until shim removal.
+
+**Exit criteria:**
+No trust-path logic depends on raw error message text for control flow.
+
+---
+
+#### C-H2 — Public Materialization Freeze Contract Ambiguity
+
+**Concern:**
+Top-level frozen return objects changed identity semantics. Callers may assume returned `state` is the same reference as internal cache and mutate/compare by identity.
+
+**Mitigation strategy:**
+1. Document explicit public contract: shallow-frozen wrapper, internal substructures may share references.
+2. Add helper API for safe mutable clone when needed (`materializeMutable()` or utility clone call guidance).
+3. Add compatibility notes in migration docs/changelog.
+
+**Defensive tests:**
+- Contract tests asserting returned state is frozen and top-level identity differs from `_cachedState`.
+- Tests ensuring readonly behavior triggers mutation failures in strict mode.
+- Tests proving internal cache is not corrupted by attempted public mutation.
+
+**Exit criteria:**
+No ambiguity in docs/tests around identity and mutability guarantees of public materialization APIs.
+
+---
+
+#### C-H3 — `CachedValue` Null-Value Semantics
+
+**Concern:**
+`_isValid()` treats `null` as “no cache,” so legitimate `null` compute results never cache as valid entries.
+This can cause repeated recompute churn and unexpected behavior.
+
+**Mitigation strategy:**
+1. Introduce explicit `hasComputedValue` sentinel independent from `_value` content.
+2. Preserve existing API shape while allowing `null` to be cached as a valid payload.
+3. Add migration note if any behavior changes for callers that used null as “absent”.
+
+**Defensive tests:**
+- Test that `compute -> null` is cached within TTL and not recomputed.
+- Test invalidate still clears sentinel and forces recompute.
+- Test serialization/metadata paths behave correctly for null payloads.
+
+**Exit criteria:**
+Cache validity is based on cache state, not payload truthiness/value class.
+
+---
+
+#### C-H4 — Trust Error Payload Assembly Duplication
+
+**Concern:**
+Verifier and CLI build similar trust error payloads independently.
+This creates drift risk in `source`, `reasonCode`, and response shape.
+
+**Mitigation strategy:**
+1. Extract a shared helper factory for trust error/not-configured payload builders.
+2. Make source/reason semantics centralized and table-driven.
+3. Add schema assertion at boundaries to prevent accidental divergence.
+
+**Defensive tests:**
+- Golden tests asserting verifier and CLI produce identical payload structure for equivalent error conditions.
+- Schema conformance tests on all trust payload variants.
+- Snapshot tests to detect accidental field drift.
+
+**Exit criteria:**
+Single-source trust payload composition for common states; CLI and service outputs remain shape-compatible by construction.
+
+---
+
+### Recommended Sequencing (when cooldown ends)
+
+1. `C-H1` and `C-H4` first (trust correctness and consistency foundation).
+2. `C-H2` next (contract/documentation hardening around materialization freeze behavior).
+3. `C-H3` next (semantic cleanup of cache null handling).
+4. `H1` and `H7` as first feature wave (high practical operator value with moderate implementation risk).
+5. `H2` and `H5` as second feature wave (policy + simulation leverage).
+6. `H3`, `H4`, `H8`, then `H6` based on bandwidth and ecosystem demand.
+
