@@ -166,9 +166,7 @@ if (isMain) {
   // Check A: Every manifest entry must exist in index.d.ts
   for (const name of manifestNames) {
     if (!dtsExports.has(name)) {
-      if (!quiet) {
-        process.stderr.write(`ERROR: manifest entry "${name}" missing from index.d.ts\n`);
-      }
+      process.stderr.write(`ERROR: manifest entry "${name}" missing from index.d.ts\n`);
       errors++;
     }
   }
@@ -176,9 +174,7 @@ if (isMain) {
   // Check B: Every named export in index.js must exist in the manifest
   for (const name of jsExports) {
     if (!manifestNames.has(name)) {
-      if (!quiet) {
-        process.stderr.write(`ERROR: index.js export "${name}" missing from type-surface.m8.json manifest\n`);
-      }
+      process.stderr.write(`ERROR: index.js export "${name}" missing from type-surface.m8.json manifest\n`);
       errors++;
     }
   }
@@ -186,9 +182,7 @@ if (isMain) {
   // Check C: Warn about index.d.ts exports not in manifest (type-only exports are valid)
   for (const name of dtsExports) {
     if (!manifestNames.has(name)) {
-      if (!quiet) {
-        process.stderr.write(`WARN: index.d.ts export "${name}" not in manifest (type-only?)\n`);
-      }
+      process.stderr.write(`WARN: index.d.ts export "${name}" not in manifest (type-only?)\n`);
       warnings++;
     }
   }
@@ -198,17 +192,21 @@ if (isMain) {
   const jsCount = jsExports.size;
   const dtsCount = dtsExports.size;
 
-  process.stdout.write(`\nDeclaration surface check:\n`);
-  process.stdout.write(`  Manifest entries:   ${total}\n`);
-  process.stdout.write(`  index.js exports:   ${jsCount}\n`);
-  process.stdout.write(`  index.d.ts exports: ${dtsCount}\n`);
-  process.stdout.write(`  Errors:   ${errors}\n`);
-  process.stdout.write(`  Warnings: ${warnings}\n\n`);
+  if (!quiet) {
+    process.stdout.write(`\nDeclaration surface check:\n`);
+    process.stdout.write(`  Manifest entries:   ${total}\n`);
+    process.stdout.write(`  index.js exports:   ${jsCount}\n`);
+    process.stdout.write(`  index.d.ts exports: ${dtsCount}\n`);
+    process.stdout.write(`  Errors:   ${errors}\n`);
+    process.stdout.write(`  Warnings: ${warnings}\n\n`);
+  }
 
   if (errors > 0) {
     process.stderr.write(`FAIL: ${errors} declaration surface error(s)\n`);
     process.exit(1);
   }
 
-  process.stdout.write(`PASS: all manifest entries covered\n`);
+  if (!quiet) {
+    process.stdout.write(`PASS: all manifest entries covered\n`);
+  }
 }
