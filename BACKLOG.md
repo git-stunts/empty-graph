@@ -57,7 +57,7 @@ Items noticed during development that are worth addressing but were out of scope
 - Add a reusable `gh` cooldown utility that computes and prints cooldown-expiry timestamps from CodeRabbit comments.
 - Add a CI artifact/comment that summarizes unresolved reviewer issues by severity and links to evidence lines.
 - Add branch-governance checks that enforce minimum human review count before merge readiness is reported.
-- Add a contributor guide section for “review-loop hygiene” (commit sizing, cooldown strategy, and when to request bot review).
+- Add a contributor guide section for "review-loop hygiene" (commit sizing, cooldown strategy, and when to request bot review).
 
 ---
 

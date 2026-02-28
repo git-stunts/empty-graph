@@ -1154,3 +1154,6 @@ Single-source trust payload composition for common states; CLI and service outpu
 5. `H2` and `H5` as second feature wave (policy + simulation leverage).
 6. `H3`, `H4`, `H8`, then `H6` based on bandwidth and ecosystem demand.
 
+
+---
+

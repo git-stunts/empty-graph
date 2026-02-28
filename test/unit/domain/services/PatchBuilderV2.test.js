@@ -714,6 +714,143 @@ describe('PatchBuilderV2', () => {
     });
   });
 
+  describe('use-after-commit guard', () => {
+    /**
+     * Creates and commits a builder, returning the committed builder instance.
+     * @returns {Promise<{ builder: PatchBuilderV2, persistence: any }>}
+     */
+    async function createCommittedBuilder() {
+      const persistence = createMockPersistence();
+      const builder = new PatchBuilderV2(/** @type {any} */ ({
+        persistence,
+        graphName: 'test-graph',
+        writerId: 'writer1',
+        lamport: 1,
+        versionVector: createVersionVector(),
+        getCurrentState: () => null,
+      }));
+      builder.addNode('x');
+      await builder.commit();
+      return { builder, persistence };
+    }
+
+    it('throws after commit when calling addNode', async () => {
+      const { builder } = await createCommittedBuilder();
+      expect(() => builder.addNode('y')).toThrow('PatchBuilder already committed — create a new builder');
+    });
+
+    it('throws after commit when calling removeNode', async () => {
+      const { builder } = await createCommittedBuilder();
+      expect(() => builder.removeNode('x')).toThrow('PatchBuilder already committed — create a new builder');
+    });
+
+    it('throws after commit when calling addEdge', async () => {
+      const { builder } = await createCommittedBuilder();
+      expect(() => builder.addEdge('a', 'b', 'rel')).toThrow('PatchBuilder already committed — create a new builder');
+    });
+
+    it('throws after commit when calling removeEdge', async () => {
+      const { builder } = await createCommittedBuilder();
+      expect(() => builder.removeEdge('a', 'b', 'rel')).toThrow('PatchBuilder already committed — create a new builder');
+    });
+
+    it('throws after commit when calling setProperty', async () => {
+      const { builder } = await createCommittedBuilder();
+      expect(() => builder.setProperty('x', 'name', 'Alice')).toThrow('PatchBuilder already committed — create a new builder');
+    });
+
+    it('throws after commit when calling setEdgeProperty', async () => {
+      const { builder } = await createCommittedBuilder();
+      expect(() => builder.setEdgeProperty('a', 'b', 'rel', 'since', '2026-01-01')).toThrow('PatchBuilder already committed — create a new builder');
+    });
+
+    it('throws after commit when calling attachContent', async () => {
+      const { builder, persistence } = await createCommittedBuilder();
+      const initialWriteBlobCalls = persistence.writeBlob.mock.calls.length;
+      await expect(builder.attachContent('x', 'payload')).rejects.toThrow('PatchBuilder already committed — create a new builder');
+      expect(persistence.writeBlob).toHaveBeenCalledTimes(initialWriteBlobCalls);
+    });
+
+    it('throws after commit when calling attachEdgeContent', async () => {
+      const { builder, persistence } = await createCommittedBuilder();
+      const initialWriteBlobCalls = persistence.writeBlob.mock.calls.length;
+      await expect(builder.attachEdgeContent('a', 'b', 'rel', 'payload')).rejects.toThrow('PatchBuilder already committed — create a new builder');
+      expect(persistence.writeBlob).toHaveBeenCalledTimes(initialWriteBlobCalls);
+    });
+
+    it('throws after commit when calling commit again', async () => {
+      const { builder } = await createCommittedBuilder();
+      await expect(builder.commit()).rejects.toThrow('PatchBuilder already committed — create a new builder');
+    });
+
+    it('throws during an in-flight commit when mutating or committing again', async () => {
+      /** @type {(value: string|null) => void} */
+      let releaseReadRef = () => {};
+      const readRefPromise = /** @type {Promise<string|null>} */ (new Promise((resolve) => {
+        releaseReadRef = resolve;
+      }));
+      const persistence = createMockPersistence();
+      persistence.readRef.mockImplementation(() => readRefPromise);
+      const builder = new PatchBuilderV2(/** @type {any} */ ({
+        persistence,
+        graphName: 'test-graph',
+        writerId: 'writer1',
+        lamport: 1,
+        versionVector: createVersionVector(),
+        getCurrentState: () => null,
+      }));
+
+      builder.addNode('x');
+      const pendingCommit = builder.commit();
+
+      expect(() => builder.addNode('y')).toThrow('PatchBuilder already committed — create a new builder');
+      await expect(builder.commit()).rejects.toThrow('PatchBuilder already committed — create a new builder');
+
+      releaseReadRef(null);
+      await expect(pendingCommit).resolves.toBe('c'.repeat(40));
+    });
+
+    it('allows reading ops/reads/writes/versionVector after commit', async () => {
+      const persistence = createMockPersistence();
+      const builder = new PatchBuilderV2(/** @type {any} */ ({
+        persistence,
+        graphName: 'test-graph',
+        writerId: 'writer1',
+        lamport: 1,
+        versionVector: createVersionVector(),
+        getCurrentState: () => null,
+      }));
+
+      builder.addEdge('user:alice', 'user:bob', 'follows');
+      await builder.commit();
+
+      const edgeKey = encodeEdgeKey('user:alice', 'user:bob', 'follows');
+      expect(builder.ops).toHaveLength(1);
+      expect(builder.reads.has('user:alice')).toBe(true);
+      expect(builder.reads.has('user:bob')).toBe(true);
+      expect(builder.writes.has(edgeKey)).toBe(true);
+      expect(builder.versionVector.get('writer1')).toBe(1);
+    });
+
+    it('does NOT set _committed on failed commit (mock persistence to throw)', async () => {
+      const persistence = createMockPersistence();
+      persistence.updateRef.mockRejectedValueOnce(new Error('simulated updateRef failure'));
+      const builder = new PatchBuilderV2(/** @type {any} */ ({
+        persistence,
+        graphName: 'test-graph',
+        writerId: 'writer1',
+        lamport: 1,
+        versionVector: createVersionVector(),
+        getCurrentState: () => null,
+      }));
+
+      builder.addNode('x');
+      await expect(builder.commit()).rejects.toThrow('simulated updateRef failure');
+      expect(/** @type {any} */ (builder)._committed).toBe(false);
+      expect(/** @type {any} */ (builder)._committing).toBe(false);
+    });
+  });
+
   describe('reads/writes provenance tracking (HG/IO/1)', () => {
     describe('NodeAdd', () => {
       it('tracks nodeId as write', () => {
