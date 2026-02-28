@@ -45,6 +45,23 @@ const WRITER_ID_PATTERN = /^[A-Za-z0-9._-]+$/;
  */
 const PATH_TRAVERSAL_PATTERN = /\.\./;
 
+/**
+ * Ref-layout keywords that must not appear as any `/`-delimited segment
+ * of a graph name. Using one of these would create an ambiguous ref path
+ * (e.g. `refs/warp/writers/writers/alice`).
+ *
+ * @type {Set<string>}
+ */
+export const RESERVED_GRAPH_NAME_SEGMENTS = new Set([
+  'writers',
+  'checkpoints',
+  'coverage',
+  'cursor',
+  'audit',
+  'trust',
+  'seek-cache',
+]);
+
 // -----------------------------------------------------------------------------
 // Validators
 // -----------------------------------------------------------------------------
@@ -93,6 +110,15 @@ export function validateGraphName(name) {
 
   if (name.includes('\0')) {
     throw new Error(`Invalid graph name: contains null byte: ${name}`);
+  }
+
+  const segments = name.split('/');
+  for (const seg of segments) {
+    if (RESERVED_GRAPH_NAME_SEGMENTS.has(seg)) {
+      throw new Error(
+        `Invalid graph name: segment '${seg}' is a reserved ref-layout keyword: ${name}`
+      );
+    }
   }
 }
 
