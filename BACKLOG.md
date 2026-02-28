@@ -38,3 +38,9 @@ Items noticed during development that are worth addressing but were out of scope
 
 - Add a CLI-safe helper for posting review trigger comments (`@coderabbitai review please`) only when cooldown has expired.
 - Add a merge-gate script check that fails fast when CI is pending, Rabbit is unsatisfied, unresolved comments exist, or required reviewer count is unmet.
+
+## 2026-02-27 PR Feedback Session 4 Alignment
+
+- Update cooldown parsing logic to prefer CodeRabbit `lastEditedAt` (not `createdAt`) when the bot edits a persistent rate-limit comment.
+- Add a review-trigger dedupe guard so automation does not post repeated `@coderabbitai review please` comments while a prior trigger is still in-flight.
+- Extend `scripts/pr-ready` output with an explicit "human reviews missing" reason when review count is below required threshold.
