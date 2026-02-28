@@ -5,6 +5,7 @@
  */
 
 export { default as EmptyMessageError } from './EmptyMessageError.js';
+export { default as GitAdapterError } from './GitAdapterError.js';
 export { default as WarpError } from './WarpError.js';
 export { default as ForkError } from './ForkError.js';
 export { default as IndexError } from './IndexError.js';

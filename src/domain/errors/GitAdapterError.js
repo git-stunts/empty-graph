@@ -1,0 +1,45 @@
+import WarpError from './WarpError.js';
+
+/**
+ * Typed error codes for Git adapter boundary failures.
+ *
+ * Replaces generic `Error` throws with machine-readable codes so callers
+ * can branch on `err.code` instead of brittle `err.message.includes()`.
+ *
+ * ## Error Codes
+ *
+ * | Code | Description |
+ * |------|-------------|
+ * | `E_MISSING_OBJECT` | Git object (commit, blob, tree) does not exist |
+ * | `E_REF_NOT_FOUND` | Git ref does not resolve to any object |
+ * | `E_REF_IO` | Ref update/delete failed (lock contention, permission, etc.) |
+ *
+ * @class GitAdapterError
+ * @extends WarpError
+ *
+ * @property {string} name - Always 'GitAdapterError' for instanceof checks
+ * @property {string} code - Machine-readable error code for programmatic handling
+ * @property {Object} context - Serializable context object with error details
+ */
+export default class GitAdapterError extends WarpError {
+  /** Git object (commit, blob, tree) does not exist. */
+  static E_MISSING_OBJECT = 'E_MISSING_OBJECT';
+
+  /** Git ref does not resolve to any object. */
+  static E_REF_NOT_FOUND = 'E_REF_NOT_FOUND';
+
+  /** Ref update/delete failed (lock contention, permission, etc.). */
+  static E_REF_IO = 'E_REF_IO';
+
+  /**
+   * @param {string} message - Human-readable error message
+   * @param {string} code - One of the E_* constants
+   * @param {{ cause?: Error, context?: Record<string, unknown> }} [options={}]
+   */
+  constructor(message, code, options = {}) {
+    super(message, code, { code, context: options.context });
+    if (options.cause) {
+      this.cause = options.cause;
+    }
+  }
+}

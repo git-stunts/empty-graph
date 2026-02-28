@@ -12,6 +12,7 @@
 import { buildTrustRecordRef } from '../utils/RefLayout.js';
 import { TrustRecordSchema } from './schemas.js';
 import { verifyRecordId } from './TrustCanonical.js';
+import GitAdapterError from '../errors/GitAdapterError.js';
 import TrustError from '../errors/TrustError.js';
 
 /**
@@ -118,7 +119,7 @@ export class TrustRecordService {
           tip = await this._persistence.readRef(ref);
         } catch (err) {
           // Distinguish "ref not found" from operational error (J15)
-          if (err instanceof Error && (err.message?.includes('not found') || err.message?.includes('does not exist'))) {
+          if (err instanceof GitAdapterError && err.code === GitAdapterError.E_REF_NOT_FOUND) {
             return { ok: true, records: [] };
           }
           return {

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import GitAdapterError from '../../../../src/domain/errors/GitAdapterError.js';
 import GitGraphAdapter from '../../../../src/infrastructure/adapters/GitGraphAdapter.js';
 import { createGitRepo } from '../../../helpers/warpGraphTestUtils.js';
 import { describeAdapterConformance } from './AdapterConformance.js';
@@ -251,11 +252,13 @@ describe('GitGraphAdapter coverage', () => {
         .rejects.toThrow(/Invalid ref format/);
     });
 
-    it('propagates git errors', async () => {
+    it('propagates git errors as GitAdapterError with E_REF_IO code', async () => {
       mockPlumbing.execute.mockRejectedValue(new Error('permission denied'));
 
       await expect(adapter.deleteRef('refs/warp/test'))
-        .rejects.toThrow('permission denied');
+        .rejects.toSatisfy(err =>
+          err instanceof GitAdapterError && err.code === GitAdapterError.E_REF_IO
+        );
     });
   });
 
