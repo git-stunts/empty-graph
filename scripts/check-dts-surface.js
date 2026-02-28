@@ -94,12 +94,12 @@ export function extractDtsExports(src) {
   for (const m of src.matchAll(/export\s+(?:declare\s+)?(?:abstract\s+)?class\s+(\w+)/g)) {
     names.add(m[1]);
   }
-  // export interface Foo
-  for (const m of src.matchAll(/export\s+interface\s+(\w+)/g)) {
+  // export interface Foo / export declare interface Foo
+  for (const m of src.matchAll(/export\s+(?:declare\s+)?interface\s+(\w+)/g)) {
     names.add(m[1]);
   }
-  // export type Foo =
-  for (const m of src.matchAll(/export\s+type\s+(\w+)\s*=/g)) {
+  // export type Foo = / export declare type Foo =
+  for (const m of src.matchAll(/export\s+(?:declare\s+)?type\s+(\w+)\s*=/g)) {
     names.add(m[1]);
   }
   // export const Foo / export function Foo
