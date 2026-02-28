@@ -25,6 +25,8 @@ export const OP_TYPES = Object.freeze([
   'EdgeAdd',
   'EdgeTombstone',
   'PropSet',
+  'NodePropSet',
+  'EdgePropSet',
   'BlobValue',
 ]);
 

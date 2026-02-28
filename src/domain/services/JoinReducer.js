@@ -15,7 +15,8 @@ import { lwwSet, lwwMax } from '../crdt/LWW.js';
 import { createEventId, compareEventIds } from '../utils/EventId.js';
 import { createTickReceipt, OP_TYPES } from '../types/TickReceipt.js';
 import { encodeDot } from '../crdt/Dot.js';
-import { encodeEdgeKey, decodeEdgeKey, encodePropKey } from './KeyCodec.js';
+import { encodeEdgeKey, decodeEdgeKey, encodePropKey, encodeEdgePropKey, EDGE_PROP_PREFIX } from './KeyCodec.js';
+import { normalizeRawOp } from './OpNormalizer.js';
 import { createEmptyDiff, mergeDiffs } from '../types/PatchDiff.js';
 import PatchError from '../errors/PatchError.js';
 
@@ -26,6 +27,9 @@ export {
   EDGE_PROP_PREFIX,
   encodeEdgePropKey, isEdgePropKey, decodeEdgePropKey,
 } from './KeyCodec.js';
+
+// Re-export op normalization for consumers that operate on raw patches
+export { normalizeRawOp, lowerCanonicalOp } from './OpNormalizer.js';
 
 /**
  * @typedef {Object} WarpStateV5
@@ -92,19 +96,58 @@ export function createEmptyStateV5() {
  * @returns {void}
  */
 /**
- * Known V2 operation types. Used for forward-compatibility validation.
+ * Known raw (wire-format) V2 operation types. These are the 6 types that
+ * appear in persisted patches and on the sync wire.
  * @type {ReadonlySet<string>}
  */
-const KNOWN_OPS = new Set(['NodeAdd', 'NodeRemove', 'EdgeAdd', 'EdgeRemove', 'PropSet', 'BlobValue']);
+export const RAW_KNOWN_OPS = new Set([
+  'NodeAdd', 'NodeRemove', 'EdgeAdd', 'EdgeRemove',
+  'PropSet', 'BlobValue',
+]);
+
+/**
+ * Known canonical (internal) V2 operation types. Includes the 6 raw types
+ * plus the ADR 1 canonical split types `NodePropSet` and `EdgePropSet`.
+ * @type {ReadonlySet<string>}
+ */
+export const CANONICAL_KNOWN_OPS = new Set([
+  'NodeAdd', 'NodeRemove', 'EdgeAdd', 'EdgeRemove',
+  'PropSet', 'NodePropSet', 'EdgePropSet', 'BlobValue',
+]);
+
+/**
+ * Validates that an operation has a known raw (wire-format) type.
+ * Use this at sync/wire boundaries to fail-close on unknown or
+ * canonical-only types arriving over the wire.
+ *
+ * @param {{ type: string }} op
+ * @returns {boolean} True if the op type is in RAW_KNOWN_OPS
+ */
+export function isKnownRawOp(op) {
+  return op && typeof op.type === 'string' && RAW_KNOWN_OPS.has(op.type);
+}
+
+/**
+ * Validates that an operation has a known canonical (internal) type.
+ * Use this for internal guards after normalization.
+ *
+ * @param {{ type: string }} op
+ * @returns {boolean} True if the op type is in CANONICAL_KNOWN_OPS
+ */
+export function isKnownCanonicalOp(op) {
+  return op && typeof op.type === 'string' && CANONICAL_KNOWN_OPS.has(op.type);
+}
 
 /**
  * Validates that an operation has a known type.
  *
+ * @deprecated Use {@link isKnownRawOp} for wire validation or
+ * {@link isKnownCanonicalOp} for internal guards.
  * @param {{ type: string }} op
- * @returns {boolean} True if the op type is in KNOWN_OPS
+ * @returns {boolean} True if the op type is a known raw wire type
  */
 export function isKnownOp(op) {
-  return op && typeof op.type === 'string' && KNOWN_OPS.has(op.type);
+  return isKnownRawOp(op);
 }
 
 /**
@@ -206,6 +249,16 @@ function validateOp(op) {
       requireString(op, 'node');
       requireString(op, 'key');
       break;
+    case 'NodePropSet':
+      requireString(op, 'node');
+      requireString(op, 'key');
+      break;
+    case 'EdgePropSet':
+      requireString(op, 'from');
+      requireString(op, 'to');
+      requireString(op, 'label');
+      requireString(op, 'key');
+      break;
     default:
       // BlobValue and unknown types: no validation (forward-compat)
       break;
@@ -245,8 +298,34 @@ export function applyOpV2(state, op, eventId) {
     case 'EdgeRemove':
       orsetRemove(state.edgeAlive, /** @type {Set<string>} */ (/** @type {unknown} */ (op.observedDots)));
       break;
+    case 'NodePropSet': {
+      const key = encodePropKey(/** @type {string} */ (op.node), /** @type {string} */ (op.key));
+      const current = state.prop.get(key);
+      state.prop.set(key, /** @type {import('../crdt/LWW.js').LWWRegister<unknown>} */ (lwwMax(current, lwwSet(eventId, op.value))));
+      break;
+    }
+    case 'EdgePropSet': {
+      const key = encodeEdgePropKey(
+        /** @type {string} */ (op.from),
+        /** @type {string} */ (op.to),
+        /** @type {string} */ (op.label),
+        /** @type {string} */ (op.key),
+      );
+      const current = state.prop.get(key);
+      state.prop.set(key, /** @type {import('../crdt/LWW.js').LWWRegister<unknown>} */ (lwwMax(current, lwwSet(eventId, op.value))));
+      break;
+    }
     case 'PropSet': {
-      // Uses EventId-based LWW, same as v4
+      // Legacy raw PropSet — must NOT carry edge-property encoding at this point.
+      // If it does, normalization was skipped.
+      if (typeof op.node === 'string' && op.node[0] === EDGE_PROP_PREFIX) {
+        throw new PatchError(
+          'Unnormalized legacy edge-property PropSet reached canonical apply path. ' +
+          'Call normalizeRawOp() at the decode boundary.',
+          { context: { opType: 'PropSet', node: op.node } },
+        );
+      }
+      // Plain node property (backward-compat for callers that bypass normalization)
       const key = encodePropKey(/** @type {string} */ (op.node), /** @type {string} */ (op.key));
       const current = state.prop.get(key);
       state.prop.set(key, /** @type {import('../crdt/LWW.js').LWWRegister<unknown>} */ (lwwMax(current, lwwSet(eventId, op.value))));
@@ -278,6 +357,8 @@ const RECEIPT_OP_TYPE = {
   EdgeAdd: 'EdgeAdd',
   EdgeRemove: 'EdgeTombstone',
   PropSet: 'PropSet',
+  NodePropSet: 'NodePropSet',
+  EdgePropSet: 'EdgePropSet',
   BlobValue: 'BlobValue',
 };
 
@@ -409,7 +490,7 @@ function edgeRemoveOutcome(orset, op) {
 }
 
 /**
- * Determines the receipt outcome for a PropSet operation.
+ * Determines the receipt outcome for a property operation given a pre-computed key.
  *
  * Uses LWW (Last-Write-Wins) semantics to determine whether the incoming property
  * value wins over any existing value. The comparison is based on EventId ordering:
@@ -423,41 +504,61 @@ function edgeRemoveOutcome(orset, op) {
  * - `redundant`: Exact same write (identical EventId)
  *
  * @param {Map<string, import('../crdt/LWW.js').LWWRegister<unknown>>} propMap - The properties map keyed by encoded prop keys
- * @param {Object} op - The PropSet operation
- * @param {string} op.node - Node ID owning the property
- * @param {string} op.key - Property key/name
- * @param {unknown} op.value - Property value to set
+ * @param {string} key - Pre-encoded property key (node or edge)
  * @param {import('../utils/EventId.js').EventId} eventId - The event ID for this operation, used for LWW comparison
  * @returns {{target: string, result: 'applied'|'superseded'|'redundant', reason?: string}}
  *          Outcome with encoded prop key as target; includes reason when superseded
  */
-function propSetOutcome(propMap, op, eventId) {
-  const key = encodePropKey(op.node, op.key);
+function propOutcomeForKey(propMap, key, eventId) {
   const current = propMap.get(key);
-  const target = key;
 
   if (!current) {
-    // No existing value -- this write wins
-    return { target, result: 'applied' };
+    return { target: key, result: 'applied' };
   }
 
-  // Compare the incoming EventId with the existing register's EventId
   const cmp = compareEventIds(eventId, current.eventId);
   if (cmp > 0) {
-    // Incoming write wins
-    return { target, result: 'applied' };
+    return { target: key, result: 'applied' };
   }
   if (cmp < 0) {
-    // Existing write wins
     const winner = current.eventId;
     return {
-      target,
+      target: key,
       result: 'superseded',
       reason: `LWW: writer ${winner.writerId} at lamport ${winner.lamport} wins`,
     };
   }
-  // Same EventId -- redundant (exact same write)
-  return { target, result: 'redundant' };
+  return { target: key, result: 'redundant' };
+}
+
+/**
+ * Determines the receipt outcome for a PropSet/NodePropSet operation.
+ *
+ * @param {Map<string, import('../crdt/LWW.js').LWWRegister<unknown>>} propMap
+ * @param {Object} op
+ * @param {string} op.node - Node ID owning the property
+ * @param {string} op.key - Property key/name
+ * @param {import('../utils/EventId.js').EventId} eventId
+ * @returns {{target: string, result: 'applied'|'superseded'|'redundant', reason?: string}}
+ */
+function propSetOutcome(propMap, op, eventId) {
+  return propOutcomeForKey(propMap, encodePropKey(op.node, op.key), eventId);
+}
+
+/**
+ * Determines the receipt outcome for an EdgePropSet operation.
+ *
+ * @param {Map<string, import('../crdt/LWW.js').LWWRegister<unknown>>} propMap
+ * @param {Object} op
+ * @param {string} op.from
+ * @param {string} op.to
+ * @param {string} op.label
+ * @param {string} op.key
+ * @param {import('../utils/EventId.js').EventId} eventId
+ * @returns {{target: string, result: 'applied'|'superseded'|'redundant', reason?: string}}
+ */
+function edgePropSetOutcome(propMap, op, eventId) {
+  return propOutcomeForKey(propMap, encodeEdgePropKey(op.from, op.to, op.label, op.key), eventId);
 }
 
 /**
@@ -504,7 +605,7 @@ function updateFrontierFromPatch(state, patch) {
 export function applyFast(state, patch, patchSha) {
   for (let i = 0; i < patch.ops.length; i++) {
     const eventId = createEventId(patch.lamport, patch.writer, patchSha, i);
-    applyOpV2(state, patch.ops[i], eventId);
+    applyOpV2(state, normalizeRawOp(patch.ops[i]), eventId);
   }
   updateFrontierFromPatch(state, patch);
   return state;
@@ -599,10 +700,16 @@ function snapshotBeforeOp(state, op) {
       const aliveBeforeEdges = aliveElementsForDots(state.edgeAlive, edgeDots);
       return { aliveBeforeEdges };
     }
-    case 'PropSet': {
+    case 'PropSet':
+    case 'NodePropSet': {
       const pk = encodePropKey(op.node, op.key);
       const reg = state.prop.get(pk);
       return { prevPropValue: reg ? reg.value : undefined, propKey: pk };
+    }
+    case 'EdgePropSet': {
+      const epk = encodeEdgePropKey(op.from, op.to, op.label, op.key);
+      const ereg = state.prop.get(epk);
+      return { prevPropValue: ereg ? ereg.value : undefined, propKey: epk };
     }
     default:
       return {};
@@ -640,7 +747,8 @@ function accumulateOpDiff(diff, state, op, before) {
       collectEdgeRemovals(diff, state, before);
       break;
     }
-    case 'PropSet': {
+    case 'PropSet':
+    case 'NodePropSet': {
       const reg = state.prop.get(/** @type {string} */ (before.propKey));
       const newVal = reg ? reg.value : undefined;
       if (newVal !== before.prevPropValue) {
@@ -648,6 +756,19 @@ function accumulateOpDiff(diff, state, op, before) {
           nodeId: op.node,
           key: op.key,
           value: newVal,
+          prevValue: before.prevPropValue,
+        });
+      }
+      break;
+    }
+    case 'EdgePropSet': {
+      const ereg = state.prop.get(/** @type {string} */ (before.propKey));
+      const eNewVal = ereg ? ereg.value : undefined;
+      if (eNewVal !== before.prevPropValue) {
+        diff.propsChanged.push({
+          nodeId: `${op.from}\0${op.to}\0${op.label}`,
+          key: op.key,
+          value: eNewVal,
           prevValue: before.prevPropValue,
         });
       }
@@ -710,10 +831,10 @@ export function applyWithDiff(state, patch, patchSha) {
   const diff = createEmptyDiff();
 
   for (let i = 0; i < patch.ops.length; i++) {
-    const op = patch.ops[i];
-    validateOp(/** @type {Record<string, unknown>} */ (op));
+    const canonOp = normalizeRawOp(patch.ops[i]);
+    validateOp(/** @type {Record<string, unknown>} */ (canonOp));
     const eventId = createEventId(patch.lamport, patch.writer, patchSha, i);
-    const typedOp = /** @type {import('../types/WarpTypesV2.js').OpV2} */ (op);
+    const typedOp = /** @type {import('../types/WarpTypesV2.js').OpV2} */ (canonOp);
     const before = snapshotBeforeOp(state, typedOp);
     applyOpV2(state, typedOp, eventId);
     accumulateOpDiff(diff, state, typedOp, before);
@@ -739,41 +860,45 @@ export function applyWithReceipt(state, patch, patchSha) {
   /** @type {import('../types/TickReceipt.js').OpOutcome[]} */
   const opResults = [];
   for (let i = 0; i < patch.ops.length; i++) {
-    const op = patch.ops[i];
-    validateOp(/** @type {Record<string, unknown>} */ (op));
+    const canonOp = normalizeRawOp(patch.ops[i]);
+    validateOp(/** @type {Record<string, unknown>} */ (canonOp));
     const eventId = createEventId(patch.lamport, patch.writer, patchSha, i);
 
     // Determine outcome BEFORE applying the op (state is pre-op)
     /** @type {{target: string, result: string, reason?: string}} */
     let outcome;
-    switch (op.type) {
+    switch (canonOp.type) {
       case 'NodeAdd':
-        outcome = nodeAddOutcome(state.nodeAlive, /** @type {{node: string, dot: import('../crdt/Dot.js').Dot}} */ (op));
+        outcome = nodeAddOutcome(state.nodeAlive, /** @type {{node: string, dot: import('../crdt/Dot.js').Dot}} */ (canonOp));
         break;
       case 'NodeRemove':
-        outcome = nodeRemoveOutcome(state.nodeAlive, /** @type {{node?: string, observedDots: string[]}} */ (op));
+        outcome = nodeRemoveOutcome(state.nodeAlive, /** @type {{node?: string, observedDots: string[]}} */ (canonOp));
         break;
       case 'EdgeAdd': {
-        const edgeKey = encodeEdgeKey(/** @type {string} */ (op.from), /** @type {string} */ (op.to), /** @type {string} */ (op.label));
-        outcome = edgeAddOutcome(state.edgeAlive, /** @type {{from: string, to: string, label: string, dot: import('../crdt/Dot.js').Dot}} */ (op), edgeKey);
+        const edgeKey = encodeEdgeKey(/** @type {string} */ (canonOp.from), /** @type {string} */ (canonOp.to), /** @type {string} */ (canonOp.label));
+        outcome = edgeAddOutcome(state.edgeAlive, /** @type {{from: string, to: string, label: string, dot: import('../crdt/Dot.js').Dot}} */ (canonOp), edgeKey);
         break;
       }
       case 'EdgeRemove':
-        outcome = edgeRemoveOutcome(state.edgeAlive, /** @type {{from?: string, to?: string, label?: string, observedDots: string[]}} */ (op));
+        outcome = edgeRemoveOutcome(state.edgeAlive, /** @type {{from?: string, to?: string, label?: string, observedDots: string[]}} */ (canonOp));
         break;
       case 'PropSet':
-        outcome = propSetOutcome(state.prop, /** @type {{node: string, key: string, value: *}} */ (op), eventId);
+      case 'NodePropSet':
+        outcome = propSetOutcome(state.prop, /** @type {{node: string, key: string, value: *}} */ (canonOp), eventId);
+        break;
+      case 'EdgePropSet':
+        outcome = edgePropSetOutcome(state.prop, /** @type {{from: string, to: string, label: string, key: string, value: *}} */ (canonOp), eventId);
         break;
       default:
         // Unknown or BlobValue — always applied
-        outcome = { target: op.node || op.oid || '*', result: 'applied' };
+        outcome = { target: canonOp.node || canonOp.oid || '*', result: 'applied' };
         break;
     }
 
     // Apply the op (mutates state)
-    applyOpV2(state, op, eventId);
+    applyOpV2(state, canonOp, eventId);
 
-    const receiptOp = /** @type {Record<string, string>} */ (RECEIPT_OP_TYPE)[op.type] || op.type;
+    const receiptOp = /** @type {Record<string, string>} */ (RECEIPT_OP_TYPE)[canonOp.type] || canonOp.type;
     // Skip unknown/forward-compatible op types that aren't valid receipt ops
     if (!VALID_RECEIPT_OPS.has(receiptOp)) {
       continue;

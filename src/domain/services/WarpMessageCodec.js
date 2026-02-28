@@ -29,4 +29,6 @@ export {
   assertOpsCompatible,
   SCHEMA_V2,
   SCHEMA_V3,
+  PATCH_SCHEMA_V2,
+  PATCH_SCHEMA_V3,
 } from './MessageSchemaDetector.js';

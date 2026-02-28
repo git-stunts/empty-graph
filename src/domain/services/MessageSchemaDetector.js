@@ -20,16 +20,32 @@ import { getCodec, TRAILER_KEYS } from './MessageCodecInternal.js';
 // -----------------------------------------------------------------------------
 
 /**
- * Schema version for classic node-only patches (V5 format).
+ * Patch schema version for classic node-only patches (V5 format).
  * @type {number}
  */
 export const SCHEMA_V2 = 2;
 
 /**
- * Schema version for patches that may contain edge property PropSet ops.
+ * Patch schema version for patches that may contain edge property PropSet ops.
  * @type {number}
  */
 export const SCHEMA_V3 = 3;
+
+/**
+ * Alias: patch schema v2 (classic node-only patches).
+ * Use this when you need to be explicit that you mean *patch* schema,
+ * not checkpoint schema.
+ * @type {number}
+ */
+export const PATCH_SCHEMA_V2 = SCHEMA_V2;
+
+/**
+ * Alias: patch schema v3 (edge-property-aware patches).
+ * Use this when you need to be explicit that you mean *patch* schema,
+ * not checkpoint schema.
+ * @type {number}
+ */
+export const PATCH_SCHEMA_V3 = SCHEMA_V3;
 
 // -----------------------------------------------------------------------------
 // Schema Version Detection
@@ -50,6 +66,11 @@ export function detectSchemaVersion(ops) {
     return SCHEMA_V2;
   }
   for (const op of ops) {
+    // Canonical EdgePropSet always implies schema 3
+    if (op.type === 'EdgePropSet') {
+      return SCHEMA_V3;
+    }
+    // Legacy raw PropSet with edge-property encoding
     if (op.type === 'PropSet' && typeof op.node === 'string' && op.node.startsWith(EDGE_PROP_PREFIX)) {
       return SCHEMA_V3;
     }

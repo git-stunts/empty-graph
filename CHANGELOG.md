@@ -25,6 +25,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **ROADMAP inventory table (R2)** — moved B26/B46/B47/B71/B126 from Standalone to Standalone (done); counts reconciled.
 - **MIGRATION_PROBLEM.md fenced code block** — added `text` language tag (MD040).
 
+## [12.3.0] — 2026-02-28
+
+### Added
+
+- **M13 internal canonicalization (ADR 1)** — edge property operations are now semantically honest internally. The reducer, receipts, provenance, and builder all operate on canonical `NodePropSet`/`EdgePropSet` ops. Legacy raw `PropSet` is normalized at reducer entry points and lowered back at write time.
+- **OpNormalizer** — new `normalizeRawOp()` / `lowerCanonicalOp()` boundary conversion module (`src/domain/services/OpNormalizer.js`).
+- **Raw/canonical op set split** — `RAW_KNOWN_OPS` (6 wire types), `CANONICAL_KNOWN_OPS` (8 types), `isKnownRawOp()`, `isKnownCanonicalOp()` exported from JoinReducer. `isKnownOp()` deprecated as alias for `isKnownRawOp()`.
+- **Reserved-byte validation** — `PatchBuilderV2._assertNoReservedBytes()` rejects `\0` in identifiers and `\x01` prefix in node IDs on new writes.
+- **Version namespace separation** — `PATCH_SCHEMA_V2`/`PATCH_SCHEMA_V3` constants in MessageSchemaDetector (re-exported from WarpMessageCodec). `CHECKPOINT_SCHEMA_STANDARD`/`CHECKPOINT_SCHEMA_INDEX_TREE` constants in CheckpointService.
+- **TickReceipt canonical types** — `OP_TYPES` expanded with `NodePropSet` and `EdgePropSet`; receipts use canonical type names.
+- **ADR governance** — ADR 1 (internal canonicalization), ADR 2 (wire-format deferral), ADR 3 (readiness gates for future cutover) in `adr/`.
+- **ADR 2 tripwire tests** — `SyncProtocol.wireGate.test.js` (5 tests) and `JoinReducer.opSets.test.js` (17 tests) prove canonical ops are rejected on the wire.
+- **GitHub issue template** — `adr-2-readiness-review.yml` for ADR 3 gate reviews.
+- **Go/no-go checklist** — `docs/checklists/adr-2-go-no-go-checklist.md` for ADR 3 enforcement.
+- **PR template** — `.github/pull_request_template.md` with ADR safety checks.
+
+### Fixed
+
+- **Sync wire gate accepted canonical-only ops** — `SyncProtocol.applySyncResponse()` now uses `isKnownRawOp()` instead of `isKnownOp()`, rejecting `NodePropSet`/`EdgePropSet` on the wire before ADR 2 capability cutover.
+
+### Changed
+
+- **ROADMAP updated** — M13 internal canonicalization marked DONE; wire-format half deferred by ADR 3. M11 COMPASS II marked NEXT (unblocked).
+
 ## [12.2.1] — 2026-02-28
 
 ### Fixed

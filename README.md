@@ -8,12 +8,13 @@
   <img src="docs/images/hero.gif" alt="git-warp CLI demo" width="600">
 </p>
 
-## What's New in v12.2.1
+## What's New in v12.3.0
 
-- **M12 SCALPEL complete** — 42-item STANK audit fully resolved: 15 bug fixes, 20+ JSDoc/documentation improvements, and 6 refactors across CRDT core, services, sync, and CLI.
-- **Sync correctness hardened** — `join()` state install, `applySyncResponse` cache coherence, unknown-op rejection (fail-closed), and divergence pre-check all fixed.
-- **Incremental index improvements** — stale label ID collision fix, re-add edge restoration via adjacency cache, and bitmap churn reduction for node removal.
-- **canonicalStringify shared-reference fix** — cycle detection now correctly allows valid DAG structures (shared non-circular references).
+- **M13 ADR 1 — canonical edge property ops** — internal model now uses honest `NodePropSet`/`EdgePropSet` semantics. Legacy raw `PropSet` is normalized at reducer entry points and lowered back at write time. No wire-format change — persisted patches remain backward-compatible.
+- **Wire gate hardened** — sync boundary now explicitly rejects canonical-only op types (`NodePropSet`, `EdgePropSet`) arriving over the wire, preventing premature schema migration before ADR 2 capability cutover.
+- **Reserved-byte validation** — new writes reject node IDs containing `\0` or starting with `\x01`, preventing ambiguous legacy edge-property encoding.
+- **Version namespace separation** — patch schema and checkpoint schema constants are now distinct (`PATCH_SCHEMA_V2`/`V3` vs `CHECKPOINT_SCHEMA_STANDARD`/`INDEX_TREE`).
+- **ADR governance** — ADR 3 readiness gates formalize when the persisted wire-format migration may proceed, with GitHub issue template and go/no-go checklist.
 
 See the [full changelog](CHANGELOG.md) for details.
 

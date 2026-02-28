@@ -41,14 +41,14 @@ function createPropSetV2(node, key, value) {
 }
 
 /**
- * Creates a PropSet operation for an edge property, exactly as
- * PatchBuilderV2.setEdgeProperty does: op.node = '\x01from\0to\0label',
- * op.key = propKey.
+ * Creates a canonical EdgePropSet operation (ADR 1).
+ * The reducer and direct applyOpV2 calls operate on canonical ops.
+ * When used in patches going through reduceV5, normalizeRawOp passes
+ * canonical ops through unchanged.
  */
 /** @param {string} from @param {string} to @param {string} label @param {string} propKey @param {any} value */
 function createEdgePropSetV2(from, to, label, propKey, value) {
-  const edgeNode = `${EDGE_PROP_PREFIX}${from}\0${to}\0${label}`;
-  return createPropSetV2(edgeNode, propKey, value);
+  return { type: 'EdgePropSet', from, to, label, key: propKey, value };
 }
 
 /** @param {any} params */

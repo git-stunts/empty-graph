@@ -20,10 +20,12 @@ import {
   createNodeRemoveV2,
   createEdgeAddV2,
   createEdgeRemoveV2,
-  createPropSetV2,
+  createNodePropSetV2,
+  createEdgePropSetV2,
   createPatchV2,
 } from '../types/WarpTypesV2.js';
-import { encodeEdgeKey, EDGE_PROP_PREFIX, CONTENT_PROPERTY_KEY } from './KeyCodec.js';
+import { encodeEdgeKey, FIELD_SEPARATOR, EDGE_PROP_PREFIX, CONTENT_PROPERTY_KEY } from './KeyCodec.js';
+import { lowerCanonicalOp } from './OpNormalizer.js';
 import { encodePatchMessage, decodePatchMessage, detectMessageKind } from './WarpMessageCodec.js';
 import { buildWriterRef } from '../utils/RefLayout.js';
 import WriterError from '../errors/WriterError.js';
@@ -64,6 +66,30 @@ function findAttachedData(state, nodeId) {
   }
 
   return { edges, props, hasData: edges.length > 0 || props.length > 0 };
+}
+
+/**
+ * Validates that an identifier does not contain reserved bytes that would
+ * make the legacy edge-property encoding ambiguous.
+ *
+ * Rejects:
+ * - Identifiers containing \0 (field separator)
+ * - Identifiers starting with \x01 (edge property prefix)
+ *
+ * @param {string} value - Identifier to validate
+ * @param {string} label - Human-readable label for error messages
+ * @throws {Error} If the identifier contains reserved bytes
+ */
+function _assertNoReservedBytes(value, label) {
+  if (typeof value !== 'string') {
+    return;
+  }
+  if (value.includes(FIELD_SEPARATOR)) {
+    throw new Error(`${label} must not contain null bytes (\\0): ${JSON.stringify(value)}`);
+  }
+  if (value.length > 0 && value[0] === EDGE_PROP_PREFIX) {
+    throw new Error(`${label} must not start with reserved prefix \\x01: ${JSON.stringify(value)}`);
+  }
 }
 
 /**
@@ -233,6 +259,7 @@ export class PatchBuilderV2 {
    */
   addNode(nodeId) {
     this._assertNotCommitted();
+    _assertNoReservedBytes(nodeId, 'nodeId');
     const dot = vvIncrement(this._vv, this._writerId);
     this._ops.push(createNodeAddV2(nodeId, dot));
     // Provenance: NodeAdd writes the node
@@ -348,6 +375,9 @@ export class PatchBuilderV2 {
    */
   addEdge(from, to, label) {
     this._assertNotCommitted();
+    _assertNoReservedBytes(from, 'from node ID');
+    _assertNoReservedBytes(to, 'to node ID');
+    _assertNoReservedBytes(label, 'edge label');
     const dot = vvIncrement(this._vv, this._writerId);
     this._ops.push(createEdgeAddV2(from, to, label, dot));
     const edgeKey = encodeEdgeKey(from, to, label);
@@ -427,9 +457,11 @@ export class PatchBuilderV2 {
    */
   setProperty(nodeId, key, value) {
     this._assertNotCommitted();
-    // Props don't use dots - they use EventId from patch context
-    this._ops.push(createPropSetV2(nodeId, key, value));
-    // Provenance: PropSet reads the node (implicit existence check) and writes the node
+    _assertNoReservedBytes(nodeId, 'nodeId');
+    _assertNoReservedBytes(key, 'property key');
+    // Canonical NodePropSet — lowered to raw PropSet at commit time
+    this._ops.push(createNodePropSetV2(nodeId, key, value));
+    // Provenance: NodePropSet reads the node (implicit existence check) and writes the node
     this._observedOperands.add(nodeId);
     this._writes.add(nodeId);
     return this;
@@ -474,6 +506,10 @@ export class PatchBuilderV2 {
    */
   setEdgeProperty(from, to, label, key, value) {
     this._assertNotCommitted();
+    _assertNoReservedBytes(from, 'from node ID');
+    _assertNoReservedBytes(to, 'to node ID');
+    _assertNoReservedBytes(label, 'edge label');
+    _assertNoReservedBytes(key, 'property key');
     // Validate edge exists in this patch or in current state
     const ek = encodeEdgeKey(from, to, label);
     if (!this._edgesAdded.has(ek)) {
@@ -483,15 +519,10 @@ export class PatchBuilderV2 {
       }
     }
 
-    // Encode the edge identity as the "node" field with the \x01 prefix.
-    // When JoinReducer processes: encodePropKey(op.node, op.key)
-    //   = `\x01from\0to\0label` + `\0` + key
-    //   = `\x01from\0to\0label\0key`
-    //   = encodeEdgePropKey(from, to, label, key)
-    const edgeNode = `${EDGE_PROP_PREFIX}${from}\0${to}\0${label}`;
-    this._ops.push(createPropSetV2(edgeNode, key, value));
+    // Canonical EdgePropSet — lowered to legacy raw PropSet at commit time
+    this._ops.push(createEdgePropSetV2(from, to, label, key, value));
     this._hasEdgeProps = true;
-    // Provenance: setEdgeProperty reads the edge (implicit existence check) and writes the edge
+    // Provenance: EdgePropSet reads the edge (implicit existence check) and writes the edge
     this._observedOperands.add(ek);
     this._writes.add(ek);
     return this;
@@ -558,12 +589,14 @@ export class PatchBuilderV2 {
    */
   build() {
     const schema = this._hasEdgeProps ? 3 : 2;
+    // Lower canonical ops to raw form for the persisted patch
+    const rawOps = this._ops.map(lowerCanonicalOp);
     return createPatchV2({
       schema,
       writer: this._writerId,
       lamport: this._lamport,
       context: vvSerialize(this._vv),
-      ops: this._ops,
+      ops: rawOps,
       reads: [...this._observedOperands].sort(),
       writes: [...this._writes].sort(),
     });
@@ -677,13 +710,14 @@ export class PatchBuilderV2 {
       // For now, we use the calculated lamport for the patch metadata.
       // The dots themselves are independent of patch lamport (they use VV counters).
       const schema = this._hasEdgeProps ? 3 : 2;
-      // Use createPatchV2 for consistent patch construction (DRY with build())
+      // Lower canonical ops to raw form for the persisted patch
+      const rawOps = this._ops.map(lowerCanonicalOp);
       const patch = createPatchV2({
         schema,
         writer: this._writerId,
         lamport,
         context: vvSerialize(this._vv),
-        ops: this._ops,
+        ops: rawOps,
         reads: [...this._observedOperands].sort(),
         writes: [...this._writes].sort(),
       });

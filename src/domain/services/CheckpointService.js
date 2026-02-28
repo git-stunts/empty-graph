@@ -29,6 +29,24 @@ import { encodeEdgeKey, encodePropKey, CONTENT_PROPERTY_KEY, decodePropKey, isEd
 import { ProvenanceIndex } from './ProvenanceIndex.js';
 
 // ============================================================================
+// Checkpoint Schema Constants
+// ============================================================================
+
+/**
+ * Standard checkpoint schema — full V5 state without index tree.
+ * Distinct from the patch schema namespace (PATCH_SCHEMA_V2/V3).
+ * @type {number}
+ */
+export const CHECKPOINT_SCHEMA_STANDARD = 2;
+
+/**
+ * Index-tree checkpoint schema — full V5 state with bitmap index tree.
+ * Distinct from the patch schema namespace (PATCH_SCHEMA_V2/V3).
+ * @type {number}
+ */
+export const CHECKPOINT_SCHEMA_INDEX_TREE = 4;
+
+// ============================================================================
 // Internal Helpers
 // ============================================================================
 
@@ -244,7 +262,7 @@ export async function createV5({
     indexOid: treeOid,
     // Schema 3 was used for edge-property-aware patches but is never emitted
     // by checkpoint creation. Schema 4 indicates an index tree is present.
-    schema: indexTree ? 4 : 2,
+    schema: indexTree ? CHECKPOINT_SCHEMA_INDEX_TREE : CHECKPOINT_SCHEMA_STANDARD,
   });
 
   // 9. Create the checkpoint commit

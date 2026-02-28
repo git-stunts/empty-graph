@@ -292,6 +292,8 @@ function formatOpSummaryPlain(summary) {
     ['NodeAdd', '+', 'node'],
     ['EdgeAdd', '+', 'edge'],
     ['PropSet', '~', 'prop'],
+    ['NodePropSet', '~', 'prop'],
+    ['EdgePropSet', '~', 'eprop'],
     ['NodeTombstone', '-', 'node'],
     ['EdgeTombstone', '-', 'edge'],
     ['BlobValue', '+', 'blob'],
@@ -612,8 +614,11 @@ function formatPatchOp(op) {
   if (op.type === 'EdgeTombstone') {
     return `  - edge ${op.from} -[${op.label}]-> ${op.to}`;
   }
-  if (op.type === 'PropSet') {
+  if (op.type === 'PropSet' || op.type === 'NodePropSet') {
     return `  ~ ${op.node}.${op.key} = ${JSON.stringify(op.value)}`;
+  }
+  if (op.type === 'EdgePropSet') {
+    return `  ~ edge(${op.from} -[${op.label}]-> ${op.to}).${op.key} = ${JSON.stringify(op.value)}`;
   }
   if (op.type === 'BlobValue') {
     return `  + blob ${op.node}`;

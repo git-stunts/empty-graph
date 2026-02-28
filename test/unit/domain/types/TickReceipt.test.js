@@ -441,13 +441,15 @@ describe('TickReceipt', () => {
   // Constants
   // -----------------------------------------------------------------------
   describe('constants', () => {
-    it('exports the six valid op types', () => {
+    it('exports the eight valid op types', () => {
       expect(OP_TYPES).toEqual([
         'NodeAdd',
         'NodeTombstone',
         'EdgeAdd',
         'EdgeTombstone',
         'PropSet',
+        'NodePropSet',
+        'EdgePropSet',
         'BlobValue',
       ]);
     });

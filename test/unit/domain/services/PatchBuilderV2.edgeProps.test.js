@@ -43,11 +43,26 @@ describe('PatchBuilderV2.setEdgeProperty', () => {
       expect(propOp.node.startsWith(EDGE_PROP_PREFIX)).toBe(true);
     });
 
-    it('produces the canonical encodeEdgePropKey when run through encodePropKey', () => {
+    it('builder.ops holds a canonical EdgePropSet with structured fields', () => {
       const builder = makeBuilder();
       builder.addEdge('a', 'b', 'rel').setEdgeProperty('a', 'b', 'rel', 'weight', 42);
 
       const op = /** @type {any} */ (builder.ops[1]);
+      expect(op.type).toBe('EdgePropSet');
+      expect(op.from).toBe('a');
+      expect(op.to).toBe('b');
+      expect(op.label).toBe('rel');
+      expect(op.key).toBe('weight');
+      expect(op.value).toBe(42);
+    });
+
+    it('build() lowers EdgePropSet to raw PropSet whose encodePropKey matches encodeEdgePropKey', () => {
+      const builder = makeBuilder();
+      builder.addEdge('a', 'b', 'rel').setEdgeProperty('a', 'b', 'rel', 'weight', 42);
+
+      const patch = builder.build();
+      const op = /** @type {any} */ (patch.ops[1]);
+      expect(op.type).toBe('PropSet');
       const mapKey = encodePropKey(op.node, op.key);
       const expected = encodeEdgePropKey('a', 'b', 'rel', 'weight');
       expect(mapKey).toBe(expected);
@@ -68,14 +83,15 @@ describe('PatchBuilderV2.setEdgeProperty', () => {
 
       const [, nodeOp, edgeOp] = /** @type {any[]} */ (builder.ops);
 
-      // Both are PropSet but with different node fields
-      expect(nodeOp.type).toBe('PropSet');
-      expect(edgeOp.type).toBe('PropSet');
-      expect(nodeOp.node).not.toBe(edgeOp.node);
+      // Canonical types distinguish node vs edge properties
+      expect(nodeOp.type).toBe('NodePropSet');
+      expect(edgeOp.type).toBe('EdgePropSet');
 
-      // Encoded map keys must differ
-      const nodeMapKey = encodePropKey(nodeOp.node, nodeOp.key);
-      const edgeMapKey = encodePropKey(edgeOp.node, edgeOp.key);
+      // After lowering via build(), encoded map keys must differ
+      const patch = builder.build();
+      const [, rawNodeOp, rawEdgeOp] = /** @type {any[]} */ (patch.ops);
+      const nodeMapKey = encodePropKey(rawNodeOp.node, rawNodeOp.key);
+      const edgeMapKey = encodePropKey(rawEdgeOp.node, rawEdgeOp.key);
       expect(nodeMapKey).not.toBe(edgeMapKey);
     });
   });
@@ -234,18 +250,26 @@ describe('PatchBuilderV2.setEdgeProperty', () => {
         .setEdgeProperty('n1', 'n2', 'link', 'weight', 10)
         .setProperty('n1', 'age', 5);
 
+      // Canonical types in builder.ops
       const types = builder.ops.map((o) => o.type);
-      expect(types).toEqual(['NodeAdd', 'EdgeAdd', 'PropSet', 'PropSet', 'PropSet']);
+      expect(types).toEqual(['NodeAdd', 'EdgeAdd', 'NodePropSet', 'EdgePropSet', 'NodePropSet']);
 
-      // Verify which PropSet is which by checking the key
+      // Verify keys
       expect(/** @type {any} */ (builder.ops[2]).key).toBe('name');
       expect(/** @type {any} */ (builder.ops[3]).key).toBe('weight');
       expect(/** @type {any} */ (builder.ops[4]).key).toBe('age');
 
-      // Only the middle PropSet should have edge-prop-prefix node
+      // NodePropSet has node field, EdgePropSet has from/to/label
       expect(/** @type {any} */ (builder.ops[2]).node).toBe('n1');
-      expect(/** @type {any} */ (builder.ops[3]).node.startsWith(EDGE_PROP_PREFIX)).toBe(true);
+      expect(/** @type {any} */ (builder.ops[3]).from).toBe('n1');
+      expect(/** @type {any} */ (builder.ops[3]).to).toBe('n2');
+      expect(/** @type {any} */ (builder.ops[3]).label).toBe('link');
       expect(/** @type {any} */ (builder.ops[4]).node).toBe('n1');
+
+      // build() lowers to raw PropSet
+      const patch = builder.build();
+      const rawTypes = patch.ops.map((o) => o.type);
+      expect(rawTypes).toEqual(['NodeAdd', 'EdgeAdd', 'PropSet', 'PropSet', 'PropSet']);
     });
   });
 });

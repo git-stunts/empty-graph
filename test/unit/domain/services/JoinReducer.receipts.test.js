@@ -303,7 +303,7 @@ describe('JoinReducer receipts', () => {
       });
       const { receipt } = /** @type {any} */ (join(state, patch, 'abcd1234', true));
       expect(receipt.ops[0]).toEqual({
-        op: 'PropSet',
+        op: 'NodePropSet',
         target: encodePropKey('n1', 'name'),
         result: 'applied',
       });
@@ -491,7 +491,7 @@ describe('JoinReducer receipts', () => {
       expect(receipt.ops).toHaveLength(3);
       expect(receipt.ops[0].op).toBe('NodeAdd');
       expect(receipt.ops[1].op).toBe('NodeAdd');
-      expect(receipt.ops[2].op).toBe('PropSet');
+      expect(receipt.ops[2].op).toBe('NodePropSet');
     });
   });
 
@@ -519,7 +519,7 @@ describe('JoinReducer receipts', () => {
       // The unknown op is silently skipped in the receipt
       expect(receipt.ops).toHaveLength(2);
       expect(receipt.ops[0].op).toBe('NodeAdd');
-      expect(receipt.ops[1].op).toBe('PropSet');
+      expect(receipt.ops[1].op).toBe('NodePropSet');
 
       // State was still mutated (applyOpV2 ran for all ops, unknown ones are no-ops)
       expect(resultState).toBe(state);
@@ -576,12 +576,12 @@ describe('JoinReducer receipts', () => {
       // Patch 1 receipts: both ops applied (first writer, empty state)
       expect(receipts[0].writer).toBe('alice');
       expect(receipts[0].ops[0]).toMatchObject({ op: 'NodeAdd', result: 'applied' });
-      expect(receipts[0].ops[1]).toMatchObject({ op: 'PropSet', result: 'applied' });
+      expect(receipts[0].ops[1]).toMatchObject({ op: 'NodePropSet', result: 'applied' });
 
       // Patch 2 receipts: node add applied (different dot), prop wins (higher lamport)
       expect(receipts[1].writer).toBe('bob');
       expect(receipts[1].ops[0]).toMatchObject({ op: 'NodeAdd', result: 'applied' });
-      expect(receipts[1].ops[1]).toMatchObject({ op: 'PropSet', result: 'applied' });
+      expect(receipts[1].ops[1]).toMatchObject({ op: 'NodePropSet', result: 'applied' });
 
       // Final state: bob's color wins
       const key = encodePropKey('n1', 'color');

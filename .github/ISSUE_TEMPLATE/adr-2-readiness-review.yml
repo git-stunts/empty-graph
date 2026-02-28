@@ -1,0 +1,164 @@
+name: ADR 2 readiness review
+description: Review whether ADR 2 may be implemented or activated under ADR 3
+title: "[ADR2] Readiness review: "
+labels:
+  - adr
+  - adr-2
+  - readiness-review
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form to request an ADR 3 review for ADR 2.
+
+        ADR 3 defines two gates:
+        - **Gate 1 — Implementation Readiness**
+        - **Gate 2 — Activation Readiness**
+
+        This review must include evidence. "Seems fine" is not evidence.
+
+  - type: dropdown
+    id: review_type
+    attributes:
+      label: Review type
+      description: Which ADR 3 gate is this review for?
+      options:
+        - Gate 1 — Implementation Readiness
+        - Gate 2 — Activation Readiness
+    validations:
+      required: true
+
+  - type: input
+    id: owner
+    attributes:
+      label: Review owner
+      description: Primary person driving the review
+      placeholder: "@owner"
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: What exactly is being proposed?
+      placeholder: |
+        Example:
+        - Begin ADR 2 implementation behind a disabled graph capability
+        - Activate raw persisted EdgePropSet for graph family X
+    validations:
+      required: true
+
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Why now?
+      description: What concrete payoff justifies ADR 2 work or activation?
+      placeholder: |
+        Explain the operational or technical reason.
+        "Cleaner schema" is not enough by itself.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: gate1
+    attributes:
+      label: Gate 1 — Implementation Readiness
+      description: Check every item only if evidence is linked below.
+      options:
+        - label: ADR 1 is merged and stable
+        - label: Unit test suite is green
+        - label: Integration test suite is green
+        - label: No-coordination / mixed-writer regression suite is green
+        - label: Lint/static checks are green
+        - label: Historical identifier audit is complete
+        - label: Patch and checkpoint schema namespaces are separated
+        - label: Graph capability design is approved
+        - label: Observability plan exists
+        - label: Rollout playbook exists
+        - label: ADR 2 tripwire tests are written
+        - label: Peer-specific patch transcoding is explicitly out of scope
+
+  - type: checkboxes
+    id: gate2
+    attributes:
+      label: Gate 2 — Activation Readiness
+      description: Check every item only if evidence is linked below.
+      options:
+        - label: Gate 1 was previously satisfied
+        - label: ADR 2 implementation is complete
+        - label: Graph capability exists and is monotonic
+        - label: Raw persisted EdgePropSet is still disabled by default
+        - label: Compatibility behavior is proven by passing tests
+        - label: Supporting readers accept mixed historical and cutover history
+        - label: Unsupported readers fail closed immediately
+        - label: No peer-specific patch transcoding occurs
+        - label: Target graph fleet is fully upgraded
+        - label: Operators accept that older binaries will be blocked
+        - label: Observability is live
+        - label: Activation review sign-off is ready
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Link the concrete artifacts required by ADR 3
+      placeholder: |
+        Include links to:
+        - ADR 1 completion note
+        - CI runs
+        - historical identifier audit report
+        - graph capability design doc
+        - rollout playbook
+        - observability plan/dashboard
+        - ADR 2 tripwire tests
+        - compatibility test results
+    validations:
+      required: true
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: Compatibility and operational impact
+      description: State the blast radius plainly
+      placeholder: |
+        Answer clearly:
+        - What old readers will do
+        - What old writers will do
+        - Whether any graph becomes unreadable by older binaries
+        - Whether rollback is possible
+    validations:
+      required: true
+
+  - type: textarea
+    id: risks
+    attributes:
+      label: Risks and open questions
+      description: What could still go wrong?
+      placeholder: |
+        Be direct. Include any unresolved technical or rollout risks.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: approvals
+    attributes:
+      label: Required review participants
+      description: Check when the responsible maintainers have reviewed
+      options:
+        - label: Storage / schema maintainer reviewed
+        - label: Sync / replication maintainer reviewed
+        - label: Runtime / materialization maintainer reviewed
+        - label: Operations / rollout owner reviewed
+
+  - type: textarea
+    id: decision
+    attributes:
+      label: Requested decision
+      description: What should reviewers approve or reject?
+      placeholder: |
+        Example:
+        - Approve Gate 1 so ADR 2 implementation may begin behind a disabled capability
+        - Approve Gate 2 so graph family X may activate raw persisted EdgePropSet
+    validations:
+      required: true
