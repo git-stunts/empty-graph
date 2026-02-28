@@ -186,7 +186,7 @@
             { "name": "remote", "type": "string | WarpGraph" },
             { "name": "options", "type": "SyncWithOptions", "optional": true }
           ],
-          "returns": "Promise<{ applied: number; attempts: number; state?: WarpStateV5 }>"
+          "returns": "Promise<{ applied: number; attempts: number; skippedWriters: Array<{ writerId: string; reason: string; localSha: string; remoteSha: string | null }>; state?: WarpStateV5 }>"
         },
         "fork": {
           "async": true,
