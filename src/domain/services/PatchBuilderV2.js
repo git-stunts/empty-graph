@@ -725,7 +725,7 @@ export class PatchBuilderV2 {
           await this._onCommitSuccess({ patch, sha: newCommitSha });
         } catch (err) {
           // Commit is already persisted — log but don't fail the caller.
-          this._logger.warn(`[warp] onCommitSuccess callback failed (sha=${newCommitSha}):`, err);
+          this._logger.warn(`[warp] onCommitSuccess callback failed (sha=${newCommitSha}):`, { error: err });
         }
       }
 

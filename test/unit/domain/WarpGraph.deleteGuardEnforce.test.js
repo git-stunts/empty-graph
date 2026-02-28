@@ -170,6 +170,7 @@ describe('WarpGraph deleteGuard enforcement (HS/DELGUARD/2)', () => {
   // ---------------------------------------------------------------------------
 
   describe('warn mode', () => {
+    /** @param {import('vitest').Mock} warnSpy */
     function mockLogger(warnSpy) {
       const logger = { info: vi.fn(), warn: warnSpy, error: vi.fn(), debug: vi.fn(), child: () => logger };
       return logger;
