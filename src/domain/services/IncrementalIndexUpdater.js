@@ -1,9 +1,16 @@
 /**
- * Stateless service that computes dirty shard buffers from a PatchDiff.
+ * Stateful service that computes dirty shard buffers from a PatchDiff.
  *
  * Given a diff of alive-ness transitions + a shard loader for the existing
  * index tree, produces only the shard buffers that changed. The caller
  * merges them back into the tree via `{ ...existingTree, ...dirtyShards }`.
+ *
+ * Instance state:
+ * - `_edgeAdjacencyCache` stores a WeakMap keyed by `state.edgeAlive` ORSet
+ *   identity, mapping nodeId -> incident alive edge keys.
+ * - Cache lifetime is tied to the updater instance and is reconciled per diff
+ *   once initialized. Reuse one instance for a single linear state stream;
+ *   create a new instance to reset cache state across independent streams.
  *
  * @module domain/services/IncrementalIndexUpdater
  */
@@ -108,14 +115,21 @@ export default class IncrementalIndexUpdater {
       this._handleEdgeRemove(edge, labels, metaCache, fwdCache, revCache, loadShard);
     }
 
+    // Keep adjacency cache in sync for every diff once initialized, so later
+    // re-add restores never consult stale edge membership.
+    let readdAdjacency = null;
+    if (readdedNodes.size > 0 || this._edgeAdjacencyCache.has(state.edgeAlive)) {
+      readdAdjacency = this._getOrBuildAliveEdgeAdjacency(state, diff);
+    }
+
     // Restore edges for re-added nodes only. When a node transitions
     // not-alive -> alive, alive OR-Set edges touching it become visible again.
     // Brand-new nodes are skipped because they have no prior global ID.
-    if (readdedNodes.size > 0) {
+    if (readdedNodes.size > 0 && readdAdjacency) {
       const diffEdgeSet = new Set(
         diff.edgesAdded.map((e) => `${e.from}\0${e.to}\0${e.label}`),
       );
-      for (const edgeKey of this._collectReaddedEdgeKeys(state, diff, readdedNodes)) {
+      for (const edgeKey of this._collectReaddedEdgeKeys(readdAdjacency, readdedNodes)) {
         const { from, to, label } = decodeEdgeKey(edgeKey);
         if (!orsetContains(state.nodeAlive, from) || !orsetContains(state.nodeAlive, to)) {
           continue;
@@ -753,14 +767,12 @@ export default class IncrementalIndexUpdater {
    * Uses an ORSet-keyed adjacency cache so repeated updates can enumerate
    * candidates by degree rather than scanning all alive edges each time.
    *
-   * @param {import('./JoinReducer.js').WarpStateV5} state
-   * @param {import('../types/PatchDiff.js').PatchDiff} diff
+   * @param {Map<string, Set<string>>} adjacency
    * @param {Set<string>} readdedNodes
    * @returns {Set<string>}
    * @private
    */
-  _collectReaddedEdgeKeys(state, diff, readdedNodes) {
-    const adjacency = this._getOrBuildAliveEdgeAdjacency(state, diff);
+  _collectReaddedEdgeKeys(adjacency, readdedNodes) {
     const keys = new Set();
     for (const nodeId of readdedNodes) {
       const incident = adjacency.get(nodeId);
