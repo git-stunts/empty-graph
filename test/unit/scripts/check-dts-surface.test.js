@@ -108,6 +108,18 @@ describe('extractJsExports', () => {
     expect(result).toEqual(new Set(['WarpGraph']));
   });
 
+  it('extracts named export default class', () => {
+    const src = `export default class WarpGraph {}`;
+    const result = extractJsExports(src);
+    expect(result).toEqual(new Set(['WarpGraph']));
+  });
+
+  it('extracts named export default function', () => {
+    const src = `export default function createGraph() {}`;
+    const result = extractJsExports(src);
+    expect(result).toEqual(new Set(['createGraph']));
+  });
+
   it('combines block and standalone exports', () => {
     const src = `
       export const CONSTANT = 1;

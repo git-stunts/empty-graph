@@ -90,11 +90,13 @@ export function extractJsExports(src) {
   for (const m of src.matchAll(/export\s+(?:const|function|class)\s+(\w+)/g)) {
     names.add(m[1]);
   }
-  // Match `export default <Name>`
-  const defaultRe = /export\s+default\s+(\w+)/;
-  const dm = defaultRe.exec(src);
-  if (dm) {
-    names.add(dm[1]);
+  // Match `export default class Foo` / `export default function Foo`
+  for (const m of src.matchAll(/export\s+default\s+(?:class|function)\s+(\w+)/g)) {
+    names.add(m[1]);
+  }
+  // Match `export default Foo` (standalone identifier)
+  for (const m of src.matchAll(/export\s+default\s+([A-Z_$][\w$]*)/g)) {
+    names.add(m[1]);
   }
   return names;
 }
@@ -122,12 +124,12 @@ export function extractDtsExports(src) {
   for (const m of src.matchAll(/export\s+(?:declare\s+)?(?:const|function)\s+(\w+)/g)) {
     names.add(m[1]);
   }
-  // export default class Foo
-  for (const m of src.matchAll(/export\s+(?:declare\s+)?default\s+class\s+(\w+)/g)) {
+  // export default class Foo / export default function Foo
+  for (const m of src.matchAll(/export\s+(?:declare\s+)?default\s+(?:class|function)\s+(\w+)/g)) {
     names.add(m[1]);
   }
   // export default Foo  (standalone identifier — class declared separately)
-  for (const m of src.matchAll(/export\s+(?:declare\s+)?default\s+(?!class\b)(\w+)/g)) {
+  for (const m of src.matchAll(/export\s+(?:declare\s+)?default\s+(?!(?:class|function)\b)([A-Z_$][\w$]*)/g)) {
     names.add(m[1]);
   }
   // export { A as B } — exported name is B

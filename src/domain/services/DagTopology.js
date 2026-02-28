@@ -34,7 +34,7 @@ export default class DagTopology {
    *
    * @param {{ indexReader: import('./BitmapIndexReader.js').default, logger?: import('../../ports/LoggerPort.js').default, traversal?: import('./DagTraversal.js').default }} options
    */
-  constructor(/** @type {{ indexReader: import('./BitmapIndexReader.js').default, logger?: import('../../ports/LoggerPort.js').default, traversal?: import('./DagTraversal.js').default }} */ { indexReader, logger = nullLogger, traversal }) {
+  constructor({ indexReader, logger = nullLogger, traversal }) {
     if (!indexReader) {
       throw new Error('DagTopology requires an indexReader');
     }

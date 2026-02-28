@@ -22,7 +22,7 @@ import { matchGlob } from '../utils/matchGlob.js';
  * One handler's error does not prevent other handlers from being called.
  *
  * @this {import('../WarpGraph.js').default}
- * @param {{ onChange: (diff: import('../services/StateDiff.js').StateDiffResult) => void, onError?: (error: Error) => void, replay?: boolean }} options - Subscription options
+ * @param {{ onChange: (diff: import('../services/StateDiff.js').StateDiffResult) => void, onError?: (error: unknown) => void, replay?: boolean }} options - Subscription options
  * @returns {{unsubscribe: () => void}} Subscription handle
  * @throws {Error} If onChange is not a function
  *
@@ -100,7 +100,7 @@ export function subscribe({ onChange, onError, replay = false }) {
  *
  * @this {import('../WarpGraph.js').default}
  * @param {string|string[]} pattern - Glob pattern(s) (e.g., 'user:*', 'order:123', '*')
- * @param {{ onChange: (diff: import('../services/StateDiff.js').StateDiffResult) => void, onError?: (error: Error) => void, poll?: number }} options - Watch options
+ * @param {{ onChange: (diff: import('../services/StateDiff.js').StateDiffResult) => void, onError?: (error: unknown) => void, poll?: number }} options - Watch options
  * @returns {{unsubscribe: () => void}} Subscription handle
  * @throws {Error} If pattern is not a string or array of strings
  * @throws {Error} If onChange is not a function

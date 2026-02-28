@@ -147,7 +147,7 @@ export function generateWriterId({ randomBytes } = {}) {
  * 2. Load from git config key `warp.writerId.<graphName>`
  * 3. If missing or invalid, generate new canonical ID, persist, and return
  *
- * @param {{ graphName: string, explicitWriterId: string|undefined, configGet: (key: string) => Promise<string|null>, configSet: (key: string, value: string) => Promise<void> }} args
+ * @param {{ graphName: string, explicitWriterId: string|null|undefined, configGet: (key: string) => Promise<string|null>, configSet: (key: string, value: string) => Promise<void> }} args
  * @returns {Promise<string>} The resolved writer ID
  * @throws {WriterIdError} If config operations fail
  *

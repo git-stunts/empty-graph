@@ -119,12 +119,16 @@ export function serializeStateV5(state, { codec } = {}) {
 }
 
 /**
+ * @typedef {{ crypto?: import('../../ports/CryptoPort.js').default, codec?: import('../../ports/CodecPort.js').default }} StateHashOptions
+ */
+
+/**
  * Computes SHA-256 hash of canonical state bytes.
  * @param {import('./JoinReducer.js').WarpStateV5} state
- * @param {{ crypto?: import('../../ports/CryptoPort.js').default, codec?: import('../../ports/CodecPort.js').default }} [options] - Options
+ * @param {StateHashOptions} [options] - Options
  * @returns {Promise<string>} Hex-encoded SHA-256 hash
  */
-export async function computeStateHashV5(state, { crypto, codec } = /** @type {{crypto?: import('../../ports/CryptoPort.js').default, codec?: import('../../ports/CodecPort.js').default}} */ ({})) {
+export async function computeStateHashV5(state, { crypto, codec } = /** @type {StateHashOptions} */ ({})) {
   const c = crypto || defaultCrypto;
   const serialized = serializeStateV5(state, { codec });
   return await c.hash('sha256', serialized);

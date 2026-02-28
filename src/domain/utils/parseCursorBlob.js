@@ -23,13 +23,13 @@
  *   Infinity
  *
  * @example
- * const buf = Buffer.from('{"tick":5,"mode":"lamport"}', 'utf8');
+ * const buf = new TextEncoder().encode('{"tick":5,"mode":"lamport"}');
  * const cursor = parseCursorBlob(buf, 'active cursor');
  * // => { tick: 5, mode: 'lamport' }
  *
  * @example
  * // Throws: "Corrupted active cursor: blob is not valid JSON"
- * parseCursorBlob(Buffer.from('not json', 'utf8'), 'active cursor');
+ * parseCursorBlob(new TextEncoder().encode('not json'), 'active cursor');
  */
 export function parseCursorBlob(buf, label) {
   let obj;

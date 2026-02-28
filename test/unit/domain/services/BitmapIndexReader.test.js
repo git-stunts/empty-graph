@@ -61,7 +61,7 @@ describe('BitmapIndexReader', () => {
 
     it('throws when called with no arguments', () => {
       // @ts-expect-error — testing runtime guard for missing required options
-      expect(() => new BitmapIndexReader()).toThrow();
+      expect(() => new BitmapIndexReader()).toThrow('BitmapIndexReader requires a storage adapter');
     });
 
     it('uses default maxCachedShards of 100', () => {

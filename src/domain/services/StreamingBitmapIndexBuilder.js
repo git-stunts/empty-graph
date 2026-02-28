@@ -104,7 +104,7 @@ export default class StreamingBitmapIndexBuilder {
     /** @type {number} */
     this.maxMemoryBytes = maxMemoryBytes;
 
-    /** @type {Function|undefined} */
+    /** @type {((stats: {flushedBytes: number, totalFlushedBytes: number, flushCount: number}) => void)|undefined} */
     this.onFlush = onFlush;
 
     /** @type {import('../../ports/LoggerPort.js').default} */
