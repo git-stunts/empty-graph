@@ -46,9 +46,12 @@ function findAttachedData(state, nodeId) {
   const edges = [];
   const props = [];
 
+  // Edge keys are encoded as "from\0to\0label". Check prefix for source
+  // and interior substring for target — avoids split() on every key.
+  const srcPrefix = `${nodeId}\0`;
+  const tgtInfix = `\0${nodeId}\0`;
   for (const key of orsetElements(state.edgeAlive)) {
-    const parts = key.split('\0');
-    if (parts[0] === nodeId || parts[1] === nodeId) {
+    if (key.startsWith(srcPrefix) || key.includes(tgtInfix)) {
       edges.push(key);
     }
   }
@@ -169,6 +172,9 @@ export class PatchBuilderV2 {
      * @type {Set<string>}
      */
     this._writes = new Set();
+
+    /** @type {boolean} Whether any edge-property ops have been added (schema 3 flag cache). */
+    this._hasEdgeProps = false;
 
     /** @type {boolean} */
     this._committed = false;
@@ -485,6 +491,7 @@ export class PatchBuilderV2 {
     //   = encodeEdgePropKey(from, to, label, key)
     const edgeNode = `${EDGE_PROP_PREFIX}${from}\0${to}\0${label}`;
     this._ops.push(createPropSetV2(edgeNode, key, value));
+    this._hasEdgeProps = true;
     // Provenance: setEdgeProperty reads the edge (implicit existence check) and writes the edge
     this._observedOperands.add(ek);
     this._writes.add(ek);
@@ -551,7 +558,7 @@ export class PatchBuilderV2 {
    *   - `ops`: Array of operations (NodeAdd, NodeRemove, EdgeAdd, EdgeRemove, PropSet)
    */
   build() {
-    const schema = this._ops.some(op => op.type === 'PropSet' && op.node.charCodeAt(0) === 1) ? 3 : 2;
+    const schema = this._hasEdgeProps ? 3 : 2;
     return createPatchV2({
       schema,
       writer: this._writerId,
@@ -670,7 +677,7 @@ export class PatchBuilderV2 {
       // Note: Dots were assigned using constructor lamport, but commit lamport may differ.
       // For now, we use the calculated lamport for the patch metadata.
       // The dots themselves are independent of patch lamport (they use VV counters).
-      const schema = this._ops.some(op => op.type === 'PropSet' && op.node.charCodeAt(0) === 1) ? 3 : 2;
+      const schema = this._hasEdgeProps ? 3 : 2;
       // Use createPatchV2 for consistent patch construction (DRY with build())
       const patch = createPatchV2({
         schema,

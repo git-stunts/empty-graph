@@ -109,6 +109,11 @@ export function encodeDot(dot) {
 /**
  * Decodes an encoded dot string back to a Dot object.
  *
+ * Writer IDs are parsed using lastIndexOf(':') as separator. Writer IDs
+ * containing colons are supported because the counter (after the last colon)
+ * is always numeric. However, empty writer IDs or IDs ending with a colon
+ * may produce unexpected results.
+ *
  * @param {string} encoded - Format: "writerId:counter"
  * @returns {Dot}
  * @throws {Error} If format is invalid

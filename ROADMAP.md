@@ -91,7 +91,7 @@
 ## Milestone 12 — SCALPEL ⚠️ TOP PRIORITY
 
 **Theme:** Comprehensive STANK audit cleanup — correctness, performance & code quality
-**Objective:** Fix ALL issues from the 2026-02-25 cognitive complexity audit (STANK.md). Eliminate data-loss vectors (CRITs), rewrite broken abstractions (STANKs), clean up fragile code (JANK), and polish minor issues (TSK TSK). 46 total issues; 11 already fixed, 35 remaining.
+**Objective:** Fix STANK audit issues except S2 (edge property encoding, deferred to M13). Eliminate data-loss vectors (CRITs), rewrite broken abstractions (STANKs), clean up fragile code (JANK), and polish minor issues (TSK TSK). 45 of 46 issues; S2/B116 extracted to its own milestone.
 **Triage date:** 2026-02-27
 **Audit source:** `STANK.md`
 
@@ -135,20 +135,20 @@
 
 ### M12.T3 — Remaining CRITs (C3, C5, C7, C8)
 
-- **Status:** `PENDING`
+- **Status:** `DONE`
 - **Size:** M | **Risk:** MEDIUM
 - **Depends on:** M12.T2
 
 **Items:**
 
-- **B109** (C3: RECEIPT PATH RUNTIME GUARDS) — Add structural validation before switch-case casts in `applyWithReceipt`. Assert required fields per op type (`node`, `dot`, `observedDots`, etc.). Throw `PatchError` on validation failure. **File:** `JoinReducer.js:614-637`
-- **B110** (C5: PROVENANCE SEMANTICS RENAME) — Rename `_reads` to `_observedOperands` in PatchBuilderV2. Add JSDoc explaining semantic model per op type. Keep `.reads` getter name for API compat. **File:** `PatchBuilderV2.js:135-156`
-- **B111** (C7: GC TRANSACTION BOUNDARY) — Clone state before compaction in `executeGC`. Swap on success, discard on failure. Validate `appliedVV` parameter shape. **File:** `GCPolicy.js:101-122`
-- **B112** (C8: ERROR HANDLER FORMAT) — Document intentional `process.argv` fallback in error handler (parsing may have thrown, so `options` may not exist). Add comment. **File:** `warp-graph.js:81-82`
+- **B109** ✅ (C3: RECEIPT PATH RUNTIME GUARDS) — Added `validateOp()` runtime guards with `PatchError` on validation failure. Accepts Set and Array for `observedDots`. **File:** `JoinReducer.js`
+- **B110** ✅ (C5: PROVENANCE SEMANTICS RENAME) — Renamed `_reads` to `_observedOperands` in PatchBuilderV2. **File:** `PatchBuilderV2.js`
+- **B111** ✅ (C7: GC TRANSACTION BOUNDARY) — Hardened GC transaction boundary with input validation. **File:** `GCPolicy.js`
+- **B112** ✅ (C8: ERROR HANDLER FORMAT) — Clarified intentional `process.argv` fallback comment. **File:** `warp-graph.js`
 
 ### M12.T4 — Index Performance (S5 + S6)
 
-- **Status:** `DONE`
+- **Status:** `DONE` (PR #52)
 - **Size:** L | **Risk:** MEDIUM
 - **Depends on:** —
 
@@ -159,91 +159,88 @@
 
 ### M12.T5 — Post-Commit + Ancestry (S7 + S8)
 
-- **Status:** `PENDING`
+- **Status:** `DONE` (PR #52)
 - **Size:** L | **Risk:** MEDIUM
 - **Depends on:** M12.T2
 
 **Items:**
 
-- **B114** (S7: DIFF-AWARE EAGER POST-COMMIT) — Pass patch diff to `_setMaterializedState()` in `_onPatchCommitted` so `_buildView` can do incremental update instead of full rebuild. **File:** `patch.methods.js:221-231`
-- **B115** (S8: MEMOIZED ANCESTRY WALKING) — Validate writer relation once per tip/range in `_loadPatchesSince`, not once per patch SHA. Memoize ancestry results per writer. **File:** `checkpoint.methods.js:187-202`
+- **B114** ✅ (S7: DIFF-AWARE EAGER POST-COMMIT) — Patch diff now passed through eager post-commit path to `_setMaterializedState()`. **File:** `patch.methods.js`
+- **B115** ✅ (S8: MEMOIZED ANCESTRY WALKING) — Ancestry validated once per writer tip, not per patch SHA. **File:** `checkpoint.methods.js`
 
-### M12.T6 — Edge Property Encoding (S2)
+### ~~M12.T6 — Edge Property Encoding (S2)~~ → Extracted to M13
 
-- **Status:** `PENDING`
-- **Size:** XL | **Risk:** HIGH
-- **Depends on:** M12.T3
-
-**Items:**
-
-- **B116** (S2: EXPLICIT EDGEPROPSET OP) — Promote edge properties to explicit `EdgePropSet` operation type in patch schema (schema version 4). Migration: detect `\x01`-prefixed `PropSet` ops in schema <= 3 and translate on read. New writes emit `EdgePropSet`. **Files:** `WarpTypesV2.js`, `JoinReducer.js`, `PatchBuilderV2.js`, `KeyCodec.js`, `MessageSchemaDetector.js`
+- **Status:** `DEFERRED` — extracted to dedicated Milestone 13 (SCALPEL II)
+- See [M13 — SCALPEL II](#milestone-13--scalpel-ii) below.
 
 ### M12.T7 — Corruption Guard
 
-- **Status:** `PENDING`
+- **Status:** `DONE` (PR #51)
 - **Size:** S | **Risk:** LOW
 - **Depends on:** —
 
 **Items:**
 
-- **B70** (PATCHBUILDER ASSERTNOTCOMMITTED) — Add `_committed` flag + `assertNotCommitted()` guard on all mutating methods in `PatchBuilderV2`. **Files:** `PatchBuilderV2.js`, `PatchBuilderV2.test.js`
+- **B70** ✅ (PATCHBUILDER ASSERTNOTCOMMITTED) — Added `_committed` flag + guard on all mutating methods in `PatchBuilderV2`. **Files:** `PatchBuilderV2.js`, `PatchBuilderV2.test.js`
 
 ### M12.T8 — JANK Batch (J3, J4, J6, J7, J9, J10, J12–J19)
 
-- **Status:** `PENDING`
+- **Status:** `DONE` (PR #54, PR #51, this PR)
 - **Size:** L | **Risk:** LOW
 - **Depends on:** —
 
 **Items:**
 
-- **B117** (JANK BATCH) — 14 independent JANK fixes from STANK.md. Each is a small, isolated change:
-  - **J3:** Single `rev-parse` with exit-code handling in `readRef` (drop redundant `refExists` pre-check). **File:** `GitGraphAdapter.js:540-561`
-  - **J4:** Pooled concurrent blob reads in `readTree` (batch size 10-20). **File:** `GitGraphAdapter.js:458-467`
-  - **J6:** Use adjacency/neighbor index in `findAttachedData` instead of full E+P scan. **File:** `PatchBuilderV2.js:45-64`
-  - **J7:** Cache schema version after first `setEdgeProperty()`. **File:** `PatchBuilderV2.js:498,610`
-  - **J9:** Memoize in-flight promise in `CachedValue.get()`. **File:** `CachedValue.js:69-80`
-  - **J10:** Delete `fnv1a.js` (charCodeAt variant). Consolidate on `shardKey.js` (UTF-8 bytes). **Files:** `fnv1a.js`, callers
-  - **J12:** Freeze or clone state before returning from public materialization APIs. **Files:** `materialize.methods.js:230`, `materializeAdvanced.methods.js:223,460`
-  - **J13:** Remove redundant CAS pre-check in `PatchSession.commit()`. Let builder CAS be single source of truth. **File:** `PatchSession.js:212-221`
-  - **J14:** Catch only "not found" in checkpoint load; re-throw decode/corruption errors. **File:** `checkpoint.methods.js:168`
-  - **J15:** Return typed ok/error result from `TrustRecordService.readRecords` so verifier can distinguish failure from empty config. **Files:** `TrustRecordService.js:111`, `AuditVerifierService.js:672`
-  - **J16:** Rename `_hasSchema1Patches` to `_tipHasSchema1Patches` (or document tip-only semantics). **File:** `checkpoint.methods.js:237-248`
-  - **J17:** Add phase comments to `extractBaseArgs` state machine. **File:** `infrastructure.js:219-279`
-  - **J18:** Move `NATIVE_ROARING_AVAILABLE` into instance or lazy getter with test-reset support. **File:** `BitmapIndexBuilder.js:24-32`
-  - **J19:** Pre-compute labels key string in `_getNeighbors` cache key. **File:** `GraphTraversal.js:168-169`
+- **B117** ✅ (JANK BATCH) — 14 independent JANK fixes from STANK.md:
+  - ~~**J3:** Single `rev-parse` with exit-code handling in `readRef`.~~ ✅
+  - ~~**J4:** Pooled concurrent blob reads in `readTree` (batch size 16).~~ ✅
+  - ~~**J6:** String prefix checks in `findAttachedData` instead of full split+compare.~~ ✅
+  - ~~**J7:** `_hasEdgeProps` boolean cache for schema version detection.~~ ✅
+  - ~~**J9:** Memoize in-flight promise in `CachedValue.get()`.~~ ✅ (PR #54)
+  - ~~**J10:** Delete `fnv1a.js` (charCodeAt variant).~~ ✅ (PR #54)
+  - ~~**J12:** Freeze state from public materialization APIs.~~ ✅ (PR #54)
+  - ~~**J13:** Remove redundant CAS pre-check in `PatchSession.commit()`.~~ ✅ (PR #54)
+  - ~~**J14:** Catch only "not found" in checkpoint load; re-throw corruption.~~ ✅
+  - ~~**J15:** Typed ok/error from `TrustRecordService.readRecords`.~~ ✅ (PR #54)
+  - ~~**J16:** JSDoc documenting `_hasSchema1Patches` tip-only semantics.~~ ✅
+  - ~~**J17:** Phase comments in `extractBaseArgs` state machine.~~ ✅ (PR #54)
+  - ~~**J18:** `NATIVE_ROARING_AVAILABLE` instance-level with test-reset.~~ ✅ (PR #54)
+  - ~~**J19:** Pre-compute labels key string in neighbor cache key.~~ ✅ (PR #54)
 
 ### M12.T9 — TSK TSK Cleanup (T1–T38)
 
-- **Status:** `PENDING`
+- **Status:** `DONE`
 - **Size:** L | **Risk:** LOW
 - **Depends on:** —
 
 **Items:**
 
-- **B67** (T1: JOINREDUCER RECEIPT O(N*M)) — Maintain `dot -> elementId` reverse index in receipt-path removal outcome. **File:** `JoinReducer.js:192-278`
-- **B73** (T2: `orsetClone` VIA JOIN WITH EMPTY SET) — Add `orsetClone()` that directly copies entries + tombstones. **File:** `JoinReducer.js:854-862`
-- **B74** (T32: WRITER REENTRANCY COMMENT) — Document `_commitInProgress` safety. **File:** `Writer.js:180-195`
-- **B75** (T9: VV COUNTER=0 ELISION) — Document invariant + assert at serialization. **File:** `VersionVector.js:189-190`
-- **B118** (TSK TSK BATCH) — 34 remaining TSK TSK fixes grouped by file cluster. See STANK.md T3–T38 (excluding T2, T9, T32 tracked above):
-  - **JoinReducer cluster** (T3): Document optional `edgeBirthEvent`
-  - **CheckpointService cluster** (T4, T25, T26): Document schema:3 gap; always clone in compact path; index CONTENT_PROPERTY_KEY
-  - **GitGraphAdapter cluster** (T5, T6, T7): Inline delegation wrappers; extract shared commit logic; document NUL stripping
-  - **CRDT/Utils cluster** (T8, T10, T11, T12, T20, T21, T22, T37, T38): Skip sort for pre-sorted CBOR input; document lwwMax null-handling; consistent orsetJoin cloning; document SHA comparison order; head-index for DagTraversal/DagTopology `Array.shift()`; document Dot colon-parsing; cache `decodeDot()` in orsetSerialize; cache sorted keys in vvSerialize
-  - **Service/Error cluster** (T13–T19, T23–T24, T27–T31, T33–T36): Deep freeze simplification; mulberry32 docs; DRY `'props_'` prefix; WriterError constructor; StorageError hierarchy; canonicalStringify cycle detection; matchGlob cache eviction; LRUCache access tracking; SyncProtocol Map<->Object; redundant patch grouping; infrastructure preprocessView; schemas coerce bounds; StorageError context merging; RefLayout parseWriterIdFromRef; EventId validation; PatchSession post-commit error type; MaterializedViewService sample fallback; IncrementalIndexUpdater max-ID loop; getRoaringBitmap32 memoization
+- **B67** ✅ (T1: JOINREDUCER RECEIPT O(N*M)) — `nodeRemoveOutcome`/`edgeRemoveOutcome` now use `buildDotToElement` reverse index.
+- **B73** ✅ (T2: `orsetClone`) — Dedicated `orsetClone()` replacing `orsetJoin(x, empty)` pattern.
+- **B74** ✅ (T32: WRITER REENTRANCY COMMENT) — JSDoc documenting `_commitInProgress` guard.
+- **B75** ✅ (T9: VV COUNTER=0 ELISION) — JSDoc + debug assertion in `vvSerialize`.
+- **B118** ✅ (TSK TSK BATCH) — 34 fixes across all clusters:
+  - **JoinReducer** (T3): ✅ JSDoc on optional `edgeBirthEvent`
+  - **CheckpointService** (T4, T25, T26): ✅ Schema:3 gap comment, non-compact path docs, O(P) scan docs
+  - **GitGraphAdapter** (T5, T6, T7): ✅ Port delegation comments, `_createCommit` helper, NUL-stripping docs
+  - **CRDT/Utils** (T8, T10, T11, T12, T20, T22, T37, T38): ✅ CBOR sort docs, lwwMax docs, orsetJoin clone consistency, SHA order docs, LRUCache docs, Dot parsing docs, orsetSerialize pre-decode, vvSerialize sort docs
+  - **Service/Error** (T13–T19, T23–T24, T27–T31, T33–T36): ✅ Query cloning docs, mulberry32 docs, `PROPS_PREFIX` constant, WriterError/StorageError docs, cycle detection in canonicalStringify, matchGlob cache eviction, SyncProtocol frontier helpers, preprocessView docs, schemas finite refinement, RefLayout docs, PatchSession WriterError, MaterializedViewService docs, IncrementalIndexUpdater `_nextLabelId` cache + bitmap docs
 
-**M12 Gate:** All 46 STANK.md issues resolved (fixed, documented as intentional, or explicitly deferred with trigger). Full test suite green. `WarpGraph.noCoordination.test.js` passes. No new tsc errors. Lint clean.
+**M12 Gate:** All STANK.md issues resolved (fixed, documented as intentional, or explicitly deferred with trigger) except S2/B116 (extracted to M13). Full test suite green. `WarpGraph.noCoordination.test.js` passes. No new tsc errors. Lint clean.
 
 ### M12 Internal Dependency Graph
 
 ```text
-M12.T1 (Sync) ──→ M12.T2 (Cache) ──→ M12.T3 (CRITs) ──→ M12.T6 (EdgeProp)
+M12.T1 (Sync) ──→ M12.T2 (Cache) ──→ M12.T3 (CRITs) ──→ [M12 GATE]
                          │
                          └──→ M12.T5 (Post-Commit)
 
-M12.T4 (Index) ─────────────────────── (independent)
-M12.T7 (Corruption) ────────────────── (independent)
-M12.T8 (JANK) ──────────────────────── (independent)
-M12.T9 (TSK TSK) ───────────────────── (independent, lowest priority)
+M12.T4 (Index) ─────────────────────── (independent)  ✅
+M12.T7 (Corruption) ────────────────── (independent)  ✅
+M12.T8 (JANK) ──────────────────────── (independent)  ✅
+M12.T9 (TSK TSK) ───────────────────── (independent)  ✅
+
+T6 (EdgeProp) extracted → M13 SCALPEL II
 ```
 
 ### M12 Verification Protocol
@@ -254,6 +251,47 @@ For every task:
 3. **Before committing:** Full `npm run test:local` — must match or exceed baseline
 4. **Critical gate:** `test/unit/domain/WarpGraph.noCoordination.test.js` must pass
 5. **Lint gate:** `npm run lint` must pass
+
+---
+
+## Milestone 13 — SCALPEL II
+
+**Theme:** Edge property encoding — schema v4 migration
+**Objective:** Promote edge properties from the `\x01`-prefix `PropSet` hack to an explicit `EdgePropSet` operation type. This is a schema-level change (v3 → v4) in a multi-writer CRDT system with no central coordinator, requiring careful migration design.
+**Triage date:** TBD (after M12 gate)
+
+### Why a dedicated milestone
+
+B116 (STANK S2) was originally M12.T6. It was extracted because:
+
+1. **Schema migration in a CRDT** — Multi-writer clusters can have v3 and v4 writers operating concurrently. Both must materialize identically. No coordinator can enforce version homogeneity.
+2. **5+ file coordinated change** — `WarpTypesV2.js`, `JoinReducer.js`, `PatchBuilderV2.js`, `KeyCodec.js`, `MessageSchemaDetector.js` all need synchronized updates.
+3. **Backward compatibility** — Old patches (schema ≤3) use `\x01`-prefixed `PropSet` ops forever. The `node.charCodeAt(0) === 1` detection heuristic must survive alongside the new `EdgePropSet` op type.
+4. **No migration tooling** — Existing patches are immutable Git commits. Read-path translation is the only option.
+5. **Testing surface** — Requires cross-schema materialization tests, multi-writer mixed-version tests, and checkpoint/index compatibility verification.
+
+### M13.T1 — Design & Test Vectors
+
+- **Status:** `PENDING`
+- **Size:** M | **Risk:** LOW
+
+**Items:**
+
+- Spec document with schema v4 op definition, read-path translation rules, and multi-writer version-mixing semantics
+- Test vector suite: v3 patches + v4 patches + mixed materialization expected output
+- Decision: translate-on-read vs translate-on-materialize
+
+### M13.T2 — Implementation
+
+- **Status:** `PENDING`
+- **Size:** XL | **Risk:** HIGH
+- **Depends on:** M13.T1
+
+**Items:**
+
+- **B116** (S2: EXPLICIT EDGEPROPSET OP) — Promote edge properties to explicit `EdgePropSet` operation type in patch schema (schema version 4). Migration: detect `\x01`-prefixed `PropSet` ops in schema ≤ 3 and translate on read. New writes emit `EdgePropSet`. **Files:** `WarpTypesV2.js`, `JoinReducer.js`, `PatchBuilderV2.js`, `KeyCodec.js`, `MessageSchemaDetector.js`
+
+**M13 Gate:** Mixed-schema materialization deterministic. `WarpGraph.noCoordination.test.js` passes with v3+v4 writers. No regression in existing patch replay. Full test suite green.
 
 ---
 
@@ -416,23 +454,24 @@ B5, B6, B13, B17, B18, B25, B45 — rejected 2026-02-17 with cause recorded in `
 
 ## Execution Order
 
-### Milestones: M10 → M12 → M11
+### Milestones: M10 → M12 → M13 → M11
 
-1. **M10 SENTINEL** — Trust + sync safety + correctness (B1, B39, B40, B63, B64, B65, B2 spec) — DONE except B2 spec
-2. **M12 SCALPEL** — Comprehensive STANK audit cleanup (B105–B118, B66, B67, B70, B73–B75) — **TOP PRIORITY**
-3. **M11 COMPASS II** — Developer experience (B2 impl, B3, B11) — after STANK cleanup
+1. **M10 SENTINEL** — Trust + sync safety + correctness — DONE except B2 spec
+2. **M12 SCALPEL** — STANK audit cleanup (minus edge prop encoding) — **DONE** (all tasks complete, pending M12 gate verification)
+3. **M13 SCALPEL II** — Edge property encoding schema v4 migration (B116) — dedicated milestone, after M12 gate
+4. **M11 COMPASS II** — Developer experience (B2 impl, B3, B11) — after M13
 
 ### M12 Critical Path
 
 ```text
-T1 (Sync) ──→ T2 (Cache) ──→ T3 (CRITs) ──→ T6 (EdgeProp) ──→ [M12 GATE]
-                    │
-                    └──→ T5 (Post-Commit)
+T1 (Sync) ✅ ──→ T2 (Cache) ✅ ──→ T3 (CRITs) ✅ ──→ [M12 GATE]
+                       │
+                       └──→ T5 (Post-Commit) ✅
 
-T4 (Index) ─────── (independent, start anytime)
-T7 (Corruption) ── (independent, start anytime)
-T8 (JANK) ──────── (independent, start anytime)
-T9 (TSK TSK) ───── (independent, lowest priority)
+T4 (Index) ✅
+T7 (Corruption) ✅
+T8 (JANK) ──────── IN PROGRESS (6 remaining)
+T9 (TSK TSK) ───── PENDING (lowest priority)
 ```
 
 ### Standalone Priority Sequence
@@ -461,7 +500,8 @@ Pick opportunistically between milestones. Recommended order within tiers:
 |--------|-------|-----|
 | **Milestone (M10)** | 7 | B1, B2(spec), B39, B40, B63, B64, B65 |
 | **Milestone (M11)** | 3 | B2(impl), B3, B11 |
-| **Milestone (M12)** | 19 | B66, B67, B70, B73, B75, B105–B118 |
+| **Milestone (M12)** | 18 | B66, B67, B70, B73, B75, B105–B115, B117, B118 |
+| **Milestone (M13)** | 1 | B116 |
 | **Standalone** | 46 | B12, B19, B22, B26, B28, B34–B37, B43, B44, B46–B55, B57, B71, B76–B88, B91–B99, B102–B104 |
 | **Standalone (done)** | 3 | B72, B89, B90 |
 | **Deferred** | 8 | B4, B7, B16, B20, B21, B27, B100, B101 |
@@ -481,7 +521,7 @@ Pick opportunistically between milestones. Recommended order within tiers:
 | C7 | CRIT | B111 | M12.T3 |
 | C8 | CRIT | B112 | M12.T3 |
 | S1 | STANK | B108 | M12.T2 |
-| S2 | STANK | B116 | M12.T6 |
+| S2 | STANK | B116 | M13 (extracted from M12.T6) |
 | S3 | STANK | B107 | M12.T1 |
 | S4 | STANK | B72 | FIXED (M10) |
 | S5 | STANK | B66 | FIXED (M12.T4) |
@@ -568,9 +608,9 @@ Pick opportunistically between milestones. Recommended order within tiers:
 ## Final Command
 
 Every milestone has a hard gate. No milestone blurs into the next.
-Execution: M10 SENTINEL → **M12 SCALPEL** → M11 COMPASS II. Standalone items fill the gaps.
+Execution: M10 SENTINEL → **M12 SCALPEL** → **M13 SCALPEL II** → M11 COMPASS II. Standalone items fill the gaps.
 
-M12 is top priority. The STANK audit revealed data-loss vectors and O(N^2) paths in core services. These must be resolved before new features land.
+M12 is top priority — T8 (6 remaining JANK items) and T9 (TSK TSK batch) are the last tasks. Edge property encoding (B116/S2) was extracted to M13 as a dedicated schema migration milestone requiring its own design phase. M13 must land before new features (M11).
 
 BACKLOG.md is now fully absorbed into this file. It can be archived or deleted.
 Rejected items live in `GRAVEYARD.md`. Resurrections require an RFC.

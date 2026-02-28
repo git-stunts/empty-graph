@@ -3,6 +3,10 @@ import IndexError from './IndexError.js';
 /**
  * Error thrown when a storage operation fails.
  *
+ * StorageError extends IndexError because storage errors originate from
+ * index operations. This hierarchy is intentional — IndexError provides
+ * the storage-specific error context.
+ *
  * This error indicates that a read or write operation to storage failed,
  * typically due to I/O errors, permission issues, or storage unavailability.
  *
@@ -30,6 +34,10 @@ import IndexError from './IndexError.js';
 export default class StorageError extends IndexError {
   /**
    * Creates a new StorageError.
+   *
+   * Context is merged via Object.assign — duplicate keys from the second
+   * argument overwrite the first. Callers should ensure context keys don't
+   * collide, or use unique prefixes.
    *
    * @param {string} message - Human-readable error message
    * @param {{ operation?: string, oid?: string, cause?: Error, context?: Record<string, unknown> }} [options={}] - Error options

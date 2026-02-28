@@ -221,24 +221,26 @@ export function orsetGetDots(set, element) {
 export function orsetJoin(a, b) {
   const result = createORSet();
 
-  // Union entries from a
+  // Clone entries from a — each dot set is shallow-copied so the caller
+  // cannot mutate the original through the result.
   for (const [element, dots] of a.entries) {
     result.entries.set(element, new Set(dots));
   }
 
-  // Union entries from b
+  // Merge entries from b — if the element already exists (from a), add into
+  // the cloned set; otherwise clone b's dot set the same way for consistency.
   for (const [element, dots] of b.entries) {
-    let resultDots = result.entries.get(element);
-    if (!resultDots) {
-      resultDots = new Set();
-      result.entries.set(element, resultDots);
-    }
-    for (const dot of dots) {
-      resultDots.add(dot);
+    const existing = result.entries.get(element);
+    if (existing) {
+      for (const dot of dots) {
+        existing.add(dot);
+      }
+    } else {
+      result.entries.set(element, new Set(dots));
     }
   }
 
-  // Union tombstones
+  // Union tombstones from both sides
   for (const dot of a.tombstones) {
     result.tombstones.add(dot);
   }
@@ -343,16 +345,19 @@ export function orsetClone(set) {
  * @returns {{entries: Array<[string, string[]]>, tombstones: string[]}}
  */
 export function orsetSerialize(set) {
-  // Serialize entries: convert Map to array of [element, sortedDots]
+  // Serialize entries: convert Map to array of [element, sortedDots].
+  // Pre-decode dots before sorting to avoid O(N log N) decodeDot calls
+  // during comparisons.
   /** @type {Array<[string, string[]]>} */
   const entriesArray = [];
   for (const [element, dots] of set.entries) {
-    const sortedDots = [...dots].sort((a, b) => {
-      const dotA = decodeDot(a);
-      const dotB = decodeDot(b);
-      return compareDots(dotA, dotB);
-    });
-    entriesArray.push([element, sortedDots]);
+    /** @type {Array<{encoded: string, decoded: import('./Dot.js').Dot}>} */
+    const pairs = [];
+    for (const encoded of dots) {
+      pairs.push({ encoded, decoded: decodeDot(encoded) });
+    }
+    pairs.sort((a, b) => compareDots(a.decoded, b.decoded));
+    entriesArray.push([element, pairs.map((p) => p.encoded)]);
   }
 
   // Sort entries by element (stringified for consistency)
@@ -362,12 +367,14 @@ export function orsetSerialize(set) {
     return keyA < keyB ? -1 : keyA > keyB ? 1 : 0;
   });
 
-  // Serialize tombstones: sorted array
-  const sortedTombstones = [...set.tombstones].sort((a, b) => {
-    const dotA = decodeDot(a);
-    const dotB = decodeDot(b);
-    return compareDots(dotA, dotB);
-  });
+  // Serialize tombstones: pre-decode then sort
+  /** @type {Array<{encoded: string, decoded: import('./Dot.js').Dot}>} */
+  const tombPairs = [];
+  for (const encoded of set.tombstones) {
+    tombPairs.push({ encoded, decoded: decodeDot(encoded) });
+  }
+  tombPairs.sort((a, b) => compareDots(a.decoded, b.decoded));
+  const sortedTombstones = tombPairs.map((p) => p.encoded);
 
   return {
     entries: entriesArray,

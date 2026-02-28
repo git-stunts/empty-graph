@@ -221,6 +221,10 @@ function deepFreeze(obj) {
 /**
  * Creates a deep clone of a value.
  *
+ * Results are deep-frozen to prevent accidental mutation of cached state.
+ * structuredClone is preferred; JSON round-trip is the fallback for
+ * environments without structuredClone support.
+ *
  * Attempts structuredClone first (Node 17+ / modern browsers), falls back
  * to JSON round-trip, and returns the original value if both fail (e.g.,
  * for values containing functions or circular references).

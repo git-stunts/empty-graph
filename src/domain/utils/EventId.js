@@ -49,6 +49,9 @@ export function createEventId(lamport, writerId, patchSha, opIndex) {
  * Compares two EventIds lexicographically.
  * Order: lamport -> writerId -> patchSha -> opIndex
  *
+ * SHA tiebreaker uses lexicographic string comparison. This is arbitrary but
+ * deterministic — the specific order doesn't matter as long as all writers agree.
+ *
  * @param {EventId} a
  * @param {EventId} b
  * @returns {number} -1 if a < b, 0 if equal, 1 if a > b
@@ -64,7 +67,7 @@ export function compareEventIds(a, b) {
     return a.writerId < b.writerId ? -1 : 1;
   }
 
-  // 3. Compare patchSha as string
+  // 3. Compare patchSha as string (lexicographic — arbitrary but deterministic)
   if (a.patchSha !== b.patchSha) {
     return a.patchSha < b.patchSha ? -1 : 1;
   }

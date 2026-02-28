@@ -186,6 +186,11 @@ export class Writer {
         'commitPatch() is not reentrant. Use beginPatch() for nested or concurrent patches.',
       );
     }
+    // The `_commitInProgress` flag prevents concurrent commits from the same
+    // Writer instance. The finally block unconditionally resets it to ensure
+    // the writer remains usable after a failed commit. Error classification
+    // (CAS failure vs corruption vs I/O) is handled by the caller via the
+    // thrown error type.
     this._commitInProgress = true;
     try {
       const patch = await this.beginPatch();

@@ -148,7 +148,9 @@ export async function createV5({
   // 1. Compute appliedVV from actual state dots
   const appliedVV = computeAppliedVV(state);
 
-  // 2. Optionally compact (only tombstoned dots <= appliedVV)
+  // 2. Optionally compact (only tombstoned dots <= appliedVV).
+  // When compact=false, checkpointState aliases the caller's state but the
+  // remaining path is read-only (serialize + hash), so no clone is needed.
   let checkpointState = state;
   if (compact) {
     checkpointState = cloneStateV5(state);
@@ -188,6 +190,11 @@ export async function createV5({
   // If patch commits are ever pruned, content blobs remain reachable via
   // the checkpoint tree. Without this, git gc would nuke content blobs
   // whose only anchor was the (now-pruned) patch commit tree.
+  //
+  // O(P) scan over all properties — acceptable because checkpoint creation
+  // is infrequent. The property key format is deterministic (encodePropKey /
+  // encodeEdgePropKey), but content keys are interleaved with regular keys
+  // so no prefix filter can skip non-content entries without decoding.
   const contentOids = new Set();
   for (const [propKey, register] of checkpointState.prop) {
     const { propKey: decodedKey } = isEdgePropKey(propKey)
@@ -235,6 +242,8 @@ export async function createV5({
     stateHash,
     frontierOid: frontierBlobOid,
     indexOid: treeOid,
+    // Schema 3 was used for edge-property-aware patches but is never emitted
+    // by checkpoint creation. Schema 4 indicates an index tree is present.
     schema: indexTree ? 4 : 2,
   });
 

@@ -96,6 +96,8 @@ function isPlainObject(value) {
 function sortPlainObject(obj) {
   /** @type {Record<string, unknown>} */
   const sorted = {};
+  // Key sort ensures deterministic CBOR encoding regardless of insertion order.
+  // Required for content-addressed storage where byte-identical encoding is critical.
   const keys = Object.keys(obj).sort();
   for (const key of keys) {
     sorted[key] = sortKeys(obj[key]);

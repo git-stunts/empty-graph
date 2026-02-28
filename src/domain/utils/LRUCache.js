@@ -34,7 +34,9 @@ class LRUCache {
     if (!this._cache.has(key)) {
       return undefined;
     }
-    // Move to end (most recently used) by deleting and re-inserting
+    // Delete-reinsert maintains insertion order in the underlying Map, which
+    // serves as the LRU eviction order. This is O(1) amortized in V8's Map
+    // implementation despite appearing wasteful (2x Map ops per get).
     const value = /** @type {V} */ (this._cache.get(key));
     this._cache.delete(key);
     this._cache.set(key, value);
