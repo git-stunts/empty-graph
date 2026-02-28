@@ -39,7 +39,7 @@
 import defaultCodec from '../utils/defaultCodec.js';
 import nullLogger from '../utils/nullLogger.js';
 import { decodePatchMessage, assertOpsCompatible, SCHEMA_V3 } from './WarpMessageCodec.js';
-import { join, cloneStateV5, isKnownOp } from './JoinReducer.js';
+import { join, cloneStateV5, isKnownRawOp } from './JoinReducer.js';
 import SchemaUnsupportedError from '../errors/SchemaUnsupportedError.js';
 import { cloneFrontier, updateFrontier } from './Frontier.js';
 import { vvDeserialize } from '../crdt/VersionVector.js';
@@ -559,17 +559,18 @@ export function applySyncResponse(response, state, frontier) {
       // Normalize patch context (in case it came from network serialization)
       const normalizedPatch = normalizePatch(patch);
       // Guard: reject patches with genuinely unknown op types (B106 / C2 fix).
-      // This prevents silent data loss when a newer writer sends ops we
-      // don't recognise — fail closed rather than silently ignoring.
+      // Uses isKnownRawOp to accept only the 6 wire-format types. Canonical-only
+      // types (NodePropSet, EdgePropSet) must never appear on the wire before
+      // ADR 2 capability cutover — reject them here to fail closed.
       for (const op of normalizedPatch.ops) {
-        if (!isKnownOp(op)) {
+        if (!isKnownRawOp(op)) {
           throw new SchemaUnsupportedError(
             `Patch ${sha} contains unknown op type: ${op.type}`
           );
         }
       }
       // Guard: reject patches exceeding our maximum supported schema version.
-      // isKnownOp() above checks op-type recognition; this checks the schema
+      // isKnownRawOp() above checks op-type recognition; this checks the schema
       // version ceiling. Currently SCHEMA_V3 is the max.
       assertOpsCompatible(normalizedPatch.ops, SCHEMA_V3);
       // Apply patch to state

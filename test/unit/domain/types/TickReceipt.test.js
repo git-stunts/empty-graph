@@ -35,7 +35,7 @@ describe('TickReceipt', () => {
       });
     });
 
-    it('creates a receipt with all six op types', () => {
+    it('creates a receipt with all eight op types', () => {
       const ops = [
         { op: 'NodeAdd', target: 'n1', result: 'applied' },
         { op: 'NodeTombstone', target: 'n2', result: 'superseded' },
@@ -43,6 +43,8 @@ describe('TickReceipt', () => {
         { op: 'EdgeTombstone', target: 'n1\0n2\0follows', result: 'redundant' },
         { op: 'PropSet', target: 'n1\0name', result: 'superseded', reason: 'LWW: writer bob at lamport 43 wins' },
         { op: 'BlobValue', target: 'n1\0avatar', result: 'applied' },
+        { op: 'NodePropSet', target: 'n1\0color', result: 'applied' },
+        { op: 'EdgePropSet', target: 'n1\0n2\0rel\0weight', result: 'applied' },
       ];
 
       const receipt = createTickReceipt({
@@ -52,7 +54,7 @@ describe('TickReceipt', () => {
         ops,
       });
 
-      expect(receipt.ops).toHaveLength(6);
+      expect(receipt.ops).toHaveLength(8);
       expect(receipt.ops[4].reason).toBe('LWW: writer bob at lamport 43 wins');
     });
 
@@ -441,13 +443,15 @@ describe('TickReceipt', () => {
   // Constants
   // -----------------------------------------------------------------------
   describe('constants', () => {
-    it('exports the six valid op types', () => {
+    it('exports the eight valid op types', () => {
       expect(OP_TYPES).toEqual([
         'NodeAdd',
         'NodeTombstone',
         'EdgeAdd',
         'EdgeTombstone',
         'PropSet',
+        'NodePropSet',
+        'EdgePropSet',
         'BlobValue',
       ]);
     });

@@ -5,6 +5,11 @@
  * materialized graph state. See {@link module:domain/services/WarpMessageCodec}
  * for the facade that re-exports all codec functions.
  *
+ * **Schema namespace note:** Checkpoint schema versions (2, 3, 4) are
+ * distinct from patch schema versions (PATCH_SCHEMA_V2, PATCH_SCHEMA_V3).
+ * See {@link module:domain/services/CheckpointService} for named constants
+ * `CHECKPOINT_SCHEMA_STANDARD` and `CHECKPOINT_SCHEMA_INDEX_TREE`.
+ *
  * @module domain/services/CheckpointMessageCodec
  */
 

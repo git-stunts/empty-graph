@@ -253,7 +253,7 @@ describe('WarpGraph.materialize() with receipts', () => {
 
       const { receipts } = await graph.materialize({ receipts: true });
       expect(receipts[0].ops[0]).toMatchObject({
-        op: 'PropSet',
+        op: 'NodePropSet',
         result: 'applied',
       });
     });
@@ -495,14 +495,14 @@ describe('WarpGraph.materialize() with receipts', () => {
       const aliceReceipt = receipts.find((/** @type {any} */ r) => r.writer === 'alice');
       expect(aliceReceipt.ops).toHaveLength(3);
       expect(aliceReceipt.ops[0]).toMatchObject({ op: 'NodeAdd', result: 'applied' });
-      expect(aliceReceipt.ops[1]).toMatchObject({ op: 'PropSet', result: 'applied' });
+      expect(aliceReceipt.ops[1]).toMatchObject({ op: 'NodePropSet', result: 'applied' });
       expect(aliceReceipt.ops[2]).toMatchObject({ op: 'EdgeAdd', result: 'applied' });
 
       // Bob's patch (lamport 2): node add is applied (different dot), but prop is superseded
       const bobReceipt = receipts.find((/** @type {any} */ r) => r.writer === 'bob');
       expect(bobReceipt.ops).toHaveLength(2);
       expect(bobReceipt.ops[0]).toMatchObject({ op: 'NodeAdd', result: 'applied' });
-      expect(bobReceipt.ops[1]).toMatchObject({ op: 'PropSet', result: 'superseded' });
+      expect(bobReceipt.ops[1]).toMatchObject({ op: 'NodePropSet', result: 'superseded' });
       expect(bobReceipt.ops[1].reason).toContain('alice');
 
       // Final value: Alice wins

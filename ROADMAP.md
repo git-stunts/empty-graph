@@ -1,7 +1,7 @@
 # ROADMAP — @git-stunts/git-warp
 
-> **Current version:** v12.2.1
-> **Last reconciled:** 2026-02-28 (BACKLOG promoted B119–B129; STANK.md reconciled against v12.2.1)
+> **Current version:** v12.3.0
+> **Last reconciled:** 2026-02-28 (M13 ADR 1 complete; M11 unblocked; STANK.md reconciled against v12.3.0)
 
 ---
 
@@ -170,7 +170,7 @@
 
 ### ~~M12.T6 — Edge Property Encoding (S2)~~ → Extracted to M13
 
-- **Status:** `DEFERRED` — extracted to dedicated Milestone 13 (SCALPEL II)
+- **Status:** `DONE` (internal canonicalization via ADR 1); wire-format half deferred (ADR 2/3)
 - See [M13 — SCALPEL II](#milestone-13--scalpel-ii) below.
 
 ### M12.T7 — Corruption Guard
@@ -226,7 +226,7 @@
   - **CRDT/Utils** (T8, T10, T11, T12, T20, T22, T37, T38): ✅ CBOR sort docs, lwwMax docs, orsetJoin clone consistency, SHA order docs, LRUCache docs, Dot parsing docs, orsetSerialize pre-decode, vvSerialize sort docs
   - **Service/Error** (T13–T19, T23–T24, T27–T31, T33–T36): ✅ Query cloning docs, mulberry32 docs, `PROPS_PREFIX` constant, WriterError/StorageError docs, cycle detection in canonicalStringify, matchGlob cache eviction, SyncProtocol frontier helpers, preprocessView docs, schemas finite refinement, RefLayout docs, PatchSession WriterError, MaterializedViewService docs, IncrementalIndexUpdater `_nextLabelId` cache + bitmap docs
 
-**M12 Gate:** All STANK.md issues resolved (fixed, documented as intentional, or explicitly deferred with trigger) except S2/B116 (extracted to M13). Full test suite green. `WarpGraph.noCoordination.test.js` passes. No new tsc errors. Lint clean.
+**M12 Gate:** All STANK.md issues resolved (fixed, documented as intentional, or explicitly deferred with trigger) except S2/B116 (extracted to M13, now internally complete via ADR 1). Full test suite green. `WarpGraph.noCoordination.test.js` passes. No new tsc errors. Lint clean.
 
 ### M12 Internal Dependency Graph
 
@@ -240,7 +240,7 @@ M12.T7 (Corruption) ────────────────── (inde
 M12.T8 (JANK) ──────────────────────── (independent)  ✅
 M12.T9 (TSK TSK) ───────────────────── (independent)  ✅
 
-T6 (EdgeProp) extracted → M13 SCALPEL II
+T6 (EdgeProp) extracted → M13 SCALPEL II (internal: DONE, wire: DEFERRED)
 ```
 
 ### M12 Verification Protocol
@@ -256,9 +256,9 @@ For every task:
 
 ## Milestone 13 — SCALPEL II
 
-**Theme:** Edge property encoding — schema v4 migration
-**Objective:** Promote edge properties from the `\x01`-prefix `PropSet` hack to an explicit `EdgePropSet` operation type. This is a schema-level change (v3 → v4) in a multi-writer CRDT system with no central coordinator, requiring careful migration design.
-**Triage date:** TBD (after M12 gate)
+**Theme:** Edge property encoding — internal canonicalization + governed wire-format migration
+**Objective:** Make edge property operations semantically honest internally (ADR 1), defer the persisted wire-format change until explicit readiness gates are met (ADR 2), and codify the governance process (ADR 3).
+**Triage date:** 2026-02-28
 
 ### Why a dedicated milestone
 
@@ -270,28 +270,64 @@ B116 (STANK S2) was originally M12.T6. It was extracted because:
 4. **No migration tooling** — Existing patches are immutable Git commits. Read-path translation is the only option.
 5. **Testing surface** — Requires cross-schema materialization tests, multi-writer mixed-version tests, and checkpoint/index compatibility verification.
 
+### M13 Outcome
+
+Investigation revealed the correct approach is a two-phase split:
+
+- **Phase 1 (ADR 1):** Canonicalize edge property ops internally. The reducer, receipts, provenance, and builder all operate on honest `NodePropSet`/`EdgePropSet` semantics. Legacy raw `PropSet` is normalized at reducer entry points and lowered back at write time. Reserved-byte validation prevents ambiguous new identifiers. Wire gate rejects canonical-only ops on the sync boundary.
+- **Phase 2 (ADR 2, deferred):** Promote `EdgePropSet` to a persisted raw wire-format op. This is a distributed compatibility event governed by ADR 3 readiness gates. Not implemented yet — and deliberately so.
+
 ### M13.T1 — Design & Test Vectors
 
-- **Status:** `PENDING`
+- **Status:** `DONE`
 - **Size:** M | **Risk:** LOW
 
-**Items:**
+**Deliverables:**
 
-- Spec document with schema v4 op definition, read-path translation rules, and multi-writer version-mixing semantics
-- Test vector suite: v3 patches + v4 patches + mixed materialization expected output
-- Decision: translate-on-read vs translate-on-materialize
+- ADR 1 (`adr/ADR-0001-canonicalize-edge-property-ops-internally.md`) — internal canonical model design, invariants, test cases
+- ADR 2 (`adr/ADR-0002-defer-edgepropset-wire-format-cutover.md`) — explicit deferral of persisted wire-format migration
+- ADR 3 (`adr/ADR-0003-readiness-gates-for-edgepropset-wire-format-cutover.md`) — two-gate governance for future cutover
+- Decision: normalize at reducer entry points (not decode boundary); lower at `PatchBuilderV2.build()`/`commit()`
+- Tripwire test suite for wire gate (`SyncProtocol.wireGate.test.js`, `JoinReducer.opSets.test.js`)
 
-### M13.T2 — Implementation
+### M13.T2 — Internal Canonicalization (ADR 1)
 
-- **Status:** `PENDING`
+- **Status:** `DONE`
+- **Size:** L | **Risk:** MEDIUM
+
+**Items (all complete):**
+
+- **B116a** — `OpNormalizer.js`: `normalizeRawOp()` / `lowerCanonicalOp()` boundary conversion
+- **B116b** — `WarpTypesV2.js`: canonical `OpV2NodePropSet` / `OpV2EdgePropSet` typedefs and factory functions
+- **B116c** — `JoinReducer.js`: reducer consumes canonical ops; `RAW_KNOWN_OPS` / `CANONICAL_KNOWN_OPS` split; `isKnownRawOp()` / `isKnownCanonicalOp()` exports; deprecated `isKnownOp()` alias
+- **B116d** — `PatchBuilderV2.js`: constructs canonical ops internally; `build()`/`commit()` lower to raw via `lowerCanonicalOp()`; `_assertNoReservedBytes()` validation
+- **B116e** — `KeyCodec.js`: `isLegacyEdgePropNode()` / `decodeLegacyEdgePropNode()` / `encodeLegacyEdgePropNode()` isolated helpers
+- **B116f** — `SyncProtocol.js`: wire gate uses `isKnownRawOp()` — canonical-only ops rejected on the wire
+- **B116g** — `MessageSchemaDetector.js`: `PATCH_SCHEMA_V2` / `PATCH_SCHEMA_V3` namespace separation
+- **B116h** — `CheckpointService.js`: `CHECKPOINT_SCHEMA_STANDARD` / `CHECKPOINT_SCHEMA_INDEX_TREE` named constants
+- **B116i** — `TickReceipt.js`: `OP_TYPES` expanded with `NodePropSet` / `EdgePropSet`; receipts use canonical type names
+
+### M13.T3 — Persisted Wire-Format Migration (ADR 2)
+
+- **Status:** `DEFERRED` — governed by ADR 3 readiness gates
 - **Size:** XL | **Risk:** HIGH
-- **Depends on:** M13.T1
+- **Depends on:** ADR 3 Gate 1 satisfaction
 
-**Items:**
+**Remaining B116 scope:**
 
-- **B116** (S2: EXPLICIT EDGEPROPSET OP) — Promote edge properties to explicit `EdgePropSet` operation type in patch schema (schema version 4). Migration: detect `\x01`-prefixed `PropSet` ops in schema ≤ 3 and translate on read. New writes emit `EdgePropSet`. **Files:** `WarpTypesV2.js`, `JoinReducer.js`, `PatchBuilderV2.js`, `KeyCodec.js`, `MessageSchemaDetector.js`
+- **B116** (S2: EXPLICIT EDGEPROPSET OP — wire-format half) — Promote `EdgePropSet` to persisted raw op type (schema version 4). Graph capability ratchet. Mixed v3+v4 materialization. Read-path accepts both legacy and new format. Sync emits raw `EdgePropSet` only after graph capability cutover. **Blocked on:** ADR 3 Gate 1 (historical audit, observability, capability design, rollout playbook).
 
-**M13 Gate:** Mixed-schema materialization deterministic. `WarpGraph.noCoordination.test.js` passes with v3+v4 writers. No regression in existing patch replay. Full test suite green.
+**ADR 3 Gate 1 prerequisites (not yet met):**
+
+- [ ] Historical identifier audit complete
+- [ ] Observability plan exists
+- [ ] Graph capability design approved
+- [ ] Rollout playbook exists
+- [ ] ADR 2 tripwire tests written (beyond current wire gate tests)
+
+**M13 Gate (internal canonicalization — met):** Canonical internal model in use. Reducer never sees unnormalized legacy edge-property `PropSet`. Reserved-byte validation enforced. Wire gate rejects canonical-only ops. `WarpGraph.noCoordination.test.js` passes. 4490 unit tests + 75 integration tests green. Lint clean.
+
+**M13 Gate (wire-format cutover — deferred):** Mixed-schema materialization deterministic. `WarpGraph.noCoordination.test.js` passes with v3+v4 writers. No regression in existing patch replay. Full test suite green. ADR 3 Gate 1 and Gate 2 both satisfied.
 
 ---
 
@@ -469,8 +505,8 @@ B5, B6, B13, B17, B18, B25, B45 — rejected 2026-02-17 with cause recorded in `
 
 1. **M10 SENTINEL** — Trust + sync safety + correctness — DONE except B2 spec
 2. **M12 SCALPEL** — STANK audit cleanup (minus edge prop encoding) — **DONE** (all tasks complete, gate verified)
-3. **M13 SCALPEL II** — Edge property encoding schema v4 migration (B116) — dedicated milestone, after M12 gate
-4. **M11 COMPASS II** — Developer experience (B2 impl, B3, B11) — after M13
+3. **M13 SCALPEL II** — Edge property canonicalization — **DONE** (internal model complete; wire-format cutover deferred by ADR 3)
+4. **M11 COMPASS II** — Developer experience (B2 impl, B3, B11) — **NEXT** (unblocked by M13 internal completion)
 
 ### M12 Critical Path
 
@@ -512,7 +548,7 @@ Pick opportunistically between milestones. Recommended order within tiers:
 | **Milestone (M10)** | 7 | B1, B2(spec), B39, B40, B63, B64, B65 |
 | **Milestone (M11)** | 3 | B2(impl), B3, B11 |
 | **Milestone (M12)** | 18 | B66, B67, B70, B73, B75, B105–B115, B117, B118 |
-| **Milestone (M13)** | 1 | B116 |
+| **Milestone (M13)** | 1 | B116 (internal: DONE; wire-format: DEFERRED) |
 | **Standalone** | 52 | B12, B19, B22, B28, B34–B37, B43, B44, B48–B55, B57, B76–B88, B91–B99, B102–B104, B119–B125, B127–B129 |
 | **Standalone (done)** | 8 | B26, B46, B47, B71, B72, B89, B90, B126 |
 | **Deferred** | 8 | B4, B7, B16, B20, B21, B27, B100, B101 |
@@ -532,7 +568,7 @@ Pick opportunistically between milestones. Recommended order within tiers:
 | C7 | CRIT | B111 | M12.T3 |
 | C8 | CRIT | B112 | M12.T3 |
 | S1 | STANK | B108 | M12.T2 |
-| S2 | STANK | B116 | M13 (extracted from M12.T6) |
+| S2 | STANK | B116 | M13 (internal: DONE via ADR 1; wire-format: DEFERRED via ADR 2/3) |
 | S3 | STANK | B107 | M12.T1 |
 | S4 | STANK | B72 | FIXED (M10) |
 | S5 | STANK | B66 | FIXED (M12.T4) |
@@ -621,7 +657,7 @@ Pick opportunistically between milestones. Recommended order within tiers:
 Every milestone has a hard gate. No milestone blurs into the next.
 Execution: M10 SENTINEL → **M12 SCALPEL** → **M13 SCALPEL II** → M11 COMPASS II. Standalone items fill the gaps.
 
-M12 is complete (including T8/T9). Edge property encoding (B116/S2) was extracted to M13 as a dedicated schema migration milestone requiring its own design phase. M13 must land before new features (M11).
+M12 is complete (including T8/T9). M13 internal canonicalization (ADR 1) is complete — canonical `NodePropSet`/`EdgePropSet` semantics, wire gate split, reserved-byte validation, version namespace separation. The persisted wire-format half of B116 is deferred by ADR 2 and governed by ADR 3 readiness gates. M11 is unblocked.
 
 BACKLOG.md fully absorbed into this file (B119–B129 promoted 2026-02-28; prior items 2026-02-25).
 Rejected items live in `GRAVEYARD.md`. Resurrections require an RFC.

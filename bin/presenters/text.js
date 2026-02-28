@@ -291,7 +291,8 @@ function formatOpSummaryPlain(summary) {
   const order = [
     ['NodeAdd', '+', 'node'],
     ['EdgeAdd', '+', 'edge'],
-    ['PropSet', '~', 'prop'],
+    ['prop', '~', 'prop'],       // coalesced PropSet + NodePropSet
+    ['EdgePropSet', '~', 'eprop'],
     ['NodeTombstone', '-', 'node'],
     ['EdgeTombstone', '-', 'edge'],
     ['BlobValue', '+', 'blob'],
@@ -299,7 +300,10 @@ function formatOpSummaryPlain(summary) {
 
   const parts = [];
   for (const [opType, symbol, label] of order) {
-    const n = summary?.[opType];
+    // Coalesce PropSet + NodePropSet into one bucket
+    const n = opType === 'prop'
+      ? (summary?.PropSet || 0) + (summary?.NodePropSet || 0) || undefined
+      : summary?.[opType];
     if (typeof n === 'number' && Number.isFinite(n) && n > 0) {
       parts.push(`${symbol}${n}${label}`);
     }
@@ -612,8 +616,11 @@ function formatPatchOp(op) {
   if (op.type === 'EdgeTombstone') {
     return `  - edge ${op.from} -[${op.label}]-> ${op.to}`;
   }
-  if (op.type === 'PropSet') {
+  if (op.type === 'PropSet' || op.type === 'NodePropSet') {
     return `  ~ ${op.node}.${op.key} = ${JSON.stringify(op.value)}`;
+  }
+  if (op.type === 'EdgePropSet') {
+    return `  ~ edge(${op.from} -[${op.label}]-> ${op.to}).${op.key} = ${JSON.stringify(op.value)}`;
   }
   if (op.type === 'BlobValue') {
     return `  + blob ${op.node}`;

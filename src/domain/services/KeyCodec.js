@@ -91,6 +91,54 @@ export function encodeEdgePropKey(from, to, label, propKey) {
   return `${EDGE_PROP_PREFIX}${from}\0${to}\0${label}\0${propKey}`;
 }
 
+// -------------------------------------------------------------------------
+// Legacy edge-property node encoding (raw PropSet ↔ canonical EdgePropSet)
+// -------------------------------------------------------------------------
+
+/**
+ * Encodes edge identity as the legacy `node` field value for raw PropSet ops.
+ *
+ * Format: `\x01from\0to\0label`
+ *
+ * @param {string} from - Source node ID
+ * @param {string} to - Target node ID
+ * @param {string} label - Edge label
+ * @returns {string}
+ */
+export function encodeLegacyEdgePropNode(from, to, label) {
+  return `${EDGE_PROP_PREFIX}${from}\0${to}\0${label}`;
+}
+
+/**
+ * Returns true if a raw PropSet `node` field encodes an edge identity.
+ * @param {string} node - The `node` field from a raw PropSet op
+ * @returns {boolean}
+ */
+export function isLegacyEdgePropNode(node) {
+  return typeof node === 'string' && node.length > 0 && node[0] === EDGE_PROP_PREFIX;
+}
+
+/**
+ * Decodes a legacy edge-property `node` field back to its components.
+ * @param {string} node - The `node` field (must start with \x01)
+ * @returns {{from: string, to: string, label: string}}
+ * @throws {Error} If the node field is not a valid legacy edge-property encoding
+ */
+export function decodeLegacyEdgePropNode(node) {
+  if (!isLegacyEdgePropNode(node)) {
+    throw new Error('Invalid legacy edge-property node: missing \\x01 prefix');
+  }
+  const parts = node.slice(1).split('\0');
+  if (parts.length !== 3) {
+    throw new Error(`Invalid legacy edge-property node: expected 3 segments, got ${parts.length}`);
+  }
+  const [from, to, label] = parts;
+  if (!from || !to || !label) {
+    throw new Error('Invalid legacy edge-property node: empty segment in decoded parts');
+  }
+  return { from, to, label };
+}
+
 /**
  * Returns true if the encoded key is an edge property key.
  * @param {string} key - Encoded property key
