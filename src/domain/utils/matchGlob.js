@@ -45,12 +45,14 @@ export function matchGlob(pattern, str) {
   let regex = globRegexCache.get(pattern);
   if (!regex) {
     regex = new RegExp(`^${escapeRegex(pattern).replace(/\\\*/g, '.*')}$`);
+    globRegexCache.set(pattern, regex);
     // Prevent unbounded cache growth. 1000 entries is generous for typical
     // usage; a full clear is simpler and cheaper than LRU for a regex cache.
-    if (globRegexCache.size > 1000) {
+    // Evict after insert so the just-compiled regex survives the clear.
+    if (globRegexCache.size >= 1000) {
       globRegexCache.clear();
+      globRegexCache.set(pattern, regex);
     }
-    globRegexCache.set(pattern, regex);
   }
   return regex.test(str);
 }

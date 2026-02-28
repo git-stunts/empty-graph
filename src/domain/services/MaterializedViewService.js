@@ -18,11 +18,11 @@ import LogicalIndexBuildService from './LogicalIndexBuildService.js';
 import LogicalIndexReader from './LogicalIndexReader.js';
 import PropertyIndexReader from './PropertyIndexReader.js';
 import IncrementalIndexUpdater from './IncrementalIndexUpdater.js';
+import { orsetElements, orsetContains } from '../crdt/ORSet.js';
+import { decodeEdgeKey } from './KeyCodec.js';
 
 /** Prefix for property shard paths in the index tree. */
 const PROPS_PREFIX = 'props_';
-import { orsetElements, orsetContains } from '../crdt/ORSet.js';
-import { decodeEdgeKey } from './KeyCodec.js';
 
 /**
  * @typedef {import('./BitmapNeighborProvider.js').LogicalIndex} LogicalIndex

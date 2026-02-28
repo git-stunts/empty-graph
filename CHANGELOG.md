@@ -32,7 +32,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`vvDeserialize` zero-counter elision (B75/T9)** — JSDoc + debug assertion in `vvSerialize`.
 - **Writer `_commitInProgress` guard (B74/T32)** — JSDoc documenting reentrancy safety and finally-block reset.
 - **TSK TSK documentation batch** — 20+ JSDoc/comment additions across CheckpointService (T4, T25, T26), GitGraphAdapter (T5, T7), CborCodec (T8), LWW (T10), EventId (T12), Dot (T22), VersionVector (T38), LRUCache (T20), RefLayout (T31), QueryBuilder (T13), MaterializedViewService (T14, T34), WriterError (T16), StorageError (T17, T29), SyncProtocol (T24), infrastructure (T27), JoinReducer (T3), IncrementalIndexUpdater (T36).
+
+### Refactored
+
 - **`MaterializedViewService` DRY (T15)** — extracted `PROPS_PREFIX` constant.
+- **`IncrementalIndexUpdater` stale `_nextLabelId` (CR-1)** — reset cached label ID on each `computeDirtyShards` call so freshly-loaded labels don't collide with prior state.
+- **`matchGlob` cache eviction boundary (CR-2)** — insert before evict + `>=` threshold so just-compiled regex survives the clear.
+- **`MaterializedViewService` import ordering (CR-3)** — moved `PROPS_PREFIX` constant below all imports.
 
 - **`join()` overwrites merged state (S1)** — `join()` now installs the merged state as canonical (`_stateDirty = false`) with synchronous adjacency build, instead of setting `_stateDirty = true` which caused `_ensureFreshState()` to throw `E_STALE_STATE` or trigger a full `materialize()` that discarded the merge result. Version vector is cloned from the merged frontier. (B108)
 - **`_cachedViewHash` leak in dirty paths** — `_onPatchCommitted` fallback path and `_maybeRunGC` frontier-changed path now clear `_cachedViewHash` when setting `_stateDirty = true`, maintaining the coherence invariant. (B108)

@@ -167,9 +167,9 @@ export function vvSerialize(vv) {
   for (const key of sortedKeys) {
     const val = vv.get(key);
     if (val !== undefined) {
-      // Debug assertion: zero counters must never appear in a VersionVector.
-      // They carry no causal information and would be elided on deserialization,
-      // breaking round-trip equality.
+      // Invariant assertion — not input validation. Zero counters must never
+      // appear in a VersionVector. They carry no causal information and would
+      // be elided on deserialization, breaking round-trip equality.
       if (val === 0) {
         throw new Error(`vvSerialize: zero counter for writerId "${key}" — VersionVector must not contain zero counters`);
       }

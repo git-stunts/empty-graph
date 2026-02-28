@@ -221,8 +221,8 @@ export function orsetGetDots(set, element) {
 export function orsetJoin(a, b) {
   const result = createORSet();
 
-  // Clone entries from a — each dot set is shallow-copied so the caller
-  // cannot mutate the original through the result.
+  // Copy entries from a into result — each dot set is shallow-copied so the
+  // caller cannot mutate the original through the result.
   for (const [element, dots] of a.entries) {
     result.entries.set(element, new Set(dots));
   }

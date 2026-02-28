@@ -470,8 +470,8 @@ T1 (Sync) ✅ ──→ T2 (Cache) ✅ ──→ T3 (CRITs) ✅ ──→ [M12 G
 
 T4 (Index) ✅
 T7 (Corruption) ✅
-T8 (JANK) ──────── IN PROGRESS (6 remaining)
-T9 (TSK TSK) ───── PENDING (lowest priority)
+T8 (JANK) ✅
+T9 (TSK TSK) ✅
 ```
 
 ### Standalone Priority Sequence

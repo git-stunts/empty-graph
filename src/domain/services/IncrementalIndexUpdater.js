@@ -79,6 +79,10 @@ export default class IncrementalIndexUpdater {
     const out = {};
 
     const labels = this._loadLabels(loadShard);
+    // Reset cached next label ID so _ensureLabel re-scans the fresh labels
+    // object loaded above. Without this, a stale _nextLabelId from a prior
+    // applyDiff call could collide with IDs already present in the new labels.
+    this._nextLabelId = null;
     let labelsDirty = false;
 
     // Determine which added nodes are true re-adds (already have global IDs).

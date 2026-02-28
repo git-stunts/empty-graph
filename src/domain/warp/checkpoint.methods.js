@@ -173,6 +173,12 @@ export async function _loadLatestCheckpoint() {
     // unreachable. In that case, fall back to full replay by returning null.
     // Decode/corruption errors (e.g., CBOR parse failure, schema mismatch)
     // should propagate so callers see the real problem.
+    // These string-contains checks match specific error messages from the
+    // persistence layer and codec:
+    //   "missing"          — git cat-file on pruned/unreachable objects
+    //   "not found"        — readTree entry lookup failures
+    //   "ENOENT"           — filesystem-level missing path (bare repo edge case)
+    //   "non-empty string" — readRef/getNodeInfo called with empty/null SHA
     const msg = err instanceof Error ? err.message : '';
     if (
       msg.includes('missing') ||
