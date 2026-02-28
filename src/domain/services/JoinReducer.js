@@ -33,10 +33,11 @@ export {
  * @property {import('../crdt/ORSet.js').ORSet} edgeAlive - ORSet of alive edges
  * @property {Map<string, import('../crdt/LWW.js').LWWRegister<unknown>>} prop - Properties with LWW
  * @property {import('../crdt/VersionVector.js').VersionVector} observedFrontier - Observed version vector
- * @property {Map<string, import('../utils/EventId.js').EventId>} [edgeBirthEvent] - EdgeKey → EventId of most recent EdgeAdd (for clean-slate prop visibility).
- *   Optional because edge birth events were introduced in a later schema version;
- *   patches from older schemas don't carry them, so states deserialized from
- *   older checkpoints may omit this field entirely.
+ * @property {Map<string, import('../utils/EventId.js').EventId>} edgeBirthEvent - EdgeKey → EventId of most recent EdgeAdd (for clean-slate prop visibility).
+ *   Always present at runtime (initialized to empty Map by createEmptyStateV5 and
+ *   deserializeFullStateV5). Edge birth events were introduced in a later schema
+ *   version; older checkpoints serialize without this field, but the deserializer
+ *   always produces an empty Map for them.
  */
 
 /**
