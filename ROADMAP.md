@@ -1,7 +1,7 @@
 # ROADMAP — @git-stunts/git-warp
 
 > **Current version:** v12.2.1
-> **Last reconciled:** 2026-02-27 (STANK.md fully absorbed)
+> **Last reconciled:** 2026-02-28 (STANK.md reconciled against v12.2.1 release)
 
 ---
 
@@ -93,7 +93,7 @@
 **Theme:** Comprehensive STANK audit cleanup — correctness, performance & code quality
 **Objective:** Fix STANK audit issues except S2 (edge property encoding, deferred to M13). Eliminate data-loss vectors (CRITs), rewrite broken abstractions (STANKs), clean up fragile code (JANK), and polish minor issues (TSK TSK). 45 of 46 issues; S2/B116 extracted to its own milestone.
 **Triage date:** 2026-02-27
-**Audit source:** `STANK.md`
+**Audit source:** `docs/audits/2026-02-complexity-audit.md`
 
 ### Already Fixed (M10 + prior M12 work)
 

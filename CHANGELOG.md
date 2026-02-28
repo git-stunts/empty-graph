@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **STANK audit relocated** — moved `STANK.md` to `docs/audits/2026-02-complexity-audit.md` and reconciled all 46 items with v12.2.1 disposition statuses (45 fixed, 1 deferred to M13).
+
 ## [12.2.1] — 2026-02-28
 
 ### Fixed

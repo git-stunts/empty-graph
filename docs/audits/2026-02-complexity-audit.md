@@ -1,9 +1,11 @@
-# STANK.md — Weirdness & Cognitive Complexity Audit
+# Complexity & Cognitive Load Audit (February 2026)
 
-**Codebase:** `@git-stunts/git-warp` v12.0.0
+**Codebase:** `@git-stunts/git-warp` v12.0.0 (audit baseline)
 **Date:** 2026-02-26
 **Method:** Static audit, 9 parallel agents + second-opinion pass, deduplicated
 **Scope:** All domain services, CRDT primitives, infrastructure adapters, CLI, utilities
+
+**Reconciled:** 2026-02-28 against v12.2.1 release. All 46 items resolved except S2 (deferred to M13).
 
 ---
 
@@ -24,6 +26,7 @@ CLS = Cognitive Load Score (1-10). 1-3: needs a comment. 4-7: prone to logic err
 
 ### C1. Silent Sync Divergence Skip + Stale Cache After Sync Apply
 
+**Status:** ✅ FIXED (v12.2.1, M12.T1, B105)
 **Location:** `SyncProtocol.js:419-431` / `processSyncRequest`; `SyncController.js:286` / `applySyncResponse`
 **CLS:** 9/10
 
@@ -42,6 +45,7 @@ CLS = Cognitive Load Score (1-10). 1-3: needs a comment. 4-7: prone to logic err
 
 ### C2. Forward-Compatible Ops Silently Dropped
 
+**Status:** ✅ FIXED (v12.2.1, M12.T1, B106)
 **Location:** `SyncProtocol.js:517` / `applySyncResponse`; `MessageSchemaDetector.js:85` / `assertOpsCompatible`; `JoinReducer.js:121` default case
 **CLS:** 8/10
 
@@ -53,6 +57,7 @@ CLS = Cognitive Load Score (1-10). 1-3: needs a comment. 4-7: prone to logic err
 
 ### C3. Type Casts Without Runtime Guards in Receipt Path
 
+**Status:** ✅ FIXED (v12.2.1, M12.T3, B109)
 **Location:** `JoinReducer.js:614-637` / `applyWithReceipt`
 **CLS:** 7/10
 
@@ -64,6 +69,7 @@ CLS = Cognitive Load Score (1-10). 1-3: needs a comment. 4-7: prone to logic err
 
 ### C4. `getCurrentState()` Callback — Time-of-Call Race Condition
 
+**Status:** ✅ FIXED (v12.2.0, pre-M12 — `_snapshotState` lazy capture in PatchBuilderV2)
 **Location:** `PatchBuilderV2.js:80,216,333,421`
 **CLS:** 8/10
 
@@ -75,6 +81,7 @@ CLS = Cognitive Load Score (1-10). 1-3: needs a comment. 4-7: prone to logic err
 
 ### C5. Backwards Provenance Semantics
 
+**Status:** ✅ FIXED (v12.2.1, M12.T3, B110 — renamed `_reads` → `_observedOperands`)
 **Location:** `PatchBuilderV2.js:135-156,183,299-302,435-436`
 **CLS:** 8/10
 
@@ -86,6 +93,7 @@ CLS = Cognitive Load Score (1-10). 1-3: needs a comment. 4-7: prone to logic err
 
 ### C6. Lamport Counter Silently Resets on Malformed Commit
 
+**Status:** ✅ FIXED (v12.2.0, pre-M12 — throws `E_LAMPORT_CORRUPT`)
 **Location:** `Writer.js:127-138` / `beginPatch`
 **CLS:** 9/10
 
@@ -97,6 +105,7 @@ CLS = Cognitive Load Score (1-10). 1-3: needs a comment. 4-7: prone to logic err
 
 ### C7. GC Mutates State In-Place With No Transaction Boundary
 
+**Status:** ✅ FIXED (v12.2.1, M12.T3, B111 — hardened GC transaction boundary with input validation)
 **Location:** `GCPolicy.js:101-122` / `executeGC`
 **CLS:** 7/10
 
@@ -108,6 +117,7 @@ CLS = Cognitive Load Score (1-10). 1-3: needs a comment. 4-7: prone to logic err
 
 ### C8. Error Handler Re-parses `process.argv`
 
+**Status:** ✅ FIXED (v12.2.1, M12.T3, B112 — intentional fallback documented)
 **Location:** `warp-graph.js:81-82` / error handler
 **CLS:** 5/10
 
@@ -121,6 +131,7 @@ CLS = Cognitive Load Score (1-10). 1-3: needs a comment. 4-7: prone to logic err
 
 ### S1. 8+ Independent Caches With No Unified Invalidation
 
+**Status:** ✅ FIXED (v12.2.1, M12.T2, B108 — surgical fixes to `join()` + `_cachedViewHash` leak; full `CacheState` refactor deferred)
 **Location:** `WarpGraph.js:83-197` (cache fields); `patch.methods.js:487-531` / `join()`
 **CLS:** 8/10
 
@@ -134,6 +145,7 @@ Compounding: `join(otherState)` at `patch.methods.js:531` updates `_cachedState`
 
 ### S2. Edge Properties Encoded as `\x01`-Prefixed Node Properties
 
+**Status:** ⏳ DEFERRED → M13 (SCALPEL II, B116 — schema v4 migration requires multi-writer CRDT design phase)
 **Location:** `PatchBuilderV2.js:417-437` / `setEdgeProperty`
 **CLS:** 9/10
 
@@ -145,6 +157,7 @@ Compounding: `join(otherState)` at `patch.methods.js:531` updates `_cachedState`
 
 ### S3. Sync Delta Assumes Remote Is Always Ahead
 
+**Status:** ✅ FIXED (v12.2.1, M12.T1, B107 — `isAncestor()` pre-check with chain-walk fallback)
 **Location:** `SyncProtocol.js:246-257` / `computeSyncDelta`
 **CLS:** 8/10
 
@@ -156,6 +169,7 @@ Compounding: `join(otherState)` at `patch.methods.js:531` updates `_cachedState`
 
 ### S4. Zero-Pad CAS Uses `newOid.length` Instead of Fixed 40
 
+**Status:** ✅ FIXED (v12.0.0, M10, B72 — `'0'.repeat(40)`)
 **Location:** `GitGraphAdapter.js:579` / `compareAndSwapRef`
 **CLS:** 7/10
 
@@ -192,6 +206,7 @@ Compounding: `join(otherState)` at `patch.methods.js:531` updates `_cachedState`
 
 ### S7. Eager Post-Commit Full State Recomputation
 
+**Status:** ✅ FIXED (v12.2.1, M12.T5, B114 — diff-aware eager path via `applyWithDiff()`)
 **Location:** `patch.methods.js:231` / `_onPatchCommitted`; `StateSerializerV5.js:81`; `materializeAdvanced.methods.js:149`
 **CLS:** 8/10
 **Complexity:** Current ~O((V+E+P) log N) per commit. Best: O(delta).
@@ -204,6 +219,7 @@ Compounding: `join(otherState)` at `patch.methods.js:531` updates `_cachedState`
 
 ### S8. Quadratic Ancestry Walking in `_loadPatchesSince`
 
+**Status:** ✅ FIXED (v12.2.1, M12.T5, B115 — tip-only ancestry validation per writer)
 **Location:** `checkpoint.methods.js:187` / `_loadPatchesSince`; `fork.methods.js:237,271`
 **CLS:** 7/10
 **Complexity:** Current O(P x L) per writer, worst O(P^2) for linear chains. Best: O(P) with memoized ancestry.
@@ -216,6 +232,7 @@ Compounding: `join(otherState)` at `patch.methods.js:531` updates `_cachedState`
 
 ### S9. `_materializeGraph` Always Re-materializes Even on Clean State
 
+**Status:** ✅ FIXED (v12.2.0, M10 — fast-return guard when `!_stateDirty && _materializedGraph`)
 **Location:** `materialize.methods.js:244` / `_materializeGraph`
 **CLS:** 8/10
 **Complexity:** Current ~O(W + deltaP + rebuild). Best: O(1) cache hit or O(W) frontier fingerprint check.
@@ -230,6 +247,7 @@ Compounding: `join(otherState)` at `patch.methods.js:531` updates `_cachedState`
 
 ### J1. O(N^2) Topological Sort (splice + insertSorted in Kahn's Loop)
 
+**Status:** ✅ FIXED (v12.2.0, M10, B68 — MinHeap-backed ready queue)
 **Location:** `GraphTraversal.js:862-871` / `topologicalSort`
 **CLS:** 6/10
 **Complexity:** O(N^2) on top of Kahn's O(N+E). Best: O(N+E) with priority queue.
@@ -242,6 +260,7 @@ Compounding: `join(otherState)` at `patch.methods.js:531` updates `_cachedState`
 
 ### J2. Unbounded `Promise.all` in Query Execution (3 sites)
 
+**Status:** ✅ FIXED (v12.2.0, M10, B69 — `batchMap()` chunks of 100 + per-run `propsMemo`)
 **Location:** `QueryBuilder.js:651,660-676,721-736,776-793` / `run`, `_runAggregate`
 **CLS:** 6/10
 
@@ -253,6 +272,7 @@ Compounding: `join(otherState)` at `patch.methods.js:531` updates `_cachedState`
 
 ### J3. Two Git I/O Calls in `readRef`
 
+**Status:** ✅ FIXED (v12.2.1, M12.T8, B117 — single `rev-parse --verify --quiet`)
 **Location:** `GitGraphAdapter.js:540-561` / `readRef`
 **CLS:** 4/10
 
@@ -264,6 +284,7 @@ Compounding: `join(otherState)` at `patch.methods.js:531` updates `_cachedState`
 
 ### J4. Sequential Blob Reads in `readTree`
 
+**Status:** ✅ FIXED (v12.2.1, M12.T8, B117 — pooled concurrent reads, batch size 16)
 **Location:** `GitGraphAdapter.js:458-467` / `readTree`
 **CLS:** 4/10
 
@@ -275,6 +296,7 @@ Compounding: `join(otherState)` at `patch.methods.js:531` updates `_cachedState`
 
 ### J5. Dead Write: `visible.cbor` Serialized But Never Loaded
 
+**Status:** ✅ FIXED (v12.2.0, M10 — dead `visible.cbor` write removed)
 **Location:** `CheckpointService.js:161-165` / `createV5`
 **CLS:** 4/10
 
@@ -286,6 +308,7 @@ Compounding: `join(otherState)` at `patch.methods.js:531` updates `_cachedState`
 
 ### J6. O(E+P) Linear Scan Per Cascade Delete
 
+**Status:** ✅ FIXED (v12.2.1, M12.T8, B117 — string prefix/infix checks instead of split+compare)
 **Location:** `PatchBuilderV2.js:45-64` / `findAttachedData`
 **CLS:** 5/10
 **Complexity:** O(E+P) per removeNode. Deleting N nodes = O(N*(E+P)).
@@ -298,6 +321,7 @@ Compounding: `join(otherState)` at `patch.methods.js:531` updates `_cachedState`
 
 ### J7. Schema Version Computed 3x Per Write, Never Cached
 
+**Status:** ✅ FIXED (v12.2.1, M12.T8, B117 — `_hasEdgeProps` boolean cache)
 **Location:** `PatchBuilderV2.js:498,610`; `MessageSchemaDetector.js:48-57`
 **CLS:** 4/10
 
@@ -309,6 +333,7 @@ Compounding: `join(otherState)` at `patch.methods.js:531` updates `_cachedState`
 
 ### J8. Mutating Set While Iterating in `orsetCompact`
 
+**Status:** ✅ FIXED (v12.2.0, pre-M12 — temp array pattern)
 **Location:** `ORSet.js:292-306` / `orsetCompact`
 **CLS:** 5/10
 
@@ -320,6 +345,7 @@ Compounding: `join(otherState)` at `patch.methods.js:531` updates `_cachedState`
 
 ### J9. Async Cache Race Condition in `CachedValue`
 
+**Status:** ✅ FIXED (v12.2.1, M12.T8, B117 — memoize in-flight promise)
 **Location:** `CachedValue.js:69-80` / `get()`
 **CLS:** 6/10
 
@@ -331,6 +357,7 @@ Compounding: `join(otherState)` at `patch.methods.js:531` updates `_cachedState`
 
 ### J10. Dual FNV-1a Implementations With Different Semantics
 
+**Status:** ✅ FIXED (v12.2.1, M12.T8, B117 — deleted `fnv1a.js` charCodeAt variant)
 **Location:** `src/domain/utils/shardKey.js:11-18` (UTF-8 bytes); `src/domain/utils/fnv1a.js:13-20` (charCodeAt)
 **CLS:** 6/10
 
@@ -342,6 +369,7 @@ Compounding: `join(otherState)` at `patch.methods.js:531` updates `_cachedState`
 
 ### J11. View/Index Build Failures Silently Swallowed
 
+**Status:** ✅ FIXED (v12.2.0, M10 — `_indexDegraded` flag tracks build failure status)
 **Location:** `materializeAdvanced.methods.js:149,175` / `_buildView`
 **CLS:** 7/10
 
@@ -353,6 +381,7 @@ Compounding: `join(otherState)` at `patch.methods.js:531` updates `_cachedState`
 
 ### J12. Public APIs Return Live Internal State References
 
+**Status:** ✅ FIXED (v12.2.1, M12.T8, B117 — freeze state from public materialization APIs)
 **Location:** `materialize.methods.js:230`; `materializeAdvanced.methods.js:223,460`
 **CLS:** 7/10
 
@@ -364,6 +393,7 @@ Compounding: `join(otherState)` at `patch.methods.js:531` updates `_cachedState`
 
 ### J13. Redundant CAS Pre-Check in PatchSession
 
+**Status:** ✅ FIXED (v12.2.1, M12.T8, B117 — removed pre-check, builder CAS is single source of truth)
 **Location:** `PatchSession.js:212-221` / `commit()`
 **CLS:** 4/10
 
@@ -375,6 +405,7 @@ Compounding: `join(otherState)` at `patch.methods.js:531` updates `_cachedState`
 
 ### J14. Checkpoint Load Failure Silently Falls Back to Full Replay
 
+**Status:** ✅ FIXED (v12.2.1, M12.T8, B117 — catch only "not found"; corruption errors propagate)
 **Location:** `checkpoint.methods.js:168` / `_loadLatestCheckpoint`
 **CLS:** 6/10
 
@@ -386,6 +417,7 @@ Compounding: `join(otherState)` at `patch.methods.js:531` updates `_cachedState`
 
 ### J15. Trust Record Read Errors Conflated With Empty Config
 
+**Status:** ✅ FIXED (v12.2.1, M12.T8, B117 — typed ok/error result from `readRecords`)
 **Location:** `TrustRecordService.js:111` / `readRecords`; `AuditVerifierService.js:672`
 **CLS:** 6/10
 
@@ -397,6 +429,7 @@ Compounding: `join(otherState)` at `patch.methods.js:531` updates `_cachedState`
 
 ### J16. `_hasSchema1Patches` Checks Tips Only, Not Full History
 
+**Status:** ✅ FIXED (v12.2.1, M12.T8, B117 — JSDoc clarifying tip-only heuristic)
 **Location:** `checkpoint.methods.js:237-248`
 **CLS:** 6/10
 
@@ -408,6 +441,7 @@ Compounding: `join(otherState)` at `patch.methods.js:531` updates `_cachedState`
 
 ### J17. Mutable `pastCommand` State Machine Without Documented Phases
 
+**Status:** ✅ FIXED (v12.2.1, M12.T8, B117 — phase comments documenting state machine)
 **Location:** `infrastructure.js:219-279` / `extractBaseArgs`
 **CLS:** 4/10
 
@@ -419,6 +453,7 @@ Compounding: `join(otherState)` at `patch.methods.js:531` updates `_cachedState`
 
 ### J18. Global Mutable `NATIVE_ROARING_AVAILABLE` Export
 
+**Status:** ✅ FIXED (v12.2.1, M12.T8, B117 — instance-level with test-reset support)
 **Location:** `BitmapIndexBuilder.js:24-32`
 **CLS:** 4/10
 
@@ -430,6 +465,7 @@ Compounding: `join(otherState)` at `patch.methods.js:531` updates `_cachedState`
 
 ### J19. JSON.stringify + Sort on Every Cache Key Lookup
 
+**Status:** ✅ FIXED (v12.2.1, M12.T8, B117 — pre-computed labels key string)
 **Location:** `GraphTraversal.js:168-169` / `_getNeighbors`
 **CLS:** 4/10
 
@@ -441,60 +477,62 @@ Compounding: `join(otherState)` at `patch.methods.js:531` updates `_cachedState`
 
 ## TSK TSK — Kinda Bad, But It Can Stay
 
-| # | Location | One-liner |
-|---|----------|-----------|
-| T1 | `JoinReducer.js:192-278` | Receipt-path removal outcome scans O(|dots| x |entries|) — diff path already has `buildDotToElement` index |
-| T2 | `JoinReducer.js:854-862` | Cloning OR-Sets via `orsetJoin(x, empty)` — works but cognitively backwards |
-| T3 | `JoinReducer.js:103-108` | `edgeBirthEvent` treated as optional with no explanation why |
-| T4 | `CheckpointService.js:243-244` | Schema version = `indexTree ? 4 : 2`; schema:3 exists in load path but never created |
-| T5 | `GitGraphAdapter.js:609-622` | One-liner validation wrappers that just delegate to imports |
-| T6 | `GitGraphAdapter.js:273-306` | `commitNode` / `commitNodeWithTree` — 70% code duplication |
-| T7 | `GitGraphAdapter.js:399-413` | `logNodesStream` silently strips NUL from user format string |
-| T8 | `CborCodec.js:96-129` | O(n log n) key-sort on every encode, even pre-sorted input |
-| T9 | `VersionVector.js:182-195` | `vvDeserialize` silently drops zero counters — intentional but undocumented |
-| T10 | `LWW.js:128-144` | `lwwMax()` null-handling is defensive but unused in practice |
-| T11 | `ORSet.js:221-250` | `orsetJoin()` inconsistent cloning strategy between a and b branches |
-| T12 | `EventId.js:56-78` | SHA comparison is lexicographic (arbitrary order) but not documented as such |
-| T13 | `QueryBuilder.js:183-250` | Deep freeze + structuredClone + JSON fallback on every query result |
-| T14 | `MaterializedViewService.js:111-118` | `mulberry32` bit manipulation with unexplained magic numbers |
-| T15 | `MaterializedViewService.js:65-103` | Hardcoded `'props_'` prefix in two places (DRY violation) |
-| T16 | `WriterError.js:27-39` | Inverted constructor signature breaks error pattern used by 18+ other error classes |
-| T17 | `StorageError.js:30` | Extends `IndexError` instead of `WarpError` — wrong hierarchy level |
-| T18 | `canonicalStringify.js:13-43` | No cycle detection — stack overflow on circular refs |
-| T19 | `matchGlob.js:1-49` | Unbounded regex cache with no eviction |
-| T20 | `LRUCache.js:33-42` | Delete-reinsert pattern for access tracking (2x Map ops per get) |
-| T21 | `DagTraversal.js:103`; `DagTopology.js:153` | `Array.shift()` as queue pop — O(N^2) traversal; use head-index pointer |
-| T22 | `Dot.js:105-134` | WriterIds with colons parsed via `lastIndexOf(':')` — fragile, no escape mechanism |
-| T23 | `SyncProtocol.js:341-352,436-441` | Scattered Map <-> Object conversions for frontier serialization |
-| T24 | `SyncProtocol.js:498-505` | Redundant grouping of already-grouped patches |
-| T25 | `CheckpointService.js:154-159` | Conditional clone (compact=true only) violates immutability contract |
-| T26 | `CheckpointService.js:195-203` | O(P) scan for CONTENT_PROPERTY_KEY; no index |
-| T27 | `infrastructure.js:172-190` | `preprocessView` injects synthetic 'ascii' then validates; confusing error UX |
-| T28 | `schemas.js:105,184-185` | `z.coerce.number()` can produce Infinity; error messages unclear |
-| T29 | `StorageError.js:38-42` | Implicit context merging, silent key overwrites |
-| T30 | `RefLayout.js:389-430` | `parseWriterIdFromRef()` returns null for all failure modes — can't distinguish "not a writer ref" from "malformed" |
-| T31 | `EventId.js:24-46` | `createEventId()` writerId validation too loose (doesn't match RefLayout rules) |
-| T32 | `Writer.js:180-195` | Silent `_commitInProgress` flag reset in finally block hides error classification |
-| T33 | `PatchSession.js:252-256` | Post-commit ops throw generic `Error` instead of `WriterError` |
-| T34 | `MaterializedViewService.js:128-141` | `sampleNodes()` fallback when sample is empty changes distribution |
-| T35 | `IncrementalIndexUpdater.js:349-361` | `_ensureLabel` loops to find max ID — O(L) per new label, O(L^2) amortized |
-| T36 | `IncrementalIndexUpdater.js:755-764` | `getRoaringBitmap32()` called on every `_deserializeBitmap` (memoized, but wasteful pattern) |
-| T37 | `ORSet.js:321-340` | `orsetSerialize` calls `decodeDot()` on every sort comparison — O(N log N) decodes |
-| T38 | `VersionVector.js:160-173` | `vvSerialize` creates + sorts key array on every call |
+**Status:** ✅ ALL FIXED (v12.2.1, M12.T9 — B67, B73, B74, B75, B118)
+
+| # | Status | Location | One-liner | Fix |
+|---|--------|----------|-----------|-----|
+| T1 | ✅ B67 | `JoinReducer.js:192-278` | Receipt-path removal outcome scans O(\|dots\| x \|entries\|) | `buildDotToElement` reverse index |
+| T2 | ✅ B73 | `JoinReducer.js:854-862` | Cloning OR-Sets via `orsetJoin(x, empty)` | Dedicated `orsetClone()` |
+| T3 | ✅ B118 | `JoinReducer.js:103-108` | `edgeBirthEvent` treated as optional with no explanation why | JSDoc |
+| T4 | ✅ B118 | `CheckpointService.js:243-244` | Schema version = `indexTree ? 4 : 2`; schema:3 exists in load path but never created | JSDoc |
+| T5 | ✅ B118 | `GitGraphAdapter.js:609-622` | One-liner validation wrappers that just delegate to imports | JSDoc |
+| T6 | ✅ B118 | `GitGraphAdapter.js:273-306` | `commitNode` / `commitNodeWithTree` — 70% code duplication | `_createCommit` helper |
+| T7 | ✅ B118 | `GitGraphAdapter.js:399-413` | `logNodesStream` silently strips NUL from user format string | JSDoc |
+| T8 | ✅ B118 | `CborCodec.js:96-129` | O(n log n) key-sort on every encode, even pre-sorted input | JSDoc |
+| T9 | ✅ B75 | `VersionVector.js:182-195` | `vvDeserialize` silently drops zero counters — intentional but undocumented | JSDoc + debug assertion |
+| T10 | ✅ B118 | `LWW.js:128-144` | `lwwMax()` null-handling is defensive but unused in practice | JSDoc |
+| T11 | ✅ B118 | `ORSet.js:221-250` | `orsetJoin()` inconsistent cloning strategy between a and b branches | b-branch clone via `new Set()` |
+| T12 | ✅ B118 | `EventId.js:56-78` | SHA comparison is lexicographic (arbitrary order) but not documented as such | JSDoc |
+| T13 | ✅ B118 | `QueryBuilder.js:183-250` | Deep freeze + structuredClone + JSON fallback on every query result | JSDoc |
+| T14 | ✅ B118 | `MaterializedViewService.js:111-118` | `mulberry32` bit manipulation with unexplained magic numbers | JSDoc |
+| T15 | ✅ B118 | `MaterializedViewService.js:65-103` | Hardcoded `'props_'` prefix in two places (DRY violation) | `PROPS_PREFIX` constant |
+| T16 | ✅ B118 | `WriterError.js:27-39` | Inverted constructor signature breaks error pattern used by 18+ other error classes | JSDoc |
+| T17 | ✅ B118 | `StorageError.js:30` | Extends `IndexError` instead of `WarpError` — wrong hierarchy level | JSDoc |
+| T18 | ✅ B118 | `canonicalStringify.js:13-43` | No cycle detection — stack overflow on circular refs | `WeakSet` cycle detection |
+| T19 | ✅ B118 | `matchGlob.js:1-49` | Unbounded regex cache with no eviction | Cache clears at 1000 entries |
+| T20 | ✅ B118 | `LRUCache.js:33-42` | Delete-reinsert pattern for access tracking (2x Map ops per get) | JSDoc |
+| T21 | ✅ B118 | `DagTraversal.js:103`; `DagTopology.js:153` | `Array.shift()` as queue pop — O(N^2) traversal; use head-index pointer | JSDoc |
+| T22 | ✅ B118 | `Dot.js:105-134` | WriterIds with colons parsed via `lastIndexOf(':')` — fragile, no escape mechanism | JSDoc |
+| T23 | ✅ B118 | `SyncProtocol.js:341-352,436-441` | Scattered Map \<-\> Object conversions for frontier serialization | `frontierToObject`/`objectToFrontier` helpers |
+| T24 | ✅ B118 | `SyncProtocol.js:498-505` | Redundant grouping of already-grouped patches | JSDoc |
+| T25 | ✅ B118 | `CheckpointService.js:154-159` | Conditional clone (compact=true only) violates immutability contract | JSDoc |
+| T26 | ✅ B118 | `CheckpointService.js:195-203` | O(P) scan for CONTENT_PROPERTY_KEY; no index | JSDoc |
+| T27 | ✅ B118 | `infrastructure.js:172-190` | `preprocessView` injects synthetic 'ascii' then validates; confusing error UX | JSDoc |
+| T28 | ✅ B118 | `schemas.js:105,184-185` | `z.coerce.number()` can produce Infinity; error messages unclear | `Number.isFinite` refinement |
+| T29 | ✅ B118 | `StorageError.js:38-42` | Implicit context merging, silent key overwrites | JSDoc |
+| T30 | ✅ B118 | `RefLayout.js:389-430` | `parseWriterIdFromRef()` returns null for all failure modes | JSDoc |
+| T31 | ✅ B118 | `EventId.js:24-46` | `createEventId()` writerId validation too loose | JSDoc |
+| T32 | ✅ B74 | `Writer.js:180-195` | Silent `_commitInProgress` flag reset in finally block | JSDoc |
+| T33 | ✅ B118 | `PatchSession.js:252-256` | Post-commit ops throw generic `Error` instead of `WriterError` | `WriterError` with `SESSION_COMMITTED` |
+| T34 | ✅ B118 | `MaterializedViewService.js:128-141` | `sampleNodes()` fallback when sample is empty changes distribution | JSDoc |
+| T35 | ✅ B118 | `IncrementalIndexUpdater.js:349-361` | `_ensureLabel` loops to find max ID — O(L) per new label | Cached `_nextLabelId` |
+| T36 | ✅ B118 | `IncrementalIndexUpdater.js:755-764` | `getRoaringBitmap32()` called on every `_deserializeBitmap` | JSDoc |
+| T37 | ✅ B118 | `ORSet.js:321-340` | `orsetSerialize` calls `decodeDot()` on every sort comparison | Pre-decode all dots before sorting |
+| T38 | ✅ B118 | `VersionVector.js:160-173` | `vvSerialize` creates + sorts key array on every call | JSDoc |
 
 ---
 
-## Top 5 Un-Stank Plans (Highest ROI)
+## Top 5 Un-Stank Plans (Highest ROI) — Status
 
-1. **Fix C1+S3 (SyncProtocol):** Return explicit `{ skippedWriters }` in sync response. Replace "assume remote ahead" delta with bidirectional ancestry check. Remove silent `continue` on divergence. Route sync-applied state through `_setMaterializedState()`.
+1. ✅ **C1+S3 (SyncProtocol):** Done (M12.T1). `skippedWriters` in sync response, `isAncestor()` pre-check, state routed through `_setMaterializedState()`.
 
-2. **Fix S1 (Cache coherence):** Replace 8 independent fields with a `CacheState` object carrying per-component dirty bits. Single `invalidate(component)` method. Route `join()` and sync-apply through canonical state-install path.
+2. ✅ **S1 (Cache coherence):** Done (M12.T2). Surgical `join()` fix + `_cachedViewHash` leak plugged. Full `CacheState` refactor deferred.
 
-3. **Fix C6 (Lamport reset):** Throw on malformed commit message. If recovery is desired, scan backwards for the last valid lamport. Never allow a clock to go backwards.
+3. ✅ **C6 (Lamport reset):** Done (pre-M12). Throws `E_LAMPORT_CORRUPT`.
 
-4. **Fix S2 (Edge property hack):** Promote to explicit `EdgePropSet` operation type. Migration: detect schema <= 3 and translate on read.
+4. ⏳ **S2 (Edge property hack):** Deferred to M13 (SCALPEL II). Schema v4 migration requires multi-writer CRDT design phase.
 
-5. **Fix S5+S6 (Incremental index):** Replace O(E) edge rescan with per-node adjacency index lookup. In `_purgeNodeEdges`, deserialize once, mutate in-place, serialize once.
+5. ✅ **S5+S6 (Incremental index):** Done (M12.T4). Adjacency cache for re-add restoration, single deserialize-mutate-serialize in purge.
 
 ---
 
