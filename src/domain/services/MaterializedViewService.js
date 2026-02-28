@@ -207,11 +207,7 @@ function canonicalizeNeighborSignatures(edges) {
 /**
  * Compares bitmap index neighbors against ground-truth adjacency for one node.
  *
- * @param {Object} params
- * @param {string} params.nodeId
- * @param {string} params.direction
- * @param {LogicalIndex} params.logicalIndex
- * @param {Map<string, Array<{neighborId: string, label: string}>>} params.truthMap
+ * @param {{ nodeId: string, direction: string, logicalIndex: LogicalIndex, truthMap: Map<string, Array<{neighborId: string, label: string}>> }} params
  * @returns {VerifyError|null}
  */
 function compareNodeDirection({ nodeId, direction, logicalIndex, truthMap }) {
@@ -232,9 +228,7 @@ function compareNodeDirection({ nodeId, direction, logicalIndex, truthMap }) {
 
 export default class MaterializedViewService {
   /**
-   * @param {Object} [options]
-   * @param {import('../../ports/CodecPort.js').default} [options.codec]
-   * @param {import('../../ports/LoggerPort.js').default} [options.logger]
+   * @param {{ codec?: import('../../ports/CodecPort.js').default, logger?: import('../../ports/LoggerPort.js').default }} [options]
    */
   constructor({ codec, logger } = {}) {
     this._codec = codec || defaultCodec;
@@ -308,10 +302,7 @@ export default class MaterializedViewService {
   /**
    * Applies a PatchDiff incrementally to an existing index tree.
    *
-   * @param {Object} params
-   * @param {Record<string, Uint8Array>} params.existingTree
-   * @param {import('../types/PatchDiff.js').PatchDiff} params.diff
-   * @param {import('./JoinReducer.js').WarpStateV5} params.state
+   * @param {{ existingTree: Record<string, Uint8Array>, diff: import('../types/PatchDiff.js').PatchDiff, state: import('./JoinReducer.js').WarpStateV5 }} params
    * @returns {BuildResult}
    */
   applyDiff({ existingTree, diff, state }) {
@@ -345,12 +336,7 @@ export default class MaterializedViewService {
    * Verifies index integrity by sampling alive nodes and comparing
    * bitmap neighbor queries against adjacency-based ground truth.
    *
-   * @param {Object} params
-   * @param {import('./JoinReducer.js').WarpStateV5} params.state
-   * @param {LogicalIndex} params.logicalIndex
-   * @param {Object} [params.options]
-   * @param {number} [params.options.seed] - PRNG seed for reproducible sampling
-   * @param {number} [params.options.sampleRate] - Fraction of nodes to check (>0 and <=1, default 0.1)
+   * @param {{ state: import('./JoinReducer.js').WarpStateV5, logicalIndex: LogicalIndex, options?: { seed?: number, sampleRate?: number } }} params
    * @returns {VerifyResult}
    */
   verifyIndex({ state, logicalIndex, options = {} }) {

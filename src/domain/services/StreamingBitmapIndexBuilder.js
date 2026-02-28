@@ -37,7 +37,7 @@ const BITMAP_BASE_OVERHEAD = 64;
  * Uses canonical JSON stringification for deterministic output
  * across different JavaScript engines.
  *
- * @param {Object} data - The data object to checksum
+ * @param {Record<string, unknown>} data - The data object to checksum
  * @param {import('../../ports/CryptoPort.js').default} crypto - CryptoPort instance
  * @returns {Promise<string>} Hex-encoded SHA-256 hash
  */
@@ -82,17 +82,7 @@ export default class StreamingBitmapIndexBuilder {
   /**
    * Creates a new StreamingBitmapIndexBuilder instance.
    *
-   * @param {Object} options - Configuration options
-   * @param {import('../../ports/IndexStoragePort.js').default} options.storage - Storage adapter implementing IndexStoragePort.
-   *   Required methods: writeBlob, writeTree, readBlob
-   * @param {number} [options.maxMemoryBytes=52428800] - Maximum bitmap memory before flush (default 50MB).
-   *   Note: SHA→ID mappings are not counted against this limit as they must remain in memory.
-   * @param {(stats: {flushedBytes: number, totalFlushedBytes: number, flushCount: number}) => void} [options.onFlush] - Optional callback invoked on each flush.
-   *   Receives { flushedBytes, totalFlushedBytes, flushCount }.
-   * @param {import('../../ports/LoggerPort.js').default} [options.logger] - Logger for structured logging.
-   *   Defaults to NoOpLogger (no logging).
-   * @param {import('../../ports/CryptoPort.js').default} [options.crypto] - CryptoPort instance for hashing
-   * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for serialization
+   * @param {{ storage: import('../../ports/IndexStoragePort.js').default, maxMemoryBytes?: number, onFlush?: (stats: {flushedBytes: number, totalFlushedBytes: number, flushCount: number}) => void, logger?: import('../../ports/LoggerPort.js').default, crypto?: import('../../ports/CryptoPort.js').default, codec?: import('../../ports/CodecPort.js').default }} options - Configuration options
    */
   constructor({ storage, maxMemoryBytes = DEFAULT_MAX_MEMORY_BYTES, onFlush, logger = nullLogger, crypto, codec }) {
     if (!storage) {
@@ -333,7 +323,7 @@ export default class StreamingBitmapIndexBuilder {
    * Each shard is wrapped in a versioned envelope with checksum before writing.
    * Writes are performed in parallel using Promise.all for efficiency.
    *
-   * @param {Object<string, Object<string, number>>} idShards - Object mapping 2-char hex prefix
+   * @param {Record<string, Record<string, number>>} idShards - Object mapping 2-char hex prefix
    *   to objects of SHA→numeric ID mappings
    * @returns {Promise<string[]>} Array of Git tree entry strings in format
    *   "100644 blob <oid>\tmeta_<prefix>.json"
@@ -365,9 +355,7 @@ export default class StreamingBitmapIndexBuilder {
    *
    * Processing is parallelized across shard paths for efficiency.
    *
-   * @param {Object} [options] - Options
-   * @param {AbortSignal} [options.signal] - Optional AbortSignal for cancellation.
-   *   If aborted, throws an error with code 'ABORT_ERR'.
+   * @param {{ signal?: AbortSignal }} [options] - Options
    * @returns {Promise<string[]>} Array of Git tree entry strings in format
    *   "100644 blob <oid>\tshards_<type>_<prefix>.json"
    * @throws {Error} If the operation is aborted via signal
@@ -409,12 +397,7 @@ export default class StreamingBitmapIndexBuilder {
    *   frontier.json                       # Optional: JSON-encoded frontier
    * ```
    *
-   * @param {Object} [options] - Finalization options
-   * @param {AbortSignal} [options.signal] - Optional AbortSignal for cancellation.
-   *   If aborted, throws an error with code 'ABORT_ERR'.
-   * @param {Map<string, string>} [options.frontier] - Optional writer frontier
-   *   (writerId → tip SHA) for staleness detection. If provided, frontier.cbor and
-   *   frontier.json files are included in the tree.
+   * @param {{ signal?: AbortSignal, frontier?: Map<string, string> }} [options] - Finalization options
    * @returns {Promise<string>} OID of the created Git tree containing the complete index
    * @throws {Error} If the operation is aborted via signal
    * @throws {ShardValidationError} If a chunk has an unsupported version during merge
@@ -527,11 +510,7 @@ export default class StreamingBitmapIndexBuilder {
    * - New bitmap: adds BITMAP_BASE_OVERHEAD (64 bytes)
    * - New entry in existing bitmap: adds ~4 bytes (approximation)
    *
-   * @param {Object} opts - Options object
-   * @param {string} opts.sha - The SHA to use as bitmap key (40-character hex string)
-   * @param {number} opts.id - The numeric ID to add to the bitmap
-   * @param {'fwd'|'rev'} opts.type - Edge direction type: 'fwd' for forward edges
-   *   (this node's children), 'rev' for reverse edges (this node's parents)
+   * @param {{ sha: string, id: number, type: 'fwd'|'rev' }} opts - Options object
    * @private
    */
   _addToBitmap({ sha, id, type }) {
@@ -615,12 +594,7 @@ export default class StreamingBitmapIndexBuilder {
    * is stored directly. If a bitmap already exists, the new bitmap is ORed into
    * it using `orInPlace` to combine edge sets.
    *
-   * @param {Object} opts - Options object
-   * @param {Record<string, import('../utils/roaring.js').RoaringBitmapSubset>} opts.merged - Object mapping SHA to
-   *   RoaringBitmap32 instances (mutated in place)
-   * @param {string} opts.sha - The SHA key for this bitmap (40-character hex string)
-   * @param {string} opts.base64Bitmap - Base64-encoded serialized RoaringBitmap32 data
-   * @param {string} opts.oid - Git blob OID of the source chunk (for error reporting)
+   * @param {{ merged: Record<string, import('../utils/roaring.js').RoaringBitmapSubset>, sha: string, base64Bitmap: string, oid: string }} opts - Options object
    * @throws {ShardCorruptionError} If the bitmap cannot be deserialized from base64.
    *   Error context includes: oid, reason ('invalid_bitmap'), originalError
    * @private
@@ -662,9 +636,7 @@ export default class StreamingBitmapIndexBuilder {
    * Supports cancellation via AbortSignal between chunk processing iterations.
    *
    * @param {string[]} oids - Git blob OIDs of chunks to merge (40-character hex strings)
-   * @param {Object} [options] - Options object
-   * @param {AbortSignal} [options.signal] - Optional AbortSignal for cancellation.
-   *   Checked between chunk iterations; if aborted, throws with code 'ABORT_ERR'.
+   * @param {{ signal?: AbortSignal }} [options] - Options object
    * @returns {Promise<string>} Git blob OID of the merged shard (40-character hex string)
    * @throws {Error} If the operation is aborted via signal
    * @throws {ShardValidationError} If a chunk has an unsupported version.

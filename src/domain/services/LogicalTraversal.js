@@ -83,10 +83,7 @@ export default class LogicalTraversal {
    * multiple starts or no start at all (topologicalSort, commonAncestors).
    *
    * @private
-   * @param {Object} opts - The traversal options
-   * @param {'out'|'in'|'both'} [opts.dir] - Edge direction to follow
-   * @param {string|string[]} [opts.labelFilter] - Edge label(s) to include
-   * @param {number} [opts.maxDepth] - Maximum depth to traverse
+   * @param {{ dir?: 'out'|'in'|'both', labelFilter?: string|string[], maxDepth?: number }} opts - The traversal options
    * @returns {Promise<{engine: GraphTraversal, direction: 'out'|'in'|'both', options: {labels?: Set<string>}|undefined, depthLimit: number}>}
    * @throws {TraversalError} If the direction is invalid (INVALID_DIRECTION)
    * @throws {TraversalError} If the labelFilter is invalid (INVALID_LABEL_FILTER)
@@ -120,10 +117,7 @@ export default class LogicalTraversal {
    *
    * @private
    * @param {string} start - The starting node ID for traversal
-   * @param {Object} opts - The traversal options
-   * @param {'out'|'in'|'both'} [opts.dir] - Edge direction to follow
-   * @param {string|string[]} [opts.labelFilter] - Edge label(s) to include
-   * @param {number} [opts.maxDepth] - Maximum depth to traverse
+   * @param {{ dir?: 'out'|'in'|'both', labelFilter?: string|string[], maxDepth?: number }} opts - The traversal options
    * @returns {Promise<{engine: GraphTraversal, direction: 'out'|'in'|'both', options: {labels?: Set<string>}|undefined, depthLimit: number}>}
    * @throws {TraversalError} If the start node is not found (NODE_NOT_FOUND)
    * @throws {TraversalError} If the direction is invalid (INVALID_DIRECTION)
@@ -146,10 +140,7 @@ export default class LogicalTraversal {
    * Breadth-first traversal.
    *
    * @param {string} start - Starting node ID
-   * @param {Object} [options] - Traversal options
-   * @param {number} [options.maxDepth] - Maximum depth to traverse
-   * @param {'out'|'in'|'both'} [options.dir] - Edge direction to follow
-   * @param {string|string[]} [options.labelFilter] - Edge label(s) to include
+   * @param {{ maxDepth?: number, dir?: 'out'|'in'|'both', labelFilter?: string|string[] }} [options] - Traversal options
    * @returns {Promise<string[]>} Node IDs in visit order
    * @throws {TraversalError} If the start node is not found or direction is invalid
    */
@@ -169,10 +160,7 @@ export default class LogicalTraversal {
    * Depth-first traversal (pre-order).
    *
    * @param {string} start - Starting node ID
-   * @param {Object} [options] - Traversal options
-   * @param {number} [options.maxDepth] - Maximum depth to traverse
-   * @param {'out'|'in'|'both'} [options.dir] - Edge direction to follow
-   * @param {string|string[]} [options.labelFilter] - Edge label(s) to include
+   * @param {{ maxDepth?: number, dir?: 'out'|'in'|'both', labelFilter?: string|string[] }} [options] - Traversal options
    * @returns {Promise<string[]>} Node IDs in visit order
    * @throws {TraversalError} If the start node is not found or direction is invalid
    */
@@ -193,10 +181,7 @@ export default class LogicalTraversal {
    *
    * @param {string} from - Source node ID
    * @param {string} to - Target node ID
-   * @param {Object} [options] - Traversal options
-   * @param {number} [options.maxDepth] - Maximum search depth
-   * @param {'out'|'in'|'both'} [options.dir] - Edge direction to follow
-   * @param {string|string[]} [options.labelFilter] - Edge label(s) to include
+   * @param {{ maxDepth?: number, dir?: 'out'|'in'|'both', labelFilter?: string|string[] }} [options] - Traversal options
    * @returns {Promise<{found: boolean, path: string[], length: number}>}
    *   When `found` is true, `path` contains the node IDs from `from` to `to` and
    *   `length` is the hop count. When `found` is false, `path` is empty and `length` is -1.
@@ -219,9 +204,7 @@ export default class LogicalTraversal {
    * Connected component (undirected by default).
    *
    * @param {string} start - Starting node ID
-   * @param {Object} [options] - Traversal options
-   * @param {number} [options.maxDepth] - Maximum depth to traverse (default: 1000)
-   * @param {string|string[]} [options.labelFilter] - Edge label(s) to include
+   * @param {{ maxDepth?: number, labelFilter?: string|string[] }} [options] - Traversal options
    * @returns {Promise<string[]>} Node IDs in visit order
    * @throws {TraversalError} If the start node is not found
    */
@@ -236,11 +219,7 @@ export default class LogicalTraversal {
    *
    * @param {string} from - Source node ID
    * @param {string} to - Target node ID
-   * @param {Object} [options] - Traversal options
-   * @param {number} [options.maxDepth] - Maximum search depth
-   * @param {'out'|'in'|'both'} [options.dir] - Edge direction to follow
-   * @param {string|string[]} [options.labelFilter] - Edge label(s) to include
-   * @param {AbortSignal} [options.signal] - Abort signal
+   * @param {{ maxDepth?: number, dir?: 'out'|'in'|'both', labelFilter?: string|string[], signal?: AbortSignal }} [options] - Traversal options
    * @returns {Promise<{reachable: boolean}>}
    */
   async isReachable(from, to, options = {}) {
@@ -262,12 +241,7 @@ export default class LogicalTraversal {
    *
    * @param {string} from - Source node ID
    * @param {string} to - Target node ID
-   * @param {Object} [options] - Traversal options
-   * @param {'out'|'in'|'both'} [options.dir] - Edge direction to follow
-   * @param {string|string[]} [options.labelFilter] - Edge label(s) to include
-   * @param {(from: string, to: string, label: string) => number | Promise<number>} [options.weightFn] - Edge weight function
-   * @param {(nodeId: string) => number | Promise<number>} [options.nodeWeightFn] - Node weight function (mutually exclusive with weightFn)
-   * @param {AbortSignal} [options.signal] - Abort signal
+   * @param {{ dir?: 'out'|'in'|'both', labelFilter?: string|string[], weightFn?: (from: string, to: string, label: string) => number | Promise<number>, nodeWeightFn?: (nodeId: string) => number | Promise<number>, signal?: AbortSignal }} [options] - Traversal options
    * @returns {Promise<{path: string[], totalCost: number}>}
    * @throws {TraversalError} code 'NO_PATH' if unreachable
    * @throws {TraversalError} code 'E_WEIGHT_FN_CONFLICT' if both weightFn and nodeWeightFn provided
@@ -292,13 +266,7 @@ export default class LogicalTraversal {
    *
    * @param {string} from - Source node ID
    * @param {string} to - Target node ID
-   * @param {Object} [options] - Traversal options
-   * @param {'out'|'in'|'both'} [options.dir] - Edge direction to follow
-   * @param {string|string[]} [options.labelFilter] - Edge label(s) to include
-   * @param {(from: string, to: string, label: string) => number | Promise<number>} [options.weightFn] - Edge weight function
-   * @param {(nodeId: string) => number | Promise<number>} [options.nodeWeightFn] - Node weight function (mutually exclusive with weightFn)
-   * @param {(nodeId: string, goalId: string) => number} [options.heuristicFn] - Heuristic function
-   * @param {AbortSignal} [options.signal] - Abort signal
+   * @param {{ dir?: 'out'|'in'|'both', labelFilter?: string|string[], weightFn?: (from: string, to: string, label: string) => number | Promise<number>, nodeWeightFn?: (nodeId: string) => number | Promise<number>, heuristicFn?: (nodeId: string, goalId: string) => number, signal?: AbortSignal }} [options] - Traversal options
    * @returns {Promise<{path: string[], totalCost: number, nodesExplored: number}>}
    * @throws {TraversalError} code 'NO_PATH' if unreachable
    * @throws {TraversalError} code 'E_WEIGHT_FN_CONFLICT' if both weightFn and nodeWeightFn provided
@@ -326,13 +294,7 @@ export default class LogicalTraversal {
    *
    * @param {string} from - Source node ID
    * @param {string} to - Target node ID
-   * @param {Object} [options] - Traversal options
-   * @param {string|string[]} [options.labelFilter] - Edge label(s) to include
-   * @param {(from: string, to: string, label: string) => number | Promise<number>} [options.weightFn] - Edge weight function
-   * @param {(nodeId: string) => number | Promise<number>} [options.nodeWeightFn] - Node weight function (mutually exclusive with weightFn)
-   * @param {(nodeId: string, goalId: string) => number} [options.forwardHeuristic] - Forward heuristic
-   * @param {(nodeId: string, goalId: string) => number} [options.backwardHeuristic] - Backward heuristic
-   * @param {AbortSignal} [options.signal] - Abort signal
+   * @param {{ labelFilter?: string|string[], weightFn?: (from: string, to: string, label: string) => number | Promise<number>, nodeWeightFn?: (nodeId: string) => number | Promise<number>, forwardHeuristic?: (nodeId: string, goalId: string) => number, backwardHeuristic?: (nodeId: string, goalId: string) => number, signal?: AbortSignal }} [options] - Traversal options
    * @returns {Promise<{path: string[], totalCost: number, nodesExplored: number}>}
    * @throws {TraversalError} code 'NO_PATH' if unreachable
    * @throws {TraversalError} code 'E_WEIGHT_FN_CONFLICT' if both weightFn and nodeWeightFn provided
@@ -365,11 +327,7 @@ export default class LogicalTraversal {
    * Topological sort (Kahn's algorithm).
    *
    * @param {string|string[]} start - One or more start nodes
-   * @param {Object} [options] - Traversal options
-   * @param {'out'|'in'|'both'} [options.dir] - Edge direction to follow
-   * @param {string|string[]} [options.labelFilter] - Edge label(s) to include
-   * @param {boolean} [options.throwOnCycle] - Whether to throw on cycle detection
-   * @param {AbortSignal} [options.signal] - Abort signal
+   * @param {{ dir?: 'out'|'in'|'both', labelFilter?: string|string[], throwOnCycle?: boolean, signal?: AbortSignal }} [options] - Traversal options
    * @returns {Promise<{sorted: string[], hasCycle: boolean}>}
    * @throws {TraversalError} code 'ERR_GRAPH_HAS_CYCLES' if throwOnCycle and cycle found
    * @throws {TraversalError} code 'NODE_NOT_FOUND' if a start node does not exist
@@ -405,11 +363,7 @@ export default class LogicalTraversal {
    * Direction is fixed to 'in' (backward BFS).
    *
    * @param {string[]} nodes - Nodes to find common ancestors of
-   * @param {Object} [options] - Traversal options
-   * @param {number} [options.maxDepth] - Maximum search depth
-   * @param {string|string[]} [options.labelFilter] - Edge label(s) to include
-   * @param {number} [options.maxResults] - Maximum number of results
-   * @param {AbortSignal} [options.signal] - Abort signal
+   * @param {{ maxDepth?: number, labelFilter?: string|string[], maxResults?: number, signal?: AbortSignal }} [options] - Traversal options
    * @returns {Promise<{ancestors: string[]}>}
    * @throws {TraversalError} code 'NODE_NOT_FOUND' if a node does not exist
    */
@@ -443,12 +397,7 @@ export default class LogicalTraversal {
    *
    * @param {string} from - Source node ID
    * @param {string} to - Target node ID
-   * @param {Object} [options] - Traversal options
-   * @param {'out'|'in'|'both'} [options.dir] - Edge direction to follow
-   * @param {string|string[]} [options.labelFilter] - Edge label(s) to include
-   * @param {(from: string, to: string, label: string) => number | Promise<number>} [options.weightFn] - Edge weight function
-   * @param {(nodeId: string) => number | Promise<number>} [options.nodeWeightFn] - Node weight function (mutually exclusive with weightFn)
-   * @param {AbortSignal} [options.signal] - Abort signal
+   * @param {{ dir?: 'out'|'in'|'both', labelFilter?: string|string[], weightFn?: (from: string, to: string, label: string) => number | Promise<number>, nodeWeightFn?: (nodeId: string) => number | Promise<number>, signal?: AbortSignal }} [options] - Traversal options
    * @returns {Promise<{path: string[], totalCost: number}>}
    * @throws {TraversalError} code 'ERR_GRAPH_HAS_CYCLES' if graph has cycles
    * @throws {TraversalError} code 'NO_PATH' if unreachable

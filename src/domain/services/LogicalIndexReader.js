@@ -89,8 +89,7 @@ function classifyShards(items) {
 
 export default class LogicalIndexReader {
   /**
-   * @param {Object} [options]
-   * @param {import('../../ports/CodecPort.js').default} [options.codec]
+   * @param {{ codec?: import('../../ports/CodecPort.js').default }} [options]
    */
   constructor({ codec } = {}) {
     this._codec = codec || defaultCodec;

@@ -90,16 +90,7 @@ const OID_HEX_PATTERN = /^[0-9a-f]{40}([0-9a-f]{24})?$/;
 /**
  * Validates and builds a frozen receipt record with keys in sorted order.
  *
- * @param {Object} fields
- * @param {number} fields.version
- * @param {string} fields.graphName
- * @param {string} fields.writerId
- * @param {string} fields.dataCommit
- * @param {number} fields.tickStart
- * @param {number} fields.tickEnd
- * @param {string} fields.opsDigest
- * @param {string} fields.prevAuditCommit
- * @param {number} fields.timestamp
+ * @param {{ version: number, graphName: string, writerId: string, dataCommit: string, tickStart: number, tickEnd: number, opsDigest: string, prevAuditCommit: string, timestamp: number }} fields
  * @returns {Readonly<Record<string, unknown>>}
  * @throws {Error} If any field is invalid
  */
@@ -206,13 +197,7 @@ export function buildReceiptRecord(fields) {
  */
 export class AuditReceiptService {
   /**
-   * @param {Object} options
-   * @param {import('../../ports/RefPort.js').default & import('../../ports/BlobPort.js').default & import('../../ports/TreePort.js').default & import('../../ports/CommitPort.js').default} options.persistence
-   * @param {string} options.graphName
-   * @param {string} options.writerId
-   * @param {import('../../ports/CodecPort.js').default} options.codec
-   * @param {import('../../ports/CryptoPort.js').default} options.crypto
-   * @param {import('../../ports/LoggerPort.js').default} [options.logger]
+   * @param {{ persistence: import('../../ports/RefPort.js').default & import('../../ports/BlobPort.js').default & import('../../ports/TreePort.js').default & import('../../ports/CommitPort.js').default, graphName: string, writerId: string, codec: import('../../ports/CodecPort.js').default, crypto: import('../../ports/CryptoPort.js').default, logger?: import('../../ports/LoggerPort.js').default }} options
    */
   constructor({ persistence, graphName, writerId, codec, crypto, logger }) {
     this._persistence = persistence;

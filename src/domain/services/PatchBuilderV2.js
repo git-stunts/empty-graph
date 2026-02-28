@@ -99,19 +99,7 @@ export class PatchBuilderV2 {
   /**
    * Creates a new PatchBuilderV2.
    *
-   * @param {Object} options
-   * @param {import('../../ports/GraphPersistencePort.js').default} options.persistence - Git adapter
-   *   (uses CommitPort + RefPort + BlobPort + TreePort methods)
-   * @param {string} options.graphName - Graph namespace
-   * @param {string} options.writerId - This writer's ID
-   * @param {number} options.lamport - Lamport timestamp for this patch
-   * @param {import('../crdt/VersionVector.js').VersionVector} options.versionVector - Current version vector
-   * @param {() => import('../services/JoinReducer.js').WarpStateV5 | null} options.getCurrentState - Function that returns the current materialized state (synchronous)
-   * @param {string|null} [options.expectedParentSha] - Expected parent SHA for race detection
-   * @param {((result: {patch: import('../types/WarpTypesV2.js').PatchV2, sha: string}) => void | Promise<void>)|null} [options.onCommitSuccess] - Callback invoked after successful commit
-   * @param {'reject'|'cascade'|'warn'} [options.onDeleteWithData='warn'] - Policy when deleting a node with attached data
-   * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for serialization
-   * @param {import('../../ports/LoggerPort.js').default} [options.logger] - Logger for non-fatal warnings
+   * @param {{ persistence: import('../../ports/GraphPersistencePort.js').default, graphName: string, writerId: string, lamport: number, versionVector: import('../crdt/VersionVector.js').VersionVector, getCurrentState: () => import('../services/JoinReducer.js').WarpStateV5 | null, expectedParentSha?: string|null, onCommitSuccess?: ((result: {patch: import('../types/WarpTypesV2.js').PatchV2, sha: string}) => void | Promise<void>)|null, onDeleteWithData?: 'reject'|'cascade'|'warn', codec?: import('../../ports/CodecPort.js').default, logger?: import('../../ports/LoggerPort.js').default }} options
    */
   constructor({ persistence, graphName, writerId, lamport, versionVector, getCurrentState, expectedParentSha = null, onCommitSuccess = null, onDeleteWithData = 'warn', codec, logger }) {
     /** @type {import('../../ports/GraphPersistencePort.js').default & import('../../ports/RefPort.js').default & import('../../ports/CommitPort.js').default & import('../../ports/BlobPort.js').default & import('../../ports/TreePort.js').default} */

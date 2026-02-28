@@ -70,8 +70,7 @@ function bufToHex(buf) {
 export default class WebCryptoAdapter extends CryptoPort {
   /**
    * Creates a new WebCryptoAdapter.
-   * @param {Object} [options] - Configuration options
-   * @param {SubtleCrypto} [options.subtle] - SubtleCrypto instance (defaults to globalThis.crypto.subtle)
+   * @param {{ subtle?: SubtleCrypto }} [options] - Configuration options
    */
   constructor({ subtle } = {}) {
     super();

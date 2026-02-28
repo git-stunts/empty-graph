@@ -46,10 +46,7 @@ const LEVEL_NAMES = Object.freeze({
 export default class ConsoleLogger extends LoggerPort {
   /**
    * Creates a new ConsoleLogger instance.
-   * @param {Object} [options] - Logger options
-   * @param {number} [options.level=LogLevel.INFO] - Minimum log level to output
-   * @param {Record<string, unknown>} [options.context={}] - Base context for all log entries
-   * @param {function(): string} [options.timestampFn] - Custom timestamp function (defaults to ISO string)
+   * @param {{ level?: number, context?: Record<string, unknown>, timestampFn?: function(): string }} [options] - Logger options
    */
   constructor({ level = LogLevel.INFO, context = {}, timestampFn } = {}) {
     super();
@@ -114,11 +111,7 @@ export default class ConsoleLogger extends LoggerPort {
 
   /**
    * Internal logging implementation.
-   * @param {Object} opts - Log options
-   * @param {number} opts.level - Numeric log level
-   * @param {string} opts.levelName - String representation of level
-   * @param {string} opts.message - Log message
-   * @param {Record<string, unknown>} [opts.context] - Additional context
+   * @param {{ level: number, levelName: string, message: string, context?: Record<string, unknown> }} opts - Log options
    * @private
    */
   _log({ level, levelName, message, context }) {

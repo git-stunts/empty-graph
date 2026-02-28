@@ -169,14 +169,8 @@ function computePropLoss(state, { nodesA, nodesBSet, configA, configB }) {
  * The cost measures how much information is lost when translating from
  * A's view to B's view. It is asymmetric: cost(A->B) != cost(B->A) in general.
  *
- * @param {Object} configA - Observer configuration for A
- * @param {string|string[]} configA.match - Glob pattern(s) for visible nodes
- * @param {string[]} [configA.expose] - Property keys to include
- * @param {string[]} [configA.redact] - Property keys to exclude
- * @param {Object} configB - Observer configuration for B
- * @param {string|string[]} configB.match - Glob pattern(s) for visible nodes
- * @param {string[]} [configB.expose] - Property keys to include
- * @param {string[]} [configB.redact] - Property keys to exclude
+ * @param {{ match: string|string[], expose?: string[], redact?: string[] }} configA - Observer configuration for A
+ * @param {{ match: string|string[], expose?: string[], redact?: string[] }} configB - Observer configuration for B
  * @param {WarpStateV5} state - WarpStateV5 materialized state
  * @returns {{ cost: number, breakdown: { nodeLoss: number, edgeLoss: number, propLoss: number } }}
  */

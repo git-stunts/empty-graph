@@ -223,14 +223,7 @@ function initAuth(auth, allowedWriters) {
 
 export default class HttpSyncServer {
   /**
-   * @param {Object} options
-   * @param {import('../../ports/HttpServerPort.js').default} options.httpPort - HTTP server port abstraction
-   * @param {{ processSyncRequest: (req: import('./SyncProtocol.js').SyncRequest) => Promise<unknown> }} options.graph - WarpGraph instance (must expose processSyncRequest)
-   * @param {string} [options.path='/sync'] - URL path to handle sync requests on
-   * @param {string} [options.host='127.0.0.1'] - Host to bind
-   * @param {number} [options.maxRequestBytes=4194304] - Maximum request body size in bytes
-   * @param {{ keys: Record<string, string>, mode?: 'enforce'|'log-only', crypto?: import('../../ports/CryptoPort.js').default, logger?: import('../../ports/LoggerPort.js').default, wallClockMs?: () => number }} [options.auth] - Auth configuration
-   * @param {string[]} [options.allowedWriters] - Optional whitelist of allowed writer IDs
+   * @param {{ httpPort: import('../../ports/HttpServerPort.js').default, graph: { processSyncRequest: (req: import('./SyncProtocol.js').SyncRequest) => Promise<unknown> }, path?: string, host?: string, maxRequestBytes?: number, auth?: { keys: Record<string, string>, mode?: 'enforce'|'log-only', crypto?: import('../../ports/CryptoPort.js').default, logger?: import('../../ports/LoggerPort.js').default, wallClockMs?: () => number }, allowedWriters?: string[] }} options
    */
   constructor(options) {
     /** @type {z.infer<typeof optionsSchema>} */

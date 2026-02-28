@@ -25,12 +25,7 @@ import {
 /**
  * Encodes a patch commit message.
  *
- * @param {Object} options - The patch message options
- * @param {string} options.graph - The graph name
- * @param {string} options.writer - The writer ID
- * @param {number} options.lamport - The Lamport timestamp (must be a positive integer)
- * @param {string} options.patchOid - The OID of the patch blob
- * @param {number} [options.schema=2] - The schema version (defaults to 2 for new messages)
+ * @param {{ graph: string, writer: string, lamport: number, patchOid: string, schema?: number }} options - The patch message options
  * @returns {string} The encoded commit message
  * @throws {Error} If any validation fails
  *

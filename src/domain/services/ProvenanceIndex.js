@@ -242,8 +242,7 @@ class ProvenanceIndex {
    * The serialized format is a sorted array of [entityId, sortedShas[]] pairs
    * for deterministic output.
    *
-   * @param {Object} [options]
-   * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for serialization
+   * @param {{ codec?: import('../../ports/CodecPort.js').default }} [options]
    * @returns {Uint8Array} CBOR-encoded index
    */
   serialize({ codec } = {}) {
@@ -269,8 +268,7 @@ class ProvenanceIndex {
    * Deserializes an index from CBOR format.
    *
    * @param {Uint8Array} buffer - CBOR-encoded index
-   * @param {Object} [options]
-   * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for deserialization
+   * @param {{ codec?: import('../../ports/CodecPort.js').default }} [options]
    * @returns {ProvenanceIndex} The deserialized index
    * @throws {Error} If the buffer contains an unsupported version
    */

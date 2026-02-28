@@ -67,12 +67,7 @@ function renderTruncationIndicator(truncated, hiddenCount) {
 
 /**
  * Renders a single patch entry line.
- * @param {Object} params - Entry parameters
- * @param {PatchEntry} params.entry - Patch entry
- * @param {boolean} params.isLast - Whether this is the last entry
- * @param {number} params.lamportWidth - Width for lamport timestamp padding
- * @param {string} [params.writerStr] - Writer string
- * @param {number} [params.maxWriterIdLen] - Max writer ID length for padding
+ * @param {{ entry: PatchEntry, isLast: boolean, lamportWidth: number, writerStr?: string, maxWriterIdLen?: number }} params - Entry parameters
  * @returns {string} Formatted entry line
  */
 function renderEntryLine({ entry, isLast, lamportWidth, writerStr, maxWriterIdLen }) {

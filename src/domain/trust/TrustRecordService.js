@@ -33,9 +33,7 @@ const MAX_CAS_ATTEMPTS = 3;
 
 export class TrustRecordService {
   /**
-   * @param {Object} options
-   * @param {import('../../ports/CommitPort.js').default & import('../../ports/BlobPort.js').default & import('../../ports/TreePort.js').default & import('../../ports/RefPort.js').default} options.persistence - GraphPersistencePort adapter
-   * @param {import('../../ports/CodecPort.js').default} options.codec - CodecPort adapter (CBOR)
+   * @param {{ persistence: import('../../ports/CommitPort.js').default & import('../../ports/BlobPort.js').default & import('../../ports/TreePort.js').default & import('../../ports/RefPort.js').default, codec: import('../../ports/CodecPort.js').default }} options
    */
   constructor({ persistence, codec }) {
     this._persistence = persistence;
@@ -105,8 +103,7 @@ export class TrustRecordService {
    * Reads all trust records from the chain, oldest first.
    *
    * @param {string} graphName
-   * @param {Object} [options]
-   * @param {string} [options.tip] - Override tip commit (for pinned reads)
+   * @param {{ tip?: string }} [options]
    * @returns {Promise<ReadRecordsResult>}
    */
   async readRecords(graphName, options = {}) {
@@ -235,10 +232,7 @@ export class TrustRecordService {
    *
    * @param {string} graphName
    * @param {Record<string, unknown>} record - Complete signed trust record
-   * @param {Object} [options]
-   * @param {number} [options.maxRetries=3] - Maximum rebuild-and-retry attempts
-   * @param {((record: Record<string, unknown>) => Promise<Record<string, unknown>>)|null} [options.resign] - Function to re-sign a rebuilt record (null for unsigned)
-   * @param {boolean} [options.skipSignatureVerify=false] - Skip signature verification
+   * @param {{ maxRetries?: number, resign?: ((record: Record<string, unknown>) => Promise<Record<string, unknown>>)|null, skipSignatureVerify?: boolean }} [options]
    * @returns {Promise<{commitSha: string, ref: string, attempts: number}>}
    * @throws {TrustError} E_TRUST_CAS_EXHAUSTED if all retries fail
    */

@@ -45,11 +45,7 @@ export const HealthStatus = {
 export default class HealthCheckService {
   /**
    * Creates a HealthCheckService instance.
-   * @param {Object} options
-   * @param {import('../../ports/GraphPersistencePort.js').default & import('../../ports/CommitPort.js').default} options.persistence - Persistence port for repository checks
-   * @param {import('../../ports/ClockPort.js').default} options.clock - Clock port for timing operations
-   * @param {number} [options.cacheTtlMs=5000] - How long to cache health results in milliseconds
-   * @param {import('../../ports/LoggerPort.js').default} [options.logger] - Logger for structured logging
+   * @param {{ persistence: import('../../ports/GraphPersistencePort.js').default & import('../../ports/CommitPort.js').default, clock: import('../../ports/ClockPort.js').default, cacheTtlMs?: number, logger?: import('../../ports/LoggerPort.js').default }} options
    */
   constructor({ persistence, clock, cacheTtlMs = DEFAULT_CACHE_TTL_MS, logger = nullLogger }) {
     this._persistence = persistence;

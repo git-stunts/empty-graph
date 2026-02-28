@@ -38,12 +38,7 @@ export default class GraphNode {
   /**
    * Creates a new immutable GraphNode.
    *
-   * @param {Object} data - Node data
-   * @param {string} data.sha - The commit SHA (40 hex characters). Required.
-   * @param {string} data.message - The commit message/payload. Required.
-   * @param {string} [data.author] - The commit author name. Optional.
-   * @param {string} [data.date] - The commit date string. Optional.
-   * @param {string[]} [data.parents=[]] - Array of parent commit SHAs. Defaults to empty array.
+   * @param {{ sha: string, message: string, author?: string, date?: string, parents?: string[] }} data - Node data
    * @throws {Error} If sha is missing or not a string
    * @throws {Error} If message is missing or not a string
    * @throws {Error} If parents is not an array

@@ -28,10 +28,7 @@ class CachedValue {
   /**
    * Creates a CachedValue instance.
    *
-   * @param {Object} options
-   * @param {import('../../ports/ClockPort.js').default} options.clock - Clock port for timing
-   * @param {number} options.ttlMs - Time-to-live in milliseconds
-   * @param {() => T | Promise<T>} options.compute - Function to compute the value when cache is stale
+   * @param {{ clock: import('../../ports/ClockPort.js').default, ttlMs: number, compute: () => T | Promise<T> }} options
    * @throws {Error} If ttlMs is not a positive number
    */
   constructor({ clock, ttlMs, compute }) {

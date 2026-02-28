@@ -19,12 +19,7 @@ export class PatchSession {
   /**
    * Creates a new PatchSession.
    *
-   * @param {Object} options
-   * @param {import('../services/PatchBuilderV2.js').PatchBuilderV2} options.builder - Internal builder
-   * @param {import('../../ports/GraphPersistencePort.js').default & import('../../ports/RefPort.js').default} options.persistence - Git adapter
-   * @param {string} options.graphName - Graph namespace
-   * @param {string} options.writerId - Writer ID
-   * @param {string|null} options.expectedOldHead - Expected parent SHA for CAS
+   * @param {{ builder: import('../services/PatchBuilderV2.js').PatchBuilderV2, persistence: import('../../ports/GraphPersistencePort.js').default & import('../../ports/RefPort.js').default, graphName: string, writerId: string, expectedOldHead: string|null }} options
    */
   constructor({ builder, persistence, graphName, writerId, expectedOldHead }) {
     /** @type {import('../services/PatchBuilderV2.js').PatchBuilderV2} */

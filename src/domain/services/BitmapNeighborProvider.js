@@ -59,9 +59,7 @@ function dedupSorted(edges) {
 
 export default class BitmapNeighborProvider extends NeighborProviderPort {
   /**
-   * @param {Object} params
-   * @param {BitmapIndexReader} [params.indexReader] - For commit DAG mode
-   * @param {LogicalIndex} [params.logicalIndex] - For logical graph mode
+   * @param {{ indexReader?: BitmapIndexReader, logicalIndex?: LogicalIndex }} params
    */
   constructor({ indexReader, logicalIndex }) {
     super();

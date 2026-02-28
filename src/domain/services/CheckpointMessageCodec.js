@@ -30,12 +30,7 @@ import {
 /**
  * Encodes a checkpoint commit message.
  *
- * @param {Object} options - The checkpoint message options
- * @param {string} options.graph - The graph name
- * @param {string} options.stateHash - The SHA-256 hash of the materialized state
- * @param {string} options.frontierOid - The OID of the frontier blob
- * @param {string} options.indexOid - The OID of the index tree
- * @param {number} [options.schema=2] - The schema version (defaults to 2 for new messages)
+ * @param {{ graph: string, stateHash: string, frontierOid: string, indexOid: string, schema?: number }} options - The checkpoint message options
  * @returns {string} The encoded commit message
  * @throws {Error} If any validation fails
  *

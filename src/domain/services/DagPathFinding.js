@@ -37,9 +37,7 @@ export default class DagPathFinding {
   /**
    * Creates a new DagPathFinding service.
    *
-   * @param {Object} options
-   * @param {import('./BitmapIndexReader.js').default} options.indexReader - Index reader for O(1) lookups
-   * @param {import('../../ports/LoggerPort.js').default} [options.logger] - Logger instance
+   * @param {{ indexReader: import('./BitmapIndexReader.js').default, logger?: import('../../ports/LoggerPort.js').default }} options
    */
   constructor(/** @type {{ indexReader: import('./BitmapIndexReader.js').default, logger?: import('../../ports/LoggerPort.js').default }} */ { indexReader, logger = nullLogger }) {
     if (!indexReader) {
@@ -56,12 +54,7 @@ export default class DagPathFinding {
    * Returns the first path found, which is guaranteed to be a shortest path
    * (in terms of number of edges) due to BFS's level-order exploration.
    *
-   * @param {Object} options - Path finding options
-   * @param {string} options.from - Source node SHA
-   * @param {string} options.to - Target node SHA
-   * @param {number} [options.maxNodes=100000] - Maximum nodes to visit
-   * @param {number} [options.maxDepth=1000] - Maximum path length
-   * @param {AbortSignal} [options.signal] - Optional AbortSignal for cancellation
+   * @param {{ from: string, to: string, maxNodes?: number, maxDepth?: number, signal?: AbortSignal }} options - Path finding options
    * @returns {Promise<{found: boolean, path: string[], length: number}>} Path result
    */
   async findPath({
@@ -114,11 +107,7 @@ export default class DagPathFinding {
   /**
    * Finds the shortest path between two nodes using bidirectional BFS.
    *
-   * @param {Object} options - Path finding options
-   * @param {string} options.from - Source node SHA
-   * @param {string} options.to - Target node SHA
-   * @param {number} [options.maxDepth=1000] - Maximum search depth per direction
-   * @param {AbortSignal} [options.signal] - Optional AbortSignal for cancellation
+   * @param {{ from: string, to: string, maxDepth?: number, signal?: AbortSignal }} options - Path finding options
    * @returns {Promise<{found: boolean, path: string[], length: number}>} Path result
    */
   async shortestPath({ from, to, maxDepth = DEFAULT_MAX_DEPTH, signal }) {
@@ -197,12 +186,7 @@ export default class DagPathFinding {
   /**
    * Finds shortest path using Dijkstra's algorithm with custom edge weights.
    *
-   * @param {Object} options - Path finding options
-   * @param {string} options.from - Starting SHA
-   * @param {string} options.to - Target SHA
-   * @param {(from: string, to: string) => number|Promise<number>} [options.weightProvider] - Async callback `(fromSha, toSha) => number`
-   * @param {string} [options.direction='children'] - Edge direction: 'children' or 'parents'
-   * @param {AbortSignal} [options.signal] - Optional AbortSignal for cancellation
+   * @param {{ from: string, to: string, weightProvider?: (from: string, to: string) => number|Promise<number>, direction?: string, signal?: AbortSignal }} options - Path finding options
    * @returns {Promise<{path: string[], totalCost: number}>} Path and cost
    * @throws {TraversalError} With code 'NO_PATH' if no path exists
    */
@@ -274,13 +258,7 @@ export default class DagPathFinding {
   /**
    * Finds shortest path using A* algorithm with heuristic guidance.
    *
-   * @param {Object} options - Path finding options
-   * @param {string} options.from - Starting SHA
-   * @param {string} options.to - Target SHA
-   * @param {(from: string, to: string) => number|Promise<number>} [options.weightProvider] - Async callback `(fromSha, toSha) => number`
-   * @param {(sha: string, target: string) => number} [options.heuristicProvider] - Callback `(sha, targetSha) => number`
-   * @param {string} [options.direction='children'] - Edge direction: 'children' or 'parents'
-   * @param {AbortSignal} [options.signal] - Optional AbortSignal for cancellation
+   * @param {{ from: string, to: string, weightProvider?: (from: string, to: string) => number|Promise<number>, heuristicProvider?: (sha: string, target: string) => number, direction?: string, signal?: AbortSignal }} options - Path finding options
    * @returns {Promise<{path: string[], totalCost: number, nodesExplored: number}>} Path result
    * @throws {TraversalError} With code 'NO_PATH' if no path exists
    */
@@ -364,13 +342,7 @@ export default class DagPathFinding {
   /**
    * Bi-directional A* search - meets in the middle from both ends.
    *
-   * @param {Object} options - Path finding options
-   * @param {string} options.from - Starting SHA
-   * @param {string} options.to - Target SHA
-   * @param {(from: string, to: string) => number|Promise<number>} [options.weightProvider] - Async callback `(fromSha, toSha) => number`
-   * @param {(sha: string, target: string) => number} [options.forwardHeuristic] - Callback for forward search
-   * @param {(sha: string, target: string) => number} [options.backwardHeuristic] - Callback for backward search
-   * @param {AbortSignal} [options.signal] - Optional AbortSignal for cancellation
+   * @param {{ from: string, to: string, weightProvider?: (from: string, to: string) => number|Promise<number>, forwardHeuristic?: (sha: string, target: string) => number, backwardHeuristic?: (sha: string, target: string) => number, signal?: AbortSignal }} options - Path finding options
    * @returns {Promise<{path: string[], totalCost: number, nodesExplored: number}>} Path result
    * @throws {TraversalError} With code 'NO_PATH' if no path exists
    */
@@ -462,18 +434,7 @@ export default class DagPathFinding {
   /**
    * Expands the forward frontier by one node in bidirectional A*.
    *
-   * @param {Object} state - Forward expansion state
-   * @param {import('../utils/MinHeap.js').default<string>} state.fwdHeap
-   * @param {Set<string>} state.fwdVisited
-   * @param {Map<string, number>} state.fwdGScore
-   * @param {Map<string, string>} state.fwdPrevious
-   * @param {Set<string>} state.bwdVisited
-   * @param {Map<string, number>} state.bwdGScore
-   * @param {(from: string, to: string) => number|Promise<number>} state.weightProvider
-   * @param {(sha: string, target: string) => number} state.forwardHeuristic
-   * @param {string} state.to
-   * @param {number} state.mu
-   * @param {string|null} state.meetingPoint
+   * @param {{ fwdHeap: import('../utils/MinHeap.js').default<string>, fwdVisited: Set<string>, fwdGScore: Map<string, number>, fwdPrevious: Map<string, string>, bwdVisited: Set<string>, bwdGScore: Map<string, number>, weightProvider: (from: string, to: string) => number|Promise<number>, forwardHeuristic: (sha: string, target: string) => number, to: string, mu: number, meetingPoint: string|null }} state - Forward expansion state
    * @returns {Promise<{explored: number, mu: number, meetingPoint: string|null}>}
    * @private
    */
@@ -535,18 +496,7 @@ export default class DagPathFinding {
   /**
    * Expands the backward frontier by one node in bidirectional A*.
    *
-   * @param {Object} state - Backward expansion state
-   * @param {import('../utils/MinHeap.js').default<string>} state.bwdHeap
-   * @param {Set<string>} state.bwdVisited
-   * @param {Map<string, number>} state.bwdGScore
-   * @param {Map<string, string>} state.bwdNext
-   * @param {Set<string>} state.fwdVisited
-   * @param {Map<string, number>} state.fwdGScore
-   * @param {(from: string, to: string) => number|Promise<number>} state.weightProvider
-   * @param {(sha: string, target: string) => number} state.backwardHeuristic
-   * @param {string} state.from
-   * @param {number} state.mu
-   * @param {string|null} state.meetingPoint
+   * @param {{ bwdHeap: import('../utils/MinHeap.js').default<string>, bwdVisited: Set<string>, bwdGScore: Map<string, number>, bwdNext: Map<string, string>, fwdVisited: Set<string>, fwdGScore: Map<string, number>, weightProvider: (from: string, to: string) => number|Promise<number>, backwardHeuristic: (sha: string, target: string) => number, from: string, mu: number, meetingPoint: string|null }} state - Backward expansion state
    * @returns {Promise<{explored: number, mu: number, meetingPoint: string|null}>}
    * @private
    */

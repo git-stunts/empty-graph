@@ -197,11 +197,7 @@ export function createPropSet(node, key, value) {
 
 /**
  * Creates an EventId
- * @param {Object} options - EventId options
- * @param {number} options.lamport - Lamport timestamp
- * @param {string} options.writerId - Writer ID
- * @param {string} options.patchSha - Patch SHA
- * @param {number} options.opIndex - Operation index within patch
+ * @param {{ lamport: number, writerId: string, patchSha: string, opIndex: number }} options - EventId options
  * @returns {EventId} EventId object
  */
 export function createEventId({ lamport, writerId, patchSha, opIndex }) {

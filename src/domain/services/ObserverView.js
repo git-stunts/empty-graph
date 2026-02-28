@@ -156,13 +156,7 @@ export default class ObserverView {
   /**
    * Creates a new ObserverView.
    *
-   * @param {Object} options
-   * @param {string} options.name - Observer name
-   * @param {Object} options.config - Observer configuration
-   * @param {string|string[]} options.config.match - Glob pattern(s) for visible nodes
-   * @param {string[]} [options.config.expose] - Property keys to include
-   * @param {string[]} [options.config.redact] - Property keys to exclude (takes precedence over expose)
-   * @param {import('../WarpGraph.js').default} options.graph - The source WarpGraph instance
+   * @param {{ name: string, config: { match: string|string[], expose?: string[], redact?: string[] }, graph: import('../WarpGraph.js').default }} options
    */
   constructor({ name, config, graph }) {
     /** @type {string} */

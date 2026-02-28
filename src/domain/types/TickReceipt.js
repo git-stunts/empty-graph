@@ -175,11 +175,7 @@ function validateOpResult(value, i) {
 /**
  * Creates an immutable TickReceipt.
  *
- * @param {Object} params
- * @param {string} params.patchSha - SHA of the patch commit
- * @param {string} params.writer - Writer ID
- * @param {number} params.lamport - Lamport timestamp (non-negative integer)
- * @param {OpOutcome[]} params.ops - Per-operation outcome records
+ * @param {{ patchSha: string, writer: string, lamport: number, ops: OpOutcome[] }} params
  * @returns {Readonly<TickReceipt>} Frozen tick receipt
  * @throws {Error} If any parameter is invalid
  */

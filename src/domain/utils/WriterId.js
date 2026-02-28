@@ -116,8 +116,7 @@ function crockfordBase32(bytes) {
  * Uses 128 bits of entropy (16 bytes) encoded as Crockford Base32.
  * The result is prefixed with `w_` for a total length of 28 characters.
  *
- * @param {Object} [options]
- * @param {(n: number) => Uint8Array} [options.randomBytes] - Custom RNG for testing
+ * @param {{ randomBytes?: (n: number) => Uint8Array }} [options] - Options with optional custom RNG for testing
  * @returns {string} A canonical writer ID (e.g., 'w_0123456789abcdefghjkmnpqrs')
  * @throws {WriterIdError} If RNG is unavailable or returns wrong shape
  *
@@ -148,11 +147,7 @@ export function generateWriterId({ randomBytes } = {}) {
  * 2. Load from git config key `warp.writerId.<graphName>`
  * 3. If missing or invalid, generate new canonical ID, persist, and return
  *
- * @param {Object} args
- * @param {string} args.graphName - The graph name
- * @param {string|undefined} args.explicitWriterId - Optional explicit writer ID
- * @param {(key: string) => Promise<string|null>} args.configGet - Function to read git config
- * @param {(key: string, value: string) => Promise<void>} args.configSet - Function to write git config
+ * @param {{ graphName: string, explicitWriterId: string|undefined, configGet: (key: string) => Promise<string|null>, configSet: (key: string, value: string) => Promise<void> }} args
  * @returns {Promise<string>} The resolved writer ID
  * @throws {WriterIdError} If config operations fail
  *

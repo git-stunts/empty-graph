@@ -304,9 +304,7 @@ export async function writer(writerId) {
  *
  * @deprecated Use `writer()` to resolve a stable ID from git config, or `writer(id)` with an explicit ID.
  * @this {import('../WarpGraph.js').default}
- * @param {Object} [opts]
- * @param {'config'|'none'} [opts.persist='none'] - Whether to persist the new ID to git config
- * @param {string} [opts.alias] - Optional alias for config key (used with persist:'config')
+ * @param {{ persist?: 'config'|'none', alias?: string }} [opts]
  * @returns {Promise<Writer>} A Writer instance with new canonical ID
  * @throws {Error} If config operations fail (when persist:'config')
  *

@@ -30,8 +30,7 @@ import { decodeEdgeKey } from './KeyCodec.js';
 export default class WarpStateIndexBuilder {
   /**
    * Creates a new WarpStateIndexBuilder.
-   * @param {Object} [options] - Configuration
-   * @param {import('../../ports/CryptoPort.js').default} [options.crypto] - CryptoPort for shard checksums
+   * @param {{ crypto?: import('../../ports/CryptoPort.js').default }} [options] - Configuration
    */
   constructor({ crypto } = {}) {
     /** @type {BitmapIndexBuilder} */
@@ -109,8 +108,7 @@ export default class WarpStateIndexBuilder {
  * Convenience function to build and serialize a WARP state index.
  *
  * @param {import('./JoinReducer.js').WarpStateV5} state - The materialized state
- * @param {Object} [options] - Configuration
- * @param {import('../../ports/CryptoPort.js').default} [options.crypto] - CryptoPort for shard checksums
+ * @param {{ crypto?: import('../../ports/CryptoPort.js').default }} [options] - Configuration
  * @returns {Promise<{tree: Record<string, Buffer>, stats: {nodes: number, edges: number}}>} Serialized index and stats
  *
  * @example

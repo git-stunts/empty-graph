@@ -32,10 +32,7 @@ export default class DagTopology {
   /**
    * Creates a new DagTopology service.
    *
-   * @param {Object} options
-   * @param {import('./BitmapIndexReader.js').default} options.indexReader - Index reader for O(1) lookups
-   * @param {import('../../ports/LoggerPort.js').default} [options.logger] - Logger instance
-   * @param {import('./DagTraversal.js').default} [options.traversal] - Traversal service for ancestor enumeration
+   * @param {{ indexReader: import('./BitmapIndexReader.js').default, logger?: import('../../ports/LoggerPort.js').default, traversal?: import('./DagTraversal.js').default }} options
    */
   constructor(/** @type {{ indexReader: import('./BitmapIndexReader.js').default, logger?: import('../../ports/LoggerPort.js').default, traversal?: import('./DagTraversal.js').default }} */ { indexReader, logger = nullLogger, traversal }) {
     if (!indexReader) {
@@ -67,11 +64,7 @@ export default class DagTopology {
    * An ancestor is "common" if it can be reached by following parent edges
    * from ALL of the input nodes.
    *
-   * @param {Object} options - Common ancestor options
-   * @param {string[]} options.shas - Array of node SHAs
-   * @param {number} [options.maxResults=100] - Maximum ancestors to return
-   * @param {number} [options.maxDepth=1000] - Maximum depth to search
-   * @param {AbortSignal} [options.signal] - Optional AbortSignal for cancellation
+   * @param {{ shas: string[], maxResults?: number, maxDepth?: number, signal?: AbortSignal }} options - Common ancestor options
    * @returns {Promise<string[]>} Array of common ancestor SHAs
    */
   async commonAncestors({ shas, maxResults = 100, maxDepth = DEFAULT_MAX_DEPTH, signal }) {
@@ -119,12 +112,7 @@ export default class DagTopology {
    * Topological order ensures that for every directed edge A -> B, node A
    * is yielded before node B.
    *
-   * @param {Object} options - Topological sort options
-   * @param {string} options.start - Starting node SHA
-   * @param {number} [options.maxNodes=100000] - Maximum nodes to yield
-   * @param {TraversalDirection} [options.direction='forward'] - Direction
-   * @param {boolean} [options.throwOnCycle=false] - If true, throws on cycle detection
-   * @param {AbortSignal} [options.signal] - Optional AbortSignal for cancellation
+   * @param {{ start: string, maxNodes?: number, direction?: TraversalDirection, throwOnCycle?: boolean, signal?: AbortSignal }} options - Topological sort options
    * @yields {{sha: string, depth: number, parent: null}} Nodes in topological order
    * @throws {TraversalError} With code 'CYCLE_DETECTED' if throwOnCycle is true
    */

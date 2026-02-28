@@ -55,11 +55,7 @@ function segmentFits(currentWidth, segmentWidth, maxWidth) {
 
 /**
  * Creates a path segment with node and optional arrow.
- * @param {Object} opts - Segment options
- * @param {string} opts.nodeId - Node ID
- * @param {number} opts.index - Position in path
- * @param {number} opts.pathLength - Total path length
- * @param {string[]} [opts.edges] - Optional edge labels
+ * @param {{ nodeId: string, index: number, pathLength: number, edges?: string[] }} opts - Segment options
  * @returns {{segment: string, width: number}} Segment string and its width
  */
 function createPathSegment({ nodeId, index, pathLength, edges }) {
@@ -164,13 +160,7 @@ function renderSameNode(nodeId) {
 
 /**
  * Renders a found path.
- * @param {Object} payload - Path payload
- * @param {string} payload.graph - Graph name
- * @param {string} payload.from - Source node ID
- * @param {string} payload.to - Target node ID
- * @param {string[]} payload.path - Array of node IDs in the path
- * @param {number} payload.length - Path length (number of edges)
- * @param {string[]} [payload.edges] - Optional array of edge labels
+ * @param {{ graph: string, from: string, to: string, path: string[], length: number, edges?: string[] }} payload - Path payload
  * @param {number} [terminalWidth] - Terminal width for wrapping
  * @returns {string} Formatted ASCII output
  */
@@ -203,16 +193,8 @@ function renderFoundPath(payload, terminalWidth = DEFAULT_TERMINAL_WIDTH) {
 
 /**
  * Renders the path view.
- * @param {Object} payload - The path command payload
- * @param {string} payload.graph - Graph name
- * @param {string} payload.from - Source node ID
- * @param {string} payload.to - Target node ID
- * @param {boolean} payload.found - Whether a path was found
- * @param {string[]} payload.path - Array of node IDs in the path
- * @param {number} payload.length - Path length (number of edges)
- * @param {string[]} [payload.edges] - Optional array of edge labels
- * @param {Object} [options] - Rendering options
- * @param {number} [options.terminalWidth] - Terminal width for wrapping
+ * @param {{ graph: string, from: string, to: string, found: boolean, path: string[], length: number, edges?: string[] }} payload - The path command payload
+ * @param {{ terminalWidth?: number }} [options] - Rendering options
  * @returns {string} Formatted ASCII output
  */
 export function renderPathView(payload, options = {}) {

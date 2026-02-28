@@ -227,11 +227,7 @@ function buildStateLines(status, gc) {
 
 /**
  * Build the metadata section lines (writers, checkpoint, coverage, hooks).
- * @param {Object} opts - Metadata options
- * @param {WritersInfo} opts.writers - Writers info
- * @param {CheckpointInfo} opts.checkpoint - Checkpoint info
- * @param {CoverageInfo} opts.coverage - Coverage info
- * @param {HookInfo | null} opts.hook - Hook status
+ * @param {{ writers: WritersInfo, checkpoint: CheckpointInfo, coverage: CoverageInfo, hook: HookInfo | null }} opts - Metadata options
  * @returns {string[]}
  */
 function buildMetadataLines({ writers, checkpoint, coverage, hook }) {

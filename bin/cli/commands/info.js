@@ -17,11 +17,7 @@ import { createPersistence, listGraphNames, readActiveCursor, readCheckpointDate
  * Collects metadata about a single graph (writer count, refs, patches, checkpoint).
  * @param {Persistence} persistence
  * @param {string} graphName
- * @param {Object} [options]
- * @param {boolean} [options.includeWriterIds=false]
- * @param {boolean} [options.includeRefs=false]
- * @param {boolean} [options.includeWriterPatches=false]
- * @param {boolean} [options.includeCheckpointDate=false]
+ * @param {{ includeWriterIds?: boolean, includeRefs?: boolean, includeWriterPatches?: boolean, includeCheckpointDate?: boolean }} [options]
  * @returns {Promise<GraphInfoResult>}
  */
 async function getGraphInfo(persistence, graphName, {

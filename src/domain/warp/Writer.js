@@ -36,16 +36,7 @@ export class Writer {
   /**
    * Creates a new Writer instance.
    *
-   * @param {Object} options
-   * @param {import('../../ports/GraphPersistencePort.js').default & import('../../ports/RefPort.js').default & import('../../ports/CommitPort.js').default} options.persistence - Git adapter
-   * @param {string} options.graphName - Graph namespace
-   * @param {string} options.writerId - This writer's ID
-   * @param {import('../crdt/VersionVector.js').VersionVector} options.versionVector - Current version vector
-   * @param {() => import('../services/JoinReducer.js').WarpStateV5 | null} options.getCurrentState - Function returning the current materialized V5 state, or null if not materialized
-   * @param {(result: {patch: import('../types/WarpTypesV2.js').PatchV2, sha: string}) => void | Promise<void>} [options.onCommitSuccess] - Callback invoked after successful commit with { patch, sha }
-   * @param {'reject'|'cascade'|'warn'} [options.onDeleteWithData='warn'] - Policy when deleting a node with attached data
-   * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for CBOR serialization (defaults to domain-local codec)
-   * @param {import('../../ports/LoggerPort.js').default} [options.logger] - Logger port
+   * @param {{ persistence: import('../../ports/GraphPersistencePort.js').default & import('../../ports/RefPort.js').default & import('../../ports/CommitPort.js').default, graphName: string, writerId: string, versionVector: import('../crdt/VersionVector.js').VersionVector, getCurrentState: () => import('../services/JoinReducer.js').WarpStateV5 | null, onCommitSuccess?: (result: {patch: import('../types/WarpTypesV2.js').PatchV2, sha: string}) => void | Promise<void>, onDeleteWithData?: 'reject'|'cascade'|'warn', codec?: import('../../ports/CodecPort.js').default, logger?: import('../../ports/LoggerPort.js').default }} options
    */
   constructor({ persistence, graphName, writerId, versionVector, getCurrentState, onCommitSuccess, onDeleteWithData = 'warn', codec, logger }) {
     validateWriterId(writerId);

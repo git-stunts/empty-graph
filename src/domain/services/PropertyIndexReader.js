@@ -12,10 +12,7 @@ import LRUCache from '../utils/LRUCache.js';
 
 export default class PropertyIndexReader {
   /**
-   * @param {Object} [options]
-   * @param {import('../../ports/IndexStoragePort.js').default} [options.storage]
-   * @param {import('../../ports/CodecPort.js').default} [options.codec]
-   * @param {number} [options.maxCachedShards=64]
+   * @param {{ storage?: import('../../ports/IndexStoragePort.js').default, codec?: import('../../ports/CodecPort.js').default, maxCachedShards?: number }} [options]
    */
   constructor({ storage, codec, maxCachedShards = 64 } = /** @type {{ storage?: import('../../ports/IndexStoragePort.js').default, codec?: import('../../ports/CodecPort.js').default, maxCachedShards?: number }} */ ({})) {
     this._storage = storage;

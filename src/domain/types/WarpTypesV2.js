@@ -241,14 +241,7 @@ export function createEdgePropSetV2(from, to, label, key, value) {
 
 /**
  * Creates a PatchV2
- * @param {Object} options - Patch options
- * @param {2|3} [options.schema=2] - Schema version (2 for node-only, 3 for edge properties)
- * @param {string} options.writer - Writer ID
- * @param {number} options.lamport - Lamport timestamp
- * @param {VersionVector} options.context - Writer's observed frontier
- * @param {OpV2[]} options.ops - Array of operations
- * @param {string[]} [options.reads] - Node/edge IDs read by this patch (for provenance tracking)
- * @param {string[]} [options.writes] - Node/edge IDs written by this patch (for provenance tracking)
+ * @param {{ schema?: 2|3, writer: string, lamport: number, context: VersionVector, ops: OpV2[], reads?: string[], writes?: string[] }} options - Patch options
  * @returns {PatchV2} PatchV2 object
  */
 export function createPatchV2({ schema = 2, writer, lamport, context, ops, reads, writes }) {

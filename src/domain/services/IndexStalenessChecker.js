@@ -22,8 +22,7 @@ function validateEnvelope(envelope, label) {
  *
  * @param {Record<string, string>} shardOids - Map of path → blob OID from readTreeOids
  * @param {import('../../ports/IndexStoragePort.js').default & import('../../ports/BlobPort.js').default} storage - Storage adapter
- * @param {Object} [options]
- * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for deserialization
+ * @param {{ codec?: import('../../ports/CodecPort.js').default }} [options]
  * @returns {Promise<Map<string, string>|null>} Frontier map, or null if not present (legacy index)
  */
 export async function loadIndexFrontier(shardOids, storage, { codec } = {}) {
