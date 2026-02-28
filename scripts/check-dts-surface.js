@@ -38,30 +38,42 @@ function readRequired(filePath) {
 // ---------------------------------------------------------------------------
 
 /**
- * Parse `export { A, B as C, type D }` blocks and return the exported names.
+ * Parse the body of an `export { ... }` block and return the exported names.
  * Handles single-line comments, `type` keyword prefix, and `as` aliases.
- * @param {string} src
+ * @param {string} blockBody - The content inside the braces (e.g., 'Foo, Bar as Baz')
  * @returns {Set<string>}
  */
-export function parseExportBlock(src) {
+export function parseExportBlock(blockBody) {
   const names = new Set();
-  const exportBlockRe = /export\s*\{([^}]+)\}/g;
-  for (const m of src.matchAll(exportBlockRe)) {
-    // Strip single-line comments before splitting on commas
-    const cleaned = m[1].replace(/\/\/[^\n]*/g, '');
-    for (const item of cleaned.split(',')) {
-      const trimmed = item.trim();
-      if (!trimmed) {
-        continue;
-      }
-      // Handle `export { type Foo }` — strip leading `type` keyword
-      const withoutTypeKeyword = trimmed.replace(/^type\s+/, '');
-      // Handle `Foo as Bar` — the exported name is Bar
-      const asParts = withoutTypeKeyword.split(/\s+as\s+/);
-      const exportedName = (asParts.length > 1 ? asParts[1] : asParts[0]).trim();
-      if (exportedName) {
-        names.add(exportedName);
-      }
+  // Strip single-line comments before splitting on commas
+  const cleaned = blockBody.replace(/\/\/[^\n]*/g, '');
+  for (const item of cleaned.split(',')) {
+    const trimmed = item.trim();
+    if (!trimmed) {
+      continue;
+    }
+    // Handle `type Foo` — strip leading `type` keyword
+    const withoutTypeKeyword = trimmed.replace(/^type\s+/, '');
+    // Handle `Foo as Bar` — the exported name is Bar
+    const asParts = withoutTypeKeyword.split(/\s+as\s+/);
+    const exportedName = (asParts.length > 1 ? asParts[1] : asParts[0]).trim();
+    if (exportedName) {
+      names.add(exportedName);
+    }
+  }
+  return names;
+}
+
+/**
+ * Find all `export { ... }` blocks in source and parse their contents.
+ * @param {string} src - Full source text
+ * @returns {Set<string>}
+ */
+function collectExportBlocks(src) {
+  const names = new Set();
+  for (const m of src.matchAll(/export\s*\{([^}]+)\}/g)) {
+    for (const name of parseExportBlock(m[1])) {
+      names.add(name);
     }
   }
   return names;
@@ -73,9 +85,9 @@ export function parseExportBlock(src) {
  * @returns {Set<string>}
  */
 export function extractJsExports(src) {
-  const names = parseExportBlock(src);
-  // Match standalone `export const Foo` / `export function Foo`
-  for (const m of src.matchAll(/export\s+(?:const|function)\s+(\w+)/g)) {
+  const names = collectExportBlocks(src);
+  // Match standalone `export const Foo` / `export function Foo` / `export class Foo`
+  for (const m of src.matchAll(/export\s+(?:const|function|class)\s+(\w+)/g)) {
     names.add(m[1]);
   }
   // Match `export default <Name>`
@@ -119,7 +131,7 @@ export function extractDtsExports(src) {
     names.add(m[1]);
   }
   // export { A as B } — exported name is B
-  for (const name of parseExportBlock(src)) {
+  for (const name of collectExportBlocks(src)) {
     names.add(name);
   }
   return names;
