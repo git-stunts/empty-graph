@@ -103,10 +103,12 @@ function isTransientError(error) {
   return TRANSIENT_ERROR_PATTERNS.some(pattern => searchText.includes(pattern));
 }
 
+/** @typedef {import('@git-stunts/alfred').RetryOptions} RetryOptions */
+
 /**
  * Default retry options for git operations.
  * Uses exponential backoff with decorrelated jitter.
- * @type {import('@git-stunts/alfred').RetryOptions}
+ * @type {RetryOptions}
  */
 const DEFAULT_RETRY_OPTIONS = {
   retries: 3,
@@ -328,7 +330,7 @@ export default class GitGraphAdapter extends GraphPersistencePort {
   /**
    * Creates a new GitGraphAdapter instance.
    *
-   * @param {{ plumbing: GitPlumbingLike, retryOptions?: Partial<import('@git-stunts/alfred').RetryOptions> }} options - Configuration options
+   * @param {{ plumbing: GitPlumbingLike, retryOptions?: Partial<RetryOptions> }} options - Configuration options
    *
    * @throws {Error} If plumbing is not provided
    *
