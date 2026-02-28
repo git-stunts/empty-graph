@@ -8,7 +8,7 @@ import WarpError from './WarpError.js';
  *
  * @property {string} name - The error name ('IndexError')
  * @property {string} code - Error code for programmatic handling (default: 'INDEX_ERROR')
- * @property {Object} context - Serializable context object for debugging
+ * @property {Record<string, unknown>} context - Serializable context object for debugging
  *
  * @example
  * throw new IndexError('Failed to process index', {

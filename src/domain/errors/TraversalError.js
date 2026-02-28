@@ -8,7 +8,7 @@ import WarpError from './WarpError.js';
  *
  * @property {string} name - The error name ('TraversalError')
  * @property {string} code - Error code for programmatic handling (default: 'TRAVERSAL_ERROR')
- * @property {Object} context - Serializable context object for debugging
+ * @property {Record<string, unknown>} context - Serializable context object for debugging
  *
  * @example
  * throw new TraversalError('Node not found in index', {

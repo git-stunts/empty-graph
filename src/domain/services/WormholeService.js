@@ -67,7 +67,7 @@ async function verifyShaExists(persistence, sha, paramName) {
  * @param {string} opts.graphName - Expected graph name
  * @param {string|null} opts.expectedWriter - Expected writer ID (null for first commit)
  * @param {import('../../ports/CodecPort.js').default} [opts.codec] - Codec for deserialization
- * @returns {Promise<{patch: Object, sha: string, writerId: string, parentSha: string|null}>}
+ * @returns {Promise<{patch: import('../types/WarpTypesV2.js').PatchV2, sha: string, writerId: string, parentSha: string|null}>}
  * @throws {WormholeError} On validation errors
  * @private
  */
@@ -101,7 +101,7 @@ async function processCommit({ persistence, sha, graphName, expectedWriter, code
   }
 
   const patchBuffer = await persistence.readBlob(patchMeta.patchOid);
-  const patch = /** @type {Object} */ (codec.decode(patchBuffer));
+  const patch = /** @type {import('../types/WarpTypesV2.js').PatchV2} */ (codec.decode(patchBuffer));
 
   return {
     patch,
@@ -177,7 +177,7 @@ export async function createWormhole({ persistence, graphName, fromSha, toSha, c
  * @param {string} options.fromSha - SHA of the first (oldest) patch commit
  * @param {string} options.toSha - SHA of the last (newest) patch commit
  * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for deserialization
- * @returns {Promise<Array<{patch: Object, sha: string, writerId: string}>>} Patches in newest-first order
+ * @returns {Promise<Array<{patch: import('../types/WarpTypesV2.js').PatchV2, sha: string, writerId: string}>>} Patches in newest-first order
  * @throws {WormholeError} If fromSha is not an ancestor of toSha or range is empty
  * @private
  */
@@ -294,7 +294,7 @@ export function replayWormhole(wormhole, initialState) {
  * Serializes a wormhole to a JSON-serializable object.
  *
  * @param {WormholeEdge} wormhole - The wormhole to serialize
- * @returns {Object} JSON-serializable representation
+ * @returns {Record<string, unknown>} JSON-serializable representation
  */
 export function serializeWormhole(wormhole) {
   return {

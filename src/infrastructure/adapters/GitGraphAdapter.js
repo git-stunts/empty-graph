@@ -806,8 +806,7 @@ export default class GitGraphAdapter extends GraphPersistencePort {
   /**
    * Lists refs matching a prefix.
    * @param {string} prefix - The ref prefix to match (e.g., 'refs/warp/events/writers/')
-   * @param {{ limit?: number }} [options] - Optional parameters
-   * @param {number} [options.limit] - Maximum number of refs to return. When omitted or 0, all matching refs are returned.
+   * @param {{ limit?: number }} [options] - Optional parameters. When `limit` is omitted or 0, all matching refs are returned.
    * @returns {Promise<string[]>} Array of matching ref paths
    * @throws {Error} If the prefix is invalid or the limit is out of range
    */

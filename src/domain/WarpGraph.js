@@ -85,7 +85,7 @@ export default class WarpGraph {
     /** @type {boolean} */
     this._stateDirty = false;
 
-    /** @type {Object} */
+    /** @type {import('./services/GCPolicy.js').GCPolicy} */
     this._gcPolicy = { ...DEFAULT_GC_POLICY, ...gcPolicy };
 
     /** @type {number} */
@@ -377,7 +377,7 @@ export default class WarpGraph {
   /**
    * Gets the current GC policy.
    *
-   * @returns {Object} The GC policy configuration
+   * @returns {import('./services/GCPolicy.js').GCPolicy} The GC policy configuration
    */
   get gcPolicy() {
     return { ...this._gcPolicy };

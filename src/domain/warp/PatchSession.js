@@ -152,7 +152,7 @@ export class PatchSession {
    * Attaches content to a node.
    *
    * @param {string} nodeId - The node ID to attach content to
-   * @param {Buffer|string} content - The content to attach
+   * @param {Uint8Array|string} content - The content to attach
    * @returns {Promise<this>} This session for chaining
    * @throws {WriterError} SESSION_COMMITTED if already committed
    */
@@ -168,7 +168,7 @@ export class PatchSession {
    * @param {string} from - Source node ID
    * @param {string} to - Target node ID
    * @param {string} label - Edge label/type
-   * @param {Buffer|string} content - The content to attach
+   * @param {Uint8Array|string} content - The content to attach
    * @returns {Promise<this>} This session for chaining
    * @throws {WriterError} SESSION_COMMITTED if already committed
    */

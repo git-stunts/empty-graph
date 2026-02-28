@@ -92,10 +92,8 @@ export default class IndexRebuildService {
    * @param {number} [options.maxMemoryBytes] - Enable streaming mode with this memory threshold.
    *   When bitmap memory exceeds this value, data is flushed to storage.
    *   Recommended: 50-100MB for most systems. Minimum: 1MB.
-   * @param {Function} [options.onFlush] - Callback invoked on each flush (streaming mode only).
-   *   Receives { flushedBytes, totalFlushedBytes, flushCount }.
-   * @param {Function} [options.onProgress] - Callback invoked periodically during processing.
-   *   Receives { processedNodes, currentMemoryBytes }.
+   * @param {(stats: {flushedBytes: number, totalFlushedBytes: number, flushCount: number}) => void} [options.onFlush] - Callback invoked on each flush (streaming mode only)
+   * @param {(stats: {processedNodes: number, currentMemoryBytes: number | null}) => void} [options.onProgress] - Callback invoked periodically during processing
    * @param {AbortSignal} [options.signal] - Optional AbortSignal for cancellation support.
    *   When aborted, throws OperationAbortedError at the next loop boundary.
    * @param {Map<string, string>} [options.frontier] - Frontier to persist alongside the rebuilt index.
@@ -176,8 +174,7 @@ export default class IndexRebuildService {
    * @param {string} ref - Git ref to traverse from
    * @param {Object} options - Options
    * @param {number} options.limit - Maximum nodes to process
-   * @param {Function} [options.onProgress] - Progress callback invoked every 10,000 nodes.
-   *   Receives `{ processedNodes: number, currentMemoryBytes: null }`.
+   * @param {(stats: {processedNodes: number, currentMemoryBytes: number | null}) => void} [options.onProgress] - Progress callback invoked every 10,000 nodes
    * @param {AbortSignal} [options.signal] - Abort signal for cancellation. Checked every
    *   10,000 nodes to balance responsiveness with performance.
    * @param {Map<string, string>} [options.frontier] - Frontier to persist with the index
@@ -233,10 +230,8 @@ export default class IndexRebuildService {
    * @param {number} options.limit - Maximum nodes to process
    * @param {number} options.maxMemoryBytes - Memory threshold in bytes. When estimated
    *   bitmap memory exceeds this, a flush is triggered.
-   * @param {Function} [options.onFlush] - Flush callback invoked after each flush.
-   *   Receives `{ flushedBytes, totalFlushedBytes, flushCount }`.
-   * @param {Function} [options.onProgress] - Progress callback invoked every 10,000 nodes.
-   *   Receives `{ processedNodes, currentMemoryBytes }`.
+   * @param {(stats: {flushedBytes: number, totalFlushedBytes: number, flushCount: number}) => void} [options.onFlush] - Flush callback invoked after each flush
+   * @param {(stats: {processedNodes: number, currentMemoryBytes: number}) => void} [options.onProgress] - Progress callback invoked every 10,000 nodes
    * @param {AbortSignal} [options.signal] - Abort signal for cancellation. Checked every
    *   10,000 nodes during iteration and at finalization.
    * @param {Map<string, string>} [options.frontier] - Frontier to persist with the index

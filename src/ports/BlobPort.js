@@ -10,7 +10,7 @@
 export default class BlobPort {
   /**
    * Writes content as a Git blob and returns its OID.
-   * @param {Uint8Array|Buffer|string} _content - The blob content to write
+   * @param {Uint8Array | string} _content - The blob content to write
    * @returns {Promise<string>} The Git OID of the created blob
    * @throws {Error} If not implemented by a concrete adapter
    */
@@ -21,7 +21,7 @@ export default class BlobPort {
   /**
    * Reads the content of a Git blob.
    * @param {string} _oid - The blob OID to read
-   * @returns {Promise<Buffer>} The blob content
+   * @returns {Promise<Uint8Array>} The blob content
    * @throws {Error} If not implemented by a concrete adapter
    */
   async readBlob(_oid) {

@@ -244,7 +244,7 @@ class ProvenanceIndex {
    *
    * @param {Object} [options]
    * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for serialization
-   * @returns {Buffer|Uint8Array} CBOR-encoded index
+   * @returns {Uint8Array} CBOR-encoded index
    */
   serialize({ codec } = {}) {
     const c = codec || defaultCodec;
@@ -268,7 +268,7 @@ class ProvenanceIndex {
   /**
    * Deserializes an index from CBOR format.
    *
-   * @param {Buffer} buffer - CBOR-encoded index
+   * @param {Uint8Array} buffer - CBOR-encoded index
    * @param {Object} [options]
    * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for deserialization
    * @returns {ProvenanceIndex} The deserialized index
@@ -293,7 +293,7 @@ class ProvenanceIndex {
   /**
    * Returns a JSON-serializable representation of this index.
    *
-   * @returns {Object} Object with version and entries array
+   * @returns {{version: number, entries: Array<[string, string[]]>}} Object with version and entries array
    */
   toJSON() {
     return { version: 1, entries: this.#sortedEntries() };

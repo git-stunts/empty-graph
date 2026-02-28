@@ -9,7 +9,7 @@ const MAX_BODY_BYTES = 10 * 1024 * 1024;
  * a 500 response if the handler throws.
  * @param {import('node:http').IncomingMessage} req
  * @param {import('node:http').ServerResponse} res
- * @param {{ handler: (request: import('../../ports/HttpServerPort.js').HttpRequest) => Promise<import('../../ports/HttpServerPort.js').HttpResponse>, logger: { error: (...args: unknown[]) => void } }} options
+ * @param {{ handler: Function, logger: { error: Function } }} options
  */
 async function dispatch(req, res, { handler, logger }) {
   try {
@@ -27,12 +27,12 @@ async function dispatch(req, res, { handler, logger }) {
     }
     const body = Buffer.concat(chunks);
 
-    const response = await handler({
-      method: req.method,
-      url: req.url,
-      headers: req.headers,
+    const response = await handler(/** @type {import('../../ports/HttpServerPort.js').HttpRequest} */ ({
+      method: req.method || 'GET',
+      url: req.url || '/',
+      headers: /** @type {Record<string, string>} */ (req.headers),
       body: body.length > 0 ? body : undefined,
-    });
+    }));
 
     res.writeHead(response.status || 200, response.headers || {});
     res.end(response.body);
@@ -79,8 +79,8 @@ export default class NodeHttpAdapter extends HttpServerPort {
     return {
       /**
        * @param {number} port
-       * @param {string|Function} [host]
-       * @param {Function} [callback]
+       * @param {string|((err?: Error | null) => void)} [host]
+       * @param {(err?: Error | null) => void} [callback]
        */
       listen(port, host, callback) {
         const cb = typeof host === 'function' ? host : callback;
@@ -88,7 +88,7 @@ export default class NodeHttpAdapter extends HttpServerPort {
         /** @param {unknown} err */
         const onError = (err) => {
           if (cb) {
-            cb(err);
+            cb(err instanceof Error ? err : new Error(String(err)));
           }
         };
         server.once('error', onError);
@@ -108,12 +108,12 @@ export default class NodeHttpAdapter extends HttpServerPort {
           });
         }
       },
-      /** @param {((err?: Error) => void)} [callback] */
+      /** @param {(err?: Error) => void} [callback] */
       close(callback) {
         server.close(callback);
       },
       address() {
-        return server.address();
+        return /** @type {{ address: string, port: number, family: string } | null} */ (server.address());
       },
     };
   }

@@ -10,7 +10,7 @@ import {
 } from '../../../helpers/warpGraphTestUtils.js';
 
 /**
- * @typedef {{writer: string, lamport: number, ops: Array<{type: string, node?: string, dot?: import('../../../../src/domain/crdt/Dot.js').Dot, observedDots?: string[], from?: string, to?: string, label?: string, key?: string, value?: unknown}>, context: Map<string, number> | {[x: string]: number}}} TestPatch
+ * @typedef {{schema: number, writer: string, lamport: number, ops: Array<{type: string, node?: string, dot?: import('../../../../src/domain/crdt/Dot.js').Dot, observedDots?: string[], from?: string, to?: string, label?: string, key?: string, value?: unknown}>, context: Map<string, number> | {[x: string]: number}}} TestPatch
  */
 
 /**

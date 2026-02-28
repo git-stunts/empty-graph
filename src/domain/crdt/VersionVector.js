@@ -155,7 +155,7 @@ export function vvContains(vv, dot) {
  * Keys are sorted for deterministic serialization.
  *
  * @param {VersionVector} vv
- * @returns {Object<string, number>}
+ * @returns {Record<string, number>}
  */
 export function vvSerialize(vv) {
   /** @type {Record<string, number>} */

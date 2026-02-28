@@ -42,9 +42,9 @@ const ensureRoaringBitmap32 = () => {
 
 /**
  * Wraps data in a version/checksum envelope.
- * @param {Object} data - The data to wrap
+ * @param {Record<string, unknown>} data - The data to wrap
  * @param {import('../../ports/CryptoPort.js').default} crypto - CryptoPort instance
- * @returns {Promise<Object>} Envelope with version, checksum, and data
+ * @returns {Promise<{version: number, checksum: string, data: Record<string, unknown>}>} Envelope with version, checksum, and data
  */
 const wrapShard = async (data, crypto) => ({
   version: SHARD_VERSION,

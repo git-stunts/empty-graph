@@ -51,7 +51,7 @@ export function getWriters(frontier) {
  * @param {Frontier} frontier
  * @param {Object} [options]
  * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for serialization
- * @returns {Buffer|Uint8Array}
+ * @returns {Uint8Array}
  */
 export function serializeFrontier(frontier, { codec } = /** @type {{codec?: import('../../ports/CodecPort.js').default}} */ ({})) {
   const c = codec || defaultCodec;
@@ -67,7 +67,7 @@ export function serializeFrontier(frontier, { codec } = /** @type {{codec?: impo
 
 /**
  * Deserializes frontier from CBOR bytes.
- * @param {Buffer} buffer
+ * @param {Uint8Array} buffer
  * @param {Object} [options]
  * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for deserialization
  * @returns {Frontier}

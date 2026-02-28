@@ -187,15 +187,15 @@ export async function createV5({
   const appliedVVBuffer = serializeAppliedVV(appliedVV, { codec: /** @type {import('../../ports/CodecPort.js').default} */ (codec) });
 
   // 6. Write blobs to git
-  const stateBlobOid = await persistence.writeBlob(/** @type {Buffer} */ (stateBuffer));
-  const frontierBlobOid = await persistence.writeBlob(/** @type {Buffer} */ (frontierBuffer));
-  const appliedVVBlobOid = await persistence.writeBlob(/** @type {Buffer} */ (appliedVVBuffer));
+  const stateBlobOid = await persistence.writeBlob(stateBuffer);
+  const frontierBlobOid = await persistence.writeBlob(frontierBuffer);
+  const appliedVVBlobOid = await persistence.writeBlob(appliedVVBuffer);
 
   // 6b. Optionally serialize and write provenance index
   let provenanceIndexBlobOid = null;
   if (provenanceIndex) {
     const provenanceIndexBuffer = provenanceIndex.serialize({ codec });
-    provenanceIndexBlobOid = await persistence.writeBlob(/** @type {Buffer} */ (provenanceIndexBuffer));
+    provenanceIndexBlobOid = await persistence.writeBlob(provenanceIndexBuffer);
   }
 
   // 6c. Optionally write index subtree (schema 4)
@@ -380,7 +380,7 @@ export async function loadCheckpoint(persistence, checkpointSha, { codec } = {})
  * @param {string} options.graphName - Name of the graph
  * @param {string} options.checkpointSha - The schema:2 checkpoint commit SHA to start from
  * @param {import('./Frontier.js').Frontier} options.targetFrontier - The target frontier to materialize to
- * @param {Function} options.patchLoader - Async function to load patches: (writerId, fromSha, toSha) => Array<{patch, sha}>
+ * @param {(writerId: string, fromSha: string|null, toSha: string) => Promise<Array<{patch: import('../types/WarpTypesV2.js').PatchV2, sha: string}>>} options.patchLoader - Async function to load patches for a writer between two SHAs
  * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for CBOR deserialization
  * @returns {Promise<import('./JoinReducer.js').WarpStateV5>} The materialized V5 state at targetFrontier
  * @throws {Error} If checkpoint is schema:1 (migration required)

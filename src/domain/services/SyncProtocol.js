@@ -518,7 +518,7 @@ export async function processSyncRequest(request, localFrontier, persistence, gr
  * @param {import('./JoinReducer.js').WarpStateV5} state - Current CRDT state
  *   (nodeAlive, edgeAlive, prop, observedFrontier)
  * @param {Map<string, string>} frontier - Current frontier mapping writer IDs to SHAs
- * @returns {Object} Result containing:
+ * @returns {{state: import('./JoinReducer.js').WarpStateV5, frontier: Map<string, string>, applied: number}} Result containing:
  *   - `state`: New WarpStateV5 with patches applied
  *   - `frontier`: New frontier with updated writer tips
  *   - `applied`: Number of patches successfully applied

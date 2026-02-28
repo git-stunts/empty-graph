@@ -287,9 +287,9 @@ export async function writer(writerId) {
     graphName: this._graphName,
     writerId: resolvedWriterId,
     versionVector: this._versionVector,
-    getCurrentState: /** @type {() => Promise<import('../services/JoinReducer.js').WarpStateV5>} */ (/** @type {unknown} */ (() => this._cachedState)),
+    getCurrentState: () => this._cachedState,
     onDeleteWithData: this._onDeleteWithData,
-    onCommitSuccess: /** @type {(result: {patch: Object, sha: string}) => void} */ (/** @type {unknown} */ ((/** @type {{patch?: import('../types/WarpTypesV2.js').PatchV2, sha?: string}} */ opts) => this._onPatchCommitted(resolvedWriterId, opts))),
+    onCommitSuccess: /** @type {(result: {patch: import('../types/WarpTypesV2.js').PatchV2, sha: string}) => void} */ ((/** @type {{patch?: import('../types/WarpTypesV2.js').PatchV2, sha?: string}} */ opts) => this._onPatchCommitted(resolvedWriterId, opts)),
     codec: this._codec,
     logger: this._logger || undefined,
   });
@@ -346,9 +346,9 @@ export async function createWriter(opts = {}) {
     graphName: this._graphName,
     writerId: freshWriterId,
     versionVector: this._versionVector,
-    getCurrentState: /** @type {() => Promise<import('../services/JoinReducer.js').WarpStateV5>} */ (/** @type {unknown} */ (() => this._cachedState)),
+    getCurrentState: () => this._cachedState,
     onDeleteWithData: this._onDeleteWithData,
-    onCommitSuccess: /** @type {(result: {patch: Object, sha: string}) => void} */ (/** @type {unknown} */ ((/** @type {{patch?: import('../types/WarpTypesV2.js').PatchV2, sha?: string}} */ commitOpts) => this._onPatchCommitted(freshWriterId, commitOpts))),
+    onCommitSuccess: /** @type {(result: {patch: import('../types/WarpTypesV2.js').PatchV2, sha: string}) => void} */ ((/** @type {{patch?: import('../types/WarpTypesV2.js').PatchV2, sha?: string}} */ commitOpts) => this._onPatchCommitted(freshWriterId, commitOpts)),
     codec: this._codec,
     logger: this._logger || undefined,
   });
@@ -484,7 +484,7 @@ export async function discoverTicks() {
  *
  * @this {import('../WarpGraph.js').default}
  * @param {import('../services/JoinReducer.js').WarpStateV5} otherState - The state to merge in
- * @returns {{state: import('../services/JoinReducer.js').WarpStateV5, receipt: Object}} Merged state and receipt
+ * @returns {{state: import('../services/JoinReducer.js').WarpStateV5, receipt: {nodesAdded: number, nodesRemoved: number, edgesAdded: number, edgesRemoved: number, propsChanged: number, frontierMerged: boolean}}} Merged state and receipt
  * @throws {QueryError} If no cached state exists (code: `E_NO_STATE`)
  * @throws {Error} If otherState is invalid
  */

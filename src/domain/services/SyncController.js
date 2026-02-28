@@ -608,7 +608,7 @@ export default class SyncController {
 
     const httpServer = new HttpSyncServer({
       httpPort,
-      graph: /** @type {{ processSyncRequest: Function }} */ (/** @type {unknown} */ (this._host)),
+      graph: /** @type {{ processSyncRequest: (req: import('./SyncProtocol.js').SyncRequest) => Promise<unknown> }} */ (/** @type {unknown} */ (this._host)),
       path,
       host,
       maxRequestBytes,

@@ -41,8 +41,8 @@ export class Writer {
    * @param {string} options.graphName - Graph namespace
    * @param {string} options.writerId - This writer's ID
    * @param {import('../crdt/VersionVector.js').VersionVector} options.versionVector - Current version vector
-   * @param {() => Promise<import('../services/JoinReducer.js').WarpStateV5>} options.getCurrentState - Async function returning the current materialized V5 state
-   * @param {(result: {patch: Object, sha: string}) => void | Promise<void>} [options.onCommitSuccess] - Callback invoked after successful commit with { patch, sha }
+   * @param {() => import('../services/JoinReducer.js').WarpStateV5 | null} options.getCurrentState - Function returning the current materialized V5 state, or null if not materialized
+   * @param {(result: {patch: import('../types/WarpTypesV2.js').PatchV2, sha: string}) => void | Promise<void>} [options.onCommitSuccess] - Callback invoked after successful commit with { patch, sha }
    * @param {'reject'|'cascade'|'warn'} [options.onDeleteWithData='warn'] - Policy when deleting a node with attached data
    * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for CBOR serialization (defaults to domain-local codec)
    * @param {import('../../ports/LoggerPort.js').default} [options.logger] - Logger port
@@ -62,10 +62,10 @@ export class Writer {
     /** @type {import('../crdt/VersionVector.js').VersionVector} */
     this._versionVector = versionVector;
 
-    /** @type {Function} */
+    /** @type {() => import('../services/JoinReducer.js').WarpStateV5 | null} */
     this._getCurrentState = getCurrentState;
 
-    /** @type {Function|undefined} */
+    /** @type {((result: {patch: import('../types/WarpTypesV2.js').PatchV2, sha: string}) => void | Promise<void>)|undefined} */
     this._onCommitSuccess = onCommitSuccess;
 
     /** @type {'reject'|'cascade'|'warn'} */

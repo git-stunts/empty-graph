@@ -375,7 +375,7 @@ export function _maybeRunGC(state) {
  * **Requires a cached state.**
  *
  * @this {import('../WarpGraph.js').default}
- * @returns {{ran: boolean, result: Object|null, reasons: string[]}} GC result
+ * @returns {{ran: boolean, result: import('../services/GCPolicy.js').GCExecuteResult|null, reasons: string[]}} GC result
  *
  * @example
  * await graph.materialize();

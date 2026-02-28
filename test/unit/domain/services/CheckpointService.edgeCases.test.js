@@ -487,7 +487,9 @@ describe('CheckpointService edge cases', () => {
 
       const edgeKey = encodeEdgeKeyV5('x', 'y', 'rel');
       expect(state.edgeBirthEvent.has(edgeKey)).toBe(true);
-      expect(state.edgeBirthEvent.get(edgeKey).lamport).toBe(0);
+      const birthEvent = state.edgeBirthEvent.get(edgeKey);
+      expect(birthEvent).toBeDefined();
+      expect(birthEvent?.lamport).toBe(0);
     });
   });
 

@@ -14,7 +14,7 @@ import WarpError from './WarpError.js';
  *
  * @property {string} name - Always 'PatchError' for instanceof checks
  * @property {string} code - Machine-readable error code for programmatic handling
- * @property {Object} context - Serializable context object with error details
+ * @property {Record<string, unknown>} context - Serializable context object with error details
  */
 export default class PatchError extends WarpError {
   /**

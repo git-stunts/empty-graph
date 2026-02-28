@@ -356,7 +356,7 @@ export default class BitmapIndexReader {
 
   /**
    * Parses and validates a shard buffer.
-   * @param {Buffer} buffer - Raw shard buffer
+   * @param {Uint8Array} buffer - Raw shard buffer
    * @param {string} path - Shard path (for error context)
    * @param {string} oid - Object ID (for error context)
    * @returns {Promise<Record<string, string | number>>} The validated data from the shard
@@ -373,7 +373,7 @@ export default class BitmapIndexReader {
    * Loads raw buffer from storage.
    * @param {string} path - Shard path
    * @param {string} oid - Object ID
-   * @returns {Promise<Buffer>} Raw buffer
+   * @returns {Promise<Uint8Array>} Raw buffer
    * @throws {ShardLoadError} When storage.readBlob fails
    * @private
    */

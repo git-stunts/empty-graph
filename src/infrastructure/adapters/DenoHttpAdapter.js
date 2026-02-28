@@ -123,8 +123,8 @@ function createHandler(requestHandler, logger) {
 /**
  * Gracefully shuts down the Deno HTTP server.
  *
- * @param {{ server: *}} state - Shared mutable state `{ server }`
- * @param {Function} [callback]
+ * @param {{ server: { shutdown: () => Promise<void> } | null }} state - Shared mutable state `{ server }`
+ * @param {(err?: Error) => void} [callback]
  */
 function closeImpl(state, callback) {
   if (!state.server) {
@@ -143,7 +143,7 @@ function closeImpl(state, callback) {
     /** @param {unknown} err */ (err) => {
       state.server = null;
       if (callback) {
-        callback(err);
+        callback(err instanceof Error ? err : new Error(String(err)));
       }
     }
   );
@@ -152,7 +152,7 @@ function closeImpl(state, callback) {
 /**
  * Returns the server's bound address info.
  *
- * @param {{ server: * }} state - Shared mutable state `{ server }`
+ * @param {{ server: { addr: { transport: string, hostname: string, port: number } } | null }} state - Shared mutable state `{ server }`
  * @returns {{ address: string, port: number, family: string }|null}
  */
 function addressImpl(state) {
@@ -183,7 +183,7 @@ const noopLogger = { error() {} };
  */
 export default class DenoHttpAdapter extends HttpServerPort {
   /**
-   * @param {{ logger?: { error: Function } }} [options]
+   * @param {{ logger?: { error: (...args: unknown[]) => void } }} [options]
    */
   constructor({ logger } = {}) {
     super();
@@ -196,14 +196,14 @@ export default class DenoHttpAdapter extends HttpServerPort {
    */
   createServer(requestHandler) {
     const handler = createHandler(requestHandler, this._logger);
-    /** @type {{ server: * }} */
+    /** @type {{ server: { shutdown: () => Promise<void>, addr: { transport: string, hostname: string, port: number } } | null }} */
     const state = { server: null };
 
     return {
       /**
        * @param {number} port
-       * @param {string|Function} [host]
-       * @param {Function} [callback]
+       * @param {string|((err?: Error | null) => void)} [host]
+       * @param {(err?: Error | null) => void} [callback]
        */
       listen: (port, host, callback) => {
         const cb = typeof host === 'function' ? host : callback;
@@ -224,15 +224,15 @@ export default class DenoHttpAdapter extends HttpServerPort {
           }
 
           state.server = globalThis.Deno.serve(serveOptions, handler);
-        } catch (err) {
+        } catch (/** @type {unknown} */ err) {
           if (cb) {
-            cb(err);
+            cb(err instanceof Error ? err : new Error(String(err)));
           } else {
             throw err;
           }
         }
       },
-      /** @param {Function} [callback] */
+      /** @param {(err?: Error) => void} [callback] */
       close: (callback) => {
         closeImpl(state, callback);
       },

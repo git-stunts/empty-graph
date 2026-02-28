@@ -28,7 +28,7 @@ export function encodeCanonicalCbor(value) {
 /**
  * Decodes CBOR bytes to a value.
  *
- * @param {Buffer|Uint8Array} buffer - CBOR bytes
+ * @param {Uint8Array} buffer - CBOR bytes
  * @returns {unknown} Decoded value
  */
 export function decodeCanonicalCbor(buffer) {

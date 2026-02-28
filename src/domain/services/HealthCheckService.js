@@ -154,7 +154,7 @@ export default class HealthCheckService {
   /**
    * Computes health by checking all components.
    * This is called by CachedValue when the cache is stale.
-   * @returns {Promise<Object>}
+   * @returns {Promise<{status: string, components: {repository: RepositoryHealth, index: IndexHealth}}>}
    * @private
    */
   async _computeHealth() {

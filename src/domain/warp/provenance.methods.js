@@ -152,7 +152,7 @@ export async function materializeSlice(nodeId, options) {
  *
  * @this {import('../WarpGraph.js').default}
  * @param {string} nodeId - The target node ID
- * @returns {Promise<Map<string, Object>>} Map of patch SHA to loaded patch object
+ * @returns {Promise<Map<string, import('../types/WarpTypesV2.js').PatchV2>>} Map of patch SHA to loaded patch object
  */
 export async function _computeBackwardCone(nodeId) {
   if (!this._provenanceIndex) {
@@ -209,7 +209,7 @@ export async function _computeBackwardCone(nodeId) {
  *
  * @this {import('../WarpGraph.js').default}
  * @param {string} sha - The patch commit SHA
- * @returns {Promise<Object>} The decoded patch object
+ * @returns {Promise<import('../types/WarpTypesV2.js').PatchV2>} The decoded patch object
  * @throws {Error} If the commit is not a patch or loading fails
  */
 export async function loadPatchBySha(sha) {
@@ -221,7 +221,7 @@ export async function loadPatchBySha(sha) {
  *
  * @this {import('../WarpGraph.js').default}
  * @param {string} sha - The patch commit SHA
- * @returns {Promise<Object>} The decoded patch object
+ * @returns {Promise<import('../types/WarpTypesV2.js').PatchV2>} The decoded patch object
  * @throws {Error} If the commit is not a patch or loading fails
  */
 export async function _loadPatchBySha(sha) {
@@ -234,7 +234,7 @@ export async function _loadPatchBySha(sha) {
 
   const patchMeta = decodePatchMessage(nodeInfo.message);
   const patchBuffer = await this._persistence.readBlob(patchMeta.patchOid);
-  return /** @type {Object} */ (this._codec.decode(patchBuffer));
+  return /** @type {import('../types/WarpTypesV2.js').PatchV2} */ (this._codec.decode(patchBuffer));
 }
 
 /**
@@ -242,7 +242,7 @@ export async function _loadPatchBySha(sha) {
  *
  * @this {import('../WarpGraph.js').default}
  * @param {string[]} shas - Array of patch commit SHAs
- * @returns {Promise<Array<{patch: Object, sha: string}>>} Array of patch entries
+ * @returns {Promise<Array<{patch: import('../types/WarpTypesV2.js').PatchV2, sha: string}>>} Array of patch entries
  * @throws {Error} If any SHA is not a patch or loading fails
  */
 export async function _loadPatchesBySha(shas) {

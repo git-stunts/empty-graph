@@ -368,12 +368,12 @@ export async function getContentOid(nodeId) {
 /**
  * Gets the content blob for a node, or null if none is attached.
  *
- * Returns the raw Buffer from `readBlob()`. Consumers wanting text
- * should call `.toString('utf8')` on the result.
+ * Returns the raw bytes from `readBlob()`. Consumers wanting text
+ * should decode the result with `new TextDecoder().decode(buf)`.
  *
  * @this {import('../WarpGraph.js').default}
  * @param {string} nodeId - The node ID to get content for
- * @returns {Promise<Buffer|null>} Content buffer or null
+ * @returns {Promise<Uint8Array|null>} Content bytes or null
  * @throws {Error} If the referenced blob OID is not in the object store
  *   (e.g., garbage-collected despite anchoring). Callers should handle this
  *   if operating on repos with aggressive GC or partial clones.
@@ -409,14 +409,14 @@ export async function getEdgeContentOid(from, to, label) {
 /**
  * Gets the content blob for an edge, or null if none is attached.
  *
- * Returns the raw Buffer from `readBlob()`. Consumers wanting text
- * should call `.toString('utf8')` on the result.
+ * Returns the raw bytes from `readBlob()`. Consumers wanting text
+ * should decode the result with `new TextDecoder().decode(buf)`.
  *
  * @this {import('../WarpGraph.js').default}
  * @param {string} from - Source node ID
  * @param {string} to - Target node ID
  * @param {string} label - Edge label
- * @returns {Promise<Buffer|null>} Content buffer or null
+ * @returns {Promise<Uint8Array|null>} Content bytes or null
  * @throws {Error} If the referenced blob OID is not in the object store
  *   (e.g., garbage-collected despite anchoring). Callers should handle this
  *   if operating on repos with aggressive GC or partial clones.

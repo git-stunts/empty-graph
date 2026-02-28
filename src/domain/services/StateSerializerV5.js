@@ -76,7 +76,7 @@ export function propVisibleV5(state, propKey) {
  * @param {import('./JoinReducer.js').WarpStateV5} state
  * @param {Object} [options]
  * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for serialization
- * @returns {Buffer|Uint8Array}
+ * @returns {Uint8Array}
  */
 export function serializeStateV5(state, { codec } = {}) {
   const c = codec || defaultCodec;
@@ -136,7 +136,7 @@ export async function computeStateHashV5(state, { crypto, codec } = /** @type {{
 /**
  * Deserializes state from CBOR bytes.
  * Note: This reconstructs the visible projection only.
- * @param {Buffer} buffer
+ * @param {Uint8Array} buffer
  * @param {Object} [options]
  * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for deserialization
  * @returns {{nodes: string[], edges: Array<{from: string, to: string, label: string}>, props: Array<{node: string, key: string, value: unknown}>}}

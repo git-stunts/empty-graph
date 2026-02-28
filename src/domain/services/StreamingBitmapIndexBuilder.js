@@ -87,7 +87,7 @@ export default class StreamingBitmapIndexBuilder {
    *   Required methods: writeBlob, writeTree, readBlob
    * @param {number} [options.maxMemoryBytes=52428800] - Maximum bitmap memory before flush (default 50MB).
    *   Note: SHA→ID mappings are not counted against this limit as they must remain in memory.
-   * @param {Function} [options.onFlush] - Optional callback invoked on each flush.
+   * @param {(stats: {flushedBytes: number, totalFlushedBytes: number, flushCount: number}) => void} [options.onFlush] - Optional callback invoked on each flush.
    *   Receives { flushedBytes, totalFlushedBytes, flushCount }.
    * @param {import('../../ports/LoggerPort.js').default} [options.logger] - Logger for structured logging.
    *   Defaults to NoOpLogger (no logging).
@@ -310,7 +310,7 @@ export default class StreamingBitmapIndexBuilder {
    * of the SHA. This enables efficient loading of only relevant shards
    * during index reads.
    *
-   * @returns {Object<string, Object<string, number>>} Object mapping 2-char hex prefix
+   * @returns {Record<string, Record<string, number>>} Object mapping 2-char hex prefix
    *   to objects of SHA→numeric ID mappings
    * @private
    */
@@ -472,7 +472,7 @@ export default class StreamingBitmapIndexBuilder {
    * Useful for understanding memory pressure during index building and
    * tuning the `maxMemoryBytes` threshold.
    *
-   * @returns {Object} Memory statistics object
+   * @returns {{estimatedBitmapBytes: number, estimatedMappingBytes: number, totalFlushedBytes: number, flushCount: number, nodeCount: number, bitmapCount: number}} Memory statistics object
    * @property {number} estimatedBitmapBytes - Current estimated size of in-memory bitmaps in bytes.
    *   This is an approximation based on bitmap operations; actual memory usage may vary.
    * @property {number} estimatedMappingBytes - Estimated size of SHA→ID mappings in bytes.
@@ -562,7 +562,7 @@ export default class StreamingBitmapIndexBuilder {
    * 4. Recomputes and validates checksum (throws ShardCorruptionError if mismatch)
    *
    * @param {string} oid - Git blob OID of the chunk to load (40-character hex string)
-   * @returns {Promise<Object<string, string>>} The validated chunk data (SHA→base64Bitmap mappings)
+   * @returns {Promise<Record<string, string>>} The validated chunk data (SHA→base64Bitmap mappings)
    * @throws {ShardCorruptionError} If the chunk cannot be parsed as JSON or checksum is invalid.
    *   Error context includes: oid, reason ('invalid_format' or 'invalid_checksum'), originalError
    * @throws {ShardValidationError} If the chunk has an unsupported version.
@@ -574,7 +574,7 @@ export default class StreamingBitmapIndexBuilder {
     const buffer = await this.storage.readBlob(oid);
     let envelope;
     try {
-      envelope = JSON.parse(buffer.toString('utf-8'));
+      envelope = JSON.parse(new TextDecoder().decode(buffer));
     } catch (err) {
       throw new ShardCorruptionError('Failed to parse shard JSON', {
         oid,

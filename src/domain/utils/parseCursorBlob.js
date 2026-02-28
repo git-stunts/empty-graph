@@ -5,13 +5,13 @@
  */
 
 /**
- * Parses and validates a cursor blob (Buffer) into a cursor object.
+ * Parses and validates a cursor blob (Uint8Array) into a cursor object.
  *
  * The blob must contain UTF-8-encoded JSON representing a plain object with at
  * minimum a finite numeric `tick` field.  Any additional fields (e.g. `mode`,
  * `name`) are preserved in the returned object.
  *
- * @param {Buffer} buf - Raw blob contents (UTF-8 encoded JSON)
+ * @param {Uint8Array} buf - Raw blob contents (UTF-8 encoded JSON)
  * @param {string} label - Human-readable label used in error messages
  *   (e.g. `"active cursor"`, `"saved cursor 'foo'"`)
  * @returns {{ tick: number, mode?: string, [key: string]: unknown }}
