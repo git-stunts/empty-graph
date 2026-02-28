@@ -148,14 +148,14 @@
 
 ### M12.T4 — Index Performance (S5 + S6)
 
-- **Status:** `PENDING`
+- **Status:** `DONE`
 - **Size:** L | **Risk:** MEDIUM
 - **Depends on:** —
 
 **Items:**
 
-- **B66** (S5: INCREMENTAL INDEX O(E) SCAN) — Use adjacency map for O(degree) lookup on node re-add instead of scanning all alive edges. Separate genuinely-new nodes (skip scan) from re-added nodes (incident edges only). **File:** `IncrementalIndexUpdater.js:99-128`
-- **B113** (S6: DOUBLE BITMAP DESERIALIZATION) — In `_purgeNodeEdges`, deserialize once, mutate in-place, serialize once. Use `bitmap.clear()` instead of creating new empty bitmap. **File:** `IncrementalIndexUpdater.js:241-320`
+- **B66** ✅ (S5: INCREMENTAL INDEX O(E) SCAN) — Added endpoint adjacency caching for alive edge keys and separated genuinely-new nodes from re-added nodes; re-add restoration now enumerates incident edge candidates rather than always rescanning all alive edges. **File:** `IncrementalIndexUpdater.js`
+- **B113** ✅ (S6: DOUBLE BITMAP DESERIALIZATION) — `_purgeNodeEdges` now deserializes owner-row bitmaps once, mutates in-place (`bitmap.clear()`), and serializes once in both forward and reverse loops. **File:** `IncrementalIndexUpdater.js`
 
 ### M12.T5 — Post-Commit + Ancestry (S7 + S8)
 
@@ -484,8 +484,8 @@ Pick opportunistically between milestones. Recommended order within tiers:
 | S2 | STANK | B116 | M12.T6 |
 | S3 | STANK | B107 | M12.T1 |
 | S4 | STANK | B72 | FIXED (M10) |
-| S5 | STANK | B66 | M12.T4 |
-| S6 | STANK | B113 | M12.T4 |
+| S5 | STANK | B66 | FIXED (M12.T4) |
+| S6 | STANK | B113 | FIXED (M12.T4) |
 | S7 | STANK | B114 | M12.T5 |
 | S8 | STANK | B115 | M12.T5 |
 | S9 | STANK | — | FIXED (M10) |
@@ -578,6 +578,186 @@ Rejected items live in `GRAVEYARD.md`. Resurrections require an RFC.
 ---
 
 ## Strategic Addendum — Post-M12 Acceleration + Risk Hardening (2026-02-27)
+## Appendix — 2026-02-27 Vision Concepts + Concern Battle Plans
+
+Exploratory concepts captured during PR hardening. These are intentionally fully scoped so they can be promoted into numbered backlog items without re-discovery work.
+
+### Vision 1 — Index Health Snapshots (Fast Integrity Checks)
+
+**Vision:** Add per-shard health receipts (cardinality, checksum, label-bucket coverage) so index integrity checks can short-circuit to O(changed-shards) instead of full graph/index scans.
+
+**Mini-Battle Plan:**
+1. Define a deterministic `index-health.cbor` schema keyed by shard path and include rolling checksums over shard payload bytes.
+2. Emit health receipts in `LogicalIndexBuildService` and persist alongside index tree/checkpoint metadata.
+3. Extend `verify-index` with `--fast` mode: validate health receipts first, then deep-scan only mismatched/unknown shards.
+4. Add `--explain` output listing which shards failed and why (checksum drift, cardinality mismatch, missing bucket).
+
+**Mitigations:**
+- Keep health receipts advisory; never treat them as authoritative correctness proof.
+- On missing/corrupt receipt, fall back to full verification automatically.
+- Gate by feature flag until stability is proven in CI and real repos.
+
+**Defensive Tests:**
+- Determinism test: same logical state must produce byte-identical health receipts across repeated builds.
+- Tamper test: mutate one shard blob; `verify-index --fast` must flag exact shard mismatch.
+- Backward compatibility test: repos without receipts must still pass full verification path.
+
+### Vision 2 — Adaptive Query Planner (Provider Selection by Cost)
+
+**Vision:** Auto-select traversal/query provider (adjacency vs bitmap) per operation using lightweight selectivity and graph-density heuristics, while preserving deterministic result ordering.
+
+**Mini-Battle Plan:**
+1. Introduce a tiny planner cost model (estimated fanout, label filter selectivity, alive-node coverage).
+2. Instrument providers with telemetry counters (`calls`, `rows_scanned`, `cache_hits`) behind debug hooks.
+3. Add planner decisions to trace output (`query().explain()` and CLI `--explain-plan`).
+4. Ship as opt-in (`planner: "adaptive"`) before making default.
+
+**Mitigations:**
+- Hard fallback to current deterministic provider path on planner uncertainty/error.
+- Hysteresis thresholds to avoid plan thrashing across near-equal costs.
+- Keep planner pure (no side effects) and independently testable.
+
+**Defensive Tests:**
+- Equivalence tests: same query result sets and ordering across forced-adjacency, forced-bitmap, adaptive.
+- Stability tests: repeated runs on same state choose same plan unless stats change.
+- Performance regression guard: synthetic sparse/dense fixtures verify adaptive path avoids worst-case scans.
+
+### Vision 3 — Incremental Trust Anomaly Stream
+
+**Vision:** Emit structured anomaly events for sync/trust pipelines (unexpected frontier jumps, writer churn spikes, trust degradation, repeated divergence) to improve operator observability.
+
+**Mini-Battle Plan:**
+1. Define anomaly event schema (`type`, `writer`, `frontierDelta`, `severity`, `evidence`).
+2. Emit from `SyncController` and trust evaluators with low-cost local buffering.
+3. Add CLI surface (`git warp check --anomalies`) and optional NDJSON sink for automation.
+4. Add configurable suppression windows and dedupe keys to prevent alert floods.
+
+**Mitigations:**
+- Start in warn-only mode; no behavior change to sync/apply decisions.
+- Scope anomaly generation to already-computed values to avoid materialization overhead.
+- Explicitly document non-security vs security-signal semantics.
+
+**Defensive Tests:**
+- Replay fixtures that intentionally diverge then recover; assert anomaly sequence and severity transitions.
+- Dedupe tests: repeated identical incidents produce one event per suppression window.
+- Contract tests for NDJSON/event shape stability.
+
+### Vision 4 — Checkpoint Explainability Mode
+
+**Vision:** Attach compact human-readable checkpoint summaries (delta counts, hot labels, shard churn, top writers) to improve operational debugging and incident forensics.
+
+**Mini-Battle Plan:**
+1. Add optional `checkpoint-summary.cbor` artifact with bounded fields and deterministic ordering.
+2. Extend `createCheckpoint()` and CLI checkpoint commands to emit/show summaries.
+3. Add `git warp history --checkpoint-summary` and `git warp info --checkpoint-diff`.
+4. Keep summary generation off critical path via optional flag and cached intermediate stats.
+
+**Mitigations:**
+- Never couple replay correctness to summary presence/format.
+- Enforce strict size budget to prevent summary bloat.
+- Redact sensitive values by default (counts and IDs only).
+
+**Defensive Tests:**
+- Determinism tests: same input state/history yields identical summary bytes.
+- Size-limit tests: large graphs still keep summary under budget.
+- Compatibility tests: loading checkpoints ignores missing/unknown summary versions.
+
+### Vision 5 — Determinism Audit Command
+
+**Vision:** Add a first-class determinism auditor that replays equivalent patch sets under shuffled permutations and verifies stable outputs (state hash, index shard OIDs, optional property shard OIDs).
+
+**Mini-Battle Plan:**
+1. Implement `git warp audit-determinism` with configurable permutations and seed.
+2. Compare canonical output vectors (`stateHash`, `indexTreeOid`, shard hashes) and emit counterexample traces on mismatch.
+3. Integrate with CI for nightly determinism sweeps on curated fixtures.
+4. Add bounded quick mode for pre-push smoke checks.
+
+**Mitigations:**
+- Cap runtime by permutation budget and graph size.
+- Skip expensive dimensions unless requested (`--deep-index`).
+- Preserve reproducibility by always printing seed and permutation order.
+
+**Defensive Tests:**
+- Positive tests: known deterministic fixtures pass across random seeds.
+- Negative tests: injected nondeterministic fixture must fail and emit reproducible counterexample.
+- CLI snapshot tests for machine-readable output format.
+
+## Concern 1 — Validation Hot-Path Overhead (`JoinReducer`)
+
+**Concern:** `applyWithDiff`/`applyWithReceipt` validate ops before calling `applyOpV2`, which also validates, causing duplicated checks in internal loops.
+
+**Mini-Battle Plan:**
+1. Add internal `applyOpV2Validated` (or `applyOpV2(..., { skipValidate: true })`) for trusted internal paths only.
+2. Keep public `applyOpV2` behavior unchanged (always validates).
+3. Document boundary where pre-validation is required.
+
+**Mitigations:**
+- Use explicit internal-only function naming to avoid accidental misuse.
+- Add invariant comments in callers showing where validation already occurred.
+- Keep one canonical validation implementation to avoid drift.
+
+**Defensive Tests:**
+- Unit tests proving public `applyOpV2` still rejects malformed ops.
+- Internal-path tests proving no behavior change vs current logic on valid ops.
+- Micro-benchmark guard for diff/receipt loops showing measurable validation overhead reduction.
+
+## Concern 2 — GC Error Triage Blind Spot (`GCPolicy.executeGC`)
+
+**Concern:** Compaction catch path currently omits underlying exception detail, reducing observability during production triage.
+
+**Mini-Battle Plan:**
+1. Capture caught error (`catch (err)`) and include sanitized `originalError` (+ optional stack in debug mode) in `WarpError.context`.
+2. Preserve existing `phase` + `partialCompaction` fields.
+3. Ensure loggers redact noisy/secret payloads if stack capture enabled.
+
+**Mitigations:**
+- Keep stack inclusion behind debug flag to avoid log bloat.
+- Normalize non-Error throws with `String(err)`.
+- Maintain stable error code (`E_GC_COMPACT_FAILED`) for compatibility.
+
+**Defensive Tests:**
+- Throwing mock for node/edge compaction paths; assert context includes phase + originalError.
+- Non-Error throw test (`throw 42`) still reports human-readable cause.
+- Snapshot tests for error serialization shape.
+
+## Concern 3 — Stale Review-Thread Triage Friction
+
+**Concern:** Automated review comments on older commits generate manual overhead and risk unnecessary code churn.
+
+**Mini-Battle Plan:**
+1. Build `scripts/pr-review-triage.sh` to summarize unresolved/outdated threads and comment-to-HEAD drift.
+2. Add maintainer docs with a strict stale-thread handling workflow.
+3. Add optional CI artifact posting thread status summary to PR checks.
+
+**Mitigations:**
+- Require evidence references (file+line+test output) before resolving stale threads.
+- Keep script read-only by default; no automated thread resolution.
+- Fail-safe: when uncertainty exists, request clarification instead of auto-resolve.
+
+**Defensive Tests:**
+- Script fixture tests on mocked GraphQL payloads (resolved/outdated mixes).
+- Golden output tests for deterministic summary formatting.
+- Smoke test ensuring script exits non-zero on API/auth failures.
+
+## Concern 4 — Documentation Drift: `ROADMAP.md` vs `BACKLOG.md`
+
+**Concern:** `ROADMAP.md` states backlog is fully absorbed, while `BACKLOG.md` currently stores active follow-ups.
+
+**Mini-Battle Plan:**
+1. Decide single source-of-truth policy (`ROADMAP` only vs dual-file contract).
+2. Encode policy in `CONTRIBUTING.md` with update rules and ownership.
+3. Add a docs-lint check that enforces the chosen policy.
+
+**Mitigations:**
+- If dual-file: explicit scope split (`ROADMAP = committed work`, `BACKLOG = opportunistic findings`).
+- If single-file: auto-fail PRs that touch `BACKLOG.md`.
+- Add periodic docs consistency check in release preflight.
+
+**Defensive Tests:**
+- Docs-lint test fixtures covering allowed and disallowed file-state combinations.
+- CI check that catches stale claims like “fully absorbed” when backlog has active items.
+- Pre-commit hook test for policy-enforcement script exit behavior.
+## Appendix — Horizon Visions and Defensive Campaigns (2026-02-27)
 
 This section appends forward-looking concepts and risk controls discovered while implementing B114/B115.
 These are intentionally detailed, but remain unnumbered candidates until explicitly promoted into milestone inventory.
@@ -1156,4 +1336,3 @@ Single-source trust payload composition for common states; CLI and service outpu
 
 
 ---
-

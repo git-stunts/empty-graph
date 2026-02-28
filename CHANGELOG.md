@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Diff-aware eager post-commit path (B114)** — `_onPatchCommitted` now uses `applyWithDiff()` on the non-audit eager path and passes the resulting patch diff through `_setMaterializedState(..., { diff })`, enabling incremental index updates instead of forcing full rebuild work on every clean-cache commit.
 - **Checkpoint ancestry validation complexity (B115)** — `_loadPatchesSince()` now validates `_validatePatchAgainstCheckpoint()` once per writer tip (not once per patch), reducing repeated ancestry walks on long patch chains.
 - **`_setMaterializedState` diff arg compatibility** — state install now accepts both legacy positional diff calls (`_setMaterializedState(state, diff)`) and the new options form (`_setMaterializedState(state, { diff })`) to prevent silent fallback to full index rebuilds at older call sites.
+- **Incremental index re-add restore scan (S5)** — `IncrementalIndexUpdater` now separates genuinely-new nodes from re-added nodes and restores implicit edges via an endpoint adjacency cache keyed by `state.edgeAlive`, avoiding full alive-edge rescans on re-add paths. (B66)
+- **`_purgeNodeEdges` bitmap churn (S6)** — dead-node row purge now deserializes once, mutates in place (`bitmap.clear()`), and serializes once for both forward and reverse owner-row loops. (B113)
+- **Incremental adjacency cache coherency on reused updater instances** — once initialized, `IncrementalIndexUpdater` now reconciles `_edgeAdjacencyCache` on every diff (including non-readd diffs), preventing stale edge restoration candidates after edge membership changes. (PR-52 follow-up)
 
 ### Changed
 
@@ -37,6 +40,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Eager diff passthrough regressions** — added unit coverage verifying `_onPatchCommitted` forwards a real diff in non-audit mode and `{ diff: null }` in audit mode.
 - **State install diff-call compatibility regressions** — added tests proving `_setMaterializedState` preserves incremental behavior for both positional and object diff arguments.
 - **Tip-only checkpoint validation regression** — added `_loadPatchesSince` test asserting one ancestry validation per non-empty writer chain using the writer tip SHA.
+- **IncrementalIndexUpdater performance regressions** — added coverage for new-node add path (no re-add edge restoration side effects) and node-removal purge behavior across forward/reverse edge rows. (B66/B113)
+- **IncrementalIndexUpdater cache-coherency regression** — added a reused-instance multi-diff sequence ensuring node re-add restoration reflects current `edgeAlive` membership after intermediate edge add/remove diffs. (PR-52 follow-up)
 
 ## [12.2.0] — 2026-02-27
 
