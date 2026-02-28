@@ -66,6 +66,9 @@ export function detectSchemaVersion(ops) {
     return SCHEMA_V2;
   }
   for (const op of ops) {
+    if (!op || typeof op !== 'object') {
+      continue;
+    }
     // Canonical EdgePropSet always implies schema 3
     if (op.type === 'EdgePropSet') {
       return SCHEMA_V3;
@@ -111,6 +114,9 @@ export function assertOpsCompatible(ops, maxSchema) {
     return;
   }
   for (const op of ops) {
+    if (!op || typeof op !== 'object') {
+      continue;
+    }
     if (
       // Canonical EdgePropSet (ADR 1) — should never appear on wire pre-ADR 2,
       // but reject defensively for v2 readers

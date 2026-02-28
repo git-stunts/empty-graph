@@ -31,6 +31,9 @@ import { isLegacyEdgePropNode, decodeLegacyEdgePropNode, encodeLegacyEdgePropNod
  * @returns {import('../types/WarpTypesV2.js').CanonicalOpV2 | {type: string}}
  */
 export function normalizeRawOp(rawOp) {
+  if (!rawOp || typeof rawOp !== 'object' || typeof rawOp.type !== 'string') {
+    return rawOp;
+  }
   if (rawOp.type !== 'PropSet') {
     return rawOp;
   }
