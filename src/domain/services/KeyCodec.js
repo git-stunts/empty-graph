@@ -133,6 +133,9 @@ export function decodeLegacyEdgePropNode(node) {
     throw new Error(`Invalid legacy edge-property node: expected 3 segments, got ${parts.length}`);
   }
   const [from, to, label] = parts;
+  if (!from || !to || !label) {
+    throw new Error('Invalid legacy edge-property node: empty segment in decoded parts');
+  }
   return { from, to, label };
 }
 

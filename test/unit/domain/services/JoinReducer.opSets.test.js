@@ -7,6 +7,8 @@ import {
   isKnownOp,
   createEmptyStateV5,
   applyOpV2,
+  encodePropKey,
+  encodeEdgePropKey,
 } from '../../../../src/domain/services/JoinReducer.js';
 import { createEventId } from '../../../../src/domain/utils/EventId.js';
 import { createDot } from '../../../../src/domain/crdt/Dot.js';
@@ -81,10 +83,10 @@ describe('JoinReducer op sets (ADR 2 tripwire)', () => {
     });
 
     it('rejects null/undefined/missing type', () => {
-      expect(isKnownRawOp(/** @type {any} */ (null))).toBeFalsy();
-      expect(isKnownRawOp(/** @type {any} */ (undefined))).toBeFalsy();
-      expect(isKnownRawOp(/** @type {any} */ ({}))).toBeFalsy();
-      expect(isKnownRawOp(/** @type {any} */ ({ type: 42 }))).toBeFalsy();
+      expect(isKnownRawOp(/** @type {any} */ (null))).toBe(false);
+      expect(isKnownRawOp(/** @type {any} */ (undefined))).toBe(false);
+      expect(isKnownRawOp(/** @type {any} */ ({}))).toBe(false);
+      expect(isKnownRawOp(/** @type {any} */ ({ type: 42 }))).toBe(false);
     });
   });
 
@@ -142,8 +144,7 @@ describe('JoinReducer op sets (ADR 2 tripwire)', () => {
       applyOpV2(state, { type: 'NodePropSet', node: 'x', key: 'color', value: 'blue' }, propEid);
 
       // Property was set — check the prop map
-      const propKey = 'x\0color';
-      expect(state.prop.has(propKey)).toBe(true);
+      expect(state.prop.has(encodePropKey('x', 'color'))).toBe(true);
     });
 
     it('applies EdgePropSet', () => {
@@ -157,9 +158,7 @@ describe('JoinReducer op sets (ADR 2 tripwire)', () => {
       applyOpV2(state, { type: 'EdgePropSet', from: 'a', to: 'b', label: 'rel', key: 'weight', value: 0.5 }, propEid);
 
       // Edge property was set — check the prop map
-      // Edge prop key format: encodeEdgePropKey(from, to, label, key)
-      const edgePropKey = '\x01a\0b\0rel\0weight';
-      expect(state.prop.has(edgePropKey)).toBe(true);
+      expect(state.prop.has(encodeEdgePropKey('a', 'b', 'rel', 'weight'))).toBe(true);
     });
   });
 });

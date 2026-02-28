@@ -109,14 +109,22 @@
  */
 
 /**
+ * Blob value reference operation.
+ * @typedef {Object} OpV2BlobValue
+ * @property {'BlobValue'} type - Operation type discriminator
+ * @property {string} node - Node ID the blob is attached to
+ * @property {string} oid - Blob object ID in the Git object store
+ */
+
+/**
  * Union of all raw (persisted) v2 operation types.
- * @typedef {OpV2NodeAdd | OpV2NodeRemove | OpV2EdgeAdd | OpV2EdgeRemove | OpV2PropSet} RawOpV2
+ * @typedef {OpV2NodeAdd | OpV2NodeRemove | OpV2EdgeAdd | OpV2EdgeRemove | OpV2PropSet | OpV2BlobValue} RawOpV2
  */
 
 /**
  * Union of all canonical (internal) v2 operation types.
  * Reducers, provenance, receipts, and queries operate on canonical ops only.
- * @typedef {OpV2NodeAdd | OpV2NodeRemove | OpV2EdgeAdd | OpV2EdgeRemove | OpV2NodePropSet | OpV2EdgePropSet} CanonicalOpV2
+ * @typedef {OpV2NodeAdd | OpV2NodeRemove | OpV2EdgeAdd | OpV2EdgeRemove | OpV2NodePropSet | OpV2EdgePropSet | OpV2BlobValue} CanonicalOpV2
  */
 
 /**

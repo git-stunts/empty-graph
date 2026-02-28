@@ -77,6 +77,9 @@ describe('OpNormalizer', () => {
       expect(normalizeRawOp(op)).toBe(op);
     });
 
+    // Idempotent: re-normalizing already-canonical ops returns them unchanged.
+    // This is a defensive check — in practice, canonical ops only reach
+    // normalizeRawOp if a caller passes them through a generic path.
     it('passes through canonical NodePropSet unchanged', () => {
       const op = createNodePropSetV2('x', 'k', 'v');
       expect(normalizeRawOp(op)).toBe(op);

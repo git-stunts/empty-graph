@@ -58,6 +58,16 @@ describe('PatchBuilderV2 — reserved-byte validation (ADR 1-T12)', () => {
       expect(() => builder.addEdge('\x01from', 'to', 'label')).toThrow(/reserved prefix/);
     });
 
+    it('rejects to node ID starting with \\x01', () => {
+      const builder = makeBuilder();
+      expect(() => builder.addEdge('from', '\x01to', 'label')).toThrow(/reserved prefix/);
+    });
+
+    it('rejects label starting with \\x01', () => {
+      const builder = makeBuilder();
+      expect(() => builder.addEdge('from', 'to', '\x01label')).toThrow(/reserved prefix/);
+    });
+
     it('accepts normal edge identifiers', () => {
       const builder = makeBuilder();
       expect(() => builder.addEdge('user:alice', 'user:bob', 'follows')).not.toThrow();
@@ -121,6 +131,27 @@ describe('PatchBuilderV2 — reserved-byte validation (ADR 1-T12)', () => {
       const builder = makeBuilder();
       builder.addEdge('from', 'to', 'label');
       expect(() => builder.setEdgeProperty('\x01from', 'to', 'label', 'k', 'v'))
+        .toThrow(/reserved prefix/);
+    });
+
+    it('rejects to node ID starting with \\x01', () => {
+      const builder = makeBuilder();
+      builder.addEdge('from', 'to', 'label');
+      expect(() => builder.setEdgeProperty('from', '\x01to', 'label', 'k', 'v'))
+        .toThrow(/reserved prefix/);
+    });
+
+    it('rejects label starting with \\x01', () => {
+      const builder = makeBuilder();
+      builder.addEdge('from', 'to', 'label');
+      expect(() => builder.setEdgeProperty('from', 'to', '\x01label', 'k', 'v'))
+        .toThrow(/reserved prefix/);
+    });
+
+    it('rejects property key starting with \\x01', () => {
+      const builder = makeBuilder();
+      builder.addEdge('from', 'to', 'label');
+      expect(() => builder.setEdgeProperty('from', 'to', 'label', '\x01k', 'v'))
         .toThrow(/reserved prefix/);
     });
 

@@ -112,9 +112,12 @@ export function assertOpsCompatible(ops, maxSchema) {
   }
   for (const op of ops) {
     if (
-      op.type === 'PropSet' &&
-      typeof op.node === 'string' &&
-      op.node.startsWith(EDGE_PROP_PREFIX)
+      // Canonical EdgePropSet (ADR 1) — should never appear on wire pre-ADR 2,
+      // but reject defensively for v2 readers
+      op.type === 'EdgePropSet' ||
+      (op.type === 'PropSet' &&
+        typeof op.node === 'string' &&
+        op.node.startsWith(EDGE_PROP_PREFIX))
     ) {
       throw new SchemaUnsupportedError(
         'Upgrade to >=7.3.0 (WEIGHTED) to sync edge properties.',

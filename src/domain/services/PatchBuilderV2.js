@@ -82,7 +82,7 @@ function findAttachedData(state, nodeId) {
  */
 function _assertNoReservedBytes(value, label) {
   if (typeof value !== 'string') {
-    return;
+    throw new Error(`${label} must be a string, got ${typeof value}`);
   }
   if (value.includes(FIELD_SEPARATOR)) {
     throw new Error(`${label} must not contain null bytes (\\0): ${JSON.stringify(value)}`);
@@ -545,6 +545,9 @@ export class PatchBuilderV2 {
    */
   async attachContent(nodeId, content) {
     this._assertNotCommitted();
+    // Validate identifiers before writing blob to avoid orphaned blobs
+    _assertNoReservedBytes(nodeId, 'nodeId');
+    _assertNoReservedBytes(CONTENT_PROPERTY_KEY, 'key');
     const oid = await this._persistence.writeBlob(content);
     this.setProperty(nodeId, CONTENT_PROPERTY_KEY, oid);
     this._contentBlobs.push(oid);
@@ -563,6 +566,11 @@ export class PatchBuilderV2 {
    */
   async attachEdgeContent(from, to, label, content) {
     this._assertNotCommitted();
+    // Validate identifiers before writing blob to avoid orphaned blobs
+    _assertNoReservedBytes(from, 'from');
+    _assertNoReservedBytes(to, 'to');
+    _assertNoReservedBytes(label, 'label');
+    _assertNoReservedBytes(CONTENT_PROPERTY_KEY, 'key');
     const oid = await this._persistence.writeBlob(content);
     this.setEdgeProperty(from, to, label, CONTENT_PROPERTY_KEY, oid);
     this._contentBlobs.push(oid);

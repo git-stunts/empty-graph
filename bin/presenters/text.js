@@ -291,8 +291,7 @@ function formatOpSummaryPlain(summary) {
   const order = [
     ['NodeAdd', '+', 'node'],
     ['EdgeAdd', '+', 'edge'],
-    ['PropSet', '~', 'prop'],
-    ['NodePropSet', '~', 'prop'],
+    ['prop', '~', 'prop'],       // coalesced PropSet + NodePropSet
     ['EdgePropSet', '~', 'eprop'],
     ['NodeTombstone', '-', 'node'],
     ['EdgeTombstone', '-', 'edge'],
@@ -301,7 +300,10 @@ function formatOpSummaryPlain(summary) {
 
   const parts = [];
   for (const [opType, symbol, label] of order) {
-    const n = summary?.[opType];
+    // Coalesce PropSet + NodePropSet into one bucket
+    const n = opType === 'prop'
+      ? (summary?.PropSet || 0) + (summary?.NodePropSet || 0) || undefined
+      : summary?.[opType];
     if (typeof n === 'number' && Number.isFinite(n) && n > 0) {
       parts.push(`${symbol}${n}${label}`);
     }

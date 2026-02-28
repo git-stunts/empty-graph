@@ -124,7 +124,7 @@ export const CANONICAL_KNOWN_OPS = new Set([
  * @returns {boolean} True if the op type is in RAW_KNOWN_OPS
  */
 export function isKnownRawOp(op) {
-  return op && typeof op.type === 'string' && RAW_KNOWN_OPS.has(op.type);
+  return Boolean(op && typeof op.type === 'string' && RAW_KNOWN_OPS.has(op.type));
 }
 
 /**
@@ -135,7 +135,7 @@ export function isKnownRawOp(op) {
  * @returns {boolean} True if the op type is in CANONICAL_KNOWN_OPS
  */
 export function isKnownCanonicalOp(op) {
-  return op && typeof op.type === 'string' && CANONICAL_KNOWN_OPS.has(op.type);
+  return Boolean(op && typeof op.type === 'string' && CANONICAL_KNOWN_OPS.has(op.type));
 }
 
 /**
@@ -766,7 +766,7 @@ function accumulateOpDiff(diff, state, op, before) {
       const eNewVal = ereg ? ereg.value : undefined;
       if (eNewVal !== before.prevPropValue) {
         diff.propsChanged.push({
-          nodeId: `${op.from}\0${op.to}\0${op.label}`,
+          nodeId: encodeEdgeKey(op.from, op.to, op.label),
           key: op.key,
           value: eNewVal,
           prevValue: before.prevPropValue,

@@ -82,9 +82,9 @@ function validateOp(op, index) {
 /**
  * Validates that an operation type is one of the allowed OP_TYPES.
  *
- * Valid operation types correspond to the six patch operations defined
- * in PatchBuilderV2: NodeAdd, NodeTombstone, EdgeAdd, EdgeTombstone,
- * PropSet, and BlobValue.
+ * Valid operation types correspond to the eight receipt operation types:
+ * NodeAdd, NodeTombstone, EdgeAdd, EdgeTombstone, PropSet, NodePropSet,
+ * EdgePropSet, and BlobValue.
  *
  * @param {unknown} value - The operation type to validate
  * @param {number} i - Index of the operation in the ops array (for error messages)
@@ -158,7 +158,7 @@ function validateOpResult(value, i) {
 
 /**
  * @typedef {Object} OpOutcome
- * @property {string} op - Operation type ('NodeAdd' | 'NodeTombstone' | 'EdgeAdd' | 'EdgeTombstone' | 'PropSet' | 'BlobValue')
+ * @property {string} op - Operation type ('NodeAdd' | 'NodeTombstone' | 'EdgeAdd' | 'EdgeTombstone' | 'PropSet' | 'NodePropSet' | 'EdgePropSet' | 'BlobValue')
  * @property {string} target - Node ID or edge key
  * @property {'applied' | 'superseded' | 'redundant'} result - Outcome of the operation
  * @property {string} [reason] - Human-readable explanation (e.g., "LWW: writer bob at lamport 43 wins")
