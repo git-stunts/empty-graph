@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **tsconfig.src.json / tsconfig.test.json missing d.ts includes** — added `globals.d.ts` and `_wiredMethods.d.ts` to both split configs; eliminated 113 + 634 false TS2339 errors for WarpGraph wired methods.
 - **TestPatch typedef divergence** — `TemporalQuery.checkpoint.test.js` used hand-rolled `TestPatch` that drifted from `PatchV2` (`schema: number` vs `2|3`, `context: Map` vs plain object); replaced with `PatchV2` import.
+- **JSR dry-run deno_ast panic** — deduplicated `@git-stunts/alfred` import specifiers in `GitGraphAdapter.js` to work around deno_ast 0.52.0 overlapping text-change bug.
+- **`check-dts-surface.js` default-export regex** — `extractJsExports` and `extractDtsExports` captured `class`/`function` keywords instead of identifier names for `export default class Foo` / `export default function Foo` patterns.
 
 ### Changed
 
@@ -22,7 +24,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`globals.d.ts` augmented** — added `declare var Bun` / `declare var Deno` for `globalThis.*` access.
 - **`parseCommandArgs` generic return** — `@template T` + `ZodType<T>` so callers get schema-inferred types.
 - **JoinReducer typed shapes** — added `OpLike`/`PatchLike` typedefs; replaced 10 `{Object}` params.
-- **GitGraphAdapter typed shapes** — added `GitPlumbingLike`/`CollectableStream` typedefs.
+- **GitGraphAdapter typed shapes** — added `GitPlumbingLike`/`CollectableStream` typedefs; extracted `RetryOptions` typedef to deduplicate import specifiers.
+- **`onError` callback type widened** — `subscribe.methods.js` `onError` param changed from `Error` to `unknown` to match runtime catch semantics.
+- **`WriterId.resolveWriterId` param type** — `explicitWriterId` widened from `string|undefined` to `string|null|undefined` to match defensive null check.
+- **`ConsoleLogger` level param type** — widened from `number` to `number|string` to match string-based `LEVEL_NAMES` lookup.
+- **`StateSerializerV5` typedef extraction** — `StateHashOptions` typedef replaces duplicated inline type on `computeStateHashV5`.
+- **`StreamingBitmapIndexBuilder.onFlush` type** — replaced `Function|undefined` with precise callback signature.
+- **`HealthCheckService._computeHealth` return type** — narrowed `status: string` to `'healthy'|'degraded'|'unhealthy'`.
+- **`DagTraversal`/`DagTopology` constructors** — removed redundant inline type casts (JSDoc `@param` suffices).
+- **`parseCursorBlob` examples** — replaced `Buffer.from()` with `TextEncoder.encode()` to match `Uint8Array` param type.
 
 ## [12.4.0] — 2026-02-28
 
