@@ -92,11 +92,7 @@ const lexTieBreaker = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 /**
  * Distinguishes true topological cycles from maxNodes truncation.
  *
- * @param {Object} params
- * @param {number} params.sortedLength
- * @param {number} params.discoveredSize
- * @param {number} params.maxNodes
- * @param {boolean} params.readyRemaining
+ * @param {{ sortedLength: number, discoveredSize: number, maxNodes: number, readyRemaining: boolean }} params
  * @returns {boolean}
  */
 function computeTopoHasCycle({
@@ -110,10 +106,7 @@ function computeTopoHasCycle({
 
 export default class GraphTraversal {
   /**
-   * @param {Object} params
-   * @param {NeighborProviderPort} params.provider
-   * @param {import('../../ports/LoggerPort.js').default} [params.logger]
-   * @param {number} [params.neighborCacheSize]
+   * @param {{ provider: NeighborProviderPort, logger?: import('../../ports/LoggerPort.js').default, neighborCacheSize?: number }} params
    */
   constructor({ provider, logger = nullLogger, neighborCacheSize = 256 }) {
     this._provider = provider;
@@ -187,14 +180,7 @@ export default class GraphTraversal {
    *
    * Deterministic: nodes at equal depth are visited in lexicographic nodeId order.
    *
-   * @param {Object} params
-   * @param {string} params.start
-   * @param {Direction} [params.direction]
-   * @param {NeighborOptions} [params.options]
-   * @param {number} [params.maxNodes]
-   * @param {number} [params.maxDepth]
-   * @param {AbortSignal} [params.signal]
-   * @param {TraversalHooks} [params.hooks]
+   * @param {{ start: string, direction?: Direction, options?: NeighborOptions, maxNodes?: number, maxDepth?: number, signal?: AbortSignal, hooks?: TraversalHooks }} params
    * @returns {Promise<{nodes: string[], stats: TraversalStats}>}
    */
   async bfs({
@@ -254,14 +240,7 @@ export default class GraphTraversal {
    *
    * Deterministic: leftmost-first via reverse-push of sorted neighbors.
    *
-   * @param {Object} params
-   * @param {string} params.start
-   * @param {Direction} [params.direction]
-   * @param {NeighborOptions} [params.options]
-   * @param {number} [params.maxNodes]
-   * @param {number} [params.maxDepth]
-   * @param {AbortSignal} [params.signal]
-   * @param {TraversalHooks} [params.hooks]
+   * @param {{ start: string, direction?: Direction, options?: NeighborOptions, maxNodes?: number, maxDepth?: number, signal?: AbortSignal, hooks?: TraversalHooks }} params
    * @returns {Promise<{nodes: string[], stats: TraversalStats}>}
    */
   async dfs({
@@ -311,14 +290,7 @@ export default class GraphTraversal {
   /**
    * Unweighted shortest path (BFS-based).
    *
-   * @param {Object} params
-   * @param {string} params.start
-   * @param {string} params.goal
-   * @param {Direction} [params.direction]
-   * @param {NeighborOptions} [params.options]
-   * @param {number} [params.maxNodes]
-   * @param {number} [params.maxDepth]
-   * @param {AbortSignal} [params.signal]
+   * @param {{ start: string, goal: string, direction?: Direction, options?: NeighborOptions, maxNodes?: number, maxDepth?: number, signal?: AbortSignal }} params
    * @returns {Promise<{found: boolean, path: string[], length: number, stats: TraversalStats}>}
    */
   async shortestPath({
@@ -374,14 +346,7 @@ export default class GraphTraversal {
   /**
    * Reachability check — BFS with early termination.
    *
-   * @param {Object} params
-   * @param {string} params.start
-   * @param {string} params.goal
-   * @param {Direction} [params.direction]
-   * @param {NeighborOptions} [params.options]
-   * @param {number} [params.maxNodes]
-   * @param {number} [params.maxDepth]
-   * @param {AbortSignal} [params.signal]
+   * @param {{ start: string, goal: string, direction?: Direction, options?: NeighborOptions, maxNodes?: number, maxDepth?: number, signal?: AbortSignal }} params
    * @returns {Promise<{reachable: boolean, stats: TraversalStats}>}
    */
   async isReachable({
@@ -432,15 +397,7 @@ export default class GraphTraversal {
    * Tie-breaking: equal-priority by lexicographic nodeId. Equal-cost
    * predecessor update: when altCost === bestCost && candidatePredecessor < currentPredecessor.
    *
-   * @param {Object} params
-   * @param {string} params.start
-   * @param {string} params.goal
-   * @param {Direction} [params.direction]
-   * @param {NeighborOptions} [params.options]
-   * @param {(from: string, to: string, label: string) => number | Promise<number>} [params.weightFn]
-   * @param {(nodeId: string) => number | Promise<number>} [params.nodeWeightFn]
-   * @param {number} [params.maxNodes]
-   * @param {AbortSignal} [params.signal]
+   * @param {{ start: string, goal: string, direction?: Direction, options?: NeighborOptions, weightFn?: (from: string, to: string, label: string) => number | Promise<number>, nodeWeightFn?: (nodeId: string) => number | Promise<number>, maxNodes?: number, signal?: AbortSignal }} params
    * @returns {Promise<{path: string[], totalCost: number, stats: TraversalStats}>}
    * @throws {TraversalError} code 'NO_PATH' if unreachable
    * @throws {TraversalError} code 'E_WEIGHT_FN_CONFLICT' if both weightFn and nodeWeightFn provided
@@ -501,16 +458,7 @@ export default class GraphTraversal {
   /**
    * A* search with heuristic guidance.
    *
-   * @param {Object} params
-   * @param {string} params.start
-   * @param {string} params.goal
-   * @param {Direction} [params.direction]
-   * @param {NeighborOptions} [params.options]
-   * @param {(from: string, to: string, label: string) => number | Promise<number>} [params.weightFn]
-   * @param {(nodeId: string) => number | Promise<number>} [params.nodeWeightFn]
-   * @param {(nodeId: string, goalId: string) => number} [params.heuristicFn]
-   * @param {number} [params.maxNodes]
-   * @param {AbortSignal} [params.signal]
+   * @param {{ start: string, goal: string, direction?: Direction, options?: NeighborOptions, weightFn?: (from: string, to: string, label: string) => number | Promise<number>, nodeWeightFn?: (nodeId: string) => number | Promise<number>, heuristicFn?: (nodeId: string, goalId: string) => number, maxNodes?: number, signal?: AbortSignal }} params
    * @returns {Promise<{path: string[], totalCost: number, nodesExplored: number, stats: TraversalStats}>}
    * @throws {TraversalError} code 'NO_PATH' if unreachable
    * @throws {TraversalError} code 'E_WEIGHT_FN_CONFLICT' if both weightFn and nodeWeightFn provided
@@ -583,16 +531,7 @@ export default class GraphTraversal {
    * bidirectional algorithm — forward always means outgoing, backward always
    * means incoming.
    *
-   * @param {Object} params
-   * @param {string} params.start
-   * @param {string} params.goal
-   * @param {NeighborOptions} [params.options]
-   * @param {(from: string, to: string, label: string) => number | Promise<number>} [params.weightFn]
-   * @param {(nodeId: string) => number | Promise<number>} [params.nodeWeightFn]
-   * @param {(nodeId: string, goalId: string) => number} [params.forwardHeuristic]
-   * @param {(nodeId: string, goalId: string) => number} [params.backwardHeuristic]
-   * @param {number} [params.maxNodes]
-   * @param {AbortSignal} [params.signal]
+   * @param {{ start: string, goal: string, options?: NeighborOptions, weightFn?: (from: string, to: string, label: string) => number | Promise<number>, nodeWeightFn?: (nodeId: string) => number | Promise<number>, forwardHeuristic?: (nodeId: string, goalId: string) => number, backwardHeuristic?: (nodeId: string, goalId: string) => number, maxNodes?: number, signal?: AbortSignal }} params
    * @returns {Promise<{path: string[], totalCost: number, nodesExplored: number, stats: TraversalStats}>}
    * @throws {TraversalError} code 'NO_PATH' if unreachable
    * @throws {TraversalError} code 'E_WEIGHT_FN_CONFLICT' if both weightFn and nodeWeightFn provided
@@ -674,21 +613,7 @@ export default class GraphTraversal {
   /**
    * Expand one node in bidirectional A*.
    * @private
-   * @param {Object} p
-   * @param {MinHeap<string>} p.heap
-   * @param {Set<string>} p.visited
-   * @param {Map<string, number>} p.gScore
-   * @param {Map<string, string>} p.predMap
-   * @param {Set<string>} p.otherVisited
-   * @param {Map<string, number>} p.otherG
-   * @param {(from: string, to: string, label: string) => number | Promise<number>} p.weightFn
-   * @param {(nodeId: string, goalId: string) => number} p.heuristicFn
-   * @param {string} p.target
-   * @param {Direction} p.directionForNeighbors
-   * @param {NeighborOptions} [p.options]
-   * @param {number} p.mu
-   * @param {string|null} p.meeting
-   * @param {RunStats} p.rs
+   * @param {{ heap: MinHeap<string>, visited: Set<string>, gScore: Map<string, number>, predMap: Map<string, string>, otherVisited: Set<string>, otherG: Map<string, number>, weightFn: (from: string, to: string, label: string) => number | Promise<number>, heuristicFn: (nodeId: string, goalId: string) => number, target: string, directionForNeighbors: Direction, options?: NeighborOptions, mu: number, meeting: string|null, rs: RunStats }} p
    * @returns {Promise<{explored: number, mu: number, meeting: string|null}>}
    */
   async _biAStarExpand({
@@ -749,12 +674,7 @@ export default class GraphTraversal {
   /**
    * Connected component — delegates to BFS with direction 'both'.
    *
-   * @param {Object} params
-   * @param {string} params.start
-   * @param {NeighborOptions} [params.options]
-   * @param {number} [params.maxNodes]
-   * @param {number} [params.maxDepth]
-   * @param {AbortSignal} [params.signal]
+   * @param {{ start: string, options?: NeighborOptions, maxNodes?: number, maxDepth?: number, signal?: AbortSignal }} params
    * @returns {Promise<{nodes: string[], stats: TraversalStats}>}
    */
   async connectedComponent({ start, options, maxNodes, maxDepth, signal }) {
@@ -766,14 +686,7 @@ export default class GraphTraversal {
    *
    * Deterministic: zero-indegree nodes dequeued in lexicographic nodeId order.
    *
-   * @param {Object} params
-   * @param {string | string[]} params.start - One or more start nodes
-   * @param {Direction} [params.direction]
-   * @param {NeighborOptions} [params.options]
-   * @param {number} [params.maxNodes]
-   * @param {boolean} [params.throwOnCycle]
-   * @param {AbortSignal} [params.signal]
-   * @param {boolean} [params._returnAdjList] - Private: return neighbor edge map alongside sorted (for internal reuse)
+   * @param {{ start: string | string[], direction?: Direction, options?: NeighborOptions, maxNodes?: number, throwOnCycle?: boolean, signal?: AbortSignal, _returnAdjList?: boolean }} params
    * @returns {Promise<{sorted: string[], hasCycle: boolean, stats: TraversalStats, _neighborEdgeMap?: Map<string, NeighborEdge[]>}>}
    * @throws {TraversalError} code 'ERR_GRAPH_HAS_CYCLES' if throwOnCycle is true and cycle found
    */
@@ -914,12 +827,7 @@ export default class GraphTraversal {
    * `[A, B, C]`, then B and C may appear in the result because A's BFS
    * reaches them and their own BFS includes themselves at depth 0.
    *
-   * @param {Object} params
-   * @param {string[]} params.nodes - Nodes to find common ancestors of
-   * @param {NeighborOptions} [params.options]
-   * @param {number} [params.maxDepth]
-   * @param {number} [params.maxResults]
-   * @param {AbortSignal} [params.signal]
+   * @param {{ nodes: string[], options?: NeighborOptions, maxDepth?: number, maxResults?: number, signal?: AbortSignal }} params
    * @returns {Promise<{ancestors: string[], stats: TraversalStats}>}
    */
   async commonAncestors({
@@ -981,15 +889,7 @@ export default class GraphTraversal {
    *
    * Only valid on DAGs. Throws ERR_GRAPH_HAS_CYCLES if graph has cycles.
    *
-   * @param {Object} params
-   * @param {string} params.start
-   * @param {string} params.goal
-   * @param {Direction} [params.direction]
-   * @param {NeighborOptions} [params.options]
-   * @param {(from: string, to: string, label: string) => number | Promise<number>} [params.weightFn]
-   * @param {(nodeId: string) => number | Promise<number>} [params.nodeWeightFn]
-   * @param {number} [params.maxNodes]
-   * @param {AbortSignal} [params.signal]
+   * @param {{ start: string, goal: string, direction?: Direction, options?: NeighborOptions, weightFn?: (from: string, to: string, label: string) => number | Promise<number>, nodeWeightFn?: (nodeId: string) => number | Promise<number>, maxNodes?: number, signal?: AbortSignal }} params
    * @returns {Promise<{path: string[], totalCost: number, stats: TraversalStats}>}
    * @throws {TraversalError} code 'ERR_GRAPH_HAS_CYCLES' if graph has cycles
    * @throws {TraversalError} code 'NO_PATH' if unreachable

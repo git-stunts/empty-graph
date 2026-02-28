@@ -9,12 +9,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **`new Date()` and `Date()` banned in domain code (M2)** — added `NewExpression[callee.name='Date']` and `CallExpression[callee.name='Date']` ESLint selectors; three legitimate call sites annotated with `eslint-disable`.
-- **Writer logger fallback (L1)** — `Writer._logger` defaults to `nullLogger` instead of `undefined`, preventing downstream NPE when no logger is injected.
-- **PatchBuilderV2 logger type (L2)** — `@param`/`@type` narrowed from `{ warn: Function }` to `LoggerPort`.
-- **Delete-guard test used `console.warn` spy (M1)** — replaced stale `console.warn` spy with injected mock logger; `child()` now returns self.
-- **Fork name random suffix (L4)** — `.padEnd(8, '0')` guarantees 8-char suffix from `Math.random().toString(36)`.
-- **ORSet error message em dash (L5)** — replaced `—` with `--` for ASCII-safe error messages.
+- **tsconfig.src.json / tsconfig.test.json missing d.ts includes** — added `globals.d.ts` and `_wiredMethods.d.ts` to both split configs; eliminated 113 + 634 false TS2339 errors for WarpGraph wired methods.
+- **TestPatch typedef divergence** — `TemporalQuery.checkpoint.test.js` used hand-rolled `TestPatch` that drifted from `PatchV2` (`schema: number` vs `2|3`, `context: Map` vs plain object); replaced with `PatchV2` import.
+- **JSR dry-run deno_ast panic** — deduplicated `@git-stunts/alfred` import specifiers in `GitGraphAdapter.js` to work around deno_ast 0.52.0 overlapping text-change bug.
+- **`check-dts-surface.js` default-export regex** — `extractJsExports` and `extractDtsExports` captured `class`/`function` keywords instead of identifier names for `export default class Foo` / `export default function Foo` patterns.
+
+### Changed
+
+- **`@param {Object}` → inline typed shapes (190 sites, 72 files)** — every `@param {Object} foo` + `@param {type} foo.bar` sub-property group collapsed to `@param {{ bar: type }} foo`.
+- **`@property {Object}` → typed shapes (6 sites)** — `StateDiffResult`, `HealthResult`, `TrustAssessment`, `PatchEntry`.
+- **`{Function}` → typed signatures (4 sites)** — `NodeHttpAdapter`, `BunHttpAdapter`, `DenoHttpAdapter` handler/logger params.
+- **`{Object}` → `Record<string, unknown>` (1 site)** — `defaultCodec.js` constructor guard cast.
+- **`{Buffer}` → `{Uint8Array}` across ports/adapters** — multi-runtime alignment (Node/Bun/Deno).
+- **`globals.d.ts` augmented** — added `declare var Bun` / `declare var Deno` for `globalThis.*` access.
+- **`parseCommandArgs` generic return** — `@template T` + `ZodType<T>` so callers get schema-inferred types.
+- **JoinReducer typed shapes** — added `OpLike`/`PatchLike` typedefs; replaced 10 `{Object}` params.
+- **GitGraphAdapter typed shapes** — added `GitPlumbingLike`/`CollectableStream` typedefs; extracted `RetryOptions` typedef to deduplicate import specifiers.
+- **`onError` callback type widened** — `subscribe.methods.js` `onError` param changed from `Error` to `unknown` to match runtime catch semantics.
+- **`WriterId.resolveWriterId` param type** — `explicitWriterId` widened from `string|undefined` to `string|null|undefined` to match defensive null check.
+- **`ConsoleLogger` level param type** — widened from `number` to `number|string` to match string-based `LEVEL_NAMES` lookup.
+- **`StateSerializerV5` typedef extraction** — `StateHashOptions` typedef replaces duplicated inline type on `computeStateHashV5`.
+- **`StreamingBitmapIndexBuilder.onFlush` type** — replaced `Function|undefined` with precise callback signature.
+- **`HealthCheckService._computeHealth` return type** — narrowed `status: string` to `'healthy'|'degraded'|'unhealthy'`.
+- **`DagTraversal`/`DagTopology` constructors** — removed redundant inline type casts (JSDoc `@param` suffices).
+- **`parseCursorBlob` examples** — replaced `Buffer.from()` with `TextEncoder.encode()` to match `Uint8Array` param type.
+
+## [12.4.0] — 2026-02-28
+
+### Added
+
+- **Reserved graph name validation (B78)** — `validateGraphName()` rejects ref-layout keywords (`writers`, `checkpoints`, `coverage`, etc.) as graph name segments.
+- **`listRefs()` limit parameter (B77)** — optional `{ limit }` options bag; `GitGraphAdapter` passes `--count=N`, `InMemoryGraphAdapter` slices.
+- **`WARP_QUICK_PUSH` env var (B82)** — pre-push hook skips unit tests when set to `1` or `true`.
+- **`--quiet` flag for surface validator (B84)** — suppresses stdout; stderr (errors/warnings) always flows.
+- **`PersistenceError` with typed error codes (B120)** — `E_MISSING_OBJECT`, `E_REF_NOT_FOUND`, `E_REF_IO` replace brittle `message.includes()` checks.
+- **`createCircular(n)` / `createDiamond()` test topology helpers (B121)** — reusable graph fixtures for traversal tests.
+- **Checkpoint validation edge-case tests (B122)** — 21 tests covering schema mismatch, empty state, missing frontier.
+- **Surface validator unit tests (B92)** — 34 tests for `parseExportBlock`, `extractJsExports`, `extractDtsExports`.
+- **Type surface manifest completeness** — 85 type/interface/class exports added; 0 errors, 0 warnings.
 
 ### Changed
 
@@ -24,6 +56,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`no-empty` rule annotated (N1)** — added comment documenting B126 intent (rule already active via `eslint:recommended`).
 - **ROADMAP inventory table (R2)** — moved B26/B46/B47/B71/B126 from Standalone to Standalone (done); counts reconciled.
 - **MIGRATION_PROBLEM.md fenced code block** — added `text` language tag (MD040).
+
+### Refactored
+
+- **`parseExportBlock()` extracted as shared helper (B93)** — accepts block body; reused by JS and `.d.ts` extractors.
+- **`GitAdapterError` → `PersistenceError` (B120)** — domain error class is now adapter-agnostic.
+
+### Fixed
+
+- **`listRefs` error wrapping (review)** — `GitGraphAdapter.listRefs()` now wraps Git errors via `wrapGitError`, consistent with all other adapter methods.
+- **Error classifier exit-code guards (review)** — `isRefNotFoundError` and `isRefIoError` now gate on exit codes 128/1, preventing broad pattern matches from misclassifying non-ref errors.
+- **`NodeHttpAdapter.dispatch` handler type (review)** — upgraded from bare `Function` to typed `HttpRequest → HttpResponse` signature.
+- **`PersistenceError` constructor redundancy (review)** — removed duplicate `code` param from `super()` options.
+- **JSDoc wildcards `{[x: string]: *}` → `unknown` in TickReceipt (B52)** — replaced non-standard JSDoc wildcard with `unknown`.
+- **SyncAuthService `keys` param documented as required (B52)** — constructor JSDoc corrected.
+- **Misleading `= {}` constructor defaults removed (B51)** — `DagTraversal`, `DagPathFinding`, `DagTopology`, `BitmapIndexReader` no longer suggest optional dependencies.
+- **Surface validator regexes now match `export declare interface/type` (B91)** — `.d.ts` exports no longer missed.
+- **`extractJsExports` now matches `export class` (B94)** — class exports included in surface extraction.
+- **HttpServerPort request/response types upgraded (B55)** — `Object` → proper typedefs.
+- **`skippedWriters` added to `syncWith` manifest return type (B50)** — type surface now reflects actual return shape.
+- **`new Date()` and `Date()` banned in domain code (M2)** — added `NewExpression[callee.name='Date']` and `CallExpression[callee.name='Date']` ESLint selectors; three legitimate call sites annotated with `eslint-disable`.
+- **Writer logger fallback (L1)** — `Writer._logger` defaults to `nullLogger` instead of `undefined`, preventing downstream NPE when no logger is injected.
+- **PatchBuilderV2 logger type (L2)** — `@param`/`@type` narrowed from `{ warn: Function }` to `LoggerPort`.
+- **Delete-guard test used `console.warn` spy (M1)** — replaced stale `console.warn` spy with injected mock logger; `child()` now returns self.
+- **Fork name random suffix (L4)** — `.padEnd(8, '0')` guarantees 8-char suffix from `Math.random().toString(36)`.
+- **ORSet error message em dash (L5)** — replaced `—` with `--` for ASCII-safe error messages.
 
 ## [12.3.0] — 2026-02-28
 

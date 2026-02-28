@@ -179,13 +179,11 @@ declare module '../WarpGraph.js' {
     // ── provenance.methods.js ─────────────────────────────────────────────
     patchesFor(entityId: string): Promise<string[]>;
     materializeSlice(nodeId: string, options?: { receipts?: boolean }): Promise<{ state: WarpStateV5; patchCount: number; receipts?: TickReceipt[] }>;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- internal method; `any` avoids breaking provenance.methods.js callers
-    _computeBackwardCone(nodeId: string): Promise<Map<string, any>>;
-    loadPatchBySha(sha: string): Promise<{ patch: PatchV2; sha: string }>;
-    _loadPatchBySha(sha: string): Promise<{ patch: PatchV2; sha: string }>;
+    _computeBackwardCone(nodeId: string): Promise<Map<string, PatchV2>>;
+    loadPatchBySha(sha: string): Promise<PatchV2>;
+    _loadPatchBySha(sha: string): Promise<PatchV2>;
     _loadPatchesBySha(shas: string[]): Promise<Array<{ patch: PatchV2; sha: string }>>;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- internal method; `any` avoids breaking provenance.methods.js callers
-    _sortPatchesCausally(patches: Array<{ patch: any; sha: string }>): Array<{ patch: any; sha: string }>;
+    _sortPatchesCausally(patches: Array<{ patch: PatchV2; sha: string }>): Array<{ patch: PatchV2; sha: string }>;
 
     // ── fork.methods.js ───────────────────────────────────────────────────
     fork(options: { from: string; at: string; forkName?: string; forkWriterId?: string }): Promise<WarpGraph>;
@@ -251,7 +249,7 @@ declare module '../WarpGraph.js' {
     _buildView(state: WarpStateV5, stateHash: string, diff?: import('../types/PatchDiff.js').PatchDiff): void;
     _setMaterializedState(state: WarpStateV5, optionsOrDiff?: import('../types/PatchDiff.js').PatchDiff | { diff?: import('../types/PatchDiff.js').PatchDiff | null }): Promise<{ state: WarpStateV5; stateHash: string; adjacency: unknown }>;
     _materializeWithCeiling(ceiling: number, collectReceipts: boolean, t0: number): Promise<WarpStateV5 | { state: WarpStateV5; receipts: TickReceipt[] }>;
-    _persistSeekCacheEntry(cacheKey: string, buf: Buffer, state: WarpStateV5): Promise<void>;
+    _persistSeekCacheEntry(cacheKey: string, buf: Uint8Array, state: WarpStateV5): Promise<void>;
     _restoreIndexFromCache(indexTreeOid: string): Promise<void>;
     materializeAt(checkpointSha: string): Promise<WarpStateV5>;
     verifyIndex(options?: { seed?: number; sampleRate?: number }): { passed: number; failed: number; errors: Array<{ nodeId: string; direction: string; expected: string[]; actual: string[] }> };

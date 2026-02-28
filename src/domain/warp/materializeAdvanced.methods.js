@@ -351,7 +351,7 @@ export async function _materializeWithCeiling(ceiling, collectReceipts, t0) {
       cacheKey = buildSeekCacheKey(ceiling, frontier);
     }
     const buf = serializeFullStateV5(state, { codec: this._codec });
-    this._persistSeekCacheEntry(cacheKey, /** @type {Buffer} */ (buf), state)
+    this._persistSeekCacheEntry(cacheKey, buf, state)
       .catch(() => {});
   }
 
@@ -377,7 +377,7 @@ export async function _materializeWithCeiling(ceiling, collectReceipts, t0) {
  *
  * @this {import('../WarpGraph.js').default}
  * @param {string} cacheKey - Seek cache key
- * @param {Buffer} buf - Serialized WarpStateV5 buffer
+ * @param {Uint8Array} buf - Serialized WarpStateV5 buffer
  * @param {import('../services/JoinReducer.js').WarpStateV5} state
  * @returns {Promise<void>}
  * @private
@@ -473,7 +473,7 @@ export async function materializeAt(checkpointSha) {
 
       const patchMeta = decodePatchMessage(message);
       const patchBuffer = await this._persistence.readBlob(patchMeta.patchOid);
-      const patch = this._codec.decode(patchBuffer);
+      const patch = /** @type {import('../types/WarpTypesV2.js').PatchV2} */ (this._codec.decode(patchBuffer));
 
       patches.push({ patch, sha: currentSha });
 

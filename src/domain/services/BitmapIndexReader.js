@@ -29,7 +29,7 @@ const DEFAULT_MAX_CACHED_SHARDS = 100;
  * Computes a SHA-256 checksum of the given data.
  * Used to verify shard integrity on load.
  *
- * @param {Object} data - The data object to checksum
+ * @param {Record<string, unknown>} data - The data object to checksum
  * @param {number} version - Shard version (1 uses JSON.stringify, 2+ uses canonicalStringify)
  * @param {import('../../ports/CryptoPort.js').default} crypto - CryptoPort instance
  * @returns {Promise<string>} Hex-encoded SHA-256 hash
@@ -82,16 +82,9 @@ const computeChecksum = async (data, version, crypto) => {
 export default class BitmapIndexReader {
   /**
    * Creates a BitmapIndexReader instance.
-   * @param {Object} options
-   * @param {IndexStoragePort} options.storage - Storage adapter for reading index data
-   * @param {boolean} [options.strict=true] - If true, throw errors on validation failures; if false, log warnings and return empty shards
-   * @param {import('../../ports/LoggerPort.js').default} [options.logger] - Logger for structured logging.
-   *   Defaults to NoOpLogger (no logging).
-   * @param {number} [options.maxCachedShards=100] - Maximum number of shards to keep in the LRU cache.
-   *   When exceeded, least recently used shards are evicted to free memory.
-   * @param {import('../../ports/CryptoPort.js').default} [options.crypto] - CryptoPort instance for checksum verification.
+   * @param {{ storage: IndexStoragePort, strict?: boolean, logger?: import('../../ports/LoggerPort.js').default, maxCachedShards?: number, crypto?: import('../../ports/CryptoPort.js').default }} options
    */
-  constructor({ storage, strict = true, logger = nullLogger, maxCachedShards = DEFAULT_MAX_CACHED_SHARDS, crypto } = /** @type {{ storage: IndexStoragePort, strict?: boolean, logger?: LoggerPort, maxCachedShards?: number, crypto?: CryptoPort }} */ ({})) {
+  constructor({ storage, strict = true, logger = nullLogger, maxCachedShards = DEFAULT_MAX_CACHED_SHARDS, crypto }) {
     if (!storage) {
       throw new Error('BitmapIndexReader requires a storage adapter');
     }
@@ -321,10 +314,7 @@ export default class BitmapIndexReader {
   /**
    * Handles validation/corruption errors based on strict mode.
    * @param {ShardCorruptionError|ShardValidationError} err - The error to handle
-   * @param {Object} context - Error context
-   * @param {string} context.path - Shard path
-   * @param {string} context.oid - Object ID
-   * @param {string} context.format - 'json' or 'bitmap'
+   * @param {{ path: string, oid: string, format: string }} context - Error context
    * @returns {Record<string, string | number> | import('../utils/roaring.js').RoaringBitmapSubset} Empty shard (non-strict mode only)
    * @throws {ShardCorruptionError|ShardValidationError} In strict mode
    * @private
@@ -356,7 +346,7 @@ export default class BitmapIndexReader {
 
   /**
    * Parses and validates a shard buffer.
-   * @param {Buffer} buffer - Raw shard buffer
+   * @param {Uint8Array} buffer - Raw shard buffer
    * @param {string} path - Shard path (for error context)
    * @param {string} oid - Object ID (for error context)
    * @returns {Promise<Record<string, string | number>>} The validated data from the shard
@@ -373,7 +363,7 @@ export default class BitmapIndexReader {
    * Loads raw buffer from storage.
    * @param {string} path - Shard path
    * @param {string} oid - Object ID
-   * @returns {Promise<Buffer>} Raw buffer
+   * @returns {Promise<Uint8Array>} Raw buffer
    * @throws {ShardLoadError} When storage.readBlob fails
    * @private
    */
@@ -413,10 +403,7 @@ export default class BitmapIndexReader {
    * Attempts to handle a shard error based on its type.
    * Returns handled result for validation/corruption errors, null otherwise.
    * @param {unknown} err - The error to handle
-   * @param {Object} context - Error context
-   * @param {string} context.path - Shard path
-   * @param {string} context.oid - Object ID
-   * @param {string} context.format - 'json' or 'bitmap'
+   * @param {{ path: string, oid: string, format: string }} context - Error context
    * @returns {Record<string, string | number> | import('../utils/roaring.js').RoaringBitmapSubset | null} Handled result or null if error should be re-thrown
    * @private
    */

@@ -234,11 +234,7 @@ function buildLane(patchSet, points, currentTick) {
  * Between consecutive columns, connector characters of the appropriate style
  * fill the gap (COL_W − 1 chars).
  *
- * @param {Object} opts
- * @param {string} opts.writerId
- * @param {WriterInfo} opts.writerInfo - `{ ticks, tipSha, tickShas }`
- * @param {{ points: number[] }} opts.win - Computed window
- * @param {number} opts.currentTick - Active seek cursor tick
+ * @param {{ writerId: string, writerInfo: WriterInfo, win: { points: number[] }, currentTick: number }} opts
  * @returns {string} Formatted, indented swimlane line
  */
 function buildWriterSwimRow({ writerId, writerInfo, win, currentTick }) {

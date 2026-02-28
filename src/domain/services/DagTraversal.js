@@ -39,11 +39,9 @@ export default class DagTraversal {
   /**
    * Creates a new DagTraversal service.
    *
-   * @param {Object} options
-   * @param {import('./BitmapIndexReader.js').default} options.indexReader - Index reader for O(1) lookups
-   * @param {import('../../ports/LoggerPort.js').default} [options.logger] - Logger instance
+   * @param {{ indexReader: import('./BitmapIndexReader.js').default, logger?: import('../../ports/LoggerPort.js').default }} options
    */
-  constructor(/** @type {{ indexReader: import('./BitmapIndexReader.js').default, logger?: import('../../ports/LoggerPort.js').default }} */ { indexReader, logger = nullLogger } = /** @type {{ indexReader: import('./BitmapIndexReader.js').default }} */ ({})) {
+  constructor({ indexReader, logger = nullLogger }) {
     if (!indexReader) {
       throw new Error('DagTraversal requires an indexReader');
     }
@@ -73,12 +71,7 @@ export default class DagTraversal {
    * moving to depth N+1. This guarantees that nodes are yielded in order of
    * increasing distance from the start node.
    *
-   * @param {Object} options - Traversal options
-   * @param {string} options.start - Starting node SHA
-   * @param {number} [options.maxNodes=100000] - Maximum nodes to visit
-   * @param {number} [options.maxDepth=1000] - Maximum depth to traverse
-   * @param {TraversalDirection} [options.direction='forward'] - Traversal direction
-   * @param {AbortSignal} [options.signal] - Optional AbortSignal for cancellation
+   * @param {{ start: string, maxNodes?: number, maxDepth?: number, direction?: TraversalDirection, signal?: AbortSignal }} options - Traversal options
    * @yields {TraversalNode} Nodes in BFS order
    */
   async *bfs({
@@ -127,12 +120,7 @@ export default class DagTraversal {
    *
    * DFS explores as far as possible along each branch before backtracking.
    *
-   * @param {Object} options - Traversal options
-   * @param {string} options.start - Starting node SHA
-   * @param {number} [options.maxNodes=100000] - Maximum nodes to visit
-   * @param {number} [options.maxDepth=1000] - Maximum depth to traverse
-   * @param {TraversalDirection} [options.direction='forward'] - Traversal direction
-   * @param {AbortSignal} [options.signal] - Optional AbortSignal for cancellation
+   * @param {{ start: string, maxNodes?: number, maxDepth?: number, direction?: TraversalDirection, signal?: AbortSignal }} options - Traversal options
    * @yields {TraversalNode} Nodes in DFS pre-order
    */
   async *dfs({
@@ -180,11 +168,7 @@ export default class DagTraversal {
   /**
    * Yields all ancestors of a node (transitive closure going backwards).
    *
-   * @param {Object} options - Traversal options
-   * @param {string} options.sha - Starting node SHA
-   * @param {number} [options.maxNodes=100000] - Maximum ancestor nodes to yield
-   * @param {number} [options.maxDepth=1000] - Maximum generations to traverse
-   * @param {AbortSignal} [options.signal] - Optional AbortSignal for cancellation
+   * @param {{ sha: string, maxNodes?: number, maxDepth?: number, signal?: AbortSignal }} options - Traversal options
    * @yields {TraversalNode} Ancestor nodes in BFS order
    */
   async *ancestors({ sha, maxNodes = DEFAULT_MAX_NODES, maxDepth = DEFAULT_MAX_DEPTH, signal }) {
@@ -194,11 +178,7 @@ export default class DagTraversal {
   /**
    * Yields all descendants of a node (transitive closure going forwards).
    *
-   * @param {Object} options - Traversal options
-   * @param {string} options.sha - Starting node SHA
-   * @param {number} [options.maxNodes=100000] - Maximum descendant nodes to yield
-   * @param {number} [options.maxDepth=1000] - Maximum generations to traverse
-   * @param {AbortSignal} [options.signal] - Optional AbortSignal for cancellation
+   * @param {{ sha: string, maxNodes?: number, maxDepth?: number, signal?: AbortSignal }} options - Traversal options
    * @yields {TraversalNode} Descendant nodes in BFS order
    */
   async *descendants({ sha, maxNodes = DEFAULT_MAX_NODES, maxDepth = DEFAULT_MAX_DEPTH, signal }) {
@@ -211,11 +191,7 @@ export default class DagTraversal {
    * Delegates to the path-finding service's findPath if one is set,
    * otherwise performs its own BFS-based reachability check.
    *
-   * @param {Object} options - Reachability options
-   * @param {string} options.from - Source node SHA
-   * @param {string} options.to - Target node SHA
-   * @param {number} [options.maxDepth=1000] - Maximum search depth
-   * @param {AbortSignal} [options.signal] - Optional AbortSignal for cancellation
+   * @param {{ from: string, to: string, maxDepth?: number, signal?: AbortSignal }} options - Reachability options
    * @returns {Promise<boolean>} True if a path exists
    */
   async isReachable({ from, to, maxDepth = DEFAULT_MAX_DEPTH, signal }) {

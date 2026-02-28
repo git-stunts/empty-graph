@@ -74,9 +74,8 @@ export function propVisibleV5(state, propKey) {
  * Same canonical ordering as v4 for visible projection.
  *
  * @param {import('./JoinReducer.js').WarpStateV5} state
- * @param {Object} [options]
- * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for serialization
- * @returns {Buffer|Uint8Array}
+ * @param {{ codec?: import('../../ports/CodecPort.js').default }} [options]
+ * @returns {Uint8Array}
  */
 export function serializeStateV5(state, { codec } = {}) {
   const c = codec || defaultCodec;
@@ -120,14 +119,16 @@ export function serializeStateV5(state, { codec } = {}) {
 }
 
 /**
+ * @typedef {{ crypto?: import('../../ports/CryptoPort.js').default, codec?: import('../../ports/CodecPort.js').default }} StateHashOptions
+ */
+
+/**
  * Computes SHA-256 hash of canonical state bytes.
  * @param {import('./JoinReducer.js').WarpStateV5} state
- * @param {Object} [options] - Options
- * @param {import('../../ports/CryptoPort.js').default} [options.crypto] - CryptoPort instance
- * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for serialization
+ * @param {StateHashOptions} [options] - Options
  * @returns {Promise<string>} Hex-encoded SHA-256 hash
  */
-export async function computeStateHashV5(state, { crypto, codec } = /** @type {{crypto?: import('../../ports/CryptoPort.js').default, codec?: import('../../ports/CodecPort.js').default}} */ ({})) {
+export async function computeStateHashV5(state, { crypto, codec } = /** @type {StateHashOptions} */ ({})) {
   const c = crypto || defaultCrypto;
   const serialized = serializeStateV5(state, { codec });
   return await c.hash('sha256', serialized);
@@ -136,9 +137,8 @@ export async function computeStateHashV5(state, { crypto, codec } = /** @type {{
 /**
  * Deserializes state from CBOR bytes.
  * Note: This reconstructs the visible projection only.
- * @param {Buffer} buffer
- * @param {Object} [options]
- * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for deserialization
+ * @param {Uint8Array} buffer
+ * @param {{ codec?: import('../../ports/CodecPort.js').default }} [options]
  * @returns {{nodes: string[], edges: Array<{from: string, to: string, label: string}>, props: Array<{node: string, key: string, value: unknown}>}}
  */
 export function deserializeStateV5(buffer, { codec } = {}) {

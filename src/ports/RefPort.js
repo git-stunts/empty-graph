@@ -42,10 +42,11 @@ export default class RefPort {
   /**
    * Lists refs matching a prefix.
    * @param {string} _prefix - The ref prefix to match (e.g., 'refs/warp/events/writers/')
+   * @param {{ limit?: number }} [_options] - Optional parameters. When `limit` is omitted or 0, all matching refs are returned.
    * @returns {Promise<string[]>} Array of matching ref names
    * @throws {Error} If not implemented by a concrete adapter
    */
-  async listRefs(_prefix) {
+  async listRefs(_prefix, _options) {
     throw new Error('RefPort.listRefs() not implemented');
   }
 

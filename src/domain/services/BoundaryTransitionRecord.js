@@ -77,13 +77,7 @@ const BTR_VERSION = 1;
  *
  * This ensures all fields are covered and the encoding is deterministic.
  *
- * @param {Object} fields - BTR fields to authenticate
- * @param {number} fields.version - BTR format version
- * @param {string} fields.h_in - Hash of input state
- * @param {string} fields.h_out - Hash of output state
- * @param {Uint8Array} fields.U_0 - Serialized initial state
- * @param {Array<unknown>} fields.P - Serialized provenance payload
- * @param {string} fields.t - ISO timestamp
+ * @param {{ version: number, h_in: string, h_out: string, U_0: Uint8Array, P: Array<unknown>, t: string }} fields - BTR fields to authenticate
  * @param {string|Uint8Array} key - HMAC key
  * @param {{ crypto: import('../../ports/CryptoPort.js').default, codec?: import('../../ports/CodecPort.js').default }} deps - Dependencies
  * @returns {Promise<string>} Hex-encoded HMAC tag
@@ -151,11 +145,7 @@ async function computeHmac(fields, key, { crypto, codec }) {
  *
  * @param {import('./JoinReducer.js').WarpStateV5} initialState - The input state U_0
  * @param {ProvenancePayload} payload - The provenance payload P
- * @param {Object} options - BTR creation options
- * @param {string|Uint8Array} options.key - HMAC key for authentication
- * @param {string} [options.timestamp] - ISO timestamp (defaults to now)
- * @param {import('../../ports/CryptoPort.js').default} options.crypto - CryptoPort instance
- * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for serialization
+ * @param {{ key: string|Uint8Array, timestamp?: string, crypto: import('../../ports/CryptoPort.js').default, codec?: import('../../ports/CodecPort.js').default }} options - BTR creation options
  * @returns {Promise<BTR>} The created BTR
  * @throws {TypeError} If payload is not a ProvenancePayload
  */
@@ -246,9 +236,7 @@ async function verifyHmac(btr, key, { crypto, codec }) {
  * Verifies replay produces expected h_out.
  *
  * @param {BTR} btr - The BTR to verify
- * @param {Object} [deps] - Dependencies
- * @param {import('../../ports/CryptoPort.js').default} [deps.crypto] - CryptoPort instance
- * @param {import('../../ports/CodecPort.js').default} [deps.codec] - Codec
+ * @param {{ crypto?: import('../../ports/CryptoPort.js').default, codec?: import('../../ports/CodecPort.js').default }} [deps] - Dependencies
  * @returns {Promise<string|null>} Error message if replay mismatch, null if valid
  * @private
  */
@@ -276,10 +264,7 @@ async function verifyReplayHash(btr, { crypto, codec } = {}) {
  *
  * @param {BTR} btr - The BTR to verify
  * @param {string|Uint8Array} key - HMAC key
- * @param {Object} [options] - Verification options
- * @param {boolean} [options.verifyReplay=false] - Also verify replay produces h_out
- * @param {import('../../ports/CryptoPort.js').default} [options.crypto] - CryptoPort instance
- * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for serialization
+ * @param {{ verifyReplay?: boolean, crypto?: import('../../ports/CryptoPort.js').default, codec?: import('../../ports/CodecPort.js').default }} [options] - Verification options
  * @returns {Promise<VerificationResult>} Verification result with valid flag and optional reason
  */
 export async function verifyBTR(btr, key, options = {}) {
@@ -368,8 +353,7 @@ function deserializeInitialState(U_0, { codec } = {}) {
  * enabling byte-for-byte comparison of BTRs.
  *
  * @param {BTR} btr - The BTR to serialize
- * @param {Object} [options]
- * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for serialization
+ * @param {{ codec?: import('../../ports/CodecPort.js').default }} [options]
  * @returns {Uint8Array} CBOR-encoded BTR
  */
 export function serializeBTR(btr, { codec } = {}) {
@@ -389,8 +373,7 @@ export function serializeBTR(btr, { codec } = {}) {
  * Deserializes a BTR from CBOR bytes.
  *
  * @param {Uint8Array} bytes - CBOR-encoded BTR
- * @param {Object} [options]
- * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for deserialization
+ * @param {{ codec?: import('../../ports/CodecPort.js').default }} [options]
  * @returns {BTR} The deserialized BTR
  * @throws {Error} If the bytes are not valid CBOR or missing required fields
  */

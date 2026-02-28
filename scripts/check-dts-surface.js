@@ -34,159 +34,181 @@ function readRequired(filePath) {
 }
 
 // ---------------------------------------------------------------------------
-// 1. Load the manifest
+// Parsers (exported for testability)
 // ---------------------------------------------------------------------------
-const manifestPath = resolve(root, 'contracts/type-surface.m8.json');
-const manifest = JSON.parse(readRequired(manifestPath));
-const manifestNames = new Set(Object.keys(manifest.exports));
-
-// ---------------------------------------------------------------------------
-// 2. Parse index.js — extract named exports from the `export { ... }` block
-// ---------------------------------------------------------------------------
-const indexJs = readRequired(resolve(root, 'index.js'));
 
 /**
- * Extract names from `export { A, B, C };` blocks.
- * @param {string} src
+ * Parse the body of an `export { ... }` block and return the exported names.
+ * Handles single-line comments, `type` keyword prefix, and `as` aliases.
+ * @param {string} blockBody - The content inside the braces (e.g., 'Foo, Bar as Baz')
  * @returns {Set<string>}
  */
-function extractJsExports(src) {
+export function parseExportBlock(blockBody) {
   const names = new Set();
-  // Match export { ... } blocks (potentially multiline)
-  const exportBlockRe = /export\s*\{([^}]+)\}/g;
-  let m;
-  while ((m = exportBlockRe.exec(src)) !== null) {
-    // Strip single-line comments before splitting on commas
-    const cleaned = m[1].replace(/\/\/[^\n]*/g, '');
-    for (const item of cleaned.split(',')) {
-      const trimmed = item.trim();
-      if (!trimmed) {
-        continue;
-      }
-      // Handle `export { type Foo }` — strip leading `type` keyword
-      const withoutTypeKeyword = trimmed.replace(/^type\s+/, '');
-      // Handle `Foo as Bar` — the exported name is Bar
-      const asParts = withoutTypeKeyword.split(/\s+as\s+/);
-      const exportedName = (asParts.length > 1 ? asParts[1] : asParts[0]).trim();
-      if (exportedName) {
-        names.add(exportedName);
-      }
+  // Strip single-line comments before splitting on commas
+  const cleaned = blockBody.replace(/\/\/[^\n]*/g, '');
+  for (const item of cleaned.split(',')) {
+    const trimmed = item.trim();
+    if (!trimmed) {
+      continue;
     }
-  }
-  // Match `export default <Name>`
-  const defaultRe = /export\s+default\s+(\w+)/;
-  const dm = defaultRe.exec(src);
-  if (dm) {
-    names.add(dm[1]);
+    // Handle `type Foo` — strip leading `type` keyword
+    const withoutTypeKeyword = trimmed.replace(/^type\s+/, '');
+    // Handle `Foo as Bar` — the exported name is Bar
+    const asParts = withoutTypeKeyword.split(/\s+as\s+/);
+    const exportedName = (asParts.length > 1 ? asParts[1] : asParts[0]).trim();
+    if (exportedName) {
+      names.add(exportedName);
+    }
   }
   return names;
 }
 
-const jsExports = extractJsExports(indexJs);
+/**
+ * Find all `export { ... }` blocks in source and parse their contents.
+ * @param {string} src - Full source text
+ * @returns {Set<string>}
+ */
+function collectExportBlocks(src) {
+  const names = new Set();
+  for (const m of src.matchAll(/export\s*\{([^}]+)\}/g)) {
+    for (const name of parseExportBlock(m[1])) {
+      names.add(name);
+    }
+  }
+  return names;
+}
 
-// ---------------------------------------------------------------------------
-// 3. Parse index.d.ts — extract all exported declarations
-// ---------------------------------------------------------------------------
-const indexDts = readRequired(resolve(root, 'index.d.ts'));
+/**
+ * Extract names from `export { A, B, C };` blocks and `export default`.
+ * @param {string} src
+ * @returns {Set<string>}
+ */
+export function extractJsExports(src) {
+  const names = collectExportBlocks(src);
+  // Match standalone `export const Foo` / `export function Foo` / `export class Foo`
+  for (const m of src.matchAll(/export\s+(?:const|function|class)\s+(\w+)/g)) {
+    names.add(m[1]);
+  }
+  // Match `export default class Foo` / `export default function Foo`
+  for (const m of src.matchAll(/export\s+default\s+(?:class|function)\s+(\w+)/g)) {
+    names.add(m[1]);
+  }
+  // Match `export default Foo` (standalone identifier)
+  for (const m of src.matchAll(/export\s+default\s+([A-Z_$][\w$]*)/g)) {
+    names.add(m[1]);
+  }
+  return names;
+}
 
 /**
  * @param {string} src
  * @returns {Set<string>}
  */
-function extractDtsExports(src) {
+export function extractDtsExports(src) {
   const names = new Set();
 
   // export class Foo / export abstract class Foo
   for (const m of src.matchAll(/export\s+(?:declare\s+)?(?:abstract\s+)?class\s+(\w+)/g)) {
     names.add(m[1]);
   }
-  // export interface Foo
-  for (const m of src.matchAll(/export\s+interface\s+(\w+)/g)) {
+  // export interface Foo / export declare interface Foo
+  for (const m of src.matchAll(/export\s+(?:declare\s+)?interface\s+(\w+)/g)) {
     names.add(m[1]);
   }
-  // export type Foo =
-  for (const m of src.matchAll(/export\s+type\s+(\w+)\s*=/g)) {
+  // export type Foo = / export declare type Foo =
+  for (const m of src.matchAll(/export\s+(?:declare\s+)?type\s+(\w+)\s*=/g)) {
     names.add(m[1]);
   }
   // export const Foo / export function Foo
   for (const m of src.matchAll(/export\s+(?:declare\s+)?(?:const|function)\s+(\w+)/g)) {
     names.add(m[1]);
   }
-  // export default class Foo
-  for (const m of src.matchAll(/export\s+(?:declare\s+)?default\s+class\s+(\w+)/g)) {
+  // export default class Foo / export default function Foo
+  for (const m of src.matchAll(/export\s+(?:declare\s+)?default\s+(?:class|function)\s+(\w+)/g)) {
     names.add(m[1]);
   }
   // export default Foo  (standalone identifier — class declared separately)
-  for (const m of src.matchAll(/export\s+(?:declare\s+)?default\s+(?!class\b)(\w+)/g)) {
+  for (const m of src.matchAll(/export\s+(?:declare\s+)?default\s+(?!(?:class|function)\b)([A-Z_$][\w$]*)/g)) {
     names.add(m[1]);
   }
   // export { A as B } — exported name is B
-  for (const m of src.matchAll(/export\s*\{([^}]+)\}/g)) {
-    for (const item of m[1].split(',')) {
-      const trimmed = item.trim();
-      if (!trimmed) {
-        continue;
-      }
-      const withoutTypeKeyword = trimmed.replace(/^type\s+/, '');
-      const asParts = withoutTypeKeyword.split(/\s+as\s+/);
-      const exportedName = (asParts.length > 1 ? asParts[1] : asParts[0]).trim();
-      if (exportedName) {
-        names.add(exportedName);
-      }
-    }
+  for (const name of collectExportBlocks(src)) {
+    names.add(name);
   }
   return names;
 }
 
-const dtsExports = extractDtsExports(indexDts);
-
 // ---------------------------------------------------------------------------
-// 4. Cross-check
+// Main — runs only when executed directly
 // ---------------------------------------------------------------------------
-let errors = 0;
-let warnings = 0;
+const isMain = process.argv[1] &&
+  fileURLToPath(import.meta.url) === resolve(process.argv[1]);
 
-// Check A: Every manifest entry must exist in index.d.ts
-for (const name of manifestNames) {
-  if (!dtsExports.has(name)) {
-    process.stderr.write(`ERROR: manifest entry "${name}" missing from index.d.ts\n`);
-    errors++;
+if (isMain) {
+  const quiet = process.argv.includes('--quiet');
+
+  // 1. Load the manifest
+  const manifestPath = resolve(root, 'contracts/type-surface.m8.json');
+  const manifest = JSON.parse(readRequired(manifestPath));
+  const manifestNames = new Set(Object.keys(manifest.exports));
+
+  // 2. Parse index.js — extract named exports
+  const indexJs = readRequired(resolve(root, 'index.js'));
+  const jsExports = extractJsExports(indexJs);
+
+  // 3. Parse index.d.ts — extract all exported declarations
+  const indexDts = readRequired(resolve(root, 'index.d.ts'));
+  const dtsExports = extractDtsExports(indexDts);
+
+  // 4. Cross-check
+  let errors = 0;
+  let warnings = 0;
+
+  // Check A: Every manifest entry must exist in index.d.ts
+  for (const name of manifestNames) {
+    if (!dtsExports.has(name)) {
+      process.stderr.write(`ERROR: manifest entry "${name}" missing from index.d.ts\n`);
+      errors++;
+    }
+  }
+
+  // Check B: Every named export in index.js must exist in the manifest
+  for (const name of jsExports) {
+    if (!manifestNames.has(name)) {
+      process.stderr.write(`ERROR: index.js export "${name}" missing from type-surface.m8.json manifest\n`);
+      errors++;
+    }
+  }
+
+  // Check C: Warn about index.d.ts exports not in manifest (type-only exports are valid)
+  for (const name of dtsExports) {
+    if (!manifestNames.has(name)) {
+      process.stderr.write(`WARN: index.d.ts export "${name}" not in manifest (type-only?)\n`);
+      warnings++;
+    }
+  }
+
+  // 5. Report
+  const total = manifestNames.size;
+  const jsCount = jsExports.size;
+  const dtsCount = dtsExports.size;
+
+  if (!quiet) {
+    process.stdout.write(`\nDeclaration surface check:\n`);
+    process.stdout.write(`  Manifest entries:   ${total}\n`);
+    process.stdout.write(`  index.js exports:   ${jsCount}\n`);
+    process.stdout.write(`  index.d.ts exports: ${dtsCount}\n`);
+    process.stdout.write(`  Errors:   ${errors}\n`);
+    process.stdout.write(`  Warnings: ${warnings}\n\n`);
+  }
+
+  if (errors > 0) {
+    process.stderr.write(`FAIL: ${errors} declaration surface error(s)\n`);
+    process.exit(1);
+  }
+
+  if (!quiet) {
+    process.stdout.write(`PASS: all manifest entries covered\n`);
   }
 }
-
-// Check B: Every named export in index.js must exist in the manifest
-for (const name of jsExports) {
-  if (!manifestNames.has(name)) {
-    process.stderr.write(`ERROR: index.js export "${name}" missing from type-surface.m8.json manifest\n`);
-    errors++;
-  }
-}
-
-// Check C: Warn about index.d.ts exports not in manifest (type-only exports are valid)
-for (const name of dtsExports) {
-  if (!manifestNames.has(name)) {
-    process.stderr.write(`WARN: index.d.ts export "${name}" not in manifest (type-only?)\n`);
-    warnings++;
-  }
-}
-
-// ---------------------------------------------------------------------------
-// 5. Report
-// ---------------------------------------------------------------------------
-const total = manifestNames.size;
-const jsCount = jsExports.size;
-const dtsCount = dtsExports.size;
-
-process.stdout.write(`\nDeclaration surface check:\n`);
-process.stdout.write(`  Manifest entries:   ${total}\n`);
-process.stdout.write(`  index.js exports:   ${jsCount}\n`);
-process.stdout.write(`  index.d.ts exports: ${dtsCount}\n`);
-process.stdout.write(`  Errors:   ${errors}\n`);
-process.stdout.write(`  Warnings: ${warnings}\n\n`);
-
-if (errors > 0) {
-  process.stderr.write(`FAIL: ${errors} declaration surface error(s)\n`);
-  process.exit(1);
-}
-
-process.stdout.write(`PASS: all manifest entries covered\n`);

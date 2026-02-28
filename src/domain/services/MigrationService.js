@@ -13,10 +13,7 @@ import { createVersionVector, vvIncrement } from '../crdt/VersionVector.js';
  * writer, rebuilds the ORSet structures, and copies only properties belonging
  * to visible nodes (dropping dangling props from deleted nodes).
  *
- * @param {Object} v4State - The V4 materialized state (visible projection)
- * @param {Map<string, {value: boolean}>} v4State.nodeAlive - V4 node alive map
- * @param {Map<string, {value: boolean}>} v4State.edgeAlive - V4 edge alive map
- * @param {Map<string, import('../crdt/LWW.js').LWWRegister<unknown>>} v4State.prop - V4 property map
+ * @param {{ nodeAlive: Map<string, {value: boolean}>, edgeAlive: Map<string, {value: boolean}>, prop: Map<string, import('../crdt/LWW.js').LWWRegister<unknown>> }} v4State - The V4 materialized state (visible projection)
  * @param {string} migrationWriterId - Writer ID to use for synthetic dots
  * @returns {import('./JoinReducer.js').WarpStateV5} The migrated V5 state
  */

@@ -35,9 +35,8 @@ import { createEmptyStateV5 } from './JoinReducer.js';
  * }
  *
  * @param {import('./JoinReducer.js').WarpStateV5} state
- * @param {Object} [options]
- * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for serialization
- * @returns {Buffer|Uint8Array} CBOR-encoded full state
+ * @param {{ codec?: import('../../ports/CodecPort.js').default }} [options]
+ * @returns {Uint8Array} CBOR-encoded full state
  */
 export function serializeFullStateV5(state, { codec } = {}) {
   const c = codec || defaultCodec;
@@ -84,9 +83,8 @@ export function serializeFullStateV5(state, { codec } = {}) {
 /**
  * Deserializes full V5 state. Used for resume.
  *
- * @param {Buffer|Uint8Array} buffer - CBOR-encoded full state
- * @param {Object} [options]
- * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for deserialization
+ * @param {Uint8Array} buffer - CBOR-encoded full state
+ * @param {{ codec?: import('../../ports/CodecPort.js').default }} [options]
  * @returns {import('./JoinReducer.js').WarpStateV5}
  */
 // eslint-disable-next-line complexity
@@ -169,9 +167,8 @@ export function computeAppliedVV(state) {
  * Serializes appliedVV to CBOR format.
  *
  * @param {Map<string, number>} vv - Version vector (Map<writerId, counter>)
- * @param {Object} [options]
- * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for serialization
- * @returns {Buffer|Uint8Array} CBOR-encoded version vector
+ * @param {{ codec?: import('../../ports/CodecPort.js').default }} [options]
+ * @returns {Uint8Array} CBOR-encoded version vector
  */
 export function serializeAppliedVV(vv, { codec } = {}) {
   const c = codec || defaultCodec;
@@ -182,9 +179,8 @@ export function serializeAppliedVV(vv, { codec } = {}) {
 /**
  * Deserializes appliedVV from CBOR format.
  *
- * @param {Buffer|Uint8Array} buffer - CBOR-encoded version vector
- * @param {Object} [options]
- * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for deserialization
+ * @param {Uint8Array} buffer - CBOR-encoded version vector
+ * @param {{ codec?: import('../../ports/CodecPort.js').default }} [options]
  * @returns {Map<string, number>} Version vector
  */
 export function deserializeAppliedVV(buffer, { codec } = {}) {

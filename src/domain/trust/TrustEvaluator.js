@@ -21,14 +21,7 @@ import { deriveTrustVerdict } from './verdict.js';
  * @property {number} trustSchemaVersion
  * @property {string} mode
  * @property {string} trustVerdict
- * @property {Object} trust
- * @property {'configured'|'pinned'|'error'|'not_configured'} trust.status
- * @property {string} trust.source
- * @property {string|null} trust.sourceDetail
- * @property {string[]} trust.evaluatedWriters
- * @property {string[]} trust.untrustedWriters
- * @property {ReadonlyArray<{writerId: string, trusted: boolean, reasonCode: string, reason: string}>} trust.explanations
- * @property {Record<string, number> & {recordsScanned: number, activeKeys: number, revokedKeys: number, activeBindings: number, revokedBindings: number}} trust.evidenceSummary
+ * @property {{ status: 'configured'|'pinned'|'error'|'not_configured', source: string, sourceDetail: string|null, evaluatedWriters: string[], untrustedWriters: string[], explanations: ReadonlyArray<{writerId: string, trusted: boolean, reasonCode: string, reason: string}>, evidenceSummary: Record<string, number> & {recordsScanned: number, activeKeys: number, revokedKeys: number, activeBindings: number, revokedBindings: number} }} trust
  */
 
 /**

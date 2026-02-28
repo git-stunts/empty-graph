@@ -12,7 +12,7 @@ export { SHARD_VERSION };
  * Uses canonical JSON stringification for deterministic output
  * across different JavaScript engines.
  *
- * @param {Object} data - The data object to checksum
+ * @param {Record<string, unknown>} data - The data object to checksum
  * @param {import('../../ports/CryptoPort.js').default} crypto - CryptoPort instance
  * @returns {Promise<string>} Hex-encoded SHA-256 hash
  */
@@ -42,9 +42,9 @@ const ensureRoaringBitmap32 = () => {
 
 /**
  * Wraps data in a version/checksum envelope.
- * @param {Object} data - The data to wrap
+ * @param {Record<string, unknown>} data - The data to wrap
  * @param {import('../../ports/CryptoPort.js').default} crypto - CryptoPort instance
- * @returns {Promise<Object>} Envelope with version, checksum, and data
+ * @returns {Promise<{version: number, checksum: string, data: Record<string, unknown>}>} Envelope with version, checksum, and data
  */
 const wrapShard = async (data, crypto) => ({
   version: SHARD_VERSION,
@@ -95,9 +95,7 @@ export default class BitmapIndexBuilder {
    * - Forward edge bitmaps (parent → children)
    * - Reverse edge bitmaps (child → parents)
    *
-   * @param {Object} [options] - Configuration options
-   * @param {import('../../ports/CryptoPort.js').default} [options.crypto] - CryptoPort instance for hashing
-   * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for serialization
+   * @param {{ crypto?: import('../../ports/CryptoPort.js').default, codec?: import('../../ports/CodecPort.js').default }} [options] - Configuration options
    */
   constructor({ crypto, codec } = {}) {
     /** @type {import('../../ports/CryptoPort.js').default} */
@@ -149,8 +147,7 @@ export default class BitmapIndexBuilder {
    *
    * Each shard is wrapped in a version/checksum envelope for integrity verification.
    *
-   * @param {Object} [options] - Serialization options
-   * @param {Map<string, string>} [options.frontier] - Writer→tip SHA map to include in the tree
+   * @param {{ frontier?: Map<string, string> }} [options] - Serialization options
    * @returns {Promise<Record<string, Buffer>>} Map of path → serialized content
    */
   async serialize({ frontier } = {}) {
@@ -217,10 +214,7 @@ export default class BitmapIndexBuilder {
 
   /**
    * Adds an ID to a node's bitmap.
-   * @param {Object} opts - Options
-   * @param {string} opts.sha - The SHA to use as key
-   * @param {number} opts.id - The ID to add to the bitmap
-   * @param {string} opts.type - 'fwd' or 'rev'
+   * @param {{ sha: string, id: number, type: string }} opts - Options
    * @private
    */
   _addToBitmap({ sha, id, type }) {

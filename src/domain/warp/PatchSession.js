@@ -19,12 +19,7 @@ export class PatchSession {
   /**
    * Creates a new PatchSession.
    *
-   * @param {Object} options
-   * @param {import('../services/PatchBuilderV2.js').PatchBuilderV2} options.builder - Internal builder
-   * @param {import('../../ports/GraphPersistencePort.js').default & import('../../ports/RefPort.js').default} options.persistence - Git adapter
-   * @param {string} options.graphName - Graph namespace
-   * @param {string} options.writerId - Writer ID
-   * @param {string|null} options.expectedOldHead - Expected parent SHA for CAS
+   * @param {{ builder: import('../services/PatchBuilderV2.js').PatchBuilderV2, persistence: import('../../ports/GraphPersistencePort.js').default & import('../../ports/RefPort.js').default, graphName: string, writerId: string, expectedOldHead: string|null }} options
    */
   constructor({ builder, persistence, graphName, writerId, expectedOldHead }) {
     /** @type {import('../services/PatchBuilderV2.js').PatchBuilderV2} */
@@ -152,7 +147,7 @@ export class PatchSession {
    * Attaches content to a node.
    *
    * @param {string} nodeId - The node ID to attach content to
-   * @param {Buffer|string} content - The content to attach
+   * @param {Uint8Array|string} content - The content to attach
    * @returns {Promise<this>} This session for chaining
    * @throws {WriterError} SESSION_COMMITTED if already committed
    */
@@ -168,7 +163,7 @@ export class PatchSession {
    * @param {string} from - Source node ID
    * @param {string} to - Target node ID
    * @param {string} label - Edge label/type
-   * @param {Buffer|string} content - The content to attach
+   * @param {Uint8Array|string} content - The content to attach
    * @returns {Promise<this>} This session for chaining
    * @throws {WriterError} SESSION_COMMITTED if already committed
    */

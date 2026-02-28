@@ -177,6 +177,10 @@ export async function readCheckpointDate(persistence, checkpointSha) {
   return info.date || null;
 }
 
+/**
+ * Create a HookInstaller wired with real filesystem dependencies.
+ * @returns {import('../../src/domain/services/HookInstaller.js').HookInstaller}
+ */
 export function createHookInstaller() {
   const __filename = new URL(import.meta.url).pathname;
   const __dirname = path.dirname(__filename);
@@ -211,6 +215,10 @@ export function execGitConfigValue(repoPath, key) {
   }
 }
 
+/**
+ * Check whether stderr is a TTY (interactive terminal).
+ * @returns {boolean}
+ */
 export function isInteractive() {
   return Boolean(process.stderr.isTTY);
 }

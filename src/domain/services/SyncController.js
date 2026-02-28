@@ -98,11 +98,7 @@ function normalizeSyncPath(path) {
 /**
  * Builds auth headers for an outgoing sync request if auth is configured.
  *
- * @param {Object} params
- * @param {{ secret: string, keyId?: string }|undefined} params.auth
- * @param {string} params.bodyStr - Serialized request body
- * @param {URL} params.targetUrl
- * @param {import('../../ports/CryptoPort.js').default} params.crypto
+ * @param {{ auth: ({ secret: string, keyId?: string }|undefined), bodyStr: string, targetUrl: URL, crypto: import('../../ports/CryptoPort.js').default }} params
  * @returns {Promise<Record<string, string>>}
  */
 async function buildSyncAuthHeaders({ auth, bodyStr, targetUrl, crypto }) {
@@ -131,8 +127,7 @@ async function buildSyncAuthHeaders({ auth, bodyStr, targetUrl, crypto }) {
 export default class SyncController {
   /**
    * @param {SyncHost} host - The WarpGraph instance (or any object satisfying SyncHost)
-   * @param {Object} [options]
-   * @param {SyncTrustGate} [options.trustGate] - Trust gate for evaluating patch authors
+   * @param {{ trustGate?: SyncTrustGate }} [options]
    */
   constructor(host, options = {}) {
     /** @type {SyncHost} */
@@ -367,16 +362,7 @@ export default class SyncController {
    * Syncs with a remote peer (HTTP or direct graph instance).
    *
    * @param {string|import('../WarpGraph.js').default} remote - URL or peer graph instance
-   * @param {Object} [options]
-   * @param {string} [options.path='/sync'] - Sync path (HTTP mode)
-   * @param {number} [options.retries=3] - Retry count
-   * @param {number} [options.baseDelayMs=250] - Base backoff delay
-   * @param {number} [options.maxDelayMs=2000] - Max backoff delay
-   * @param {number} [options.timeoutMs=10000] - Request timeout
-   * @param {AbortSignal} [options.signal] - Abort signal
-   * @param {(event: {type: string, attempt: number, durationMs?: number, status?: number, error?: Error}) => void} [options.onStatus]
-   * @param {boolean} [options.materialize=false] - Auto-materialize after sync
-   * @param {{ secret: string, keyId?: string }} [options.auth] - Client auth credentials
+   * @param {{ path?: string, retries?: number, baseDelayMs?: number, maxDelayMs?: number, timeoutMs?: number, signal?: AbortSignal, onStatus?: (event: {type: string, attempt: number, durationMs?: number, status?: number, error?: Error}) => void, materialize?: boolean, auth?: { secret: string, keyId?: string } }} [options]
    * @returns {Promise<{applied: number, attempts: number, skippedWriters: Array<{writerId: string, reason: string, localSha: string, remoteSha: string|null}>, state?: import('./JoinReducer.js').WarpStateV5}>}
    */
   async syncWith(remote, options = {}) {
@@ -583,13 +569,7 @@ export default class SyncController {
   /**
    * Starts a built-in sync server for this graph.
    *
-   * @param {Object} options
-   * @param {number} options.port - Port to listen on
-   * @param {string} [options.host='127.0.0.1'] - Host to bind
-   * @param {string} [options.path='/sync'] - Path to handle sync requests
-   * @param {number} [options.maxRequestBytes=4194304] - Max request size in bytes
-   * @param {import('../../ports/HttpServerPort.js').default} options.httpPort - HTTP server adapter
-   * @param {{ keys: Record<string, string>, mode?: 'enforce'|'log-only' }} [options.auth] - Auth configuration
+   * @param {{ port: number, host?: string, path?: string, maxRequestBytes?: number, httpPort: import('../../ports/HttpServerPort.js').default, auth?: { keys: Record<string, string>, mode?: 'enforce'|'log-only' } }} options
    * @returns {Promise<{close: () => Promise<void>, url: string}>} Server handle
    * @throws {Error} If port is not a number
    * @throws {Error} If httpPort adapter is not provided
@@ -608,7 +588,7 @@ export default class SyncController {
 
     const httpServer = new HttpSyncServer({
       httpPort,
-      graph: /** @type {{ processSyncRequest: Function }} */ (/** @type {unknown} */ (this._host)),
+      graph: /** @type {{ processSyncRequest: (req: import('./SyncProtocol.js').SyncRequest) => Promise<unknown> }} */ (/** @type {unknown} */ (this._host)),
       path,
       host,
       maxRequestBytes,

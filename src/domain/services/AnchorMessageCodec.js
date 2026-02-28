@@ -23,9 +23,7 @@ import {
 /**
  * Encodes an anchor commit message.
  *
- * @param {Object} options - The anchor message options
- * @param {string} options.graph - The graph name
- * @param {number} [options.schema=2] - The schema version (defaults to 2 for new messages)
+ * @param {{ graph: string, schema?: number }} options - The anchor message options
  * @returns {string} The encoded commit message
  * @throws {Error} If any validation fails
  *

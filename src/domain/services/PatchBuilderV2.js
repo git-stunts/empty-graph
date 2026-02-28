@@ -99,19 +99,7 @@ export class PatchBuilderV2 {
   /**
    * Creates a new PatchBuilderV2.
    *
-   * @param {Object} options
-   * @param {import('../../ports/GraphPersistencePort.js').default} options.persistence - Git adapter
-   *   (uses CommitPort + RefPort + BlobPort + TreePort methods)
-   * @param {string} options.graphName - Graph namespace
-   * @param {string} options.writerId - This writer's ID
-   * @param {number} options.lamport - Lamport timestamp for this patch
-   * @param {import('../crdt/VersionVector.js').VersionVector} options.versionVector - Current version vector
-   * @param {Function} options.getCurrentState - Function that returns the current materialized state
-   * @param {string|null} [options.expectedParentSha] - Expected parent SHA for race detection
-   * @param {Function|null} [options.onCommitSuccess] - Callback invoked after successful commit
-   * @param {'reject'|'cascade'|'warn'} [options.onDeleteWithData='warn'] - Policy when deleting a node with attached data
-   * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for serialization
-   * @param {import('../../ports/LoggerPort.js').default} [options.logger] - Logger for non-fatal warnings
+   * @param {{ persistence: import('../../ports/GraphPersistencePort.js').default, graphName: string, writerId: string, lamport: number, versionVector: import('../crdt/VersionVector.js').VersionVector, getCurrentState: () => import('../services/JoinReducer.js').WarpStateV5 | null, expectedParentSha?: string|null, onCommitSuccess?: ((result: {patch: import('../types/WarpTypesV2.js').PatchV2, sha: string}) => void | Promise<void>)|null, onDeleteWithData?: 'reject'|'cascade'|'warn', codec?: import('../../ports/CodecPort.js').default, logger?: import('../../ports/LoggerPort.js').default }} options
    */
   constructor({ persistence, graphName, writerId, lamport, versionVector, getCurrentState, expectedParentSha = null, onCommitSuccess = null, onDeleteWithData = 'warn', codec, logger }) {
     /** @type {import('../../ports/GraphPersistencePort.js').default & import('../../ports/RefPort.js').default & import('../../ports/CommitPort.js').default & import('../../ports/BlobPort.js').default & import('../../ports/TreePort.js').default} */
@@ -129,8 +117,8 @@ export class PatchBuilderV2 {
     /** @type {import('../crdt/VersionVector.js').VersionVector} */
     this._vv = vvClone(versionVector); // Clone to track local increments
 
-    /** @type {Function} */
-    this._getCurrentState = getCurrentState; // Function to get current materialized state
+    /** @type {() => import('../services/JoinReducer.js').WarpStateV5 | null} */
+    this._getCurrentState = getCurrentState;
 
     /**
      * Snapshot of state captured at construction time (C4).
@@ -540,7 +528,7 @@ export class PatchBuilderV2 {
    * only sets the `_content` property — it does not create the node.
    *
    * @param {string} nodeId - The node ID to attach content to
-   * @param {Buffer|string} content - The content to attach
+   * @param {Uint8Array|string} content - The content to attach
    * @returns {Promise<PatchBuilderV2>} This builder instance for method chaining
    */
   async attachContent(nodeId, content) {
@@ -561,7 +549,7 @@ export class PatchBuilderV2 {
    * @param {string} from - Source node ID
    * @param {string} to - Target node ID
    * @param {string} label - Edge label
-   * @param {Buffer|string} content - The content to attach
+   * @param {Uint8Array|string} content - The content to attach
    * @returns {Promise<PatchBuilderV2>} This builder instance for method chaining
    */
   async attachEdgeContent(from, to, label, content) {
@@ -732,7 +720,7 @@ export class PatchBuilderV2 {
 
       // 6. Encode patch as CBOR and write as a Git blob
       const patchCbor = this._codec.encode(patch);
-      const patchBlobOid = await this._persistence.writeBlob(/** @type {Buffer} */ (patchCbor));
+      const patchBlobOid = await this._persistence.writeBlob(patchCbor);
 
       // 7. Create tree with the patch blob + any content blobs (deduplicated)
       // Format for mktree: "mode type oid\tpath"

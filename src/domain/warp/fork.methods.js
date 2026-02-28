@@ -31,11 +31,7 @@ import { createWormhole as createWormholeImpl } from '../services/WormholeServic
  * - History up to the fork point is shared (content-addressed dedup)
  *
  * @this {import('../WarpGraph.js').default}
- * @param {Object} options - Fork configuration
- * @param {string} options.from - Writer ID whose chain to fork from
- * @param {string} options.at - Patch SHA to fork at (must be in the writer's chain)
- * @param {string} [options.forkName] - Name for the forked graph. Defaults to `<graphName>-fork-<timestamp>`
- * @param {string} [options.forkWriterId] - Writer ID for the fork. Defaults to a new canonical ID.
+ * @param {{ from: string, at: string, forkName?: string, forkWriterId?: string }} options - Fork configuration
  * @returns {Promise<import('../WarpGraph.js').default>} A new WarpGraph instance for the fork
  * @throws {ForkError} If `from` writer does not exist (code: `E_FORK_WRITER_NOT_FOUND`)
  * @throws {ForkError} If `at` SHA does not exist (code: `E_FORK_PATCH_NOT_FOUND`)

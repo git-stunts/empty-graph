@@ -50,21 +50,7 @@ const DEFAULT_ADJACENCY_CACHE_SIZE = 3;
 export default class WarpGraph {
   /**
    * @private
-   * @param {Object} options
-   * @param {import('../ports/GraphPersistencePort.js').default} options.persistence - Git adapter
-   * @param {string} options.graphName - Graph namespace
-   * @param {string} options.writerId - This writer's ID
-   * @param {Object} [options.gcPolicy] - GC policy configuration (overrides defaults)
-   * @param {number} [options.adjacencyCacheSize] - Max materialized adjacency cache entries
-   * @param {{every: number}} [options.checkpointPolicy] - Auto-checkpoint policy; creates a checkpoint every N patches
-   * @param {boolean} [options.autoMaterialize=true] - If true, query methods auto-materialize instead of throwing
-   * @param {'reject'|'cascade'|'warn'} [options.onDeleteWithData='warn'] - Policy when deleting a node that still has edges or properties
-   * @param {import('../ports/LoggerPort.js').default} [options.logger] - Logger for structured logging
-   * @param {import('../ports/ClockPort.js').default} [options.clock] - Clock for timing instrumentation (defaults to performance-based clock)
-   * @param {import('../ports/CryptoPort.js').default} [options.crypto] - Crypto adapter for hashing
-   * @param {import('../ports/CodecPort.js').default} [options.codec] - Codec for CBOR serialization (defaults to domain-local codec)
-   * @param {import('../ports/SeekCachePort.js').default} [options.seekCache] - Persistent cache for seek materialization (optional)
-   * @param {boolean} [options.audit=false] - If true, creates audit receipts for each data commit
+   * @param {{ persistence: import('../ports/GraphPersistencePort.js').default, graphName: string, writerId: string, gcPolicy?: Record<string, unknown>, adjacencyCacheSize?: number, checkpointPolicy?: {every: number}, autoMaterialize?: boolean, onDeleteWithData?: 'reject'|'cascade'|'warn', logger?: import('../ports/LoggerPort.js').default, clock?: import('../ports/ClockPort.js').default, crypto?: import('../ports/CryptoPort.js').default, codec?: import('../ports/CodecPort.js').default, seekCache?: import('../ports/SeekCachePort.js').default, audit?: boolean }} options
    */
   constructor({ persistence, graphName, writerId, gcPolicy = {}, adjacencyCacheSize = DEFAULT_ADJACENCY_CACHE_SIZE, checkpointPolicy, autoMaterialize = true, onDeleteWithData = 'warn', logger, clock, crypto, codec, seekCache, audit = false }) {
     /** @type {FullPersistence} */
@@ -85,7 +71,7 @@ export default class WarpGraph {
     /** @type {boolean} */
     this._stateDirty = false;
 
-    /** @type {Object} */
+    /** @type {import('./services/GCPolicy.js').GCPolicy} */
     this._gcPolicy = { ...DEFAULT_GC_POLICY, ...gcPolicy };
 
     /** @type {number} */
@@ -224,9 +210,7 @@ export default class WarpGraph {
    * Logs a timing message for a completed or failed operation.
    * @param {string} op - Operation name (e.g. 'materialize')
    * @param {number} t0 - Start timestamp from this._clock.now()
-   * @param {Object} [opts] - Options
-   * @param {string} [opts.metrics] - Extra metrics string to append in parentheses
-   * @param {Error} [opts.error] - If set, logs a failure message instead
+   * @param {{ metrics?: string, error?: Error }} [opts] - Options
    */
   _logTiming(op, t0, { metrics, error } = {}) {
     if (!this._logger) {
@@ -259,21 +243,7 @@ export default class WarpGraph {
   /**
    * Opens a multi-writer graph.
    *
-   * @param {Object} options
-   * @param {import('../ports/GraphPersistencePort.js').default} options.persistence - Git adapter
-   * @param {string} options.graphName - Graph namespace
-   * @param {string} options.writerId - This writer's ID
-   * @param {Object} [options.gcPolicy] - GC policy configuration (overrides defaults)
-   * @param {number} [options.adjacencyCacheSize] - Max materialized adjacency cache entries
-   * @param {{every: number}} [options.checkpointPolicy] - Auto-checkpoint policy; creates a checkpoint every N patches
-   * @param {boolean} [options.autoMaterialize] - If true, query methods auto-materialize instead of throwing
-   * @param {'reject'|'cascade'|'warn'} [options.onDeleteWithData] - Policy when deleting a node that still has edges or properties (default: 'warn')
-   * @param {import('../ports/LoggerPort.js').default} [options.logger] - Logger for structured logging
-   * @param {import('../ports/ClockPort.js').default} [options.clock] - Clock for timing instrumentation (defaults to performance-based clock)
-   * @param {import('../ports/CryptoPort.js').default} [options.crypto] - Crypto adapter for hashing
-   * @param {import('../ports/CodecPort.js').default} [options.codec] - Codec for CBOR serialization (defaults to domain-local codec)
-   * @param {import('../ports/SeekCachePort.js').default} [options.seekCache] - Persistent cache for seek materialization (optional)
-   * @param {boolean} [options.audit=false] - If true, creates audit receipts for each data commit
+   * @param {{ persistence: import('../ports/GraphPersistencePort.js').default, graphName: string, writerId: string, gcPolicy?: Record<string, unknown>, adjacencyCacheSize?: number, checkpointPolicy?: {every: number}, autoMaterialize?: boolean, onDeleteWithData?: 'reject'|'cascade'|'warn', logger?: import('../ports/LoggerPort.js').default, clock?: import('../ports/ClockPort.js').default, crypto?: import('../ports/CryptoPort.js').default, codec?: import('../ports/CodecPort.js').default, seekCache?: import('../ports/SeekCachePort.js').default, audit?: boolean }} options
    * @returns {Promise<WarpGraph>} The opened graph instance
    * @throws {Error} If graphName, writerId, checkpointPolicy, or onDeleteWithData is invalid
    *
@@ -377,7 +347,7 @@ export default class WarpGraph {
   /**
    * Gets the current GC policy.
    *
-   * @returns {Object} The GC policy configuration
+   * @returns {import('./services/GCPolicy.js').GCPolicy} The GC policy configuration
    */
   get gcPolicy() {
     return { ...this._gcPolicy };

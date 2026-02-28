@@ -62,3 +62,10 @@ interface BunServeOptions {
 declare namespace Bun {
   function serve(options: BunServeOptions): BunServer;
 }
+
+/* ------------------------------------------------------------------ */
+/*  globalThis augmentation                                           */
+/* ------------------------------------------------------------------ */
+
+declare var Bun: typeof Bun | undefined;
+declare var Deno: typeof Deno | undefined;

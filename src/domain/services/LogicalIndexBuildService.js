@@ -17,9 +17,7 @@ import { nodeVisibleV5, edgeVisibleV5 } from './StateSerializerV5.js';
 
 export default class LogicalIndexBuildService {
   /**
-   * @param {Object} [options]
-   * @param {import('../../ports/CodecPort.js').default} [options.codec]
-   * @param {import('../../ports/LoggerPort.js').default} [options.logger]
+   * @param {{ codec?: import('../../ports/CodecPort.js').default, logger?: import('../../ports/LoggerPort.js').default }} [options]
    */
   constructor({ codec, logger } = {}) {
     this._codec = codec || defaultCodec;
@@ -30,9 +28,7 @@ export default class LogicalIndexBuildService {
    * Builds a complete logical index from materialized state.
    *
    * @param {import('./JoinReducer.js').WarpStateV5} state
-   * @param {Object} [options]
-   * @param {Record<string, { nodeToGlobal: Record<string, number>, nextLocalId: number }>} [options.existingMeta] - Prior meta shards for ID stability
-   * @param {Record<string, number>|Array<[string, number]>} [options.existingLabels] - Prior label registry for append-only stability
+   * @param {{ existingMeta?: Record<string, { nodeToGlobal: Record<string, number>, nextLocalId: number }>, existingLabels?: Record<string, number>|Array<[string, number]> }} [options]
    * @returns {{ tree: Record<string, Uint8Array>, receipt: Record<string, unknown> }}
    */
   build(state, options = {}) {

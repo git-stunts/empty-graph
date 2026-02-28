@@ -311,10 +311,7 @@ export function query() {
  *
  * @this {import('../WarpGraph.js').default}
  * @param {string} name - Observer name
- * @param {Object} config - Observer configuration
- * @param {string|string[]} config.match - Glob pattern(s) for visible nodes
- * @param {string[]} [config.expose] - Property keys to include
- * @param {string[]} [config.redact] - Property keys to exclude
+ * @param {{ match: string|string[], expose?: string[], redact?: string[] }} config - Observer configuration
  * @returns {Promise<import('../services/ObserverView.js').default>} A read-only observer view
  */
 export async function observer(name, config) {
@@ -331,14 +328,8 @@ export async function observer(name, config) {
  * Computes the directed MDL translation cost from observer A to observer B.
  *
  * @this {import('../WarpGraph.js').default}
- * @param {Object} configA - Observer configuration for A
- * @param {string|string[]} configA.match - Glob pattern(s) for visible nodes
- * @param {string[]} [configA.expose] - Property keys to include
- * @param {string[]} [configA.redact] - Property keys to exclude
- * @param {Object} configB - Observer configuration for B
- * @param {string|string[]} configB.match - Glob pattern(s) for visible nodes
- * @param {string[]} [configB.expose] - Property keys to include
- * @param {string[]} [configB.redact] - Property keys to exclude
+ * @param {{ match: string|string[], expose?: string[], redact?: string[] }} configA - Observer configuration for A
+ * @param {{ match: string|string[], expose?: string[], redact?: string[] }} configB - Observer configuration for B
  * @returns {Promise<{cost: number, breakdown: {nodeLoss: number, edgeLoss: number, propLoss: number}}>}
  */
 export async function translationCost(configA, configB) {
@@ -368,12 +359,12 @@ export async function getContentOid(nodeId) {
 /**
  * Gets the content blob for a node, or null if none is attached.
  *
- * Returns the raw Buffer from `readBlob()`. Consumers wanting text
- * should call `.toString('utf8')` on the result.
+ * Returns the raw bytes from `readBlob()`. Consumers wanting text
+ * should decode the result with `new TextDecoder().decode(buf)`.
  *
  * @this {import('../WarpGraph.js').default}
  * @param {string} nodeId - The node ID to get content for
- * @returns {Promise<Buffer|null>} Content buffer or null
+ * @returns {Promise<Uint8Array|null>} Content bytes or null
  * @throws {Error} If the referenced blob OID is not in the object store
  *   (e.g., garbage-collected despite anchoring). Callers should handle this
  *   if operating on repos with aggressive GC or partial clones.
@@ -409,14 +400,14 @@ export async function getEdgeContentOid(from, to, label) {
 /**
  * Gets the content blob for an edge, or null if none is attached.
  *
- * Returns the raw Buffer from `readBlob()`. Consumers wanting text
- * should call `.toString('utf8')` on the result.
+ * Returns the raw bytes from `readBlob()`. Consumers wanting text
+ * should decode the result with `new TextDecoder().decode(buf)`.
  *
  * @this {import('../WarpGraph.js').default}
  * @param {string} from - Source node ID
  * @param {string} to - Target node ID
  * @param {string} label - Edge label
- * @returns {Promise<Buffer|null>} Content buffer or null
+ * @returns {Promise<Uint8Array|null>} Content bytes or null
  * @throws {Error} If the referenced blob OID is not in the object store
  *   (e.g., garbage-collected despite anchoring). Callers should handle this
  *   if operating on repos with aggressive GC or partial clones.

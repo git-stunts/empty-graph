@@ -133,5 +133,78 @@ describe('GitGraphAdapter', () => {
         args: ['for-each-ref', '--format=%(refname)', 'refs/heads/'],
       });
     });
+
+    it('without limit returns all refs (existing behavior)', async () => {
+      mockPlumbing.execute.mockResolvedValue(
+        'refs/warp/g/writers/a\nrefs/warp/g/writers/b\nrefs/warp/g/writers/c\n'
+      );
+
+      const refs = await adapter.listRefs('refs/warp/g/writers/');
+
+      expect(refs).toEqual([
+        'refs/warp/g/writers/a',
+        'refs/warp/g/writers/b',
+        'refs/warp/g/writers/c',
+      ]);
+      expect(mockPlumbing.execute).toHaveBeenCalledWith({
+        args: ['for-each-ref', '--format=%(refname)', 'refs/warp/g/writers/'],
+      });
+    });
+
+    it('with limit passes --count=N to git for-each-ref', async () => {
+      mockPlumbing.execute.mockResolvedValue(
+        'refs/warp/g/writers/a\nrefs/warp/g/writers/b\n'
+      );
+
+      const refs = await adapter.listRefs('refs/warp/g/writers/', { limit: 2 });
+
+      expect(refs).toEqual([
+        'refs/warp/g/writers/a',
+        'refs/warp/g/writers/b',
+      ]);
+      expect(mockPlumbing.execute).toHaveBeenCalledWith({
+        args: ['for-each-ref', '--format=%(refname)', '--count=2', 'refs/warp/g/writers/'],
+      });
+    });
+
+    it('with limit=0 returns all refs (no --count flag)', async () => {
+      mockPlumbing.execute.mockResolvedValue(
+        'refs/warp/g/writers/a\nrefs/warp/g/writers/b\n'
+      );
+
+      const refs = await adapter.listRefs('refs/warp/g/writers/', { limit: 0 });
+
+      expect(refs).toEqual([
+        'refs/warp/g/writers/a',
+        'refs/warp/g/writers/b',
+      ]);
+      expect(mockPlumbing.execute).toHaveBeenCalledWith({
+        args: ['for-each-ref', '--format=%(refname)', 'refs/warp/g/writers/'],
+      });
+    });
+
+    it('with no limit option returns all refs (no --count flag)', async () => {
+      mockPlumbing.execute.mockResolvedValue(
+        'refs/warp/g/writers/x\n'
+      );
+
+      const refs = await adapter.listRefs('refs/warp/g/writers/', {});
+
+      expect(refs).toEqual(['refs/warp/g/writers/x']);
+      expect(mockPlumbing.execute).toHaveBeenCalledWith({
+        args: ['for-each-ref', '--format=%(refname)', 'refs/warp/g/writers/'],
+      });
+    });
+
+    it('with limit=1 returns at most 1 ref', async () => {
+      mockPlumbing.execute.mockResolvedValue('refs/warp/g/writers/a\n');
+
+      const refs = await adapter.listRefs('refs/warp/g/writers/', { limit: 1 });
+
+      expect(refs).toEqual(['refs/warp/g/writers/a']);
+      expect(mockPlumbing.execute).toHaveBeenCalledWith({
+        args: ['for-each-ref', '--format=%(refname)', '--count=1', 'refs/warp/g/writers/'],
+      });
+    });
   });
 });

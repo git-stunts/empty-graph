@@ -30,10 +30,7 @@ const PASS = () => ({ allowed: true, untrustedWriters: [], verdict: 'pass' });
 
 export default class SyncTrustGate {
   /**
-   * @param {Object} options
-   * @param {{evaluateWriters: (writerIds: string[]) => Promise<{trusted: Set<string>}>}} [options.trustEvaluator] - Trust evaluator instance
-   * @param {TrustMode} [options.trustMode='off'] - Trust enforcement mode
-   * @param {import('../../ports/LoggerPort.js').default} [options.logger] - Logger
+   * @param {{ trustEvaluator?: {evaluateWriters: (writerIds: string[]) => Promise<{trusted: Set<string>}>}, trustMode?: TrustMode, logger?: import('../../ports/LoggerPort.js').default }} [options]
    */
   constructor({ trustEvaluator, trustMode = 'off', logger } = {}) {
     this._evaluator = trustEvaluator || null;
@@ -45,9 +42,7 @@ export default class SyncTrustGate {
    * Evaluates whether the given patch writers are trusted.
    *
    * @param {string[]} writerIds - Writer IDs from patches being applied
-   * @param {Object} [context] - Additional context for logging
-   * @param {string} [context.graphName] - Graph name
-   * @param {string} [context.peerId] - Remote peer identity (if authenticated)
+   * @param {{ graphName?: string, peerId?: string }} [context] - Additional context for logging
    * @returns {Promise<TrustGateResult>}
    */
   async evaluate(writerIds, context = {}) {
@@ -71,7 +66,7 @@ export default class SyncTrustGate {
    * Decides the gate result based on untrusted writers and mode.
    * @param {string[]} untrusted
    * @param {string[]} writerIds
-   * @param {Object} context
+   * @param {Record<string, unknown>} context
    * @returns {TrustGateResult}
    * @private
    */
@@ -110,7 +105,7 @@ export default class SyncTrustGate {
    * Handles trust evaluation errors with fail-open/fail-closed semantics.
    * @param {unknown} err
    * @param {string[]} writerIds
-   * @param {Object} context
+   * @param {Record<string, unknown>} context
    * @returns {TrustGateResult}
    * @private
    */

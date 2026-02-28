@@ -9,9 +9,9 @@ class MinHeap {
   /**
    * Creates an empty MinHeap.
    *
-   * @param {Object} [options] - Configuration options
-   * @param {((a: T, b: T) => number)} [options.tieBreaker] - Comparator invoked when two
-   *   entries have equal priority. Negative return = a wins (comes out first).
+   * @param {{ tieBreaker?: (a: T, b: T) => number }} [options] - Configuration options.
+   *   `tieBreaker`: comparator invoked when two entries have equal priority.
+   *   Negative return = a wins (comes out first).
    *   When omitted, equal-priority extraction order is unspecified (heap-natural).
    */
   constructor(options) {

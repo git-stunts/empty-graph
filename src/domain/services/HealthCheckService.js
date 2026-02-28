@@ -45,11 +45,7 @@ export const HealthStatus = {
 export default class HealthCheckService {
   /**
    * Creates a HealthCheckService instance.
-   * @param {Object} options
-   * @param {import('../../ports/GraphPersistencePort.js').default & import('../../ports/CommitPort.js').default} options.persistence - Persistence port for repository checks
-   * @param {import('../../ports/ClockPort.js').default} options.clock - Clock port for timing operations
-   * @param {number} [options.cacheTtlMs=5000] - How long to cache health results in milliseconds
-   * @param {import('../../ports/LoggerPort.js').default} [options.logger] - Logger for structured logging
+   * @param {{ persistence: import('../../ports/GraphPersistencePort.js').default & import('../../ports/CommitPort.js').default, clock: import('../../ports/ClockPort.js').default, cacheTtlMs?: number, logger?: import('../../ports/LoggerPort.js').default }} options
    */
   constructor({ persistence, clock, cacheTtlMs = DEFAULT_CACHE_TTL_MS, logger = nullLogger }) {
     this._persistence = persistence;
@@ -116,9 +112,7 @@ export default class HealthCheckService {
    *
    * @typedef {Object} HealthResult
    * @property {'healthy'|'degraded'|'unhealthy'} status - Overall health status
-   * @property {Object} components - Component health breakdown
-   * @property {RepositoryHealth} components.repository - Repository health
-   * @property {IndexHealth} components.index - Index health
+   * @property {{ repository: RepositoryHealth, index: IndexHealth }} components - Component health breakdown
    * @property {string} [cachedAt] - ISO timestamp if result is cached
    *
    * @typedef {Object} RepositoryHealth
@@ -154,7 +148,7 @@ export default class HealthCheckService {
   /**
    * Computes health by checking all components.
    * This is called by CachedValue when the cache is stale.
-   * @returns {Promise<Object>}
+   * @returns {Promise<{status: 'healthy'|'degraded'|'unhealthy', components: {repository: RepositoryHealth, index: IndexHealth}}>}
    * @private
    */
   async _computeHealth() {

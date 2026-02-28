@@ -22,10 +22,7 @@ import { matchGlob } from '../utils/matchGlob.js';
  * One handler's error does not prevent other handlers from being called.
  *
  * @this {import('../WarpGraph.js').default}
- * @param {Object} options - Subscription options
- * @param {(diff: import('../services/StateDiff.js').StateDiffResult) => void} options.onChange - Called with diff when graph changes
- * @param {(error: Error) => void} [options.onError] - Called if onChange throws an error
- * @param {boolean} [options.replay=false] - If true, immediately fires onChange with initial state diff
+ * @param {{ onChange: (diff: import('../services/StateDiff.js').StateDiffResult) => void, onError?: (error: unknown) => void, replay?: boolean }} options - Subscription options
  * @returns {{unsubscribe: () => void}} Subscription handle
  * @throws {Error} If onChange is not a function
  *
@@ -103,10 +100,7 @@ export function subscribe({ onChange, onError, replay = false }) {
  *
  * @this {import('../WarpGraph.js').default}
  * @param {string|string[]} pattern - Glob pattern(s) (e.g., 'user:*', 'order:123', '*')
- * @param {Object} options - Watch options
- * @param {(diff: import('../services/StateDiff.js').StateDiffResult) => void} options.onChange - Called with filtered diff when matching changes occur
- * @param {(error: Error) => void} [options.onError] - Called if onChange throws an error
- * @param {number} [options.poll] - Poll interval in ms (min 1000); checks frontier and auto-materializes
+ * @param {{ onChange: (diff: import('../services/StateDiff.js').StateDiffResult) => void, onError?: (error: unknown) => void, poll?: number }} options - Watch options
  * @returns {{unsubscribe: () => void}} Subscription handle
  * @throws {Error} If pattern is not a string or array of strings
  * @throws {Error} If onChange is not a function

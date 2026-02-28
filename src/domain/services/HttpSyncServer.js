@@ -92,7 +92,7 @@ function canonicalStringify(value) {
  *
  * @param {number} status - HTTP status code
  * @param {string} message - Error message
- * @returns {{ status: number, headers: Object, body: string }}
+ * @returns {{ status: number, headers: Record<string, string>, body: string }}
  * @private
  */
 function errorResponse(status, message) {
@@ -107,7 +107,7 @@ function errorResponse(status, message) {
  * Builds a JSON success response with canonical key ordering.
  *
  * @param {unknown} data - Response payload
- * @returns {{ status: number, headers: Object, body: string }}
+ * @returns {{ status: number, headers: Record<string, string>, body: string }}
  * @private
  */
 function jsonResponse(data) {
@@ -125,7 +125,7 @@ function jsonResponse(data) {
  * content type is present but not application/json, otherwise null.
  *
  * @param {{ [x: string]: string }} headers - Request headers
- * @returns {{ status: number, headers: Object, body: string }|null}
+ * @returns {{ status: number, headers: Record<string, string>, body: string }|null}
  * @private
  */
 function checkContentType(headers) {
@@ -143,7 +143,7 @@ function checkContentType(headers) {
  * @param {{ method: string, url: string, headers: { [x: string]: string } }} request
  * @param {string} expectedPath
  * @param {string} defaultHost
- * @returns {{ status: number, headers: Object, body: string }|null}
+ * @returns {{ status: number, headers: Record<string, string>, body: string }|null}
  * @private
  */
 function validateRoute(request, expectedPath, defaultHost) {
@@ -168,9 +168,9 @@ function validateRoute(request, expectedPath, defaultHost) {
 /**
  * Checks if the request body exceeds the maximum allowed size.
  *
- * @param {Buffer|undefined} body
+ * @param {Buffer | Uint8Array | undefined} body
  * @param {number} maxBytes
- * @returns {{ status: number, headers: Object, body: string }|null} Error response or null if within limits
+ * @returns {{ status: number, headers: Record<string, string>, body: string }|null} Error response or null if within limits
  * @private
  */
 function checkBodySize(body, maxBytes) {
@@ -184,12 +184,12 @@ function checkBodySize(body, maxBytes) {
  * Parses and validates the request body as a sync request.
  * Uses Zod-based SyncPayloadSchema for shape + resource limit validation.
  *
- * @param {Buffer|undefined} body
- * @returns {{ error: { status: number, headers: Object, body: string }, parsed: null } | { error: null, parsed: import('./SyncProtocol.js').SyncRequest }}
+ * @param {Buffer | Uint8Array | undefined} body
+ * @returns {{ error: { status: number, headers: Record<string, string>, body: string }, parsed: null } | { error: null, parsed: import('./SyncProtocol.js').SyncRequest }}
  * @private
  */
 function parseBody(body) {
-  const bodyStr = body ? body.toString('utf-8') : '';
+  const bodyStr = body ? new TextDecoder().decode(body) : '';
 
   let parsed;
   try {
@@ -223,14 +223,7 @@ function initAuth(auth, allowedWriters) {
 
 export default class HttpSyncServer {
   /**
-   * @param {Object} options
-   * @param {import('../../ports/HttpServerPort.js').default} options.httpPort - HTTP server port abstraction
-   * @param {{ processSyncRequest: Function }} options.graph - WarpGraph instance (must expose processSyncRequest)
-   * @param {string} [options.path='/sync'] - URL path to handle sync requests on
-   * @param {string} [options.host='127.0.0.1'] - Host to bind
-   * @param {number} [options.maxRequestBytes=4194304] - Maximum request body size in bytes
-   * @param {{ keys: Record<string, string>, mode?: 'enforce'|'log-only', crypto?: import('../../ports/CryptoPort.js').default, logger?: import('../../ports/LoggerPort.js').default, wallClockMs?: () => number }} [options.auth] - Auth configuration
-   * @param {string[]} [options.allowedWriters] - Optional whitelist of allowed writer IDs
+   * @param {{ httpPort: import('../../ports/HttpServerPort.js').default, graph: { processSyncRequest: (req: import('./SyncProtocol.js').SyncRequest) => Promise<unknown> }, path?: string, host?: string, maxRequestBytes?: number, auth?: { keys: Record<string, string>, mode?: 'enforce'|'log-only', crypto?: import('../../ports/CryptoPort.js').default, logger?: import('../../ports/LoggerPort.js').default, wallClockMs?: () => number }, allowedWriters?: string[] }} options
    */
   constructor(options) {
     /** @type {z.infer<typeof optionsSchema>} */
@@ -263,9 +256,9 @@ export default class HttpSyncServer {
    * In log-only mode both checks record metrics/logs but always return
    * null so the request proceeds.
    *
-   * @param {{ method: string, url: string, headers: { [x: string]: string }, body: Buffer|undefined }} request
+   * @param {{ method: string, url: string, headers: Record<string, string>, body: Buffer | Uint8Array | undefined }} request
    * @param {Record<string, unknown>} parsed - Parsed sync request body
-   * @returns {Promise<{ status: number, headers: Object, body: string }|null>}
+   * @returns {Promise<{ status: number, headers: Record<string, string>, body: string }|null>}
    * @private
    */
   async _authorize(request, parsed) {
@@ -299,9 +292,15 @@ export default class HttpSyncServer {
     return null;
   }
 
-  /** @param {{ method: string, url: string, headers: Object, body: Buffer|undefined }} request */
+  /**
+   * Handles an incoming HTTP request through the sync pipeline.
+   *
+   * @param {import('../../ports/HttpServerPort.js').HttpRequest} request
+   * @returns {Promise<import('../../ports/HttpServerPort.js').HttpResponse>}
+   * @private
+   */
   async _handleRequest(request) {
-    /** @type {{ method: string, url: string, headers: Record<string, string>, body: Buffer|undefined }} */
+    /** @type {{ method: string, url: string, headers: Record<string, string>, body: Buffer | Uint8Array | undefined }} */
     const req = { ...request, headers: /** @type {Record<string, string>} */ (request.headers) };
     const contentTypeError = checkContentType(req.headers);
     if (contentTypeError) {
@@ -348,14 +347,14 @@ export default class HttpSyncServer {
       throw new Error('listen() requires a numeric port');
     }
 
-    /** @type {{ listen: Function, close: Function, address: Function }} */
     const server = this._httpPort.createServer(
-      (/** @type {{ method: string, url: string, headers: Object, body: Buffer|undefined }} */ request) => this._handleRequest(request),
+      (/** @type {import('../../ports/HttpServerPort.js').HttpRequest} */ request) =>
+        this._handleRequest(request),
     );
     this._server = server;
 
     await /** @type {Promise<void>} */ (new Promise((resolve, reject) => {
-      server.listen(port, this._host, (/** @type {Error|null} */ err) => {
+      server.listen(port, this._host, (err) => {
         if (err) {
           reject(err);
         } else {
@@ -372,7 +371,7 @@ export default class HttpSyncServer {
       url,
       close: () =>
         /** @type {Promise<void>} */ (new Promise((resolve, reject) => {
-          server.close((/** @type {Error|null} */ err) => {
+          server.close((err) => {
             if (err) {
               reject(err);
             } else {

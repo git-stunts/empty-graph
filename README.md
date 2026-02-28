@@ -8,13 +8,13 @@
   <img src="docs/images/hero.gif" alt="git-warp CLI demo" width="600">
 </p>
 
-## What's New in v12.3.0
+## What's New in v12.4.0
 
-- **M13 ADR 1 — canonical edge property ops** — internal model now uses honest `NodePropSet`/`EdgePropSet` semantics. Legacy raw `PropSet` is normalized at reducer entry points and lowered back at write time. No wire-format change — persisted patches remain backward-compatible.
-- **Wire gate hardened** — sync boundary now explicitly rejects canonical-only op types (`NodePropSet`, `EdgePropSet`) arriving over the wire, preventing premature schema migration before ADR 2 capability cutover.
-- **Reserved-byte validation** — new writes reject node IDs containing `\0` or starting with `\x01`, preventing ambiguous legacy edge-property encoding.
-- **Version namespace separation** — patch schema and checkpoint schema constants are now distinct (`PATCH_SCHEMA_V2`/`V3` vs `CHECKPOINT_SCHEMA_STANDARD`/`INDEX_TREE`).
-- **ADR governance** — ADR 3 readiness gates formalize when the persisted wire-format migration may proceed, with GitHub issue template and go/no-go checklist.
+- **`PersistenceError` with typed error codes** — `E_MISSING_OBJECT`, `E_REF_NOT_FOUND`, `E_REF_IO` replace brittle `message.includes()` checks, giving callers machine-readable error handling.
+- **Reserved graph name validation** — `validateGraphName()` rejects ref-layout keywords (`writers`, `checkpoints`, `coverage`) as graph name segments, preventing silent data corruption.
+- **`listRefs()` limit parameter** — optional `{ limit }` options bag for bounded ref enumeration.
+- **`WARP_QUICK_PUSH` env var** — pre-push hook skips unit tests when set to `1` or `true`, enabling fast iteration without disabling hooks entirely.
+- **Type surface manifest completeness** — 85 exports added to the type-surface manifest; 0 errors, 0 warnings.
 
 See the [full changelog](CHANGELOG.md) for details.
 

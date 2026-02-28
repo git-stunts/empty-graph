@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   REF_PREFIX,
   MAX_WRITER_ID_LENGTH,
+  RESERVED_GRAPH_NAME_SEGMENTS,
   buildWriterRef,
   buildCheckpointRef,
   buildCoverageRef,
@@ -86,6 +87,30 @@ describe('RefLayout', () => {
       expect(() => validateGraphName('.')).not.toThrow();
       expect(() => validateGraphName('.hidden')).not.toThrow();
       expect(() => validateGraphName('file.txt')).not.toThrow();
+    });
+
+    it('rejects each reserved ref-layout keyword as a graph name', () => {
+      for (const keyword of RESERVED_GRAPH_NAME_SEGMENTS) {
+        expect(() => validateGraphName(keyword)).toThrow(
+          `reserved ref-layout keyword`
+        );
+      }
+    });
+
+    it('rejects reserved keywords appearing as any segment in a nested path', () => {
+      expect(() => validateGraphName('org/writers')).toThrow('reserved ref-layout keyword');
+      expect(() => validateGraphName('checkpoints/sub')).toThrow('reserved ref-layout keyword');
+      expect(() => validateGraphName('a/coverage/b')).toThrow('reserved ref-layout keyword');
+    });
+
+    it('allows reserved keywords embedded in larger segment strings', () => {
+      expect(() => validateGraphName('my-writers')).not.toThrow();
+      expect(() => validateGraphName('pre-checkpoints')).not.toThrow();
+      expect(() => validateGraphName('coverage-stats')).not.toThrow();
+      expect(() => validateGraphName('no-cursor-here')).not.toThrow();
+      expect(() => validateGraphName('audit-log')).not.toThrow();
+      expect(() => validateGraphName('trust-chain')).not.toThrow();
+      expect(() => validateGraphName('seek-cache-v2')).not.toThrow();
     });
   });
 

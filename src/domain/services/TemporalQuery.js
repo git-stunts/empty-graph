@@ -86,12 +86,7 @@ function extractNodeSnapshot(state, nodeId) {
 /**
  * Evaluates checkpoint boundary semantics for `always()`.
  *
- * @param {Object} params
- * @param {import('./JoinReducer.js').WarpStateV5} params.state
- * @param {string} params.nodeId
- * @param {Function} params.predicate
- * @param {number|null} params.checkpointMaxLamport
- * @param {number} params.since
+ * @param {{ state: import('./JoinReducer.js').WarpStateV5, nodeId: string, predicate: (snapshot: {id: string, exists: boolean, props: Record<string, unknown>}) => boolean, checkpointMaxLamport: number|null, since: number }} params
  * @returns {{ nodeEverExisted: boolean, shouldReturn: boolean, returnValue: boolean }}
  * @private
  */
@@ -118,12 +113,7 @@ function evaluateAlwaysCheckpointBoundary({
 /**
  * Evaluates checkpoint boundary semantics for `eventually()`.
  *
- * @param {Object} params
- * @param {import('./JoinReducer.js').WarpStateV5} params.state
- * @param {string} params.nodeId
- * @param {Function} params.predicate
- * @param {number|null} params.checkpointMaxLamport
- * @param {number} params.since
+ * @param {{ state: import('./JoinReducer.js').WarpStateV5, nodeId: string, predicate: (snapshot: {id: string, exists: boolean, props: Record<string, unknown>}) => boolean, checkpointMaxLamport: number|null, since: number }} params
  * @returns {boolean}
  * @private
  */
@@ -149,16 +139,12 @@ function evaluateEventuallyCheckpointBoundary({
  */
 export class TemporalQuery {
   /**
-   * @param {Object} options
-   * @param {Function} options.loadAllPatches - Async function that returns
-   *   all patches as Array<{ patch, sha }> in causal order.
-   * @param {Function} [options.loadCheckpoint] - Async function returning
-   *   { state: WarpStateV5, maxLamport: number } or null.
+   * @param {{ loadAllPatches: () => Promise<Array<{patch: import('../types/WarpTypesV2.js').PatchV2, sha: string}>>, loadCheckpoint?: () => Promise<{state: import('./JoinReducer.js').WarpStateV5, maxLamport: number}|null> }} options
    */
   constructor({ loadAllPatches, loadCheckpoint }) {
-    /** @type {Function} */
+    /** @type {() => Promise<Array<{patch: import('../types/WarpTypesV2.js').PatchV2, sha: string}>>} */
     this._loadAllPatches = loadAllPatches;
-    /** @type {Function|null} */
+    /** @type {(() => Promise<{state: import('./JoinReducer.js').WarpStateV5, maxLamport: number}|null>)|null} */
     this._loadCheckpoint = loadCheckpoint || null;
   }
 
@@ -172,11 +158,9 @@ export class TemporalQuery {
    * Returns false if the node never existed in the range.
    *
    * @param {string} nodeId - The node ID to evaluate
-   * @param {Function} predicate - Predicate receiving node snapshot
+   * @param {(snapshot: {id: string, exists: boolean, props: Record<string, unknown>}) => boolean} predicate - Predicate receiving node snapshot
    *   `{ id, exists, props }`. Should return boolean.
-   * @param {Object} [options={}] - Options
-   * @param {number} [options.since=0] - Minimum Lamport tick (inclusive).
-   *   Only patches with lamport >= since are considered.
+   * @param {{ since?: number }} [options={}] - Options
    * @returns {Promise<boolean>} True if predicate held at every tick
    *
    * @example
@@ -232,11 +216,9 @@ export class TemporalQuery {
    * soon as the predicate returns true at any tick.
    *
    * @param {string} nodeId - The node ID to evaluate
-   * @param {Function} predicate - Predicate receiving node snapshot
+   * @param {(snapshot: {id: string, exists: boolean, props: Record<string, unknown>}) => boolean} predicate - Predicate receiving node snapshot
    *   `{ id, exists, props }`. Should return boolean.
-   * @param {Object} [options={}] - Options
-   * @param {number} [options.since=0] - Minimum Lamport tick (inclusive).
-   *   Only patches with lamport >= since are considered.
+   * @param {{ since?: number }} [options={}] - Options
    * @returns {Promise<boolean>} True if predicate held at any tick
    *
    * @example

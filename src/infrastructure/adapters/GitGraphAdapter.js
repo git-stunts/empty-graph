@@ -45,6 +45,7 @@
 
 import { Buffer } from 'node:buffer';
 import { retry } from '@git-stunts/alfred';
+import PersistenceError from '../../domain/errors/PersistenceError.js';
 import GraphPersistencePort from '../../ports/GraphPersistencePort.js';
 import { validateOid, validateRef, validateLimit, validateConfigKey } from './adapterValidation.js';
 
@@ -80,6 +81,17 @@ const TRANSIENT_ERROR_PATTERNS = [
  */
 
 /**
+ * @typedef {{ collect(opts?: { asString?: boolean }): Promise<Buffer | string> } & import('node:stream').Readable} CollectableStream
+ */
+
+/**
+ * @typedef {object} GitPlumbingLike
+ * @property {string} emptyTree - The well-known SHA for Git's empty tree
+ * @property {(options: { args: string[], input?: string | Buffer }) => Promise<string>} execute - Execute a git command
+ * @property {(options: { args: string[] }) => Promise<CollectableStream>} executeStream - Execute a git command returning a stream
+ */
+
+/**
  * Determines if an error is transient and safe to retry.
  * @param {GitError} error - The error to check
  * @returns {boolean} True if the error is transient
@@ -91,10 +103,12 @@ function isTransientError(error) {
   return TRANSIENT_ERROR_PATTERNS.some(pattern => searchText.includes(pattern));
 }
 
+/** @typedef {import('@git-stunts/alfred').RetryOptions} RetryOptions */
+
 /**
  * Default retry options for git operations.
  * Uses exponential backoff with decorrelated jitter.
- * @type {import('@git-stunts/alfred').RetryOptions}
+ * @type {RetryOptions}
  */
 const DEFAULT_RETRY_OPTIONS = {
   retries: 3,
@@ -133,6 +147,122 @@ function isDanglingObjectError(err) {
     stderr.includes('not a valid object name') ||
     stderr.includes('does not point to a valid object')
   );
+}
+
+/** @type {string[]} Stderr/message patterns indicating a missing Git object. */
+const MISSING_OBJECT_PATTERNS = [
+  'bad object',
+  'not a valid object name',
+  'does not point to a valid object',
+  'missing object',
+  'not a commit',
+  'could not read',
+];
+
+/** @type {string[]} Stderr/message patterns indicating a ref was not found. */
+const REF_NOT_FOUND_PATTERNS = [
+  'not found',
+  'does not exist',
+  'unknown revision',
+  'bad revision',
+];
+
+/** @type {string[]} Stderr/message patterns indicating a ref I/O failure. */
+const REF_IO_PATTERNS = [
+  'cannot lock ref',
+  'unable to create',
+  'permission denied',
+  'failed to lock',
+];
+
+/**
+ * Builds a combined search string from an error's message and stderr.
+ * @param {GitError} err
+ * @returns {string}
+ */
+function errorSearchText(err) {
+  const message = (err.message || '').toLowerCase();
+  const stderr = (err.details?.stderr || '').toLowerCase();
+  return `${message} ${stderr}`;
+}
+
+/**
+ * Checks if a Git error indicates a missing object (commit, blob, tree).
+ * Covers exit code 128 with object-related stderr patterns.
+ * @param {GitError} err
+ * @returns {boolean}
+ */
+function isMissingObjectError(err) {
+  const code = getExitCode(err);
+  if (code !== 128 && code !== 1) {
+    return false;
+  }
+  const text = errorSearchText(err);
+  return MISSING_OBJECT_PATTERNS.some(p => text.includes(p));
+}
+
+/**
+ * Checks if a Git error indicates a ref not found condition.
+ * Covers patterns like "not found", "does not exist", "unknown revision".
+ * Gated on exit codes 1 (rev-parse --verify --quiet) and 128 (fatal).
+ * @param {GitError} err
+ * @returns {boolean}
+ */
+function isRefNotFoundError(err) {
+  const code = getExitCode(err);
+  if (code !== 128 && code !== 1) {
+    return false;
+  }
+  const text = errorSearchText(err);
+  return REF_NOT_FOUND_PATTERNS.some(p => text.includes(p));
+}
+
+/**
+ * Checks if a Git error indicates a ref I/O failure
+ * (lock contention that exhausted retries, permission errors, etc.).
+ * Gated on exit code 128 (fatal).
+ * @param {GitError} err
+ * @returns {boolean}
+ */
+function isRefIoError(err) {
+  if (getExitCode(err) !== 128) {
+    return false;
+  }
+  const text = errorSearchText(err);
+  return REF_IO_PATTERNS.some(p => text.includes(p));
+}
+
+/**
+ * Wraps a raw Git error in a typed PersistenceError when the failure
+ * matches a known pattern. Returns the original error unchanged if
+ * no pattern matches.
+ * @param {GitError} err - The raw error from Git plumbing
+ * @param {{ ref?: string, oid?: string }} [hint={}] - Optional context hints
+ * @returns {PersistenceError|GitError}
+ */
+function wrapGitError(err, hint = {}) {
+  if (isMissingObjectError(err)) {
+    return new PersistenceError(
+      hint.oid ? `Missing Git object: ${hint.oid}` : err.message,
+      PersistenceError.E_MISSING_OBJECT,
+      { cause: /** @type {Error} */ (err), context: { ...hint } },
+    );
+  }
+  if (isRefNotFoundError(err)) {
+    return new PersistenceError(
+      hint.ref ? `Ref not found: ${hint.ref}` : err.message,
+      PersistenceError.E_REF_NOT_FOUND,
+      { cause: /** @type {Error} */ (err), context: { ...hint } },
+    );
+  }
+  if (isRefIoError(err)) {
+    return new PersistenceError(
+      hint.ref ? `Ref I/O error: ${hint.ref}` : err.message,
+      PersistenceError.E_REF_IO,
+      { cause: /** @type {Error} */ (err), context: { ...hint } },
+    );
+  }
+  return err;
 }
 
 /**
@@ -200,7 +330,7 @@ export default class GitGraphAdapter extends GraphPersistencePort {
   /**
    * Creates a new GitGraphAdapter instance.
    *
-   * @param {{ plumbing: *, retryOptions?: Object }} options - Configuration options
+   * @param {{ plumbing: GitPlumbingLike, retryOptions?: Partial<RetryOptions> }} options - Configuration options
    *
    * @throws {Error} If plumbing is not provided
    *
@@ -221,7 +351,7 @@ export default class GitGraphAdapter extends GraphPersistencePort {
 
   /**
    * Executes a git command with retry logic.
-   * @param {Object} options - Options to pass to plumbing.execute
+   * @param {{ args: string[], input?: string | Buffer }} options - Options to pass to plumbing.execute
    * @returns {Promise<string>} Command output
    * @private
    */
@@ -259,10 +389,7 @@ export default class GitGraphAdapter extends GraphPersistencePort {
 
   /**
    * Creates a commit pointing to the empty tree.
-   * @param {Object} options
-   * @param {string} options.message - The commit message (typically CBOR-encoded patch data)
-   * @param {string[]} [options.parents=[]] - Parent commit SHAs
-   * @param {boolean} [options.sign=false] - Whether to GPG-sign the commit
+   * @param {{ message: string, parents?: string[], sign?: boolean }} options
    * @returns {Promise<string>} The SHA of the created commit
    * @throws {Error} If any parent OID is invalid
    */
@@ -273,11 +400,7 @@ export default class GitGraphAdapter extends GraphPersistencePort {
   /**
    * Creates a commit pointing to a custom tree (not the empty tree).
    * Used for WARP patch commits that have attachment trees.
-   * @param {Object} options
-   * @param {string} options.treeOid - The tree OID to point to
-   * @param {string[]} [options.parents=[]] - Parent commit SHAs
-   * @param {string} options.message - Commit message
-   * @param {boolean} [options.sign=false] - Whether to GPG sign
+   * @param {{ treeOid: string, parents?: string[], message: string, sign?: boolean }} options
    * @returns {Promise<string>} The created commit SHA
    */
   async commitNodeWithTree({ treeOid, parents = [], message, sign = false }) {
@@ -293,7 +416,11 @@ export default class GitGraphAdapter extends GraphPersistencePort {
    */
   async showNode(sha) {
     this._validateOid(sha);
-    return await this._executeWithRetry({ args: ['show', '-s', '--format=%B', sha] });
+    try {
+      return await this._executeWithRetry({ args: ['show', '-s', '--format=%B', sha] });
+    } catch (err) {
+      throw wrapGitError(/** @type {GitError} */ (err), { oid: sha });
+    }
   }
 
   /**
@@ -308,13 +435,24 @@ export default class GitGraphAdapter extends GraphPersistencePort {
     // Format: SHA, author, date, parents (space-separated), then message
     // Using %x00 to separate fields for reliable parsing
     const format = '%H%x00%an <%ae>%x00%aI%x00%P%x00%B';
-    const output = await this._executeWithRetry({
-      args: ['show', '-s', `--format=${format}`, sha]
-    });
+    let output;
+    try {
+      output = await this._executeWithRetry({
+        args: ['show', '-s', `--format=${format}`, sha]
+      });
+    } catch (err) {
+      throw wrapGitError(/** @type {GitError} */ (err), { oid: sha });
+    }
 
     const parts = output.split('\x00');
     if (parts.length < 5) {
-      throw new Error(`Invalid commit format for SHA ${sha}`);
+      // Object exists but output is malformed — semantically closest to
+      // E_MISSING_OBJECT since the commit is unusable for data extraction.
+      throw new PersistenceError(
+        `Invalid commit format for SHA ${sha}`,
+        PersistenceError.E_MISSING_OBJECT,
+        { context: { oid: sha } },
+      );
     }
 
     const [commitSha, author, date, parentsStr, ...messageParts] = parts;
@@ -338,18 +476,19 @@ export default class GitGraphAdapter extends GraphPersistencePort {
    */
   async getCommitTree(sha) {
     this._validateOid(sha);
-    const output = await this._executeWithRetry({
-      args: ['rev-parse', `${sha}^{tree}`]
-    });
-    return output.trim();
+    try {
+      const output = await this._executeWithRetry({
+        args: ['rev-parse', `${sha}^{tree}`]
+      });
+      return output.trim();
+    } catch (err) {
+      throw wrapGitError(/** @type {GitError} */ (err), { oid: sha });
+    }
   }
 
   /**
    * Returns raw git log output for a ref.
-   * @param {Object} options
-   * @param {string} options.ref - The Git ref to log from
-   * @param {number} [options.limit=50] - Maximum number of commits to return
-   * @param {string} [options.format] - Custom format string for git log
+   * @param {{ ref: string, limit?: number, format?: string }} options
    * @returns {Promise<string>} The raw log output
    * @throws {Error} If the ref is invalid or the limit is out of range
    */
@@ -361,7 +500,11 @@ export default class GitGraphAdapter extends GraphPersistencePort {
       args.push(`--format=${format}`);
     }
     args.push(ref);
-    return await this._executeWithRetry({ args });
+    try {
+      return await this._executeWithRetry({ args });
+    } catch (err) {
+      throw wrapGitError(/** @type {GitError} */ (err), { ref });
+    }
   }
 
   /**
@@ -369,10 +512,7 @@ export default class GitGraphAdapter extends GraphPersistencePort {
    * Uses the -z flag to produce NUL-terminated output, which:
    * - Ensures reliable parsing of commits with special characters in messages
    * - Ignores the i18n.logOutputEncoding config setting for consistent output
-   * @param {Object} options
-   * @param {string} options.ref - The ref to log from
-   * @param {number} [options.limit=1000000] - Maximum number of commits to return
-   * @param {string} [options.format] - Custom format string for git log
+   * @param {{ ref: string, limit?: number, format?: string }} options
    * @returns {Promise<import('node:stream').Readable>} A readable stream of git log output (NUL-terminated records)
    * @throws {Error} If the ref is invalid or the limit is out of range
    */
@@ -469,9 +609,14 @@ export default class GitGraphAdapter extends GraphPersistencePort {
    */
   async readTreeOids(treeOid) {
     this._validateOid(treeOid);
-    const output = await this._executeWithRetry({
-      args: ['ls-tree', '-r', '-z', treeOid]
-    });
+    let output;
+    try {
+      output = await this._executeWithRetry({
+        args: ['ls-tree', '-r', '-z', treeOid]
+      });
+    } catch (err) {
+      throw wrapGitError(/** @type {GitError} */ (err), { oid: treeOid });
+    }
 
     /** @type {Record<string, string>} */
     const oids = {};
@@ -502,12 +647,16 @@ export default class GitGraphAdapter extends GraphPersistencePort {
    */
   async readBlob(oid) {
     this._validateOid(oid);
-    const stream = await this.plumbing.executeStream({
-      args: ['cat-file', 'blob', oid]
-    });
-    const raw = await stream.collect({ asString: false });
-    // Ensure a real Node Buffer (plumbing may return Uint8Array)
-    return Buffer.isBuffer(raw) ? raw : Buffer.from(raw);
+    try {
+      const stream = await this.plumbing.executeStream({
+        args: ['cat-file', 'blob', oid]
+      });
+      const raw = await stream.collect({ asString: false });
+      // Ensure a real Node Buffer (plumbing may return Uint8Array)
+      return Buffer.isBuffer(raw) ? raw : Buffer.from(raw);
+    } catch (err) {
+      throw wrapGitError(/** @type {GitError} */ (err), { oid });
+    }
   }
 
   /**
@@ -520,9 +669,13 @@ export default class GitGraphAdapter extends GraphPersistencePort {
   async updateRef(ref, oid) {
     this._validateRef(ref);
     this._validateOid(oid);
-    await this._executeWithRetry({
-      args: ['update-ref', ref, oid]
-    });
+    try {
+      await this._executeWithRetry({
+        args: ['update-ref', ref, oid]
+      });
+    } catch (err) {
+      throw wrapGitError(/** @type {GitError} */ (err), { ref, oid });
+    }
   }
 
   /**
@@ -551,7 +704,7 @@ export default class GitGraphAdapter extends GraphPersistencePort {
       if (isDanglingObjectError(gitErr)) {
         return null;
       }
-      throw err;
+      throw wrapGitError(gitErr, { ref });
     }
   }
 
@@ -576,9 +729,13 @@ export default class GitGraphAdapter extends GraphPersistencePort {
       this._validateOid(expectedOid);
     }
     // Direct call — CAS failures are semantically expected and must NOT be retried.
-    await this.plumbing.execute({
-      args: ['update-ref', ref, newOid, oldArg],
-    });
+    try {
+      await this.plumbing.execute({
+        args: ['update-ref', ref, newOid, oldArg],
+      });
+    } catch (err) {
+      throw wrapGitError(/** @type {GitError} */ (err), { ref, oid: newOid });
+    }
   }
 
   /**
@@ -589,9 +746,13 @@ export default class GitGraphAdapter extends GraphPersistencePort {
    */
   async deleteRef(ref) {
     this._validateRef(ref);
-    await this._executeWithRetry({
-      args: ['update-ref', '-d', ref]
-    });
+    try {
+      await this._executeWithRetry({
+        args: ['update-ref', '-d', ref]
+      });
+    } catch (err) {
+      throw wrapGitError(/** @type {GitError} */ (err), { ref });
+    }
   }
 
   /**
@@ -645,14 +806,25 @@ export default class GitGraphAdapter extends GraphPersistencePort {
   /**
    * Lists refs matching a prefix.
    * @param {string} prefix - The ref prefix to match (e.g., 'refs/warp/events/writers/')
+   * @param {{ limit?: number }} [options] - Optional parameters. When `limit` is omitted or 0, all matching refs are returned.
    * @returns {Promise<string[]>} Array of matching ref paths
-   * @throws {Error} If the prefix is invalid
+   * @throws {Error} If the prefix is invalid or the limit is out of range
    */
-  async listRefs(prefix) {
+  async listRefs(prefix, options) {
     this._validateRef(prefix);
-    const output = await this._executeWithRetry({
-      args: ['for-each-ref', '--format=%(refname)', prefix]
-    });
+    const limit = options?.limit;
+    const args = ['for-each-ref', '--format=%(refname)'];
+    if (limit) {
+      this._validateLimit(limit);
+      args.push(`--count=${limit}`);
+    }
+    args.push(prefix);
+    let output;
+    try {
+      output = await this._executeWithRetry({ args });
+    } catch (err) {
+      throw wrapGitError(/** @type {GitError} */ (err), { ref: prefix });
+    }
     // Parse output - one ref per line, filter empty lines
     return output.split('\n').filter(line => line.trim());
   }
@@ -687,10 +859,14 @@ export default class GitGraphAdapter extends GraphPersistencePort {
    */
   async countNodes(ref) {
     this._validateRef(ref);
-    const output = await this._executeWithRetry({
-      args: ['rev-list', '--count', ref]
-    });
-    return parseInt(output.trim(), 10);
+    try {
+      const output = await this._executeWithRetry({
+        args: ['rev-list', '--count', ref]
+      });
+      return parseInt(output.trim(), 10);
+    } catch (err) {
+      throw wrapGitError(/** @type {GitError} */ (err), { ref });
+    }
   }
 
   /**

@@ -127,4 +127,56 @@ describe('InMemoryGraphAdapter specifics', () => {
       'refs/warp/z/w1',
     ]);
   });
+
+  it('listRefs without limit returns all refs', async () => {
+    const adapter = new InMemoryGraphAdapter();
+    const sha = await adapter.commitNode({ message: 'all' });
+    await adapter.updateRef('refs/warp/g/w1', sha);
+    await adapter.updateRef('refs/warp/g/w2', sha);
+    await adapter.updateRef('refs/warp/g/w3', sha);
+    const refs = await adapter.listRefs('refs/warp/g/');
+    expect(refs).toEqual([
+      'refs/warp/g/w1',
+      'refs/warp/g/w2',
+      'refs/warp/g/w3',
+    ]);
+  });
+
+  it('listRefs with limit returns at most N refs', async () => {
+    const adapter = new InMemoryGraphAdapter();
+    const sha = await adapter.commitNode({ message: 'limited' });
+    await adapter.updateRef('refs/warp/g/w1', sha);
+    await adapter.updateRef('refs/warp/g/w2', sha);
+    await adapter.updateRef('refs/warp/g/w3', sha);
+    const refs = await adapter.listRefs('refs/warp/g/', { limit: 2 });
+    expect(refs).toHaveLength(2);
+    expect(refs).toEqual([
+      'refs/warp/g/w1',
+      'refs/warp/g/w2',
+    ]);
+  });
+
+  it('listRefs with limit=0 returns all refs', async () => {
+    const adapter = new InMemoryGraphAdapter();
+    const sha = await adapter.commitNode({ message: 'zero' });
+    await adapter.updateRef('refs/warp/g/w1', sha);
+    await adapter.updateRef('refs/warp/g/w2', sha);
+    const refs = await adapter.listRefs('refs/warp/g/', { limit: 0 });
+    expect(refs).toEqual([
+      'refs/warp/g/w1',
+      'refs/warp/g/w2',
+    ]);
+  });
+
+  it('listRefs with no limit option returns all refs', async () => {
+    const adapter = new InMemoryGraphAdapter();
+    const sha = await adapter.commitNode({ message: 'noop' });
+    await adapter.updateRef('refs/warp/g/w1', sha);
+    await adapter.updateRef('refs/warp/g/w2', sha);
+    const refs = await adapter.listRefs('refs/warp/g/', {});
+    expect(refs).toEqual([
+      'refs/warp/g/w1',
+      'refs/warp/g/w2',
+    ]);
+  });
 });

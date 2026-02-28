@@ -73,12 +73,7 @@ export class HookInstaller {
   /**
    * Creates a new HookInstaller.
    *
-   * @param {Object} deps - Injected dependencies
-   * @param {FsAdapter} deps.fs - Filesystem adapter with methods: readFileSync, writeFileSync, mkdirSync, existsSync, chmodSync
-   * @param {(repoPath: string, key: string) => string|null} deps.execGitConfig - Function to read git config values
-   * @param {string} deps.version - Package version
-   * @param {string} deps.templateDir - Directory containing hook templates
-   * @param {PathUtils} deps.path - Path utilities (join and resolve)
+   * @param {{ fs: FsAdapter, execGitConfig: (repoPath: string, key: string) => string|null, version: string, templateDir: string, path: PathUtils }} deps - Injected dependencies
    */
   constructor({ fs, execGitConfig, version, templateDir, path }) {
     /** @type {FsAdapter} */
@@ -125,8 +120,7 @@ export class HookInstaller {
    * Installs the post-merge hook.
    *
    * @param {string} repoPath - Path to git repo
-   * @param {Object} opts - Install options
-   * @param {'install'|'upgrade'|'append'|'replace'} opts.strategy - Installation strategy
+   * @param {{ strategy: 'install'|'upgrade'|'append'|'replace' }} opts - Install options
    * @returns {{ action: string, hookPath: string, version: string, backupPath?: string }}
    * @throws {Error} If the strategy is unknown
    */

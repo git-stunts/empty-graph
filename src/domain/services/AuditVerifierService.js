@@ -211,10 +211,7 @@ function validateTrailerConsistency(receipt, decoded) {
 
 export class AuditVerifierService {
   /**
-   * @param {Object} options
-   * @param {import('../../ports/CommitPort.js').default & import('../../ports/RefPort.js').default & import('../../ports/BlobPort.js').default & import('../../ports/TreePort.js').default} options.persistence
-   * @param {import('../../ports/CodecPort.js').default} options.codec
-   * @param {import('../../ports/LoggerPort.js').default} [options.logger]
+   * @param {{ persistence: import('../../ports/CommitPort.js').default & import('../../ports/RefPort.js').default & import('../../ports/BlobPort.js').default & import('../../ports/TreePort.js').default, codec: import('../../ports/CodecPort.js').default, logger?: import('../../ports/LoggerPort.js').default }} options
    */
   constructor({ persistence, codec, logger }) {
     this._persistence = persistence;
@@ -658,9 +655,7 @@ export class AuditVerifierService {
    * and returns a TrustAssessment.
    *
    * @param {string} graphName
-   * @param {Object} [options]
-   * @param {string} [options.pin] - Pinned trust chain commit SHA
-   * @param {string} [options.mode] - Policy mode ('warn' or 'enforce')
+   * @param {{ pin?: string, mode?: string }} [options]
    * @returns {Promise<import('../trust/TrustEvaluator.js').TrustAssessment>}
    */
   async evaluateTrust(graphName, options = {}) {

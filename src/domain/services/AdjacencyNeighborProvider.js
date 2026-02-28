@@ -86,10 +86,7 @@ function mergeSorted(a, b) {
 
 export default class AdjacencyNeighborProvider extends NeighborProviderPort {
   /**
-   * @param {Object} params
-   * @param {Map<string, Array<{neighborId: string, label: string}>>} params.outgoing
-   * @param {Map<string, Array<{neighborId: string, label: string}>>} params.incoming
-   * @param {Set<string>} params.aliveNodes - Set of alive nodeIds for hasNode()
+   * @param {{ outgoing: Map<string, Array<{neighborId: string, label: string}>>, incoming: Map<string, Array<{neighborId: string, label: string}>>, aliveNodes: Set<string> }} params
    */
   constructor({ outgoing, incoming, aliveNodes }) {
     super();

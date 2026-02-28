@@ -14,8 +14,8 @@
  * become method names on the prototype. Duplicates across modules are
  * detected eagerly and throw at import time (not at call time).
  *
- * @param {Function} Class - The class constructor whose prototype to extend
- * @param {Array<Record<string, Function>>} methodModules - Array of method module namespace objects
+ * @param {{ prototype: object, name: string }} Class - The class constructor whose prototype to extend
+ * @param {Array<Record<string, unknown>>} methodModules - Array of method module namespace objects
  * @throws {Error} If a method name appears in more than one module
  */
 export function wireWarpMethods(Class, methodModules) {

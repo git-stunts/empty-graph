@@ -24,11 +24,7 @@ import {
 /**
  * Encodes an audit commit message with trailers.
  *
- * @param {Object} options
- * @param {string} options.graph - The graph name
- * @param {string} options.writer - The writer ID
- * @param {string} options.dataCommit - The OID of the data commit being audited
- * @param {string} options.opsDigest - SHA-256 hex digest of the canonical ops JSON
+ * @param {{ graph: string, writer: string, dataCommit: string, opsDigest: string }} options
  * @returns {string} The encoded commit message
  * @throws {Error} If any validation fails
  */

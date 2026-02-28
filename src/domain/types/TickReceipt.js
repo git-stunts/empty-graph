@@ -175,11 +175,7 @@ function validateOpResult(value, i) {
 /**
  * Creates an immutable TickReceipt.
  *
- * @param {Object} params
- * @param {string} params.patchSha - SHA of the patch commit
- * @param {string} params.writer - Writer ID
- * @param {number} params.lamport - Lamport timestamp (non-negative integer)
- * @param {OpOutcome[]} params.ops - Per-operation outcome records
+ * @param {{ patchSha: string, writer: string, lamport: number, ops: OpOutcome[] }} params
  * @returns {Readonly<TickReceipt>} Frozen tick receipt
  * @throws {Error} If any parameter is invalid
  */
@@ -279,9 +275,9 @@ export function canonicalJson(receipt) {
  */
 function sortedReplacer(_key, value) {
   if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
-    /** @type {{ [x: string]: * }} */
+    /** @type {{ [x: string]: unknown }} */
     const sorted = {};
-    const obj = /** @type {{ [x: string]: * }} */ (value);
+    const obj = /** @type {{ [x: string]: unknown }} */ (value);
     for (const k of Object.keys(obj).sort()) {
       sorted[k] = obj[k];
     }

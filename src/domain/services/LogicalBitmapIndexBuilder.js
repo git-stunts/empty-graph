@@ -24,8 +24,7 @@ const MAX_LOCAL_ID = 1 << 24;
 
 export default class LogicalBitmapIndexBuilder {
   /**
-   * @param {Object} [options]
-   * @param {import('../../ports/CodecPort.js').default} [options.codec]
+   * @param {{ codec?: import('../../ports/CodecPort.js').default }} [options]
    */
   constructor({ codec } = {}) {
     this._codec = codec || defaultCodec;

@@ -61,13 +61,8 @@ async function verifyShaExists(persistence, sha, paramName) {
 
 /**
  * Processes a single commit in the wormhole chain.
- * @param {Object} opts - Options
- * @param {import('../../ports/GraphPersistencePort.js').default & import('../../ports/CommitPort.js').default & import('../../ports/BlobPort.js').default} opts.persistence - Git persistence adapter
- * @param {string} opts.sha - The commit SHA
- * @param {string} opts.graphName - Expected graph name
- * @param {string|null} opts.expectedWriter - Expected writer ID (null for first commit)
- * @param {import('../../ports/CodecPort.js').default} [opts.codec] - Codec for deserialization
- * @returns {Promise<{patch: Object, sha: string, writerId: string, parentSha: string|null}>}
+ * @param {{ persistence: import('../../ports/GraphPersistencePort.js').default & import('../../ports/CommitPort.js').default & import('../../ports/BlobPort.js').default, sha: string, graphName: string, expectedWriter: string|null, codec?: import('../../ports/CodecPort.js').default }} opts - Options
+ * @returns {Promise<{patch: import('../types/WarpTypesV2.js').PatchV2, sha: string, writerId: string, parentSha: string|null}>}
  * @throws {WormholeError} On validation errors
  * @private
  */
@@ -101,7 +96,7 @@ async function processCommit({ persistence, sha, graphName, expectedWriter, code
   }
 
   const patchBuffer = await persistence.readBlob(patchMeta.patchOid);
-  const patch = /** @type {Object} */ (codec.decode(patchBuffer));
+  const patch = /** @type {import('../types/WarpTypesV2.js').PatchV2} */ (codec.decode(patchBuffer));
 
   return {
     patch,
@@ -135,12 +130,7 @@ async function processCommit({ persistence, sha, graphName, expectedWriter, code
  * must be an ancestor of `toSha` in the writer's patch chain. Both endpoints
  * are inclusive in the wormhole.
  *
- * @param {Object} options - Wormhole creation options
- * @param {import('../../ports/GraphPersistencePort.js').default & import('../../ports/CommitPort.js').default & import('../../ports/BlobPort.js').default} options.persistence - Git persistence adapter
- * @param {string} options.graphName - Name of the graph
- * @param {string} options.fromSha - SHA of the first (oldest) patch commit
- * @param {string} options.toSha - SHA of the last (newest) patch commit
- * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for deserialization
+ * @param {{ persistence: import('../../ports/GraphPersistencePort.js').default & import('../../ports/CommitPort.js').default & import('../../ports/BlobPort.js').default, graphName: string, fromSha: string, toSha: string, codec?: import('../../ports/CodecPort.js').default }} options - Wormhole creation options
  * @returns {Promise<WormholeEdge>} The created wormhole
  * @throws {WormholeError} If fromSha or toSha doesn't exist (E_WORMHOLE_SHA_NOT_FOUND)
  * @throws {WormholeError} If fromSha is not an ancestor of toSha (E_WORMHOLE_INVALID_RANGE)
@@ -171,13 +161,8 @@ export async function createWormhole({ persistence, graphName, fromSha, toSha, c
  * Walks the parent chain from toSha towards fromSha, collecting and
  * validating each commit along the way.
  *
- * @param {Object} options
- * @param {import('../../ports/GraphPersistencePort.js').default & import('../../ports/CommitPort.js').default & import('../../ports/BlobPort.js').default} options.persistence - Git persistence adapter
- * @param {string} options.graphName - Expected graph name
- * @param {string} options.fromSha - SHA of the first (oldest) patch commit
- * @param {string} options.toSha - SHA of the last (newest) patch commit
- * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for deserialization
- * @returns {Promise<Array<{patch: Object, sha: string, writerId: string}>>} Patches in newest-first order
+ * @param {{ persistence: import('../../ports/GraphPersistencePort.js').default & import('../../ports/CommitPort.js').default & import('../../ports/BlobPort.js').default, graphName: string, fromSha: string, toSha: string, codec?: import('../../ports/CodecPort.js').default }} options
+ * @returns {Promise<Array<{patch: import('../types/WarpTypesV2.js').PatchV2, sha: string, writerId: string}>>} Patches in newest-first order
  * @throws {WormholeError} If fromSha is not an ancestor of toSha or range is empty
  * @private
  */
@@ -232,8 +217,7 @@ async function collectPatchRange({ persistence, graphName, fromSha, toSha, codec
  *
  * @param {WormholeEdge} first - The earlier (older) wormhole
  * @param {WormholeEdge} second - The later (newer) wormhole
- * @param {Object} [options] - Composition options
- * @param {import('../../ports/GraphPersistencePort.js').default & import('../../ports/CommitPort.js').default} [options.persistence] - Git persistence adapter (for validation)
+ * @param {{ persistence?: import('../../ports/GraphPersistencePort.js').default & import('../../ports/CommitPort.js').default }} [options] - Composition options
  * @returns {Promise<WormholeEdge>} The composed wormhole
  * @throws {WormholeError} If wormholes are from different writers (E_WORMHOLE_MULTI_WRITER)
  * @throws {WormholeError} If wormholes are not consecutive (E_WORMHOLE_INVALID_RANGE)
@@ -294,7 +278,7 @@ export function replayWormhole(wormhole, initialState) {
  * Serializes a wormhole to a JSON-serializable object.
  *
  * @param {WormholeEdge} wormhole - The wormhole to serialize
- * @returns {Object} JSON-serializable representation
+ * @returns {Record<string, unknown>} JSON-serializable representation
  */
 export function serializeWormhole(wormhole) {
   return {
@@ -309,7 +293,7 @@ export function serializeWormhole(wormhole) {
 /**
  * Deserializes a wormhole from a JSON object.
  *
- * @param {Object} json - The JSON object to deserialize
+ * @param {Record<string, unknown>} json - The JSON object to deserialize
  * @returns {WormholeEdge} The deserialized wormhole
  * @throws {WormholeError} If the JSON structure is invalid
  */

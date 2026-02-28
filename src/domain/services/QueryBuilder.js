@@ -307,11 +307,7 @@ function buildEdgesSnapshot(edges, directionKey) {
  * The snapshot includes the node's ID, properties, outgoing edges, and incoming edges.
  * All data is deeply frozen to prevent mutation.
  *
- * @param {Object} params - Node data
- * @param {string} params.id - The node ID
- * @param {Map<string, unknown>} params.propsMap - Map of property names to values
- * @param {Array<{label: string, neighborId: string}>} params.edgesOut - Outgoing edges
- * @param {Array<{label: string, neighborId: string}>} params.edgesIn - Incoming edges
+ * @param {{ id: string, propsMap: Map<string, unknown>, edgesOut: Array<{label: string, neighborId: string}>, edgesIn: Array<{label: string, neighborId: string}> }} params - Node data
  * @returns {Readonly<QueryNodeSnapshot>} Frozen node snapshot
  * @private
  */
@@ -385,11 +381,7 @@ function normalizeDepth(depth) {
  * Collects all neighbors reachable via one edge in the specified direction,
  * optionally filtered by edge label.
  *
- * @param {Object} params - Traversal parameters
- * @param {'outgoing' | 'incoming'} params.direction - Direction of traversal
- * @param {string | undefined} params.label - Edge label filter (undefined = all labels)
- * @param {string[]} params.workingSet - Current set of node IDs to traverse from
- * @param {AdjacencyMaps} params.adjacency - Adjacency maps from materialized state
+ * @param {{ direction: 'outgoing' | 'incoming', label: string | undefined, workingSet: string[], adjacency: AdjacencyMaps }} params - Traversal parameters
  * @returns {string[]} Sorted array of neighbor node IDs
  * @private
  */
@@ -420,12 +412,7 @@ function applyHop({ direction, label, workingSet, adjacency }) {
  *
  * If minDepth is 0, the starting nodes themselves are included in the result.
  *
- * @param {Object} params - Traversal parameters
- * @param {'outgoing' | 'incoming'} params.direction - Direction of traversal
- * @param {string | undefined} params.label - Edge label filter (undefined = all labels)
- * @param {string[]} params.workingSet - Current set of node IDs to traverse from
- * @param {AdjacencyMaps} params.adjacency - Adjacency maps from materialized state
- * @param {[number, number]} params.depth - Tuple of [minDepth, maxDepth]
+ * @param {{ direction: 'outgoing' | 'incoming', label: string | undefined, workingSet: string[], adjacency: AdjacencyMaps, depth: [number, number] }} params - Traversal parameters
  * @returns {string[]} Sorted array of reachable node IDs within the depth range
  * @private
  */

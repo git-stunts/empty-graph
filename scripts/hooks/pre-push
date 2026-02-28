@@ -14,6 +14,13 @@ if [ -z "$ROOT" ]; then
 fi
 cd "$ROOT"
 
+# ── Quick mode: skip unit tests when WARP_QUICK_PUSH=1 or true ──────────
+QUICK=0
+if [ "$WARP_QUICK_PUSH" = "1" ] || [ "$WARP_QUICK_PUSH" = "true" ]; then
+  QUICK=1
+  echo "WARP_QUICK_PUSH: quick mode active — Gate 5 (unit tests) will be skipped"
+fi
+
 echo "══════════════════════════════════════════════════════════"
 echo "  IRONCLAD M9 — pre-push type firewall"
 echo "══════════════════════════════════════════════════════════"
@@ -46,8 +53,12 @@ wait $CONSUMER_PID || { echo ""; echo "BLOCKED — Gate 4 FAILED: Consumer type 
 echo "[Gates 1-4] All type gates passed."
 
 # ── Gate 5: Unit tests ─────────────────────────────────────────────────────
-echo "[Gate 5] Running unit tests..."
-npm run test:local
+if [ "$QUICK" = "1" ]; then
+  echo "[Gate 5] Skipped (WARP_QUICK_PUSH quick mode)"
+else
+  echo "[Gate 5] Running unit tests..."
+  npm run test:local
+fi
 
 echo "══════════════════════════════════════════════════════════"
 echo "  IRONCLAD M9 — all gates passed. Push authorized."

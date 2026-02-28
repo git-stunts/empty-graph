@@ -17,10 +17,11 @@ describe('GitGraphAdapter Concurrency Stress Test', () => {
         callLog.push({ id, end: Date.now() });
         // Return unique SHA for each call (valid hex format)
         return `abcd${id.toString(16).padStart(4, '0')}`;
-      })
+      }),
+      executeStream: vi.fn(),
     };
 
-    const adapter = new GitGraphAdapter({ plumbing: mockPlumbing });
+    const adapter = new GitGraphAdapter({ plumbing: /** @type {import('../../../../src/infrastructure/adapters/GitGraphAdapter.js').GitPlumbingLike} */ (mockPlumbing) });
 
     // Fire 50 concurrent commits
     const promises = Array.from({ length: 50 }, (_, i) =>
@@ -49,10 +50,11 @@ describe('GitGraphAdapter Concurrency Stress Test', () => {
         if (args[0] === 'show') return 'message content';
         if (args[0] === 'rev-parse') return 'def456def456def4';
         return '';
-      })
+      }),
+      executeStream: vi.fn(),
     };
 
-    const adapter = new GitGraphAdapter({ plumbing: mockPlumbing });
+    const adapter = new GitGraphAdapter({ plumbing: /** @type {import('../../../../src/infrastructure/adapters/GitGraphAdapter.js').GitPlumbingLike} */ (mockPlumbing) });
 
     // Mix of writes, reads, and ref lookups
     const operations = [

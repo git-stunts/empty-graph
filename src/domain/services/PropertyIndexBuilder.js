@@ -12,8 +12,7 @@ import computeShardKey from '../utils/shardKey.js';
 
 export default class PropertyIndexBuilder {
   /**
-   * @param {Object} [options]
-   * @param {import('../../ports/CodecPort.js').default} [options.codec]
+   * @param {{ codec?: import('../../ports/CodecPort.js').default }} [options]
    */
   constructor({ codec } = {}) {
     this._codec = codec || defaultCodec;

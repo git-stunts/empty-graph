@@ -34,7 +34,7 @@ function sortKeys(value) {
     }
     return sorted;
   }
-  if (typeof value === 'object' && (/** @type {Object} */ (value).constructor === Object || /** @type {Object} */ (value).constructor === undefined)) {
+  if (typeof value === 'object' && (/** @type {Record<string, unknown>} */ (value).constructor === Object || /** @type {Record<string, unknown>} */ (value).constructor === undefined)) {
     /** @type {Record<string, unknown>} */
     const sorted = {};
     for (const key of Object.keys(value).sort()) {

@@ -39,7 +39,7 @@ describe('NodeHttpAdapter error paths', () => {
       });
     }));
 
-    const addr = server.address();
+    const addr = /** @type {{ port: number }} */ (server.address());
     return `http://127.0.0.1:${addr.port}`;
   }
 
@@ -141,7 +141,7 @@ describe('NodeHttpAdapter error paths', () => {
       });
     }));
 
-    const port = server1.address().port;
+    const port = /** @type {{ port: number }} */ (server1.address()).port;
 
     // Try to bind a second server to the same port
     const adapter2 = new NodeHttpAdapter();
@@ -180,7 +180,7 @@ describe('NodeHttpAdapter error paths', () => {
       });
     }));
 
-    const addr = server.address();
+    const addr = /** @type {{ port: number }} */ (server.address());
     expect(addr.port).toBeGreaterThan(0);
   });
 });

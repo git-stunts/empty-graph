@@ -96,8 +96,8 @@ function toResponse(portResponse) {
  * Creates the Bun fetch handler that bridges between Request/Response
  * and the HttpServerPort plain-object contract.
  *
- * @param {Function} requestHandler - Port-style async handler
- * @param {{ error: Function }} logger
+ * @param {(request: import('../../ports/HttpServerPort.js').HttpRequest) => Promise<import('../../ports/HttpServerPort.js').HttpResponse>} requestHandler - Port-style async handler
+ * @param {{ error: (...args: unknown[]) => void }} logger
  * @returns {(request: Request) => Promise<Response>}
  */
 function createFetchHandler(requestHandler, logger) {
@@ -126,10 +126,6 @@ function createFetchHandler(requestHandler, logger) {
 }
 
 /**
- * @typedef {{ hostname: string, port: number, stop: (closeActiveConnections?: boolean) => Promise<void> }} BunServer
- */
-
-/**
  * Starts a Bun server and invokes the callback with (null) on success
  * or (err) on failure.
  *
@@ -137,7 +133,7 @@ function createFetchHandler(requestHandler, logger) {
  * (unlike Node's server.listen which defers via the event loop).
  *
  * @param {BunServeOptions} serveOptions
- * @param {Function|undefined} cb - Node-style callback
+ * @param {((err: Error | null) => void) | undefined} cb - Node-style callback
  * @returns {BunServer} The Bun server instance
  */
 function startServer(serveOptions, cb) {
@@ -152,7 +148,7 @@ function startServer(serveOptions, cb) {
  * Safely stops a Bun server, forwarding errors to the callback.
  *
  * @param {{ server: BunServer | null }} state - Shared mutable state
- * @param {Function} [callback]
+ * @param {(err?: Error) => void} [callback]
  */
 function stopServer(state, callback) {
   try {
@@ -165,9 +161,9 @@ function stopServer(state, callback) {
     if (callback) {
       callback();
     }
-  } catch (err) {
+  } catch (/** @type {unknown} */ err) {
     if (callback) {
-      callback(err);
+      callback(err instanceof Error ? err : new Error(String(err)));
     }
   }
 }
@@ -184,7 +180,7 @@ const noopLogger = { error() {} };
  */
 export default class BunHttpAdapter extends HttpServerPort {
   /**
-   * @param {{ logger?: { error: Function } }} [options]
+   * @param {{ logger?: { error: (...args: unknown[]) => void } }} [options]
    */
   constructor({ logger } = {}) {
     super();
@@ -192,8 +188,8 @@ export default class BunHttpAdapter extends HttpServerPort {
   }
 
   /**
-   * @param {Function} requestHandler
-   * @returns {{ listen: Function, close: Function, address: Function }}
+   * @param {(request: import('../../ports/HttpServerPort.js').HttpRequest) => Promise<import('../../ports/HttpServerPort.js').HttpResponse>} requestHandler
+   * @returns {import('../../ports/HttpServerPort.js').HttpServerHandle}
    */
   createServer(requestHandler) {
     const fetchHandler = createFetchHandler(requestHandler, this._logger);
@@ -203,8 +199,8 @@ export default class BunHttpAdapter extends HttpServerPort {
     return {
       /**
        * @param {number} port
-       * @param {string|Function} [host]
-       * @param {Function} [callback]
+       * @param {string|((err?: Error | null) => void)} [host]
+       * @param {(err?: Error | null) => void} [callback]
        */
       listen(port, host, callback) {
         const cb = typeof host === 'function' ? host : callback;
@@ -218,14 +214,14 @@ export default class BunHttpAdapter extends HttpServerPort {
 
         try {
           state.server = startServer(serveOptions, cb);
-        } catch (err) {
+        } catch (/** @type {unknown} */ err) {
           if (cb) {
-            cb(err);
+            cb(err instanceof Error ? err : new Error(String(err)));
           }
         }
       },
 
-      /** @param {Function} [callback] */
+      /** @param {(err?: Error) => void} [callback] */
       close: (callback) => stopServer(state, callback),
 
       address() {

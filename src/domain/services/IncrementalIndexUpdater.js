@@ -42,8 +42,9 @@ const MAX_LOCAL_ID = 1 << 24;
 
 export default class IncrementalIndexUpdater {
   /**
-   * @param {Object} [options]
-   * @param {import('../../ports/CodecPort.js').default} [options.codec]
+   * Create an incremental index updater.
+   *
+   * @param {{ codec?: import('../../ports/CodecPort.js').default }} [options]
    */
   constructor({ codec } = {}) {
     this._codec = codec || defaultCodec;
@@ -61,10 +62,7 @@ export default class IncrementalIndexUpdater {
   /**
    * Computes only the dirty shards from a PatchDiff.
    *
-   * @param {Object} params
-   * @param {import('../types/PatchDiff.js').PatchDiff} params.diff
-   * @param {import('./JoinReducer.js').WarpStateV5} params.state
-   * @param {(path: string) => Uint8Array|undefined} params.loadShard
+   * @param {{ diff: import('../types/PatchDiff.js').PatchDiff, state: import('./JoinReducer.js').WarpStateV5, loadShard: (path: string) => Uint8Array|undefined }} params
    * @returns {Record<string, Uint8Array>} dirty shard buffers (path -> Uint8Array)
    */
   computeDirtyShards({ diff, state, loadShard }) {

@@ -38,14 +38,7 @@ export function canonicalizePath(url) {
 /**
  * Builds the canonical string that gets signed.
  *
- * @param {Object} params
- * @param {string} params.keyId - Key identifier
- * @param {string} params.method - HTTP method (uppercased by caller)
- * @param {string} params.path - Canonical path
- * @param {string} params.timestamp - Epoch milliseconds as string
- * @param {string} params.nonce - UUIDv4 nonce
- * @param {string} params.contentType - Content-Type header value
- * @param {string} params.bodySha256 - Hex SHA-256 of request body
+ * @param {{ keyId: string, method: string, path: string, timestamp: string, nonce: string, contentType: string, bodySha256: string }} params
  * @returns {string} Pipe-delimited canonical payload
  */
 export function buildCanonicalPayload({ keyId, method, path, timestamp, nonce, contentType, bodySha256 }) {
@@ -55,15 +48,8 @@ export function buildCanonicalPayload({ keyId, method, path, timestamp, nonce, c
 /**
  * Signs an outgoing sync request.
  *
- * @param {Object} params
- * @param {string} params.method - HTTP method
- * @param {string} params.path - Canonical path
- * @param {string} params.contentType - Content-Type header value
- * @param {Buffer|Uint8Array} params.body - Raw request body
- * @param {string} params.secret - Shared secret
- * @param {string} params.keyId - Key identifier
- * @param {Object} deps
- * @param {import('../../ports/CryptoPort.js').default} [deps.crypto] - Crypto port
+ * @param {{ method: string, path: string, contentType: string, body: Buffer|Uint8Array, secret: string, keyId: string }} params
+ * @param {{ crypto?: import('../../ports/CryptoPort.js').default }} [deps]
  * @returns {Promise<Record<string, string>>} Auth headers
  */
 export async function signSyncRequest({ method, path, contentType, body, secret, keyId }, { crypto } = {}) {
@@ -173,15 +159,7 @@ function _validateAllowedWriters(allowedWriters) {
 
 export default class SyncAuthService {
   /**
-   * @param {Object} options
-   * @param {Record<string, string>} options.keys - Key-id to secret mapping
-   * @param {'enforce'|'log-only'} [options.mode='enforce'] - Auth enforcement mode
-   * @param {number} [options.nonceCapacity] - Nonce LRU capacity
-   * @param {number} [options.maxClockSkewMs] - Max clock skew tolerance
-   * @param {import('../../ports/CryptoPort.js').default} [options.crypto] - Crypto port
-   * @param {import('../../ports/LoggerPort.js').default} [options.logger] - Logger port
-   * @param {() => number} [options.wallClockMs] - Wall clock function
-   * @param {string[]} [options.allowedWriters] - Optional whitelist of allowed writer IDs. If set, sync requests with unlisted writers are rejected with 403.
+   * @param {{ keys: Record<string, string>, mode?: 'enforce'|'log-only', nonceCapacity?: number, maxClockSkewMs?: number, crypto?: import('../../ports/CryptoPort.js').default, logger?: import('../../ports/LoggerPort.js').default, wallClockMs?: () => number, allowedWriters?: string[] }} options
    */
   constructor({ keys, mode = 'enforce', nonceCapacity, maxClockSkewMs, crypto, logger, wallClockMs, allowedWriters } = /** @type {{ keys: Record<string, string> }} */ ({})) {
     _validateKeys(keys);
@@ -289,12 +267,7 @@ export default class SyncAuthService {
   /**
    * Verifies the HMAC signature against the canonical payload.
    *
-   * @param {Object} params
-   * @param {{ method: string, url: string, headers: Record<string, string>, body?: Buffer|Uint8Array }} params.request
-   * @param {string} params.secret
-   * @param {string} params.keyId
-   * @param {string} params.timestamp
-   * @param {string} params.nonce
+   * @param {{ request: { method: string, url: string, headers: Record<string, string>, body?: Buffer|Uint8Array }, secret: string, keyId: string, timestamp: string, nonce: string }} params
    * @returns {Promise<{ ok: false, reason: string, status: number } | { ok: true }>}
    * @private
    */

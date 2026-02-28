@@ -55,20 +55,20 @@ async function main() {
     throw usageError(`--view is not supported for '${command}'. Supported commands: ${VIEW_SUPPORTED_COMMANDS.join(', ')}`);
   }
 
-  const result = await /** @type {Function} */ (handler)({
+  const result = await /** @type {(opts: {command: string, args: string[], options: Record<string, unknown>}) => Promise<unknown>} */ (handler)({
     command,
     args: commandArgs,
     options,
   });
 
-  /** @type {{payload: *, exitCode: number}} */
-  const normalized = result && typeof result === 'object' && 'payload' in result
-    ? result
+  /** @type {{payload: unknown, exitCode: number}} */
+  const normalized = result && typeof result === 'object' && 'payload' in /** @type {Record<string, unknown>} */ (result)
+    ? /** @type {{payload: unknown, exitCode: number}} */ (result)
     : { payload: result, exitCode: EXIT_CODES.OK };
 
   if (normalized.payload !== undefined) {
     const format = options.ndjson ? 'ndjson' : options.json ? 'json' : 'text';
-    present(normalized.payload, { format, command, view: options.view });
+    present(/** @type {Record<string, unknown>} */ (normalized.payload), { format, command, view: /** @type {string | null | boolean} */ (options.view ?? null) });
   }
   // Use process.exit() to avoid waiting for fire-and-forget I/O (e.g. seek cache writes).
   process.exit(normalized.exitCode ?? EXIT_CODES.OK);
@@ -78,7 +78,7 @@ main().catch((error) => {
   const exitCode = error instanceof CliError ? error.exitCode : EXIT_CODES.INTERNAL;
   const code = error instanceof CliError ? error.code : 'E_INTERNAL';
   const message = error instanceof Error ? error.message : 'Unknown error';
-  /** @type {{error: {code: string, message: string, cause?: *}}} */
+  /** @type {{error: {code: string, message: string, cause?: unknown}}} */
   const payload = { error: { code, message } };
 
   if (error && error.cause) {

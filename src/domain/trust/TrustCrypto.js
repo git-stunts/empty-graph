@@ -63,11 +63,7 @@ function decodePublicKey(base64) {
 /**
  * Verifies an Ed25519 signature against a payload.
  *
- * @param {Object} params
- * @param {string} params.algorithm - Must be 'ed25519'
- * @param {string} params.publicKeyBase64 - Base64-encoded 32-byte public key
- * @param {string} params.signatureBase64 - Base64-encoded signature
- * @param {Buffer} params.payload - Bytes to verify
+ * @param {{ algorithm: string, publicKeyBase64: string, signatureBase64: string, payload: Buffer }} params
  * @returns {boolean} true if signature is valid
  * @throws {TrustError} E_TRUST_UNSUPPORTED_ALGORITHM for non-ed25519
  * @throws {TrustError} E_TRUST_INVALID_KEY for malformed public key

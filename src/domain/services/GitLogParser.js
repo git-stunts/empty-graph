@@ -88,8 +88,7 @@ export default class GitLogParser {
    *
    * @param {AsyncIterable<Buffer|Uint8Array|string>} stream - The git log output stream.
    *   May yield Buffer, Uint8Array, or string chunks.
-   * @param {Object} [options] - Parse options
-   * @param {AbortSignal} [options.signal] - Optional abort signal for cancellation
+   * @param {{ signal?: AbortSignal }} [options] - Parse options
    * @yields {GraphNode} Parsed graph nodes. Invalid records are silently skipped.
    * @throws {OperationAbortedError} If signal is aborted during parsing
    *
