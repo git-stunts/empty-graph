@@ -354,7 +354,7 @@ export default class MaterializedViewService {
    * @returns {VerifyResult}
    */
   verifyIndex({ state, logicalIndex, options = {} }) {
-    const seed = options.seed ?? (Date.now() & 0x7FFFFFFF);
+    const seed = options.seed ?? (Math.random() * 0x7FFFFFFF >>> 0);
     const sampleRate = options.sampleRate ?? 0.1;
     const allNodes = [...orsetElements(state.nodeAlive)].sort();
     const sampled = sampleNodes(allNodes, sampleRate, seed);

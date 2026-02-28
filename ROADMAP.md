@@ -1,7 +1,7 @@
 # ROADMAP — @git-stunts/git-warp
 
 > **Current version:** v12.2.1
-> **Last reconciled:** 2026-02-28 (STANK.md reconciled against v12.2.1 release)
+> **Last reconciled:** 2026-02-28 (BACKLOG promoted B119–B129; STANK.md reconciled against v12.2.1)
 
 ---
 
@@ -337,15 +337,22 @@ Items picked up opportunistically without blocking milestones. No milestone assi
 
 | ID | Item |
 |----|------|
-| B46 | **ESLINT BAN `Date.now()` IN DOMAIN** — one-line `no-restricted-syntax` config change |
-| B47 | **`orsetAdd` DOT ARGUMENT VALIDATION** — domain boundary validation, prevents silent corruption |
-| B26 | **DER SPKI PREFIX CONSTANT** — named constant with RFC 8410 reference |
-| B71 | **PATCHBUILDER `console.warn` BYPASSES LOGGERPORT** — replace direct `console.warn()` with `this._logger?.warn()` in `removeNode`. From B-AUDIT-9 (JANK). **File:** `src/domain/services/PatchBuilderV2.js:252-256` |
+| B46 | ~~**ESLINT BAN `Date.now()` IN DOMAIN**~~ ✅ — `no-restricted-syntax` rule on `src/domain/**/*.js`. Legitimate wall-clock uses annotated with eslint-disable. |
+| B47 | ~~**`orsetAdd` DOT ARGUMENT VALIDATION**~~ ✅ — runtime shape check before `encodeDot()`. |
+| B26 | ~~**DER SPKI PREFIX CONSTANT**~~ ✅ — `ED25519_SPKI_PREFIX` with RFC 8410 reference in TrustCrypto.js. |
+| B71 | ~~**PATCHBUILDER `console.warn` BYPASSES LOGGERPORT**~~ ✅ — routes through `this._logger.warn()`. Writer now forwards logger to PatchBuilderV2. |
+| B126 | ~~**`no-empty-catch` ESLINT RULE**~~ ✅ — `no-empty` with `allowEmptyCatch: false`. |
 
 ### Near-Term
 
 | ID | Item |
 |----|------|
+| B120 | **ADAPTER TYPED ERROR CODES** — replace string-contains matching in catch blocks with typed error codes (`E_MISSING_OBJECT`, `E_REF_NOT_FOUND`, `E_REF_IO`) at the adapter layer. Eliminates false-positive concerns in checkpoint load, trust read, etc. From PR #55 review. **Files:** `GitGraphAdapter.js`, `checkpoint.methods.js`, `TrustRecordService.js` |
+| B121 | **CIRCULAR/SHARED-REFERENCE TEST HELPER** — `createCircular()` / `createDiamond()` test factories with proper JSDoc annotations, avoiding repeated `Record<string, unknown>` casts in strict TS test files. From PR #55 review. |
+| B122 | **SCHEMA-4 CHECKPOINT VALIDATION COVERAGE** — test `_validatePatchAgainstCheckpoint` for `ahead`, `same`, `behind`, `diverged` cases to close schema gate ambiguity before M13. From BACKLOG 2026-02-27. |
+| B124 | **TRUST PAYLOAD PARITY TESTS** — assert CLI `trust` and `AuditVerifierService.evaluateTrust()` emit shape-compatible error payloads. From BACKLOG 2026-02-27. |
+| B125 | **`CachedValue` NULL-PAYLOAD SEMANTIC TESTS** — document and test whether `null` is a valid cached value. From BACKLOG 2026-02-27. |
+| B127 | **DENO SMOKE TEST** — `npm run test:deno:smoke` for fast local pre-push confidence without full Docker matrix. From BACKLOG 2026-02-25. |
 | B44 | **SUBSCRIBER UNSUBSCRIBE-DURING-CALLBACK E2E** — event system edge case; known bug class that bites silently |
 | B34 | **DOCS: SECURITY_SYNC.md** — extract threat model from JSDoc into operator doc |
 | B35 | **DOCS: README INSTALL SECTION** — Quick Install with Docker + native paths |
@@ -383,6 +390,9 @@ Items picked up opportunistically without blocking milestones. No milestone assi
 | B88 | **MERMAID RENDERING SMOKE TEST** — parse all ` ```mermaid ` blocks with `@mermaid-js/mermaid-cli` in CI. From B-DIAG-2. **File:** GitHub workflow file `.github/workflows/ci.yml` or `scripts/` |
 | B89 | ~~**VERSION CONSISTENCY GATE**~~ — **DONE (v12.1.0).** `scripts/release-preflight.sh` checks package.json == jsr.json; `release.yml` verify job enforces tag == package.json == jsr.json + CHANGELOG dated entry + README What's New. |
 | B90 | ~~**PREFLIGHT BOT CHANGELOG CHECK**~~ — **DONE (v12.1.0).** `release.yml` verify job checks CHANGELOG heading for tag version. `release-pr.yml` already runs lint+typecheck+test+pack dry-runs on PRs. |
+| B119 | **`scripts/pr-ready` MERGE-READINESS CLI** — single tool aggregating unresolved review threads, pending/failed checks, CodeRabbit status/cooldown, and human-review count into one deterministic verdict. Dedupes ~20 BACKLOG items from 6 PR feedback sessions. From BACKLOG 2026-02-27/28. |
+| B123 | **BENCHMARK BUDGETS + CI REGRESSION GATE** — define perf thresholds for eager post-commit and materialize hash cost; fail CI on agreed regression. From BACKLOG 2026-02-27. |
+| B128 | **DOCS CONSISTENCY PREFLIGHT** — automated pass in `release:preflight` verifying changelog/readme/guide updates for behavior changes in hot paths (materialize, checkpoint, sync). From BACKLOG 2026-02-28. |
 
 ### Surface Validator Pack
 
@@ -426,6 +436,7 @@ Single lightweight property suite — not a milestone anchor:
 | B102 | **API EXAMPLES REVIEW CHECKLIST** — add to `CONTRIBUTING.md`: each `createPatch()`/`commit()` uses own builder, async methods `await`ed, examples copy-pasteable. From B-DOC-3. |
 | B103 | **BATCH REVIEW FIX COMMITS** — batch all review fixes into one commit before re-requesting CodeRabbit. Reduces duplicate findings across incremental pushes. From B-DX-2. |
 | B104 | **MERMAID DIAGRAM CONTENT CHECKLIST** — for diagram migrations: count annotations in source/target, verify edge labels survive, check complexity annotations preserved. From B-DIAG-1. |
+| B129 | **CONTRIBUTOR REVIEW-LOOP HYGIENE GUIDE** — add section to `CONTRIBUTING.md` covering commit sizing, CodeRabbit cooldown strategy, and when to request bot review. From BACKLOG 2026-02-27. |
 
 ---
 
@@ -478,17 +489,17 @@ T9 (TSK TSK) ✅
 
 Pick opportunistically between milestones. Recommended order within tiers:
 
-1. **Immediate** (B46, B47, B26, B71) — any order, each <=30 min
-2. **Near-term correctness** (B44, B76, B80, B81) — prioritize items touching core services
-3. **Near-term DX** (B36, B37, B43, B82) — test ergonomics and developer velocity
+1. **Immediate** (B46, B47, B26, B71, B126) — any order, each <=30 min
+2. **Near-term correctness** (B44, B76, B80, B81, B120, B122, B124) — prioritize items touching core services
+3. **Near-term DX** (B36, B37, B43, B82, B121, B125, B127) — test ergonomics and developer velocity
 4. **Near-term docs/types** (B34, B35, B50, B52, B55) — alignment and documentation
 5. **Near-term tooling** (B12, B48, B49, B51, B53, B54, B57, B28) — remaining type safety items
-6. **CI & Tooling Pack** (B83–B90) — batch as one PR
+6. **CI & Tooling Pack** (B83–B90, B119, B123, B128) — batch as one PR
 7. **Surface Validator Pack** (B91–B95) — batch as one PR, do B92 tests first
 8. **Type Surface Pack** (B96–B98) — batch as one PR
 9. **Content Attachment** (B99) — standalone property test
 10. **Conformance Property Pack** (B19, B22) — standalone property suite
-11. **Process** (B102–B104) — fold into CONTRIBUTING.md when touching that file
+11. **Process** (B102–B104, B129) — fold into CONTRIBUTING.md when touching that file
 
 ---
 
@@ -502,11 +513,11 @@ Pick opportunistically between milestones. Recommended order within tiers:
 | **Milestone (M11)** | 3 | B2(impl), B3, B11 |
 | **Milestone (M12)** | 18 | B66, B67, B70, B73, B75, B105–B115, B117, B118 |
 | **Milestone (M13)** | 1 | B116 |
-| **Standalone** | 46 | B12, B19, B22, B26, B28, B34–B37, B43, B44, B46–B55, B57, B71, B76–B88, B91–B99, B102–B104 |
+| **Standalone** | 57 | B12, B19, B22, B26, B28, B34–B37, B43, B44, B46–B55, B57, B71, B76–B88, B91–B99, B102–B104, B119–B129 |
 | **Standalone (done)** | 3 | B72, B89, B90 |
 | **Deferred** | 8 | B4, B7, B16, B20, B21, B27, B100, B101 |
 | **Rejected** | 7 | B5, B6, B13, B17, B18, B25, B45 |
-| **Total tracked** | **93** (3 done) | |
+| **Total tracked** | **104** (3 done) | |
 
 ### STANK.md Cross-Reference
 
@@ -612,7 +623,7 @@ Execution: M10 SENTINEL → **M12 SCALPEL** → **M13 SCALPEL II** → M11 COMPA
 
 M12 is complete (including T8/T9). Edge property encoding (B116/S2) was extracted to M13 as a dedicated schema migration milestone requiring its own design phase. M13 must land before new features (M11).
 
-BACKLOG.md is now fully absorbed into this file. It can be archived or deleted.
+BACKLOG.md fully absorbed into this file (B119–B129 promoted 2026-02-28; prior items 2026-02-25).
 Rejected items live in `GRAVEYARD.md`. Resurrections require an RFC.
 
 ---

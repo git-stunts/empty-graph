@@ -305,8 +305,7 @@ export class PatchBuilderV2 {
         }
 
         if (this._onDeleteWithData === 'warn') {
-          // eslint-disable-next-line no-console
-          console.warn(
+          this._logger.warn(
             `[warp] Deleting node '${nodeId}' which has attached data (${summary}). ` +
             `Orphaned data will remain in state.`
           );

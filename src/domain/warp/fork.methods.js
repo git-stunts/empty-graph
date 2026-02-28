@@ -104,7 +104,7 @@ export async function fork({ from, at, forkName, forkWriterId }) {
 
     // 4. Generate or validate fork name (add random suffix to prevent collisions)
     const resolvedForkName =
-      forkName ?? `${this._graphName}-fork-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      forkName ?? `${this._graphName}-fork-${Math.random().toString(36).slice(2, 10)}`;
     try {
       validateGraphName(resolvedForkName);
     } catch (err) {
