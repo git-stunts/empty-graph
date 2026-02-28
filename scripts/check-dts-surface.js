@@ -144,6 +144,8 @@ const isMain = process.argv[1] &&
   fileURLToPath(import.meta.url) === resolve(process.argv[1]);
 
 if (isMain) {
+  const quiet = process.argv.includes('--quiet');
+
   // 1. Load the manifest
   const manifestPath = resolve(root, 'contracts/type-surface.m8.json');
   const manifest = JSON.parse(readRequired(manifestPath));
@@ -164,7 +166,9 @@ if (isMain) {
   // Check A: Every manifest entry must exist in index.d.ts
   for (const name of manifestNames) {
     if (!dtsExports.has(name)) {
-      process.stderr.write(`ERROR: manifest entry "${name}" missing from index.d.ts\n`);
+      if (!quiet) {
+        process.stderr.write(`ERROR: manifest entry "${name}" missing from index.d.ts\n`);
+      }
       errors++;
     }
   }
@@ -172,7 +176,9 @@ if (isMain) {
   // Check B: Every named export in index.js must exist in the manifest
   for (const name of jsExports) {
     if (!manifestNames.has(name)) {
-      process.stderr.write(`ERROR: index.js export "${name}" missing from type-surface.m8.json manifest\n`);
+      if (!quiet) {
+        process.stderr.write(`ERROR: index.js export "${name}" missing from type-surface.m8.json manifest\n`);
+      }
       errors++;
     }
   }
@@ -180,7 +186,9 @@ if (isMain) {
   // Check C: Warn about index.d.ts exports not in manifest (type-only exports are valid)
   for (const name of dtsExports) {
     if (!manifestNames.has(name)) {
-      process.stderr.write(`WARN: index.d.ts export "${name}" not in manifest (type-only?)\n`);
+      if (!quiet) {
+        process.stderr.write(`WARN: index.d.ts export "${name}" not in manifest (type-only?)\n`);
+      }
       warnings++;
     }
   }
