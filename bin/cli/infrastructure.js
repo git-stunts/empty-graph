@@ -127,10 +127,7 @@ Tree options:
 export class CliError extends Error {
   /**
    * @param {string} message - Human-readable error message
-   * @param {Object} [options]
-   * @param {string} [options.code='E_CLI'] - Machine-readable error code
-   * @param {number} [options.exitCode=3] - Process exit code
-   * @param {Error} [options.cause] - Underlying cause
+   * @param {{ code?: string, exitCode?: number, cause?: Error }} [options]
    */
   constructor(message, { code = 'E_CLI', exitCode = EXIT_CODES.INTERNAL, cause } = {}) {
     super(message);
@@ -337,12 +334,12 @@ export function parseArgs(argv) {
 /**
  * Parses command-level args using node:util.parseArgs + Zod validation.
  *
+ * @template T
  * @param {string[]} args - Command-specific args (after command name)
- * @param {Object} config - parseArgs options config
- * @param {import('zod').ZodType} schema - Zod schema to validate/transform parsed values
- * @param {Object} [opts]
- * @param {boolean} [opts.allowPositionals=false] - Whether to allow positional arguments
- * @returns {{values: *, positionals: string[]}}
+ * @param {Record<string, {type: string, short?: string, default?: unknown, multiple?: boolean}>} config - parseArgs options config
+ * @param {import('zod').ZodType<T, import('zod').ZodTypeDef, unknown>} schema - Zod schema to validate/transform parsed values
+ * @param {{ allowPositionals?: boolean }} [opts]
+ * @returns {{values: T, positionals: string[]}}
  */
 export function parseCommandArgs(args, config, schema, { allowPositionals = false } = {}) {
   /** @type {{ values: Record<string, string|boolean|string[]|boolean[]|undefined>, positionals: string[] }} */

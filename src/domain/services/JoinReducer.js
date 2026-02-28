@@ -45,6 +45,28 @@ export { normalizeRawOp, lowerCanonicalOp } from './OpNormalizer.js';
  */
 
 /**
+ * @typedef {Object} OpLike
+ * @property {string} type - Operation type discriminator
+ * @property {string} [node] - Node ID (for NodeAdd, NodeRemove, PropSet)
+ * @property {import('../crdt/Dot.js').Dot} [dot] - Dot identifier (for NodeAdd, EdgeAdd)
+ * @property {string[]} [observedDots] - Encoded dots to remove (for NodeRemove, EdgeRemove)
+ * @property {string} [from] - Source node ID (for EdgeAdd, EdgeRemove)
+ * @property {string} [to] - Target node ID (for EdgeAdd, EdgeRemove)
+ * @property {string} [label] - Edge label (for EdgeAdd, EdgeRemove)
+ * @property {string} [key] - Property key (for PropSet)
+ * @property {unknown} [value] - Property value (for PropSet)
+ * @property {string} [oid] - Blob object ID (for BlobValue)
+ */
+
+/**
+ * @typedef {Object} PatchLike
+ * @property {string} writer - Writer ID who created this patch
+ * @property {number} lamport - Lamport timestamp of this patch
+ * @property {OpLike[]} ops - Ordered array of operations
+ * @property {Map<string, number>|Record<string, number>} context - Version vector context
+ */
+
+/**
  * Creates an empty V5 state with all CRDT structures initialized.
  *
  * This is the starting point for fresh materialization. The returned state has:
@@ -82,16 +104,7 @@ export function createEmptyStateV5() {
  * clone the state first using `cloneStateV5()`.
  *
  * @param {WarpStateV5} state - The state to mutate. Modified in place.
- * @param {Object} op - The operation to apply
- * @param {string} op.type - One of: 'NodeAdd', 'NodeRemove', 'EdgeAdd', 'EdgeRemove', 'PropSet', 'BlobValue'
- * @param {string} [op.node] - Node ID (for NodeAdd, NodeRemove, PropSet)
- * @param {import('../crdt/Dot.js').Dot} [op.dot] - Dot identifier (for NodeAdd, EdgeAdd)
- * @param {string[]} [op.observedDots] - Encoded dots to remove (for NodeRemove, EdgeRemove)
- * @param {string} [op.from] - Source node ID (for EdgeAdd, EdgeRemove)
- * @param {string} [op.to] - Target node ID (for EdgeAdd, EdgeRemove)
- * @param {string} [op.label] - Edge label (for EdgeAdd, EdgeRemove)
- * @param {string} [op.key] - Property key (for PropSet)
- * @param {unknown} [op.value] - Property value (for PropSet)
+ * @param {OpLike} op - The operation to apply
  * @param {import('../utils/EventId.js').EventId} eventId - Event ID for causality tracking
  * @returns {void}
  */
@@ -349,7 +362,7 @@ export function applyOpV2(state, op, eventId) {
  * - EdgeRemove -> EdgeTombstone (CRDT tombstone semantics)
  * - All others pass through unchanged
  *
- * @const {Object<string, string>}
+ * @const {Record<string, string>}
  */
 const RECEIPT_OP_TYPE = {
   NodeAdd: 'NodeAdd',
@@ -376,9 +389,7 @@ const VALID_RECEIPT_OPS = new Set(OP_TYPES);
  * this add operation is effective or redundant (idempotent re-delivery).
  *
  * @param {import('../crdt/ORSet.js').ORSet} orset - The node OR-Set containing alive nodes
- * @param {Object} op - The NodeAdd operation
- * @param {string} op.node - The node ID being added
- * @param {import('../crdt/Dot.js').Dot} op.dot - The dot uniquely identifying this add event
+ * @param {{node: string, dot: import('../crdt/Dot.js').Dot}} op - The NodeAdd operation
  * @returns {{target: string, result: 'applied'|'redundant'}} Outcome with node ID as target
  */
 function nodeAddOutcome(orset, op) {
@@ -399,9 +410,7 @@ function nodeAddOutcome(orset, op) {
  * observed at the time the remove was issued.
  *
  * @param {import('../crdt/ORSet.js').ORSet} orset - The node OR-Set containing alive nodes
- * @param {Object} op - The NodeRemove operation
- * @param {string} [op.node] - The node ID being removed (may be absent for dot-only removes)
- * @param {string[]} op.observedDots - Array of encoded dots that were observed when the remove was issued
+ * @param {{node?: string, observedDots: string[] | Set<string>}} op - The NodeRemove operation
  * @returns {{target: string, result: 'applied'|'redundant'}} Outcome with node ID (or '*') as target
  */
 function nodeRemoveOutcome(orset, op) {
@@ -431,11 +440,7 @@ function nodeRemoveOutcome(orset, op) {
  * Unlike nodes, edges are keyed by the composite (from, to, label) tuple.
  *
  * @param {import('../crdt/ORSet.js').ORSet} orset - The edge OR-Set containing alive edges
- * @param {Object} op - The EdgeAdd operation
- * @param {string} op.from - Source node ID
- * @param {string} op.to - Target node ID
- * @param {string} op.label - Edge label
- * @param {import('../crdt/Dot.js').Dot} op.dot - The dot uniquely identifying this add event
+ * @param {{from: string, to: string, label: string, dot: import('../crdt/Dot.js').Dot}} op - The EdgeAdd operation
  * @param {string} edgeKey - Pre-encoded edge key (from\0to\0label format)
  * @returns {{target: string, result: 'applied'|'redundant'}} Outcome with encoded edge key as target
  */
@@ -460,11 +465,7 @@ function edgeAddOutcome(orset, op, edgeKey) {
  * otherwise falls back to '*' for wildcard/unknown targets.
  *
  * @param {import('../crdt/ORSet.js').ORSet} orset - The edge OR-Set containing alive edges
- * @param {Object} op - The EdgeRemove operation
- * @param {string} [op.from] - Source node ID (optional for computing target)
- * @param {string} [op.to] - Target node ID (optional for computing target)
- * @param {string} [op.label] - Edge label (optional for computing target)
- * @param {string[]} op.observedDots - Array of encoded dots that were observed when the remove was issued
+ * @param {{from?: string, to?: string, label?: string, observedDots: string[] | Set<string>}} op - The EdgeRemove operation
  * @returns {{target: string, result: 'applied'|'redundant'}} Outcome with encoded edge key (or '*') as target
  */
 function edgeRemoveOutcome(orset, op) {
@@ -535,9 +536,7 @@ function propOutcomeForKey(propMap, key, eventId) {
  * Determines the receipt outcome for a PropSet/NodePropSet operation.
  *
  * @param {Map<string, import('../crdt/LWW.js').LWWRegister<unknown>>} propMap
- * @param {Object} op
- * @param {string} op.node - Node ID owning the property
- * @param {string} op.key - Property key/name
+ * @param {{node: string, key: string}} op - The PropSet or NodePropSet operation
  * @param {import('../utils/EventId.js').EventId} eventId
  * @returns {{target: string, result: 'applied'|'superseded'|'redundant', reason?: string}}
  */
@@ -549,11 +548,7 @@ function propSetOutcome(propMap, op, eventId) {
  * Determines the receipt outcome for an EdgePropSet operation.
  *
  * @param {Map<string, import('../crdt/LWW.js').LWWRegister<unknown>>} propMap
- * @param {Object} op
- * @param {string} op.from
- * @param {string} op.to
- * @param {string} op.label
- * @param {string} op.key
+ * @param {{from: string, to: string, label: string, key: string}} op - The EdgePropSet operation
  * @param {import('../utils/EventId.js').EventId} eventId
  * @returns {{target: string, result: 'applied'|'superseded'|'redundant', reason?: string}}
  */
@@ -577,10 +572,7 @@ function foldPatchDot(frontier, writer, lamport) {
 /**
  * Merges a patch's context into state and folds the patch dot.
  * @param {WarpStateV5} state
- * @param {Object} patch
- * @param {string} patch.writer
- * @param {number} patch.lamport
- * @param {Map<string, number>|{[x: string]: number}} patch.context
+ * @param {{writer: string, lamport: number, context: Map<string, number>|Record<string, number>}} patch
  */
 function updateFrontierFromPatch(state, patch) {
   const contextVV = patch.context instanceof Map
@@ -594,11 +586,7 @@ function updateFrontierFromPatch(state, patch) {
  * Applies a patch to state without receipt collection (zero overhead).
  *
  * @param {WarpStateV5} state - The state to mutate in place
- * @param {Object} patch - The patch to apply
- * @param {string} patch.writer
- * @param {number} patch.lamport
- * @param {Array<{type: string, node?: string, dot?: import('../crdt/Dot.js').Dot, observedDots?: string[], from?: string, to?: string, label?: string, key?: string, value?: unknown, oid?: string}>} patch.ops
- * @param {Map<string, number>|{[x: string]: number}} patch.context
+ * @param {PatchLike} patch - The patch to apply
  * @param {string} patchSha - Git SHA of the patch commit
  * @returns {WarpStateV5} The mutated state
  */
@@ -819,11 +807,7 @@ function collectEdgeRemovals(diff, state, before) {
  * winner changes. Redundant ops produce no diff entries.
  *
  * @param {WarpStateV5} state - The state to mutate in place
- * @param {Object} patch - The patch to apply
- * @param {string} patch.writer
- * @param {number} patch.lamport
- * @param {Array<import('../types/WarpTypesV2.js').OpV2 | {type: string}>} patch.ops
- * @param {Map<string, number>|{[x: string]: number}} patch.context
+ * @param {PatchLike} patch - The patch to apply
  * @param {string} patchSha - Git SHA of the patch commit
  * @returns {{state: WarpStateV5, diff: import('../types/PatchDiff.js').PatchDiff}}
  */
@@ -847,11 +831,7 @@ export function applyWithDiff(state, patch, patchSha) {
  * Applies a patch to state with receipt collection for provenance tracking.
  *
  * @param {WarpStateV5} state - The state to mutate in place
- * @param {Object} patch - The patch to apply
- * @param {string} patch.writer
- * @param {number} patch.lamport
- * @param {Array<{type: string, node?: string, dot?: import('../crdt/Dot.js').Dot, observedDots?: string[], from?: string, to?: string, label?: string, key?: string, value?: unknown, oid?: string}>} patch.ops
- * @param {Map<string, number>|{[x: string]: number}} patch.context
+ * @param {PatchLike} patch - The patch to apply
  * @param {string} patchSha - Git SHA of the patch commit
  * @returns {{state: WarpStateV5, receipt: import('../types/TickReceipt.js').TickReceipt}}
  */
@@ -883,10 +863,10 @@ export function applyWithReceipt(state, patch, patchSha) {
         break;
       case 'PropSet':
       case 'NodePropSet':
-        outcome = propSetOutcome(state.prop, /** @type {{node: string, key: string, value: *}} */ (canonOp), eventId);
+        outcome = propSetOutcome(state.prop, /** @type {{node: string, key: string, value: unknown}} */ (canonOp), eventId);
         break;
       case 'EdgePropSet':
-        outcome = edgePropSetOutcome(state.prop, /** @type {{from: string, to: string, label: string, key: string, value: *}} */ (canonOp), eventId);
+        outcome = edgePropSetOutcome(state.prop, /** @type {{from: string, to: string, label: string, key: string, value: unknown}} */ (canonOp), eventId);
         break;
       default: {
         // Unknown or BlobValue — always applied
@@ -940,11 +920,7 @@ export function applyWithReceipt(state, patch, patchSha) {
  * clone the state first using `cloneStateV5()`.
  *
  * @param {WarpStateV5} state - The state to mutate. Modified in place.
- * @param {Object} patch - The patch to apply
- * @param {string} patch.writer - Writer ID who created this patch
- * @param {number} patch.lamport - Lamport timestamp of this patch
- * @param {Array<{type: string, node?: string, dot?: import('../crdt/Dot.js').Dot, observedDots?: string[], from?: string, to?: string, label?: string, key?: string, value?: unknown, oid?: string}>} patch.ops - Array of operations to apply
- * @param {Map<string, number>|{[x: string]: number}} patch.context - Version vector context (Map or serialized form)
+ * @param {PatchLike} patch - The patch to apply
  * @param {string} patchSha - The Git SHA of the patch commit (used for EventId creation)
  * @param {boolean} [collectReceipts=false] - When true, computes and returns receipt data
  * @returns {WarpStateV5|{state: WarpStateV5, receipt: import('../types/TickReceipt.js').TickReceipt}}
@@ -1053,11 +1029,9 @@ function mergeEdgeBirthEvent(a, b) {
  * - When `options.receipts` is true, returns a TickReceipt per patch for
  *   provenance tracking and debugging.
  *
- * @param {Array<{patch: {writer: string, lamport: number, ops: Array<{type: string, node?: string, dot?: import('../crdt/Dot.js').Dot, observedDots?: string[], from?: string, to?: string, label?: string, key?: string, value?: unknown, oid?: string}>, context: Map<string, number>|{[x: string]: number}}, sha: string}>} patches - Array of patch objects with their Git SHAs
+ * @param {Array<{patch: PatchLike, sha: string}>} patches - Array of patch objects with their Git SHAs
  * @param {WarpStateV5} [initialState] - Optional starting state (for incremental materialization from checkpoint)
- * @param {Object} [options] - Optional configuration
- * @param {boolean} [options.receipts=false] - When true, collect and return TickReceipts
- * @param {boolean} [options.trackDiff=false] - When true, collect and return PatchDiff
+ * @param {{receipts?: boolean, trackDiff?: boolean}} [options] - Optional configuration
  * @returns {WarpStateV5|{state: WarpStateV5, receipts: import('../types/TickReceipt.js').TickReceipt[]}|{state: WarpStateV5, diff: import('../types/PatchDiff.js').PatchDiff}}
  *          Returns state directly when no options;
  *          returns {state, receipts} when receipts is true;

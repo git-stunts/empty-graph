@@ -91,7 +91,7 @@ function toDenoResponse(plain) {
  * HttpServerPort request handler contract.
  *
  * @param {(request: import('../../ports/HttpServerPort.js').HttpRequest) => Promise<import('../../ports/HttpServerPort.js').HttpResponse>} requestHandler
- * @param {{ error: Function }} logger
+ * @param {{ error: (...args: unknown[]) => void }} logger
  * @returns {(request: Request) => Promise<Response>}
  */
 function createHandler(requestHandler, logger) {

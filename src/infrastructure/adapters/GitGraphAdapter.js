@@ -81,6 +81,17 @@ const TRANSIENT_ERROR_PATTERNS = [
  */
 
 /**
+ * @typedef {{ collect(opts?: { asString?: boolean }): Promise<Buffer | string> } & import('node:stream').Readable} CollectableStream
+ */
+
+/**
+ * @typedef {object} GitPlumbingLike
+ * @property {string} emptyTree - The well-known SHA for Git's empty tree
+ * @property {(options: { args: string[], input?: string | Buffer }) => Promise<string>} execute - Execute a git command
+ * @property {(options: { args: string[] }) => Promise<CollectableStream>} executeStream - Execute a git command returning a stream
+ */
+
+/**
  * Determines if an error is transient and safe to retry.
  * @param {GitError} error - The error to check
  * @returns {boolean} True if the error is transient
@@ -317,7 +328,7 @@ export default class GitGraphAdapter extends GraphPersistencePort {
   /**
    * Creates a new GitGraphAdapter instance.
    *
-   * @param {{ plumbing: *, retryOptions?: Object }} options - Configuration options
+   * @param {{ plumbing: GitPlumbingLike, retryOptions?: Partial<import('@git-stunts/alfred').RetryOptions> }} options - Configuration options
    *
    * @throws {Error} If plumbing is not provided
    *
@@ -338,7 +349,7 @@ export default class GitGraphAdapter extends GraphPersistencePort {
 
   /**
    * Executes a git command with retry logic.
-   * @param {Object} options - Options to pass to plumbing.execute
+   * @param {{ args: string[], input?: string | Buffer }} options - Options to pass to plumbing.execute
    * @returns {Promise<string>} Command output
    * @private
    */
@@ -376,10 +387,7 @@ export default class GitGraphAdapter extends GraphPersistencePort {
 
   /**
    * Creates a commit pointing to the empty tree.
-   * @param {Object} options
-   * @param {string} options.message - The commit message (typically CBOR-encoded patch data)
-   * @param {string[]} [options.parents=[]] - Parent commit SHAs
-   * @param {boolean} [options.sign=false] - Whether to GPG-sign the commit
+   * @param {{ message: string, parents?: string[], sign?: boolean }} options
    * @returns {Promise<string>} The SHA of the created commit
    * @throws {Error} If any parent OID is invalid
    */
@@ -390,11 +398,7 @@ export default class GitGraphAdapter extends GraphPersistencePort {
   /**
    * Creates a commit pointing to a custom tree (not the empty tree).
    * Used for WARP patch commits that have attachment trees.
-   * @param {Object} options
-   * @param {string} options.treeOid - The tree OID to point to
-   * @param {string[]} [options.parents=[]] - Parent commit SHAs
-   * @param {string} options.message - Commit message
-   * @param {boolean} [options.sign=false] - Whether to GPG sign
+   * @param {{ treeOid: string, parents?: string[], message: string, sign?: boolean }} options
    * @returns {Promise<string>} The created commit SHA
    */
   async commitNodeWithTree({ treeOid, parents = [], message, sign = false }) {
@@ -482,10 +486,7 @@ export default class GitGraphAdapter extends GraphPersistencePort {
 
   /**
    * Returns raw git log output for a ref.
-   * @param {Object} options
-   * @param {string} options.ref - The Git ref to log from
-   * @param {number} [options.limit=50] - Maximum number of commits to return
-   * @param {string} [options.format] - Custom format string for git log
+   * @param {{ ref: string, limit?: number, format?: string }} options
    * @returns {Promise<string>} The raw log output
    * @throws {Error} If the ref is invalid or the limit is out of range
    */
@@ -509,10 +510,7 @@ export default class GitGraphAdapter extends GraphPersistencePort {
    * Uses the -z flag to produce NUL-terminated output, which:
    * - Ensures reliable parsing of commits with special characters in messages
    * - Ignores the i18n.logOutputEncoding config setting for consistent output
-   * @param {Object} options
-   * @param {string} options.ref - The ref to log from
-   * @param {number} [options.limit=1000000] - Maximum number of commits to return
-   * @param {string} [options.format] - Custom format string for git log
+   * @param {{ ref: string, limit?: number, format?: string }} options
    * @returns {Promise<import('node:stream').Readable>} A readable stream of git log output (NUL-terminated records)
    * @throws {Error} If the ref is invalid or the limit is out of range
    */

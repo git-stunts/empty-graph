@@ -97,7 +97,7 @@ function toResponse(portResponse) {
  * and the HttpServerPort plain-object contract.
  *
  * @param {(request: import('../../ports/HttpServerPort.js').HttpRequest) => Promise<import('../../ports/HttpServerPort.js').HttpResponse>} requestHandler - Port-style async handler
- * @param {{ error: Function }} logger
+ * @param {{ error: (...args: unknown[]) => void }} logger
  * @returns {(request: Request) => Promise<Response>}
  */
 function createFetchHandler(requestHandler, logger) {
@@ -126,10 +126,6 @@ function createFetchHandler(requestHandler, logger) {
 }
 
 /**
- * @typedef {{ hostname: string, port: number, stop: (closeActiveConnections?: boolean) => Promise<void> }} BunServer
- */
-
-/**
  * Starts a Bun server and invokes the callback with (null) on success
  * or (err) on failure.
  *
@@ -137,7 +133,7 @@ function createFetchHandler(requestHandler, logger) {
  * (unlike Node's server.listen which defers via the event loop).
  *
  * @param {BunServeOptions} serveOptions
- * @param {Function|undefined} cb - Node-style callback
+ * @param {((err: Error | null) => void) | undefined} cb - Node-style callback
  * @returns {BunServer} The Bun server instance
  */
 function startServer(serveOptions, cb) {
