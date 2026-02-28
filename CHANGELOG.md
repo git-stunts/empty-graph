@@ -37,6 +37,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`listRefs` error wrapping (review)** — `GitGraphAdapter.listRefs()` now wraps Git errors via `wrapGitError`, consistent with all other adapter methods.
+- **Error classifier exit-code guards (review)** — `isRefNotFoundError` and `isRefIoError` now gate on exit codes 128/1, preventing broad pattern matches from misclassifying non-ref errors.
+- **`NodeHttpAdapter.dispatch` handler type (review)** — upgraded from bare `Function` to typed `HttpRequest → HttpResponse` signature.
+- **`PersistenceError` constructor redundancy (review)** — removed duplicate `code` param from `super()` options.
 - **JSDoc wildcards `{[x: string]: *}` → `unknown` in TickReceipt (B52)** — replaced non-standard JSDoc wildcard with `unknown`.
 - **SyncAuthService `keys` param documented as required (B52)** — constructor JSDoc corrected.
 - **Misleading `= {}` constructor defaults removed (B51)** — `DagTraversal`, `DagPathFinding`, `DagTopology`, `BitmapIndexReader` no longer suggest optional dependencies.
