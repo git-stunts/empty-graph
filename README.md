@@ -8,13 +8,12 @@
   <img src="docs/images/hero.gif" alt="git-warp CLI demo" width="600">
 </p>
 
-## What's New in v12.4.0
+## What's New in v12.4.1
 
-- **`PersistenceError` with typed error codes** — `E_MISSING_OBJECT`, `E_REF_NOT_FOUND`, `E_REF_IO` replace brittle `message.includes()` checks, giving callers machine-readable error handling.
-- **Reserved graph name validation** — `validateGraphName()` rejects ref-layout keywords (`writers`, `checkpoints`, `coverage`) as graph name segments, preventing silent data corruption.
-- **`listRefs()` limit parameter** — optional `{ limit }` options bag for bounded ref enumeration.
-- **`WARP_QUICK_PUSH` env var** — pre-push hook skips unit tests when set to `1` or `true`, enabling fast iteration without disabling hooks entirely.
-- **Type surface manifest completeness** — 85 exports added to the type-surface manifest; 0 errors, 0 warnings.
+- **JSDoc total coverage** — eliminated all unsafe `{Object}`, `{Function}`, `{*}` type patterns across 135 files (190+ sites), replacing them with precise inline typed shapes.
+- **Zero tsc errors** — fixed tsconfig split-config includes and type divergences; 0 errors across all three tsconfig targets.
+- **JSR dry-run fix** — worked around a deno_ast 0.52.0 panic caused by overlapping text-change entries for duplicate import specifiers.
+- **`check-dts-surface.js` regex fix** — default-export parsing now correctly captures identifiers instead of keywords for `export default class/function` patterns.
 
 See the [full changelog](CHANGELOG.md) for details.
 

@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [12.4.1] — 2026-02-28
+
 ### Fixed
 
 - **tsconfig.src.json / tsconfig.test.json missing d.ts includes** — added `globals.d.ts` and `_wiredMethods.d.ts` to both split configs; eliminated 113 + 634 false TS2339 errors for WarpGraph wired methods.
