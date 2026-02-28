@@ -51,6 +51,30 @@ function scanPatchesForMaxLamport(graph, patches) {
   }
 }
 
+/**
+ * Creates a shallow-frozen public view of materialized state.
+ *
+ * @param {import('../services/JoinReducer.js').WarpStateV5} state
+ * @returns {import('../services/JoinReducer.js').WarpStateV5}
+ */
+function freezePublicState(state) {
+  return Object.freeze({ ...state });
+}
+
+/**
+ * Creates a shallow-frozen public result for receipt-enabled materialization.
+ *
+ * @param {import('../services/JoinReducer.js').WarpStateV5} state
+ * @param {import('../types/TickReceipt.js').TickReceipt[]} receipts
+ * @returns {{state: import('../services/JoinReducer.js').WarpStateV5, receipts: import('../types/TickReceipt.js').TickReceipt[]}}
+ */
+function freezePublicStateWithReceipts(state, receipts) {
+  return Object.freeze({
+    state: freezePublicState(state),
+    receipts,
+  });
+}
+
 
 /**
  * Materializes the current graph state.
@@ -90,7 +114,12 @@ export async function materialize(options) {
   try {
     // When ceiling is active, delegate to ceiling-aware path (with its own cache)
     if (ceiling !== null) {
-      return await this._materializeWithCeiling(ceiling, !!collectReceipts, t0);
+      const result = await this._materializeWithCeiling(ceiling, !!collectReceipts, t0);
+      if (collectReceipts) {
+        const withReceipts = /** @type {{state: import('../services/JoinReducer.js').WarpStateV5, receipts: import('../types/TickReceipt.js').TickReceipt[]}} */ (result);
+        return freezePublicStateWithReceipts(withReceipts.state, withReceipts.receipts);
+      }
+      return freezePublicState(/** @type {import('../services/JoinReducer.js').WarpStateV5} */ (result));
     }
 
     // Check for checkpoint
@@ -225,9 +254,12 @@ export async function materialize(options) {
     this._logTiming('materialize', t0, { metrics: `${patchCount} patches` });
 
     if (collectReceipts) {
-      return { state, receipts: /** @type {import('../types/TickReceipt.js').TickReceipt[]} */ (receipts) };
+      return freezePublicStateWithReceipts(
+        /** @type {import('../services/JoinReducer.js').WarpStateV5} */ (state),
+        /** @type {import('../types/TickReceipt.js').TickReceipt[]} */ (receipts),
+      );
     }
-    return state;
+    return freezePublicState(/** @type {import('../services/JoinReducer.js').WarpStateV5} */ (state));
   } catch (err) {
     this._logTiming('materialize', t0, { error: /** @type {Error} */ (err) });
     throw err;
@@ -245,7 +277,14 @@ export async function _materializeGraph() {
   if (!this._stateDirty && this._materializedGraph) {
     return this._materializedGraph;
   }
-  const state = await this.materialize();
+  const materialized = await this.materialize();
+  const state = this._stateDirty
+    ? /** @type {import('../services/JoinReducer.js').WarpStateV5} */ (materialized)
+    : (this._cachedState
+      || /** @type {import('../services/JoinReducer.js').WarpStateV5} */ (materialized));
+  if (!state) {
+    return /** @type {object} */ (this._materializedGraph);
+  }
   if (!this._materializedGraph || this._materializedGraph.state !== state) {
     await this._setMaterializedState(/** @type {import('../services/JoinReducer.js').WarpStateV5} */ (state));
   }

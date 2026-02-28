@@ -800,6 +800,29 @@ describe('AuditVerifierService — trustWarning', () => {
   });
 });
 
+describe('AuditVerifierService — evaluateTrust', () => {
+  it('returns error/fail when trust-chain read fails', async () => {
+    const persistence = new InMemoryGraphAdapter();
+    const originalReadRef = persistence.readRef.bind(persistence);
+    persistence.readRef = async (ref) => {
+      if (ref === 'refs/warp/events/trust/records') {
+        throw new Error('trust storage unavailable');
+      }
+      return originalReadRef(ref);
+    };
+
+    const verifier = createVerifier(persistence);
+    const result = await verifier.evaluateTrust('events');
+
+    expect(result.trust.status).toBe('error');
+    expect(result.trust.source).toBe('ref');
+    expect(result.trustVerdict).toBe('fail');
+    expect(result.trust.explanations).toHaveLength(1);
+    expect(result.trust.explanations[0].reasonCode).toBe('TRUST_RECORD_CHAIN_INVALID');
+    expect(result.trust.explanations[0].reason).toContain('trust storage unavailable');
+  });
+});
+
 // ============================================================================
 // Domain purity — no process.env in src/domain/
 // ============================================================================

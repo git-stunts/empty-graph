@@ -525,7 +525,13 @@ describe('WarpGraph.materialize() with receipts', () => {
       });
 
       const { state } = await graph.materialize({ receipts: true });
-      expect(/** @type {any} */ (graph)._cachedState).toBe(state);
+      const cachedState = /** @type {any} */ (graph)._cachedState;
+      expect(cachedState).not.toBe(state);
+      expect(cachedState.nodeAlive).toBe(state.nodeAlive);
+      expect(cachedState.edgeAlive).toBe(state.edgeAlive);
+      expect(cachedState.prop).toBe(state.prop);
+      expect(cachedState.observedFrontier).toBe(state.observedFrontier);
+      expect(Object.isFrozen(state)).toBe(true);
       expect(orsetContains(state.nodeAlive, 'n1')).toBe(true);
     });
 
