@@ -253,11 +253,14 @@ describe('GitGraphAdapter coverage', () => {
     });
 
     it('propagates git errors as PersistenceError with E_REF_IO code', async () => {
-      mockPlumbing.execute.mockRejectedValue(new Error('permission denied'));
+      /** @type {any} */
+      const err = new Error('permission denied');
+      err.exitCode = 128;
+      mockPlumbing.execute.mockRejectedValue(err);
 
       await expect(adapter.deleteRef('refs/warp/test'))
-        .rejects.toSatisfy(err =>
-          err instanceof PersistenceError && err.code === PersistenceError.E_REF_IO
+        .rejects.toSatisfy(e =>
+          e instanceof PersistenceError && e.code === PersistenceError.E_REF_IO
         );
     });
   });

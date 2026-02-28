@@ -21,6 +21,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Surface validator unit tests (B92)** — 34 tests for `parseExportBlock`, `extractJsExports`, `extractDtsExports`.
 - **Type surface manifest completeness** — 85 type/interface/class exports added; 0 errors, 0 warnings.
 
+### Changed
+
+- **STANK audit relocated** — moved `STANK.md` to `docs/audits/2026-02-complexity-audit.md` and reconciled all 46 items with v12.2.1 disposition statuses (45 fixed, 1 deferred to M13).
+- **`MIGRATION_PROBLEM.md` relocated (N3)** — moved to `docs/design/MIGRATION_PROBLEM.md`.
+- **ROADMAP format (N2)** — normalized B46/B47/B26/B71/B126 done markers to `~~**X**~~ — **DONE.**` style.
+- **`no-empty` rule annotated (N1)** — added comment documenting B126 intent (rule already active via `eslint:recommended`).
+- **ROADMAP inventory table (R2)** — moved B26/B46/B47/B71/B126 from Standalone to Standalone (done); counts reconciled.
+- **MIGRATION_PROBLEM.md fenced code block** — added `text` language tag (MD040).
+
+### Refactored
+
+- **`parseExportBlock()` extracted as shared helper (B93)** — accepts block body; reused by JS and `.d.ts` extractors.
+- **`GitAdapterError` → `PersistenceError` (B120)** — domain error class is now adapter-agnostic.
+
 ### Fixed
 
 - **JSDoc wildcards `{[x: string]: *}` → `unknown` in TickReceipt (B52)** — replaced non-standard JSDoc wildcard with `unknown`.
@@ -36,20 +50,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Delete-guard test used `console.warn` spy (M1)** — replaced stale `console.warn` spy with injected mock logger; `child()` now returns self.
 - **Fork name random suffix (L4)** — `.padEnd(8, '0')` guarantees 8-char suffix from `Math.random().toString(36)`.
 - **ORSet error message em dash (L5)** — replaced `—` with `--` for ASCII-safe error messages.
-
-### Changed
-
-- **STANK audit relocated** — moved `STANK.md` to `docs/audits/2026-02-complexity-audit.md` and reconciled all 46 items with v12.2.1 disposition statuses (45 fixed, 1 deferred to M13).
-- **`MIGRATION_PROBLEM.md` relocated (N3)** — moved to `docs/design/MIGRATION_PROBLEM.md`.
-- **ROADMAP format (N2)** — normalized B46/B47/B26/B71/B126 done markers to `~~**X**~~ — **DONE.**` style.
-- **`no-empty` rule annotated (N1)** — added comment documenting B126 intent (rule already active via `eslint:recommended`).
-- **ROADMAP inventory table (R2)** — moved B26/B46/B47/B71/B126 from Standalone to Standalone (done); counts reconciled.
-- **MIGRATION_PROBLEM.md fenced code block** — added `text` language tag (MD040).
-
-### Refactored
-
-- **`parseExportBlock()` extracted as shared helper (B93)** — accepts block body; reused by JS and `.d.ts` extractors.
-- **`GitAdapterError` → `PersistenceError` (B120)** — domain error class is now adapter-agnostic.
 
 ## [12.3.0] — 2026-02-28
 

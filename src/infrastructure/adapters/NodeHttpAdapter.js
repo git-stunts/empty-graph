@@ -9,7 +9,7 @@ const MAX_BODY_BYTES = 10 * 1024 * 1024;
  * a 500 response if the handler throws.
  * @param {import('node:http').IncomingMessage} req
  * @param {import('node:http').ServerResponse} res
- * @param {{ handler: Function, logger: { error: Function } }} options
+ * @param {{ handler: (request: import('../../ports/HttpServerPort.js').HttpRequest) => Promise<import('../../ports/HttpServerPort.js').HttpResponse>, logger: { error: (...args: unknown[]) => void } }} options
  */
 async function dispatch(req, res, { handler, logger }) {
   try {

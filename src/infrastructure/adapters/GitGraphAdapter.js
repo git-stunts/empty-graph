@@ -191,10 +191,15 @@ function isMissingObjectError(err) {
 /**
  * Checks if a Git error indicates a ref not found condition.
  * Covers patterns like "not found", "does not exist", "unknown revision".
+ * Gated on exit codes 1 (rev-parse --verify --quiet) and 128 (fatal).
  * @param {GitError} err
  * @returns {boolean}
  */
 function isRefNotFoundError(err) {
+  const code = getExitCode(err);
+  if (code !== 128 && code !== 1) {
+    return false;
+  }
   const text = errorSearchText(err);
   return REF_NOT_FOUND_PATTERNS.some(p => text.includes(p));
 }
@@ -202,10 +207,14 @@ function isRefNotFoundError(err) {
 /**
  * Checks if a Git error indicates a ref I/O failure
  * (lock contention that exhausted retries, permission errors, etc.).
+ * Gated on exit code 128 (fatal).
  * @param {GitError} err
  * @returns {boolean}
  */
 function isRefIoError(err) {
+  if (getExitCode(err) !== 128) {
+    return false;
+  }
   const text = errorSearchText(err);
   return REF_IO_PATTERNS.some(p => text.includes(p));
 }
@@ -431,6 +440,8 @@ export default class GitGraphAdapter extends GraphPersistencePort {
 
     const parts = output.split('\x00');
     if (parts.length < 5) {
+      // Object exists but output is malformed — semantically closest to
+      // E_MISSING_OBJECT since the commit is unusable for data extraction.
       throw new PersistenceError(
         `Invalid commit format for SHA ${sha}`,
         PersistenceError.E_MISSING_OBJECT,
@@ -809,7 +820,12 @@ export default class GitGraphAdapter extends GraphPersistencePort {
       args.push(`--count=${limit}`);
     }
     args.push(prefix);
-    const output = await this._executeWithRetry({ args });
+    let output;
+    try {
+      output = await this._executeWithRetry({ args });
+    } catch (err) {
+      throw wrapGitError(/** @type {GitError} */ (err), { ref: prefix });
+    }
     // Parse output - one ref per line, filter empty lines
     return output.split('\n').filter(line => line.trim());
   }
