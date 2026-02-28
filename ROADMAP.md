@@ -383,9 +383,9 @@ Items picked up opportunistically without blocking milestones. No milestone assi
 
 | ID | Item |
 |----|------|
-| B120 | **ADAPTER TYPED ERROR CODES** — replace string-contains matching in catch blocks with typed error codes (`E_MISSING_OBJECT`, `E_REF_NOT_FOUND`, `E_REF_IO`) at the adapter layer. Eliminates false-positive concerns in checkpoint load, trust read, etc. From PR #55 review. **Files:** `GitGraphAdapter.js`, `checkpoint.methods.js`, `TrustRecordService.js` |
-| B121 | **CIRCULAR/SHARED-REFERENCE TEST HELPER** — `createCircular()` / `createDiamond()` test factories with proper JSDoc annotations, avoiding repeated `Record<string, unknown>` casts in strict TS test files. From PR #55 review. |
-| B122 | **SCHEMA-4 CHECKPOINT VALIDATION COVERAGE** — test `_validatePatchAgainstCheckpoint` for `ahead`, `same`, `behind`, `diverged` cases to close schema gate ambiguity before M13. From BACKLOG 2026-02-27. |
+| B120 | ~~**ADAPTER TYPED ERROR CODES**~~ — **DONE.** `PersistenceError` with `E_MISSING_OBJECT`, `E_REF_NOT_FOUND`, `E_REF_IO` codes. `wrapGitError()` classifier in GitGraphAdapter. TrustRecordService switched to typed catch. |
+| B121 | ~~**CIRCULAR/SHARED-REFERENCE TEST HELPER**~~ — **DONE.** `createCircular(n)` / `createDiamond()` in `test/helpers/topologyHelpers.js`. |
+| B122 | ~~**SCHEMA-4 CHECKPOINT VALIDATION COVERAGE**~~ — **DONE.** 21 edge-case tests covering schema mismatch, empty state, missing frontier. |
 | B124 | **TRUST PAYLOAD PARITY TESTS** — assert CLI `trust` and `AuditVerifierService.evaluateTrust()` emit shape-compatible error payloads. From BACKLOG 2026-02-27. |
 | B125 | **`CachedValue` NULL-PAYLOAD SEMANTIC TESTS** — document and test whether `null` is a valid cached value. From BACKLOG 2026-02-27. |
 | B127 | **DENO SMOKE TEST** — `npm run test:deno:smoke` for fast local pre-push confidence without full Docker matrix. From BACKLOG 2026-02-25. |
@@ -398,28 +398,28 @@ Items picked up opportunistically without blocking milestones. No milestone assi
 | B12 | **DOCS-VERSION-SYNC PRE-COMMIT CHECK** — grep version literals in .md files against `package.json` |
 | B48 | **ESLINT BAN `= {}` CONSTRUCTOR DEFAULTS WITH REQUIRED PARAMS** — catches the pattern where `= {}` silently makes required options optional at the type level (found in CommitDagTraversalService, DagTraversal, DagPathFinding, DagTopology, BitmapIndexReader) |
 | B49 | **TIGHTEN `checkDeclarations` INLINE COMMENT STRIPPING** — strip trailing `//` and `/* */` comments before checking for `any` in `ts-policy-check.js`; low priority but closes theoretical false-positive gap |
-| B50 | **ALIGN `type-surface.m8.json` WITH `index.d.ts`** — `syncWith` return missing `state?: WarpStateV5`, `setSeekCache` method missing entirely; manifest is declared source of truth for T3/T9 consumer tests |
-| B51 | **AUDIT REMAINING `= {}` CONSTRUCTOR DEFAULTS** — DagTraversal, DagPathFinding, DagTopology, BitmapIndexReader all have same compile-time safety gap as CommitDagTraversalService (fixed in 0cead99); remove defaults, add `@ts-expect-error` to negative tests |
-| B52 | **FIX OUTSIDE-DIFF IRONCLAD REVIEW ITEMS** — TickReceipt `sortedReplacer` wildcards (`{[x: string]: *}`), verify-audit.js `@returns {payload: *}`, SyncAuthService `keys` optional JSDoc |
+| B50 | ~~**ALIGN `type-surface.m8.json` WITH `index.d.ts`**~~ — **DONE.** `skippedWriters` added to `syncWith` return type; 85 type/interface/class exports added to manifest (0 errors, 0 warnings). |
+| B51 | ~~**AUDIT REMAINING `= {}` CONSTRUCTOR DEFAULTS**~~ — **DONE.** Misleading `= {}` removed from DagTraversal, DagPathFinding, DagTopology, BitmapIndexReader constructors. |
+| B52 | ~~**FIX OUTSIDE-DIFF IRONCLAD REVIEW ITEMS**~~ — **DONE.** TickReceipt wildcards → `unknown`; SyncAuthService `keys` documented as required. |
 | B53 | **FIX JSR PUBLISH DRY-RUN DENO PANIC** — Deno 2.6.7 `deno_ast` panics on overlapping text changes from duplicate `roaring` import rewrites; either pin Deno version, vendor the import, or file upstream issue and add workaround |
 | B54 | **`typedCustom()` ZOD HELPER** — `z.custom()` without a generic yields `unknown` in JS; a JSDoc-friendly wrapper (or `@typedef`-based pattern) would eliminate verbose `/** @type {z.ZodType<T>} */ (z.custom(...))` casts across HttpSyncServer and future Zod schemas |
-| B55 | **UPGRADE `HttpServerPort` REQUEST/RESPONSE TYPES** — `createServer` callback uses `Object` for `headers` and `string|Buffer` for response body; tighten to `Record<string, string>` and extract shared request/response typedefs to avoid repeated inline casts in HttpSyncServer, NodeHttpAdapter, BunHttpAdapter, DenoHttpAdapter |
+| B55 | ~~**UPGRADE `HttpServerPort` REQUEST/RESPONSE TYPES**~~ — **DONE.** `HttpRequest`, `HttpResponse`, `HttpServerHandle` typedefs in HttpServerPort. All three adapters upgraded. |
 | B57 | **CI: AUTO-VALIDATE `type-surface.m8.json` AGAINST `index.d.ts`** — add a CI gate or pre-push check that parses the manifest and confirms every declared method/property/return type matches the corresponding signature in `index.d.ts`; prevents drift like the missing `setSeekCache` and `syncWith.state` return found in review |
 | B28 | **PURE TYPESCRIPT EXAMPLE APP** — CI compile-only stub (`tsc --noEmit` on minimal TS consumer). |
 | B76 | **WARPGRAPH INVISIBLE API SURFACE DOCS** — add `// API Surface` block listing all 40+ dynamically wired methods with source module. Consider generating as build step. From B-AUDIT-4 (STANK). **File:** `src/domain/WarpGraph.js:451-478` |
-| B77 | **`listRefs` UPPER BOUND** — add optional `limit` parameter consistent with `logNodes()`. From B-AUDIT-13 (TSK TSK). **File:** `src/infrastructure/adapters/GitGraphAdapter.js:650-657` |
-| B78 | **REFLAYOUT SLASH-IN-GRAPH-NAME AMBIGUITY** — validate at graph creation that names cannot collide with ref layout keywords. From B-AUDIT-15 (TSK TSK). **File:** `src/domain/utils/RefLayout.js:409-419` |
+| B77 | ~~**`listRefs` UPPER BOUND**~~ — **DONE.** Optional `{ limit }` options bag; GitGraphAdapter passes `--count=N`, InMemoryGraphAdapter slices. |
+| B78 | ~~**REFLAYOUT SLASH-IN-GRAPH-NAME AMBIGUITY**~~ — **DONE.** `RESERVED_GRAPH_NAME_SEGMENTS` set; `validateGraphName()` rejects ref-layout keywords as segments. |
 | B79 | **WARPGRAPH CONSTRUCTOR LIFECYCLE DOCS** — document cache invalidation strategy for 25 instance variables: which operations dirty which caches, which flush them. From B-AUDIT-16 (TSK TSK). **File:** `src/domain/WarpGraph.js:69-198` |
 | B80 | **CHECKPOINTSERVICE CONTENT BLOB UNBOUNDED MEMORY** — iterates all properties into single `Set` before tree serialization. Stream content OIDs in batches. From B-AUDIT-10 (JANK). **File:** `src/domain/services/CheckpointService.js:224-226` |
 | B81 | **`attachContent` ORPHAN BLOB GUARD** — `attachContent()` unconditionally writes blob before `setProperty()`. Validate before push to prevent orphan blobs. From B-CODE-2. **File:** `src/domain/services/PatchBuilderV2.js` |
-| B82 | **PRE-PUSH HOOK `--quick` MODE** — skip unit tests, type gates only (~5s vs ~24s). Full suite still runs in CI. From B-DX-1. **File:** `scripts/pre-push-hook.sh` |
+| B82 | ~~**PRE-PUSH HOOK `--quick` MODE**~~ — **DONE.** `WARP_QUICK_PUSH` env var skips Gate 5 (unit tests); type gates still run. |
 
 ### CI & Tooling Pack
 
 | ID | Item |
 |----|------|
 | B83 | **DEDUP CI `type-firewall` AND `lint` JOBS** — merge into one job (add `npm audit` to `type-firewall`, drop `lint`) or chain with `needs:`. From B-CI-1. **File:** GitHub workflow file `.github/workflows/ci.yml` |
-| B84 | **SURFACE VALIDATOR QUIET MODE** — `--quiet` flag or summary count instead of 80 per-export warning lines. From B-CI-2. **File:** `scripts/check-dts-surface.js` |
+| B84 | ~~**SURFACE VALIDATOR QUIET MODE**~~ — **DONE.** `--quiet` flag suppresses stdout; stderr (errors/warnings) always flows. |
 | B85 | **TYPE-ONLY EXPORT MANIFEST SECTION** — `typeExports` section in `type-surface.m8.json` to catch accidental type removal from `index.d.ts`. From B-CI-3. **Files:** `contracts/type-surface.m8.json`, `scripts/check-dts-surface.js` |
 | B86 | **MARKDOWNLINT CI GATE** — catch MD040 (missing code fence language) etc. From B-DOC-1. **File:** GitHub workflow file `.github/workflows/ci.yml` |
 | B87 | **CODE SAMPLE LINTER** — syntax-check JS/TS code blocks in markdown files via `eslint-plugin-markdown` or custom extractor. From B-DOC-2. **Files:** new script, `docs/**/*.md` |
@@ -436,10 +436,10 @@ All items target `scripts/check-dts-surface.js`:
 
 | ID | Item |
 |----|------|
-| B91 | **MISSING `declare` FOR `interface`/`type` REGEXES** — add `(?:declare\s+)?` to `export interface` (line 104) and `export type` (line 108) for consistency with class/const/function regexes. From B-SURF-1. |
-| B92 | **SURFACE VALIDATOR UNIT TESTS** — test `extractJsExports` and `extractDtsExports` covering: `export { type Foo }`, `export declare class`, multiline blocks, edge cases. From B-SURF-2. **File:** new `test/unit/scripts/check-dts-surface.test.js` |
-| B93 | **DEDUP EXPORT PARSING LOGIC** — extract shared `parseExportBlock()` from near-identical code in `extractJsExports` and `extractDtsExports`. From B-SURF-3. |
-| B94 | **STANDALONE EXPORT DECLARATIONS** — handle `export const foo` / `export function bar` in `extractJsExports` (currently only handles `export { ... }` blocks). From B-SURF-4. |
+| B91 | ~~**MISSING `declare` FOR `interface`/`type` REGEXES**~~ — **DONE.** Added `(?:declare\s+)?` to interface and type regexes in `extractDtsExports`. |
+| B92 | ~~**SURFACE VALIDATOR UNIT TESTS**~~ — **DONE.** 34 tests for `parseExportBlock`, `extractJsExports`, `extractDtsExports`. |
+| B93 | ~~**DEDUP EXPORT PARSING LOGIC**~~ — **DONE.** `parseExportBlock()` extracted as shared helper; `collectExportBlocks()` internal. |
+| B94 | ~~**STANDALONE EXPORT DECLARATIONS**~~ — **DONE.** `extractJsExports` now handles `export const/function/class`. |
 | B95 | **NAMESPACE EXPORT SUPPORT** — handle `export declare namespace Foo`. From B-SURF-5. |
 
 ### Type Surface Pack
@@ -525,13 +525,13 @@ T9 (TSK TSK) ✅
 
 Pick opportunistically between milestones. Recommended order within tiers:
 
-1. **Immediate** (B46, B47, B26, B71, B126) — any order, each <=30 min
-2. **Near-term correctness** (B44, B76, B80, B81, B120, B122, B124) — prioritize items touching core services
-3. **Near-term DX** (B36, B37, B43, B82, B121, B125, B127) — test ergonomics and developer velocity
-4. **Near-term docs/types** (B34, B35, B50, B52, B55) — alignment and documentation
-5. **Near-term tooling** (B12, B48, B49, B51, B53, B54, B57, B28) — remaining type safety items
-6. **CI & Tooling Pack** (B83–B90, B119, B123, B128) — batch as one PR
-7. **Surface Validator Pack** (B91–B95) — batch as one PR, do B92 tests first
+1. ~~**Immediate** (B46, B47, B26, B71, B126)~~ — **ALL DONE.**
+2. **Near-term correctness** (B44, B76, B80, B81, B124) — prioritize items touching core services
+3. **Near-term DX** (B36, B37, B43, B125, B127) — test ergonomics and developer velocity
+4. **Near-term docs/types** (B34, B35) — alignment and documentation
+5. **Near-term tooling** (B12, B48, B49, B53, B54, B57, B28) — remaining type safety items
+6. **CI & Tooling Pack** (B83, B85–B88, B119, B123, B128) — batch as one PR
+7. **Surface Validator Pack** (B95) — only namespace export support remains
 8. **Type Surface Pack** (B96–B98) — batch as one PR
 9. **Content Attachment** (B99) — standalone property test
 10. **Conformance Property Pack** (B19, B22) — standalone property suite
@@ -549,11 +549,11 @@ Pick opportunistically between milestones. Recommended order within tiers:
 | **Milestone (M11)** | 3 | B2(impl), B3, B11 |
 | **Milestone (M12)** | 18 | B66, B67, B70, B73, B75, B105–B115, B117, B118 |
 | **Milestone (M13)** | 1 | B116 (internal: DONE; wire-format: DEFERRED) |
-| **Standalone** | 52 | B12, B19, B22, B28, B34–B37, B43, B44, B48–B55, B57, B76–B88, B91–B99, B102–B104, B119–B125, B127–B129 |
-| **Standalone (done)** | 8 | B26, B46, B47, B71, B72, B89, B90, B126 |
+| **Standalone** | 37 | B12, B19, B22, B28, B34–B37, B43, B44, B48, B49, B53, B54, B57, B76, B79–B81, B83, B85–B88, B95–B99, B102–B104, B119, B123–B125, B127–B129 |
+| **Standalone (done)** | 23 | B26, B46, B47, B50–B52, B55, B71, B72, B77, B78, B82, B84, B89–B94, B120–B122, B126 |
 | **Deferred** | 8 | B4, B7, B16, B20, B21, B27, B100, B101 |
 | **Rejected** | 7 | B5, B6, B13, B17, B18, B25, B45 |
-| **Total tracked** | **104** (8 done) | |
+| **Total tracked** | **104** (23 done) | |
 
 ### STANK.md Cross-Reference
 
