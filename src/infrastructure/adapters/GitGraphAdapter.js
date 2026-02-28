@@ -645,14 +645,21 @@ export default class GitGraphAdapter extends GraphPersistencePort {
   /**
    * Lists refs matching a prefix.
    * @param {string} prefix - The ref prefix to match (e.g., 'refs/warp/events/writers/')
+   * @param {{ limit?: number }} [options] - Optional parameters
+   * @param {number} [options.limit] - Maximum number of refs to return. When omitted or 0, all matching refs are returned.
    * @returns {Promise<string[]>} Array of matching ref paths
-   * @throws {Error} If the prefix is invalid
+   * @throws {Error} If the prefix is invalid or the limit is out of range
    */
-  async listRefs(prefix) {
+  async listRefs(prefix, options) {
     this._validateRef(prefix);
-    const output = await this._executeWithRetry({
-      args: ['for-each-ref', '--format=%(refname)', prefix]
-    });
+    const limit = options?.limit;
+    const args = ['for-each-ref', '--format=%(refname)'];
+    if (limit) {
+      this._validateLimit(limit);
+      args.push(`--count=${limit}`);
+    }
+    args.push(prefix);
+    const output = await this._executeWithRetry({ args });
     // Parse output - one ref per line, filter empty lines
     return output.split('\n').filter(line => line.trim());
   }

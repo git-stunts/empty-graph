@@ -74,6 +74,10 @@ export function parseExportBlock(src) {
  */
 export function extractJsExports(src) {
   const names = parseExportBlock(src);
+  // Match standalone `export const Foo` / `export function Foo`
+  for (const m of src.matchAll(/export\s+(?:const|function)\s+(\w+)/g)) {
+    names.add(m[1]);
+  }
   // Match `export default <Name>`
   const defaultRe = /export\s+default\s+(\w+)/;
   const dm = defaultRe.exec(src);

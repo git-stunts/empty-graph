@@ -394,9 +394,10 @@ export default class InMemoryGraphAdapter extends GraphPersistencePort {
 
   /**
    * @param {string} prefix
+   * @param {{ limit?: number }} [options]
    * @returns {Promise<string[]>}
    */
-  async listRefs(prefix) {
+  async listRefs(prefix, options) {
     validateRef(prefix);
     const result = [];
     for (const key of this._refs.keys()) {
@@ -404,7 +405,13 @@ export default class InMemoryGraphAdapter extends GraphPersistencePort {
         result.push(key);
       }
     }
-    return result.sort();
+    const sorted = result.sort();
+    const limit = options?.limit;
+    if (limit) {
+      validateLimit(limit);
+      return sorted.slice(0, limit);
+    }
+    return sorted;
   }
 
   // ── ConfigPort ──────────────────────────────────────────────────────
