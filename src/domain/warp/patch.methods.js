@@ -10,7 +10,7 @@
 
 import { QueryError, E_NO_STATE_MSG, E_STALE_STATE_MSG } from './_internal.js';
 import { PatchBuilderV2 } from '../services/PatchBuilderV2.js';
-import { joinStates, join as joinPatch } from '../services/JoinReducer.js';
+import { joinStates, applyWithDiff, applyWithReceipt } from '../services/JoinReducer.js';
 import { orsetElements } from '../crdt/ORSet.js';
 import { vvIncrement, vvClone } from '../crdt/VersionVector.js';
 import { buildWriterRef, buildWritersPrefix, parseWriterIdFromRef } from '../utils/RefLayout.js';
@@ -220,15 +220,16 @@ export async function _onPatchCommitted(writerId, { patch: committed, sha } = {}
   // Only when the cache is clean — applying a patch to stale state would be incorrect
   if (this._cachedState && !this._stateDirty && committed && sha) {
     let tickReceipt = null;
+    /** @type {import('../types/PatchDiff.js').PatchDiff|null} */
+    let diff = null;
     if (this._auditService) {
-      const result = /** @type {{state: import('../services/JoinReducer.js').WarpStateV5, receipt: import('../types/TickReceipt.js').TickReceipt}} */ (
-        joinPatch(this._cachedState, /** @type {Parameters<typeof joinPatch>[1]} */ (committed), sha, true)
-      );
+      const result = applyWithReceipt(this._cachedState, committed, sha);
       tickReceipt = result.receipt;
     } else {
-      joinPatch(this._cachedState, /** @type {Parameters<typeof joinPatch>[1]} */ (committed), sha);
+      const result = applyWithDiff(this._cachedState, committed, sha);
+      diff = result.diff;
     }
-    await this._setMaterializedState(this._cachedState);
+    await this._setMaterializedState(this._cachedState, { diff });
     // Update provenance index with new patch
     if (this._provenanceIndex) {
       this._provenanceIndex.addPatch(sha, /** @type {string[]|undefined} */ (committed.reads), /** @type {string[]|undefined} */ (committed.writes));

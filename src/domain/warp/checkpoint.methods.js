@@ -188,9 +188,11 @@ export async function _loadPatchesSince(checkpoint) {
     const checkpointSha = checkpoint.frontier?.get(writerId) || null;
     const patches = await this._loadWriterPatches(writerId, checkpointSha);
 
-    // Validate each patch against checkpoint frontier
-    for (const { sha } of patches) {
-      await this._validatePatchAgainstCheckpoint(writerId, sha, checkpoint);
+    // Validate ancestry once at the writer tip; chain-order patches are then
+    // transitively valid between checkpointSha and tipSha.
+    if (patches.length > 0) {
+      const tipSha = patches[patches.length - 1].sha;
+      await this._validatePatchAgainstCheckpoint(writerId, tipSha, checkpoint);
     }
 
     for (const p of patches) {

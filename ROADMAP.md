@@ -577,6 +577,7 @@ Rejected items live in `GRAVEYARD.md`. Resurrections require an RFC.
 
 ---
 
+## Strategic Addendum — Post-M12 Acceleration + Risk Hardening (2026-02-27)
 ## Appendix — 2026-02-27 Vision Concepts + Concern Battle Plans
 
 Exploratory concepts captured during PR hardening. These are intentionally fully scoped so they can be promoted into numbered backlog items without re-discovery work.
@@ -758,268 +759,229 @@ Exploratory concepts captured during PR hardening. These are intentionally fully
 - Pre-commit hook test for policy-enforcement script exit behavior.
 ## Appendix — Horizon Visions and Defensive Campaigns (2026-02-27)
 
-This appendix captures forward-looking concept work and risk controls identified during PR hardening.
-These are not active milestone commitments yet; they are execution-ready concept dossiers.
+This section appends forward-looking concepts and risk controls discovered while implementing B114/B115.
+These are intentionally detailed, but remain unnumbered candidates until explicitly promoted into milestone inventory.
 
-### Idea H1 — `warp doctor --history` (Patch Compatibility Auditor)
-
-**Vision**
-`warp doctor --history` should scan reachable patch commits and report compatibility hazards before they become runtime failures.
-The command outputs a deterministic report with per-commit findings, severity, and remediation suggestions.
-
-**Mini-Battle Plan**
-1. Build `HistoryDoctorService` that walks writer chains and decodes patch payloads without materializing full graph state.
-2. Define a compatibility rule registry (`schema`, op shape, trailer integrity, required metadata).
-3. Add CLI subcommand output modes: `text`, `json`, `ndjson`.
-4. Add optional `--since`, `--until`, and `--writer` filters for large repos.
-5. Integrate with `bin/warp-graph.js` and return non-zero status on critical findings.
-
-**Mitigations**
-- Cap commit traversal with explicit bounds and warning banners to prevent runaway scans.
-- Isolate decoding errors per commit so one malformed payload does not stop entire audit.
-- Version the rule registry so new validators remain backward-compatible and explicit.
-
-**Defensive Tests**
-- Unit: corrupted commit message, invalid CBOR payload, missing trailers, mixed schema chains.
-- Integration: audit large synthetic history with bounded memory use.
-- Contract: deterministic output ordering across runs and environments.
-
-### Idea H2 — Causal Cone as First-Class API (`sliceFrom`)
+### Innovation Concept I1 — Incremental Canonical State Hashing
 
 **Vision**
-Expose causal slicing directly: `graph.sliceFrom(target)` should emit the minimal patch set needed to reconstruct target provenance.
-Supports provenance export, partial sync, and reproducible debugging bundles.
+Eliminate full canonical sort/serialize/hash on every clean-cache write. Move from O(V+E+P) hash recompute to O(changed-entities) incremental hash maintenance, while preserving deterministic state hash parity with `computeStateHashV5()`.
 
-**Mini-Battle Plan**
-1. Add domain API for targets: node, edge, property, and receipt target keys.
-2. Implement backward traversal over patch references with deduplicated cone expansion.
-3. Add serializer for portable slice bundles (`initial frontier + patch subset + metadata`).
-4. Add CLI command `warp slice --target ...` for operational use.
-5. Add replay validator: full replay vs slice replay parity for selected targets.
+**Why this matters**
+Diff-aware eager post-commit reduced index rebuild cost, but hash recomputation can still dominate large state commits. This is now the next hot-path bottleneck.
+
+**Mini battle plan**
+1. Add a feature-gated `StateHashAccumulator` service with deterministic per-collection digests (`nodes`, `edges`, `props`) and a final root digest composition.
+2. Extend patch-apply/reducer output to emit hash-relevant delta facts in stable sorted form.
+3. Thread optional accumulator updates through `_onPatchCommitted` and `_setMaterializedState`.
+4. On divergence, cache miss, or migration boundaries, fall back to full `computeStateHashV5()` and re-seed accumulator.
+5. Ship shadow mode first: compute both hashes and assert equality in tests and optionally in debug logs.
 
 **Mitigations**
-- Guard against cone explosion using configurable depth and patch count limits.
-- Persist target-to-cone cache for repeated debugging workflows.
-- Include explicit provenance-degraded flag when source history is incomplete.
+- Keep full-hash fallback always available and default-enabled under a kill switch.
+- Scope rollout to non-audit mode first, then widen after parity confidence is proven.
+- Persist no new on-disk format until parity and determinism are validated over replay fixtures.
 
-**Defensive Tests**
-- Property-based tests for cone minimality and replay equivalence.
-- Multi-writer regression tests with concurrent add/remove conflicts.
-- Snapshot tests for slice bundle format stability.
+**Defensive tests**
+- Determinism property test: randomized patch order producing equivalent state yields identical incremental hash.
+- Differential test: for every patch fixture, `incrementalHash === computeStateHashV5(fullState)`.
+- Replay/resume test: checkpoint load + incremental updates produce same hash as cold materialize.
+- Kill-switch test: disabling accumulator always forces full-hash behavior.
+- Corruption test: injected accumulator mismatch triggers full recompute + warning.
 
-### Idea H3 — Patch Dry-Run Explainer
+### Innovation Concept I2 — Memoized Ancestry Cache Across Materialize/Sync Cycles
 
 **Vision**
-Introduce a dry-run pathway that predicts semantic impact pre-commit: applied/redundant/shadowed outcomes, LWW winners, and alive-ness transitions.
-This reduces operator mistakes and clarifies concurrent write behavior.
+Introduce a bounded, frontier-aware ancestry memoization layer so repeated `_isAncestor()` checks within the same frontier epoch become O(1) lookups, reducing repeated DAG walks in sync and checkpoint replay flows.
 
-**Mini-Battle Plan**
-1. Implement `PatchPreviewService` that reuses reducer semantics in sandbox mode.
-2. Produce op-by-op explanation payload (`before`, `decision`, `after`, `reason`).
-3. Surface via API `builder.preview()` and CLI `warp patch --preview`.
-4. Add concise text renderer plus machine-readable JSON output.
-5. Add performance guardrail to keep preview under fixed complexity envelope.
+**Why this matters**
+B115 removes per-patch validation overhead, but ancestry checks still occur in multiple call paths and can recur under repeated sync exchanges.
+
+**Mini battle plan**
+1. Add `AncestryCache` keyed by `(writerId, ancestorSha, descendantSha, frontierFingerprint)`.
+2. Wire cache lookup into `_relationToCheckpointHead` and sync divergence pre-check paths.
+3. Add LRU + epoch invalidation on frontier movement.
+4. Emit cache metrics (`hits`, `misses`, `evictions`) in debug observability hooks.
+5. Add an emergency bypass option to disable cache for diagnostics.
 
 **Mitigations**
-- Reuse existing reducer paths to avoid semantic drift between preview and real commit.
-- Include explicit uncertainty markers for missing state or stale materialization.
-- Fall back to summary-only mode under high operation counts.
+- Tie cache validity to frontier fingerprint to prevent stale ancestry answers.
+- Never cache errors from storage-layer failures.
+- Use strict memory cap and eviction policy to avoid unbounded growth.
 
-**Defensive Tests**
-- Golden tests: preview outcomes match actual receipts after real commit.
-- Edge-case tests: concurrent removes, orphaned properties, edge visibility changes.
-- Non-regression tests for deterministic explanation ordering.
+**Defensive tests**
+- Correctness test: cached answers match uncached `_isAncestor()` over randomized chains/forks.
+- Invalidation test: frontier update invalidates stale entries.
+- Stress test: large writer set with churn remains within configured memory bounds.
+- Failure-path test: transient `getNodeInfo` errors do not poison cache.
 
-### Idea H4 — Worldline Diff Visualizer
+### Innovation Concept I3 — Audit-Mode Diff Synthesis
 
 **Vision**
-Add a semantic diff engine for comparing two ceilings/worldlines with grouped changes:
-structural deltas, property LWW shifts, frontier movement, and provenance-level explanations.
+Retain audit receipts and still unlock incremental index updates by synthesizing `PatchDiff` from applied outcomes when audit mode is enabled.
 
-**Mini-Battle Plan**
-1. Build `WorldlineDiffService` over `materialize({ ceiling })` plus existing diff primitives.
-2. Classify deltas by domain category with explicit causal reason metadata.
-3. Add output presenters: terminal summary and JSON feed for UI tooling.
-4. Add optional `--with-receipts` mode for deep provenance diagnostics.
-5. Add scale optimization using seek cache and memoized snapshots.
+**Why this matters**
+Current audit path uses `diff: null`, which is safe but forfeits B114 hot-path gains for audit-enabled deployments.
+
+**Mini battle plan**
+1. Define a deterministic adapter from receipt outcomes to `PatchDiff` (or a subset sufficient for index updates).
+2. Implement `applyWithReceiptAndDiff` or companion translator utility.
+3. Gate rollout behind an audit-performance flag.
+4. Validate parity by comparing synthesized diff effects against full rebuild results.
+5. Expand to default-on after burn-in.
 
 **Mitigations**
-- Enforce ceiling validity checks and monotonic ordering constraints.
-- Guard memory use with bounded diff buffers for large histories.
-- Detect provenance degradation and mark confidence in output.
+- If translation ambiguity exists, fall back to `diff: null` for that patch.
+- Keep audit commit semantics unchanged; performance optimization must be side-effect free.
+- Add structured warning when synthesis is skipped.
 
-**Defensive Tests**
-- Symmetry tests: `diff(A,B)` inverse aligns with `diff(B,A)` category semantics.
-- Ceiling cache tests: repeated diffs remain stable and performant.
-- Receipt enrichment tests: reason chains are complete and deterministic.
+**Defensive tests**
+- Equivalence test: audit-mode synthesized diff path produces identical logical index/query answers as full rebuild.
+- Partial-diff fallback test: unsupported receipt shapes trigger safe full rebuild.
+- Regression test: audit receipt persistence remains byte-for-byte compatible.
 
-### Idea H5 — Sync Chaos Harness
+### Innovation Concept I4 — Performance Budget Guardrails in CI
 
 **Vision**
-Create a deterministic chaos harness that simulates writer concurrency, delivery disorder, and retries to prove convergence and invariants continuously.
+Turn hot-path performance expectations into enforceable, trend-aware CI checks to prevent accidental regressions in materialize, eager commit, and ancestry validation.
 
-**Mini-Battle Plan**
-1. Build seeded scenario runner (`writers`, `latency`, `drop/reorder/retry` profiles).
-2. Reuse existing sync protocol adapters in simulation mode.
-3. Emit invariant ledger: ref linearity, convergence hash, Lamport monotonicity, no data loss.
-4. Add CI matrix for quick smoke and extended nightly chaos profiles.
-5. Publish replay artifacts for failure triage.
+**Why this matters**
+Performance fixes are vulnerable to silent regressions without explicit budgets and telemetry snapshots.
+
+**Mini battle plan**
+1. Add benchmark harness with stable fixture generator and repeat-run median reporting.
+2. Capture baseline medians in repository-managed budget files.
+3. Add CI job that flags regressions above tolerance thresholds.
+4. Add local dev command to run quick smoke benchmarks before push.
+5. Publish historical trend artifact per PR for review.
 
 **Mitigations**
-- Fixed seed catalogs for reproducible failures.
-- Narrow smoke profile for PR-time speed; deep profile reserved for scheduled runs.
-- Automatic shard of scenarios to keep runtime bounded.
+- Use percentile/median thresholds to reduce flakiness.
+- Separate noisy micro-benchmarks from deterministic scenario benchmarks.
+- Allow explicit, reviewed budget updates when justified.
 
-**Defensive Tests**
-- Determinism tests: same seed yields identical event trace and final hash.
-- Invariant tests under fault injection bursts.
-- Regression tests for previously discovered race signatures.
+**Defensive tests**
+- Harness self-test: fixture generation is deterministic.
+- Budget parser test: malformed budget files fail loudly.
+- CI integration test: intentional slowdown fixture triggers regression failure.
 
-### Idea H6 — Checkpoint Quality Scorer
+### Innovation Concept I5 — `warp doctor` Integrity and Performance Diagnostics
 
 **Vision**
-Score checkpoints by replay savings, storage overhead, and recoverability to auto-tune checkpoint cadence by real workload behavior.
+Provide a first-class diagnostics command that reports health and readiness: frontier consistency, checkpoint integrity, index staleness, ancestry anomalies, and GC/checkpoint recommendations.
 
-**Mini-Battle Plan**
-1. Implement scoring model with measurable factors (replay cost, compression ratio, index reuse).
-2. Add telemetry capture at checkpoint create/load/materialize boundaries.
-3. Build advisor mode: recommended `every` policy from observed workload.
-4. Add optional auto-policy mode behind explicit feature flag.
-5. Add operator report command for checkpoint health history.
+**Why this matters**
+Operators need fast, explainable diagnosis before data repair, performance tuning, or migration decisions.
+
+**Mini battle plan**
+1. Define command contract and structured output schema (`--json` + human mode).
+2. Implement read-only checks for refs/frontier/checkpoint/index shard metadata.
+3. Add actionable recommendations with explicit confidence levels.
+4. Add remediation pointers (`runGC`, `createCheckpoint`, `materialize`) without mutating by default.
+5. Add machine-consumable exit codes for CI/preflight integration.
 
 **Mitigations**
-- Keep auto-policy opt-in and reversible with static fallback.
-- Do not alter cadence while system is in degraded provenance mode.
-- Clamp recommendations within safety bounds.
+- Keep default mode non-destructive.
+- Mark uncertain checks as warnings, not hard failures.
+- Include command runtime budget to avoid pathological scans by default.
 
-**Defensive Tests**
-- Simulation tests across write-heavy/read-heavy/mixed workloads.
-- Stability tests to prevent policy oscillation.
-- Safety tests ensuring no regression in recovery correctness.
+**Defensive tests**
+- Golden-output tests for both human and JSON modes.
+- Corruption fixture tests (missing blobs, mismatched shard frontier) emit expected findings.
+- Exit-code contract tests for clean/warn/fail states.
 
-### Idea H7 — Query Planner Hints
+### Innovation Concept I6 — Frontier-Aware Query Result Cache
 
 **Vision**
-Introduce planner hints for traversal/query execution based on index freshness, estimated fanout, and cost heuristics.
-Goal: predictable performance without sacrificing correctness.
+Cache expensive read/query results keyed by frontier fingerprint + query signature + observer projection, with strict invalidation rules to preserve correctness.
 
-**Mini-Battle Plan**
-1. Add lightweight cardinality estimators from adjacency/index metadata.
-2. Introduce planner strategy selector with explain output.
-3. Support optional user hints (`preferIndex`, `boundedDepth`, `fanoutCap`).
-4. Add explain-plan output for diagnostics and tuning.
-5. Validate hint behavior against baseline correctness and latency.
+**Why this matters**
+Read-heavy workloads repeatedly recompute equivalent traversals even when frontier is unchanged.
 
-**Mitigations**
-- Preserve semantic equivalence regardless of planner path.
-- Disable risky heuristics automatically when index staleness is high.
-- Add strict fallback to canonical traversal path.
-
-**Defensive Tests**
-- Correctness parity tests across planner strategies.
-- Performance guard tests with representative synthetic topologies.
-- Staleness tests ensuring fallback triggers correctly.
-
-### Idea H8 — Signed Provenance Bundles
-
-**Vision**
-Support signed provenance bundles (patches + receipts + metadata) for supply-chain trust and auditable external exchange.
-
-**Mini-Battle Plan**
-1. Define bundle manifest format and canonicalization rules.
-2. Add signing/verification APIs using existing crypto ports.
-3. Integrate CLI (`warp bundle sign`, `warp bundle verify`).
-4. Include trust policy hooks (accepted keys, key rotation, revocation handling).
-5. Add interoperability fixtures for long-term format compatibility.
+**Mini battle plan**
+1. Introduce cache interface and canonical query signature generation.
+2. Bind cache entries to frontier fingerprint and observer config hash.
+3. Integrate with query builder execution path as optional optimization layer.
+4. Add metrics and hit-rate instrumentation.
+5. Roll out to specific query families first (neighbors/path/property-heavy).
 
 **Mitigations**
-- Separate authenticity from semantic validity in verification output.
-- Require explicit trust policy to avoid “verified but untrusted” confusion.
-- Add revocation and expiration semantics in manifest.
+- Hard invalidate on any frontier movement.
+- Include projection/redaction config in key to avoid cross-view leakage.
+- Cap memory and provide TTL plus LRU eviction.
 
-**Defensive Tests**
-- Canonicalization tests to prevent signature drift.
-- Tamper tests for payload, metadata, and signature blocks.
-- Cross-runtime verification tests (Node/Bun/Deno adapters).
+**Defensive tests**
+- Correctness test: cached and uncached query outputs match across varied projections.
+- Invalidation test: commit advances frontier and invalidates stale entries.
+- Isolation test: different observer configs never share cached results.
+- Memory test: eviction policy bounds retained entries.
 
----
-
-## Concern Campaigns (Mitigation and Test Strategy)
-
-### Concern C-H1 — Reducer Validation Compatibility Blast Radius
+### Concern Hardening C1 — Schema 4 Checkpoint Ancestry Validation Gap
 
 **Concern**
-Validation hardening can accidentally reject historical payload shapes and break materialization.
+`_validatePatchAgainstCheckpoint()` currently gates only schema 2/3 checkpoints, while schema 4 checkpoints are used in replay paths. This can unintentionally bypass ancestry validation for schema 4.
 
-**Mitigation Strategy**
-1. Maintain explicit compatibility matrix for accepted historical op shapes.
-2. Gate validator changes behind targeted compatibility fixtures before merge.
-3. Require migration or fallback path for any intentional strictness increase.
+**Mitigation vision**
+Unify checkpoint ancestry semantics across all active checkpoint schema versions (2/3/4), with explicit compatibility handling for future versions.
 
-**Defensive Tests**
-- Historical fixture suite replaying real legacy payload variants.
-- Fuzz tests for permissive-but-safe coercions.
-- CI check that rejects validator changes without compatibility fixture updates.
+**Mini battle plan**
+1. Update `_validatePatchAgainstCheckpoint` gate to include schema 4.
+2. Add explicit comment and helper (`isCheckpointSchemaWithFrontier`) to avoid future drift.
+3. Add coverage for schema 4 acceptance/rejection branches.
+4. Add one migration-compatibility test to ensure schema 2/3 behavior remains unchanged.
 
-### Concern C-H2 — Heavy Pre-Push Suite Slows Development Loop
+**Defensive tests**
+- Schema 4 `ahead` case passes.
+- Schema 4 `same` and `behind` cases reject with backfill error.
+- Schema 4 `diverged` case rejects with fork error.
+- Mixed-schema replay fixture verifies no behavior regression.
 
-**Concern**
-Full pre-push validation improves safety but can degrade iteration speed and encourage workaround behavior.
-
-**Mitigation Strategy**
-1. Keep fast local smoke profile (`lint + target tests + typecheck`) as default developer path.
-2. Reserve full matrix for push/CI and nightly confidence runs.
-3. Provide clear tooling that predicts which test slices are required by changed files.
-
-**Defensive Tests**
-- Tooling tests mapping file changes to required test slices.
-- CI parity tests ensuring smoke profile never diverges semantically from full suite.
-- Performance telemetry tests tracking local feedback latency over time.
-
-### Concern C-H3 — Review-Process Friction from Outdated Threads
+### Concern Hardening C2 — Remaining Full-Hash Hot Path Cost
 
 **Concern**
-Outdated unresolved threads create false blockers and noisy merge-readiness signals.
+Even with diff-aware view updates, `_setMaterializedState()` computes canonical state hash from full state each call, preserving O(V+E+P) work on eager writes.
 
-**Mitigation Strategy**
-1. Add automated unresolved-thread health check in CI/preflight.
-2. Auto-report outdated unresolved threads with direct links and suggested actions.
-3. Introduce safe comment helper to avoid malformed review replies.
+**Mitigation vision**
+Stage incremental hash support with strict parity checks and safe rollback to full recomputation.
 
-**Defensive Tests**
-- Integration tests against mocked PR thread payloads (`resolved`, `outdated`, `active`).
-- CLI script tests validating proper markdown/comment escaping.
-- Preflight tests that fail only on true unresolved blockers per policy.
+**Mini battle plan**
+1. Instrument and log current hash cost distribution under representative fixtures.
+2. Land incremental hash accumulator behind feature flag.
+3. Run shadow parity in CI and local stress tests.
+4. Flip default only after parity and performance gates hold across multiple releases.
 
-### Concern C-H4 — Lifecycle Safety Could Regress Through Future Bypasses
+**Defensive tests**
+- Benchmark regression tests around hash-heavy workloads.
+- Differential hash parity tests across random patch streams.
+- Feature-flag toggling tests proving behavior equivalence.
 
-**Concern**
-The commit/mutation guard is internal state; future code changes could bypass or partially bypass lifecycle checks.
-
-**Mitigation Strategy**
-1. Keep single guard entrypoint and ban direct mutation of lifecycle flags outside defined methods.
-2. Add concurrency-focused contract tests for in-flight commit behavior.
-3. Add static lint rule or code review checklist item for lifecycle mutations.
-
-**Defensive Tests**
-- Re-entrancy tests with parallel commit/mutation attempts.
-- Failure-path tests confirming flags reset correctly on exceptions.
-- Mutation coverage tests ensuring all mutators hit guard first.
-
-### Concern C-H5 — Reviewer Quorum Availability Risk
+### Concern Hardening C3 — Tip-Only Validation Assumes Chain Integrity
 
 **Concern**
-Strict quorum policy can block merges when reviewer availability is limited.
+B115 validates ancestry once at writer tip. This is valid under linear chain assumptions, but chain-order integrity should be asserted defensively to catch storage anomalies/corruption.
 
-**Mitigation Strategy**
-1. Add explicit fallback policy for time-bound maintainer override with audit trail.
-2. Automate review requests and reminder cadence to reduce idle wait.
-3. Surface quorum status in `pr:health` output alongside check state.
+**Mitigation vision**
+Preserve tip-only performance while adding optional integrity assertions that verify contiguous parent linkage for loaded writer patch ranges.
 
-**Defensive Tests**
-- Policy tests for merge-gate decision engine (`checks`, `threads`, `quorum`).
-- Notification workflow tests to verify reminder and escalation paths.
-- Audit log tests ensuring override path is explicit and reviewable.
+**Mini battle plan**
+1. Add optional integrity checker (`assertContiguousWriterChain`) for debug/preflight modes.
+2. Run integrity assertion in targeted contexts: checkpoint replay and `warp doctor`.
+3. Decide runtime default: off in hot path, on in diagnostics/CI corruption suites.
+4. Emit actionable diagnostics when chain discontinuity is detected.
+
+**Defensive tests**
+- Positive chain test: contiguous range passes with zero warnings.
+- Discontinuity test: injected parent mismatch throws/flags deterministic error.
+- Missing commit metadata test: checker fails closed with explicit reason.
+- Performance test: integrity checker remains disabled in default hot path.
+
+### Suggested Sequencing (If Promoted)
+
+1. Start with concern hardening C1 (low effort, high correctness leverage).
+2. Implement I4 (performance guardrails) before deeper performance refactors.
+3. Land I2 ancestry cache and C3 integrity diagnostics in parallel tracks.
+4. Proceed with I1 incremental hash and then I3 audit diff synthesis.
+5. Add I5 (`warp doctor`) and I6 query caching once observability and guardrails are in place.
 
 ---
 
@@ -1371,3 +1333,6 @@ Single-source trust payload composition for common states; CLI and service outpu
 4. `H1` and `H7` as first feature wave (high practical operator value with moderate implementation risk).
 5. `H2` and `H5` as second feature wave (policy + simulation leverage).
 6. `H3`, `H4`, `H8`, then `H6` based on bandwidth and ecosystem demand.
+
+
+---
