@@ -114,12 +114,14 @@ describe('canonicalStringify', () => {
 
   describe('cycle and shared-reference handling', () => {
     it('throws on circular object references', () => {
+      /** @type {Record<string, unknown>} */
       const obj = { a: 1 };
       obj.self = obj;
       expect(() => canonicalStringify(obj)).toThrow(TypeError);
     });
 
     it('throws on circular array references', () => {
+      /** @type {unknown[]} */
       const arr = [1, 2];
       arr.push(arr);
       expect(() => canonicalStringify(arr)).toThrow(TypeError);
