@@ -120,8 +120,10 @@
  */
 
 /**
- * Union of all v2 operation types (alias for CanonicalOpV2).
- * @typedef {CanonicalOpV2} OpV2
+ * Union of all v2 operation types (raw + canonical).
+ * Used in patch containers that may hold either raw ops (from disk)
+ * or canonical ops (after normalization).
+ * @typedef {RawOpV2 | CanonicalOpV2} OpV2
  */
 
 // ============================================================================

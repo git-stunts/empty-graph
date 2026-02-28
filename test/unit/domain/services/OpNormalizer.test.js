@@ -95,7 +95,7 @@ describe('OpNormalizer', () => {
     it('A1-T03: lowers EdgePropSet to raw PropSet with legacy node encoding', () => {
       const canonical = createEdgePropSetV2('alice', 'bob', 'follows', 'weight', 0.9);
 
-      const raw = lowerCanonicalOp(canonical);
+      const raw = /** @type {import('../../../../src/domain/types/WarpTypesV2.js').OpV2PropSet} */ (lowerCanonicalOp(canonical));
 
       expect(raw.type).toBe('PropSet');
       expect(raw.node).toBe('\x01alice\0bob\0follows');
@@ -181,7 +181,7 @@ describe('OpNormalizer', () => {
       ];
 
       for (const [, from, to, label, key, value] of cases) {
-        const raw = createPropSetV2(encodeLegacyEdgePropNode(from, to, label), key, value);
+        const raw = createPropSetV2(encodeLegacyEdgePropNode(/** @type {string} */ (from), /** @type {string} */ (to), /** @type {string} */ (label)), /** @type {string} */ (key), value);
         const roundTripped = lowerCanonicalOp(normalizeRawOp(raw));
         expect(roundTripped).toEqual(raw);
       }

@@ -822,7 +822,7 @@ function collectEdgeRemovals(diff, state, before) {
  * @param {Object} patch - The patch to apply
  * @param {string} patch.writer
  * @param {number} patch.lamport
- * @param {Array<Object>} patch.ops
+ * @param {Array<import('../types/WarpTypesV2.js').OpV2 | {type: string}>} patch.ops
  * @param {Map<string, number>|{[x: string]: number}} patch.context
  * @param {string} patchSha - Git SHA of the patch commit
  * @returns {{state: WarpStateV5, diff: import('../types/PatchDiff.js').PatchDiff}}
@@ -831,13 +831,12 @@ export function applyWithDiff(state, patch, patchSha) {
   const diff = createEmptyDiff();
 
   for (let i = 0; i < patch.ops.length; i++) {
-    const canonOp = normalizeRawOp(patch.ops[i]);
+    const canonOp = /** @type {import('../types/WarpTypesV2.js').CanonicalOpV2} */ (normalizeRawOp(patch.ops[i]));
     validateOp(/** @type {Record<string, unknown>} */ (canonOp));
     const eventId = createEventId(patch.lamport, patch.writer, patchSha, i);
-    const typedOp = /** @type {import('../types/WarpTypesV2.js').OpV2} */ (canonOp);
-    const before = snapshotBeforeOp(state, typedOp);
-    applyOpV2(state, typedOp, eventId);
-    accumulateOpDiff(diff, state, typedOp, before);
+    const before = snapshotBeforeOp(state, canonOp);
+    applyOpV2(state, canonOp, eventId);
+    accumulateOpDiff(diff, state, canonOp, before);
   }
 
   updateFrontierFromPatch(state, patch);
@@ -860,7 +859,7 @@ export function applyWithReceipt(state, patch, patchSha) {
   /** @type {import('../types/TickReceipt.js').OpOutcome[]} */
   const opResults = [];
   for (let i = 0; i < patch.ops.length; i++) {
-    const canonOp = normalizeRawOp(patch.ops[i]);
+    const canonOp = /** @type {import('../types/WarpTypesV2.js').OpV2} */ (normalizeRawOp(patch.ops[i]));
     validateOp(/** @type {Record<string, unknown>} */ (canonOp));
     const eventId = createEventId(patch.lamport, patch.writer, patchSha, i);
 
@@ -875,7 +874,7 @@ export function applyWithReceipt(state, patch, patchSha) {
         outcome = nodeRemoveOutcome(state.nodeAlive, /** @type {{node?: string, observedDots: string[]}} */ (canonOp));
         break;
       case 'EdgeAdd': {
-        const edgeKey = encodeEdgeKey(/** @type {string} */ (canonOp.from), /** @type {string} */ (canonOp.to), /** @type {string} */ (canonOp.label));
+        const edgeKey = encodeEdgeKey(canonOp.from, canonOp.to, canonOp.label);
         outcome = edgeAddOutcome(state.edgeAlive, /** @type {{from: string, to: string, label: string, dot: import('../crdt/Dot.js').Dot}} */ (canonOp), edgeKey);
         break;
       }
@@ -889,10 +888,12 @@ export function applyWithReceipt(state, patch, patchSha) {
       case 'EdgePropSet':
         outcome = edgePropSetOutcome(state.prop, /** @type {{from: string, to: string, label: string, key: string, value: *}} */ (canonOp), eventId);
         break;
-      default:
+      default: {
         // Unknown or BlobValue — always applied
-        outcome = { target: canonOp.node || canonOp.oid || '*', result: 'applied' };
+        const anyOp = /** @type {Record<string, string>} */ (canonOp);
+        outcome = { target: anyOp.node || anyOp.oid || '*', result: 'applied' };
         break;
+      }
     }
 
     // Apply the op (mutates state)

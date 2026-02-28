@@ -590,7 +590,7 @@ export class PatchBuilderV2 {
   build() {
     const schema = this._hasEdgeProps ? 3 : 2;
     // Lower canonical ops to raw form for the persisted patch
-    const rawOps = this._ops.map(lowerCanonicalOp);
+    const rawOps = /** @type {import('../types/WarpTypesV2.js').RawOpV2[]} */ (this._ops.map(lowerCanonicalOp));
     return createPatchV2({
       schema,
       writer: this._writerId,
@@ -711,7 +711,7 @@ export class PatchBuilderV2 {
       // The dots themselves are independent of patch lamport (they use VV counters).
       const schema = this._hasEdgeProps ? 3 : 2;
       // Lower canonical ops to raw form for the persisted patch
-      const rawOps = this._ops.map(lowerCanonicalOp);
+      const rawOps = /** @type {import('../types/WarpTypesV2.js').RawOpV2[]} */ (this._ops.map(lowerCanonicalOp));
       const patch = createPatchV2({
         schema,
         writer: this._writerId,
