@@ -21,3 +21,9 @@ Items noticed during development that are worth addressing but were out of scope
 - Add an explicit local `test:deno:smoke` command for fast pre-push confidence.
 - Add markdownlint to pre-commit to catch MD024 (duplicate headings) and MD040 (fenced code language) before review.
 - Consider a `no-empty-catch` ESLint rule (or at least `no-catch-without-comment`) to prevent silent error swallowing.
+
+## 2026-02-28 PR Feedback Follow-Ups
+
+- Add a `pr:quorum:human` check that excludes bot reviews and validates maintainer minimums before merge prompts.
+- Add a `pr:rabbit:request` helper that blocks duplicate `@coderabbitai review` comments when no new commits landed since the last trigger.
+- Add a `pr:comments:triage` summary command that classifies unresolved comments by severity and suppresses noise from resolved/outdated bot chatter.
