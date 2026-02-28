@@ -361,13 +361,13 @@ export const F10_PROTO_POLLUTION = makeFixture({
 });
 
 // F11 and F12 are index-specific — defined here for reference,
-// tested in Phase 2 unit tests (fnv1a.test.js, LogicalBitmapIndexBuilder.stability.test.js).
+// tested in Phase 2 unit tests (shardKey.test.js, LogicalBitmapIndexBuilder.stability.test.js).
 
 /**
  * F11 — SHARDKEY_VECTORS
  *
  * Known FNV-1a 32-bit vectors (Math.imul semantics).
- * Tested in fnv1a.test.js and shardKey.test.js.
+ * Tested in shardKey.test.js.
  */
 export const F11_SHARDKEY_VECTORS = {
   vectors: [

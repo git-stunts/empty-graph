@@ -22,12 +22,20 @@ const computeChecksum = async (data, crypto) => {
 };
 
 /** @type {boolean|null} Whether native Roaring bindings are available (null = unknown until first use) */
-export let NATIVE_ROARING_AVAILABLE = null;
+let _nativeRoaringAvailable = null;
+
+/**
+ * Resets native Roaring availability detection (test-only utility).
+ * @returns {void}
+ */
+export function resetNativeRoaringFlag() {
+  _nativeRoaringAvailable = null;
+}
 
 const ensureRoaringBitmap32 = () => {
   const RoaringBitmap32 = getRoaringBitmap32();
-  if (NATIVE_ROARING_AVAILABLE === null) {
-    NATIVE_ROARING_AVAILABLE = getNativeRoaringAvailable();
+  if (_nativeRoaringAvailable === null) {
+    _nativeRoaringAvailable = getNativeRoaringAvailable();
   }
   return RoaringBitmap32;
 };
@@ -71,14 +79,11 @@ function serializeFrontierToTree(frontier, tree, codec) {
  * BlobPort + TreePort + RefPort from the persistence layer.
  *
  * **Performance Note**: Uses Roaring Bitmaps for compression. Native bindings
- * provide best performance. Check `NATIVE_ROARING_AVAILABLE` export if
- * performance is critical.
+ * provide best performance. Use `getNativeRoaringAvailable()` from
+ * `src/domain/utils/roaring.js` if runtime capability checks are needed.
  *
  * @example
- * import BitmapIndexBuilder, { NATIVE_ROARING_AVAILABLE } from './BitmapIndexBuilder.js';
- * if (NATIVE_ROARING_AVAILABLE === false) {
- *   console.warn('Consider installing native Roaring bindings for better performance');
- * }
+ * import BitmapIndexBuilder from './BitmapIndexBuilder.js';
  * const builder = new BitmapIndexBuilder();
  */
 export default class BitmapIndexBuilder {
