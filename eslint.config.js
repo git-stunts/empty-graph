@@ -164,7 +164,7 @@ export default tseslint.config(
       "no-void": ["error", { "allowAsStatement": true }],
       "no-console": "error",
 
-      // ── Catch blocks ──────────────────────────────────────────────────────
+      // ── Catch blocks (B126: documents intent — already active via eslint:recommended) ──
       "no-empty": ["error", { "allowEmptyCatch": false }],
 
       // ── Correctness ──────────────────────────────────────────────────────
@@ -270,14 +270,20 @@ export default tseslint.config(
     },
   },
 
-  // ── Domain purity: ban Date.now() — use ClockPort instead ─────────────────
+  // ── Domain purity: ban Date.now() and new Date() — use ClockPort instead ──
   {
     files: ["src/domain/**/*.js"],
     rules: {
-      "no-restricted-syntax": ["error", {
-        "selector": "CallExpression[callee.object.name='Date'][callee.property.name='now']",
-        "message": "Date.now() is banned in domain code. Use ClockPort / ClockAdapter instead.",
-      }],
+      "no-restricted-syntax": ["error",
+        {
+          "selector": "CallExpression[callee.object.name='Date'][callee.property.name='now']",
+          "message": "Date.now() is banned in domain code. Use ClockPort / ClockAdapter instead.",
+        },
+        {
+          "selector": "NewExpression[callee.name='Date']",
+          "message": "new Date() is banned in domain code. Use ClockPort / ClockAdapter instead.",
+        },
+      ],
     },
   },
 

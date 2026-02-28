@@ -117,7 +117,7 @@ export function createORSet() {
  */
 export function orsetAdd(set, element, dot) {
   if (!dot || typeof dot.writerId !== 'string' || !Number.isInteger(dot.counter)) {
-    throw new Error(`orsetAdd: invalid dot — expected {writerId: string, counter: integer}, got ${JSON.stringify(dot)}`);
+    throw new Error(`orsetAdd: invalid dot -- expected {writerId: string, counter: integer}, got ${JSON.stringify(dot)}`);
   }
   const encoded = encodeDot(dot);
 

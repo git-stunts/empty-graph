@@ -337,11 +337,11 @@ Items picked up opportunistically without blocking milestones. No milestone assi
 
 | ID | Item |
 |----|------|
-| B46 | ~~**ESLINT BAN `Date.now()` IN DOMAIN**~~ ✅ — `no-restricted-syntax` rule on `src/domain/**/*.js`. Legitimate wall-clock uses annotated with eslint-disable. |
-| B47 | ~~**`orsetAdd` DOT ARGUMENT VALIDATION**~~ ✅ — runtime shape check before `encodeDot()`. |
-| B26 | ~~**DER SPKI PREFIX CONSTANT**~~ ✅ — `ED25519_SPKI_PREFIX` with RFC 8410 reference in TrustCrypto.js. |
-| B71 | ~~**PATCHBUILDER `console.warn` BYPASSES LOGGERPORT**~~ ✅ — routes through `this._logger.warn()`. Writer now forwards logger to PatchBuilderV2. |
-| B126 | ~~**`no-empty-catch` ESLINT RULE**~~ ✅ — `no-empty` with `allowEmptyCatch: false`. |
+| B46 | ~~**ESLINT BAN `Date.now()` IN DOMAIN**~~ — **DONE.** `no-restricted-syntax` rule on `src/domain/**/*.js`. Legitimate wall-clock uses annotated with eslint-disable. |
+| B47 | ~~**`orsetAdd` DOT ARGUMENT VALIDATION**~~ — **DONE.** Runtime shape check before `encodeDot()`. |
+| B26 | ~~**DER SPKI PREFIX CONSTANT**~~ — **DONE.** `ED25519_SPKI_PREFIX` with RFC 8410 reference in TrustCrypto.js. |
+| B71 | ~~**PATCHBUILDER `console.warn` BYPASSES LOGGERPORT**~~ — **DONE.** Routes through `this._logger.warn()`. Writer now forwards logger to PatchBuilderV2. |
+| B126 | ~~**`no-empty-catch` ESLINT RULE**~~ — **DONE.** `no-empty` with `allowEmptyCatch: false`. |
 
 ### Near-Term
 

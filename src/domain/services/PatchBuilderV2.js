@@ -85,7 +85,7 @@ export class PatchBuilderV2 {
    * @param {Function|null} [options.onCommitSuccess] - Callback invoked after successful commit
    * @param {'reject'|'cascade'|'warn'} [options.onDeleteWithData='warn'] - Policy when deleting a node with attached data
    * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for serialization
-   * @param {{ warn: Function }} [options.logger] - Logger for non-fatal warnings
+   * @param {import('../../ports/LoggerPort.js').default} [options.logger] - Logger for non-fatal warnings
    */
   constructor({ persistence, graphName, writerId, lamport, versionVector, getCurrentState, expectedParentSha = null, onCommitSuccess = null, onDeleteWithData = 'warn', codec, logger }) {
     /** @type {import('../../ports/GraphPersistencePort.js').default & import('../../ports/RefPort.js').default & import('../../ports/CommitPort.js').default & import('../../ports/BlobPort.js').default & import('../../ports/TreePort.js').default} */
@@ -133,7 +133,7 @@ export class PatchBuilderV2 {
     /** @type {import('../../ports/CodecPort.js').default} */
     this._codec = codec || defaultCodec;
 
-    /** @type {{ warn: Function }} */
+    /** @type {import('../../ports/LoggerPort.js').default} */
     this._logger = logger || nullLogger;
 
     /**

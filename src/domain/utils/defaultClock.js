@@ -13,6 +13,7 @@ const defaultClock = {
     return performance.now();
   },
   timestamp() {
+    // eslint-disable-next-line no-restricted-syntax -- ClockPort implementation
     return new Date().toISOString();
   },
 };

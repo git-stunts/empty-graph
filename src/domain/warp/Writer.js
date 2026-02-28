@@ -15,6 +15,7 @@
  */
 
 import defaultCodec from '../utils/defaultCodec.js';
+import nullLogger from '../utils/nullLogger.js';
 import { validateWriterId, buildWriterRef } from '../utils/RefLayout.js';
 import { PatchSession } from './PatchSession.js';
 import { PatchBuilderV2 } from '../services/PatchBuilderV2.js';
@@ -73,8 +74,8 @@ export class Writer {
     /** @type {import('../../ports/CodecPort.js').default|undefined} */
     this._codec = codec || defaultCodec;
 
-    /** @type {import('../../ports/LoggerPort.js').default|undefined} */
-    this._logger = logger;
+    /** @type {import('../../ports/LoggerPort.js').default} */
+    this._logger = logger || nullLogger;
 
     /** @type {boolean} */
     this._commitInProgress = false;
