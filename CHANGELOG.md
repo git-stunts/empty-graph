@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [12.2.1] — 2026-02-28
+
 ### Fixed
 
 - **`readRef` double I/O (J3)** — single `rev-parse --verify --quiet` replacing redundant `refExists` + `rev-parse` two-call pattern.

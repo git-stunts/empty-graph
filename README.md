@@ -8,12 +8,12 @@
   <img src="docs/images/hero.gif" alt="git-warp CLI demo" width="600">
 </p>
 
-## What's New in v12.2.0
+## What's New in v12.2.1
 
-- **O(N log N) topological sort** — `topologicalSort()` now uses a MinHeap ready queue instead of sorted-array merging, eliminating the O(N²) hot path for large DAGs.
-- **QueryBuilder batching + memoization** — property fetches are now bounded (chunks of 100) and cached per-run, reducing redundant I/O across where-clauses, result building, and aggregation.
-- **Fast materialization guard** — `_materializeGraph()` skips full materialization when cached state is clean, improving query/traversal latency.
-- **Checkpoint `visible.cbor` removed** — checkpoints no longer write the unused visible-projection blob, saving one serialize + blob write per checkpoint.
+- **M12 SCALPEL complete** — 42-item STANK audit fully resolved: 15 bug fixes, 20+ JSDoc/documentation improvements, and 6 refactors across CRDT core, services, sync, and CLI.
+- **Sync correctness hardened** — `join()` state install, `applySyncResponse` cache coherence, unknown-op rejection (fail-closed), and divergence pre-check all fixed.
+- **Incremental index improvements** — stale label ID collision fix, re-add edge restoration via adjacency cache, and bitmap churn reduction for node removal.
+- **canonicalStringify shared-reference fix** — cycle detection now correctly allows valid DAG structures (shared non-circular references).
 
 See the [full changelog](CHANGELOG.md) for details.
 

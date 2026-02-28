@@ -1,6 +1,6 @@
 # ROADMAP — @git-stunts/git-warp
 
-> **Current version:** v12.2.0
+> **Current version:** v12.2.1
 > **Last reconciled:** 2026-02-27 (STANK.md fully absorbed)
 
 ---
