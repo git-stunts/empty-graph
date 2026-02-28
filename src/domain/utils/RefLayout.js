@@ -376,6 +376,10 @@ export function buildTrustRecordRef(graphName) {
 /**
  * Parses and extracts the writer ID from a writer ref path.
  *
+ * Returns null for any non-writer ref, including malformed refs. Callers that
+ * need to distinguish "not a writer ref" from "malformed ref" should validate
+ * the ref format separately before calling this method.
+ *
  * @param {string} refPath - The full ref path
  * @returns {string|null} The writer ID, or null if the path is not a valid writer ref
  *

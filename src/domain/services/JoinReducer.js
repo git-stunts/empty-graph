@@ -9,7 +9,7 @@
  * }
  */
 
-import { createORSet, orsetAdd, orsetRemove, orsetJoin, orsetContains } from '../crdt/ORSet.js';
+import { createORSet, orsetAdd, orsetRemove, orsetJoin, orsetContains, orsetClone } from '../crdt/ORSet.js';
 import { createVersionVector, vvMerge, vvClone, vvDeserialize } from '../crdt/VersionVector.js';
 import { lwwSet, lwwMax } from '../crdt/LWW.js';
 import { createEventId, compareEventIds } from '../utils/EventId.js';
@@ -33,7 +33,11 @@ export {
  * @property {import('../crdt/ORSet.js').ORSet} edgeAlive - ORSet of alive edges
  * @property {Map<string, import('../crdt/LWW.js').LWWRegister<unknown>>} prop - Properties with LWW
  * @property {import('../crdt/VersionVector.js').VersionVector} observedFrontier - Observed version vector
- * @property {Map<string, import('../utils/EventId.js').EventId>} edgeBirthEvent - EdgeKey → EventId of most recent EdgeAdd (for clean-slate prop visibility)
+ * @property {Map<string, import('../utils/EventId.js').EventId>} edgeBirthEvent - EdgeKey → EventId of most recent EdgeAdd (for clean-slate prop visibility).
+ *   Always present at runtime (initialized to empty Map by createEmptyStateV5 and
+ *   deserializeFullStateV5). Edge birth events were introduced in a later schema
+ *   version; older checkpoints serialize without this field, but the deserializer
+ *   always produces an empty Map for them.
  */
 
 /**
@@ -320,21 +324,18 @@ function nodeAddOutcome(orset, op) {
  * @returns {{target: string, result: 'applied'|'redundant'}} Outcome with node ID (or '*') as target
  */
 function nodeRemoveOutcome(orset, op) {
-  // Check if any of the observed dots are currently non-tombstoned
+  // Build a reverse index (dot → elementId) for the observed dots to avoid
+  // O(|observedDots| × |entries|) scanning. Same pattern as buildDotToElement.
+  const targetDots = op.observedDots instanceof Set
+    ? op.observedDots
+    : new Set(op.observedDots);
+  const dotToElement = buildDotToElement(orset, targetDots);
+
   let effective = false;
-  for (const encodedDot of op.observedDots) {
-    if (!orset.tombstones.has(encodedDot)) {
-      // This dot exists and is not yet tombstoned, so the remove is effective
-      // Check if any entry actually has this dot
-      for (const dots of orset.entries.values()) {
-        if (dots.has(encodedDot)) {
-          effective = true;
-          break;
-        }
-      }
-      if (effective) {
-        break;
-      }
+  for (const encodedDot of targetDots) {
+    if (!orset.tombstones.has(encodedDot) && dotToElement.has(encodedDot)) {
+      effective = true;
+      break;
     }
   }
   const target = op.node || '*';
@@ -386,18 +387,18 @@ function edgeAddOutcome(orset, op, edgeKey) {
  * @returns {{target: string, result: 'applied'|'redundant'}} Outcome with encoded edge key (or '*') as target
  */
 function edgeRemoveOutcome(orset, op) {
+  // Build a reverse index (dot → elementId) for the observed dots to avoid
+  // O(|observedDots| × |entries|) scanning. Same pattern as buildDotToElement.
+  const targetDots = op.observedDots instanceof Set
+    ? op.observedDots
+    : new Set(op.observedDots);
+  const dotToElement = buildDotToElement(orset, targetDots);
+
   let effective = false;
-  for (const encodedDot of op.observedDots) {
-    if (!orset.tombstones.has(encodedDot)) {
-      for (const dots of orset.entries.values()) {
-        if (dots.has(encodedDot)) {
-          effective = true;
-          break;
-        }
-      }
-      if (effective) {
-        break;
-      }
+  for (const encodedDot of targetDots) {
+    if (!orset.tombstones.has(encodedDot) && dotToElement.has(encodedDot)) {
+      effective = true;
+      break;
     }
   }
   // Construct target from op fields if available
@@ -977,16 +978,16 @@ export function reduceV5(patches, initialState, options) {
  * - Creating a branch point for speculative execution
  * - Ensuring immutability when passing state across API boundaries
  *
- * **Implementation Note**: OR-Sets are cloned by joining with an empty set,
- * which creates new data structures with identical contents.
+ * **Implementation Note**: OR-Sets are cloned via `orsetClone()` which
+ * directly copies entries and tombstones without merge logic overhead.
  *
  * @param {WarpStateV5} state - The state to clone
  * @returns {WarpStateV5} A new state with identical contents but independent data structures
  */
 export function cloneStateV5(state) {
   return {
-    nodeAlive: orsetJoin(state.nodeAlive, createORSet()),
-    edgeAlive: orsetJoin(state.edgeAlive, createORSet()),
+    nodeAlive: orsetClone(state.nodeAlive),
+    edgeAlive: orsetClone(state.edgeAlive),
     prop: new Map(state.prop),
     observedFrontier: vvClone(state.observedFrontier),
     edgeBirthEvent: new Map(state.edgeBirthEvent || []),

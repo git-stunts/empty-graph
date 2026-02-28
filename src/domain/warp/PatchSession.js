@@ -60,7 +60,7 @@ export class PatchSession {
    *
    * @param {string} nodeId - The node ID to add
    * @returns {this} This session for chaining
-   * @throws {Error} If this session has already been committed
+   * @throws {WriterError} SESSION_COMMITTED if already committed
    */
   addNode(nodeId) {
     this._ensureNotCommitted();
@@ -75,7 +75,7 @@ export class PatchSession {
    *
    * @param {string} nodeId - The node ID to remove
    * @returns {this} This session for chaining
-   * @throws {Error} If this session has already been committed
+   * @throws {WriterError} SESSION_COMMITTED if already committed
    */
   removeNode(nodeId) {
     this._ensureNotCommitted();
@@ -90,7 +90,7 @@ export class PatchSession {
    * @param {string} to - Target node ID
    * @param {string} label - Edge label/type
    * @returns {this} This session for chaining
-   * @throws {Error} If this session has already been committed
+   * @throws {WriterError} SESSION_COMMITTED if already committed
    */
   addEdge(from, to, label) {
     this._ensureNotCommitted();
@@ -107,7 +107,7 @@ export class PatchSession {
    * @param {string} to - Target node ID
    * @param {string} label - Edge label/type
    * @returns {this} This session for chaining
-   * @throws {Error} If this session has already been committed
+   * @throws {WriterError} SESSION_COMMITTED if already committed
    */
   removeEdge(from, to, label) {
     this._ensureNotCommitted();
@@ -122,7 +122,7 @@ export class PatchSession {
    * @param {string} key - Property key
    * @param {unknown} value - Property value (must be JSON-serializable)
    * @returns {this} This session for chaining
-   * @throws {Error} If this session has already been committed
+   * @throws {WriterError} SESSION_COMMITTED if already committed
    */
   setProperty(nodeId, key, value) {
     this._ensureNotCommitted();
@@ -139,7 +139,7 @@ export class PatchSession {
    * @param {string} key - Property key
    * @param {unknown} value - Property value (must be JSON-serializable)
    * @returns {this} This session for chaining
-   * @throws {Error} If this session has already been committed
+   * @throws {WriterError} SESSION_COMMITTED if already committed
    */
   // eslint-disable-next-line max-params -- direct delegate matching PatchBuilderV2 signature
   setEdgeProperty(from, to, label, key, value) {
@@ -154,7 +154,7 @@ export class PatchSession {
    * @param {string} nodeId - The node ID to attach content to
    * @param {Buffer|string} content - The content to attach
    * @returns {Promise<this>} This session for chaining
-   * @throws {Error} If this session has already been committed
+   * @throws {WriterError} SESSION_COMMITTED if already committed
    */
   async attachContent(nodeId, content) {
     this._ensureNotCommitted();
@@ -170,7 +170,7 @@ export class PatchSession {
    * @param {string} label - Edge label/type
    * @param {Buffer|string} content - The content to attach
    * @returns {Promise<this>} This session for chaining
-   * @throws {Error} If this session has already been committed
+   * @throws {WriterError} SESSION_COMMITTED if already committed
    */
   // eslint-disable-next-line max-params -- direct delegate matching PatchBuilderV2 signature
   async attachEdgeContent(from, to, label, content) {
@@ -249,12 +249,15 @@ export class PatchSession {
 
   /**
    * Ensures the session hasn't been committed yet.
-   * @throws {Error} If already committed
+   * @throws {WriterError} SESSION_COMMITTED if already committed
    * @private
    */
   _ensureNotCommitted() {
     if (this._committed) {
-      throw new Error('PatchSession already committed. Call beginPatch() to create a new session.');
+      throw new WriterError(
+        'SESSION_COMMITTED',
+        'PatchSession already committed. Call beginPatch() to create a new session.',
+      );
     }
   }
 }

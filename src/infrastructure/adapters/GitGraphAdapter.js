@@ -136,29 +136,6 @@ function isDanglingObjectError(err) {
 }
 
 /**
- * Checks whether a Git ref exists without resolving it.
- * @param {function(Object): Promise<string>} execute - The git command executor function
- * @param {string} ref - The ref to check (e.g., 'refs/warp/events/writers/alice')
- * @returns {Promise<boolean>} True if the ref exists, false otherwise
- * @throws {Error} If the git command fails for reasons other than a missing ref
- */
-async function refExists(execute, ref) {
-  try {
-    await execute({ args: ['show-ref', '--verify', '--quiet', ref] });
-    return true;
-  } catch (err) {
-    const gitErr = /** @type {GitError} */ (err);
-    if (getExitCode(gitErr) === 1) {
-      return false;
-    }
-    if (isDanglingObjectError(gitErr)) {
-      return false;
-    }
-    throw err;
-  }
-}
-
-/**
  * Concrete implementation of {@link GraphPersistencePort} using Git plumbing commands.
  *
  * This adapter translates abstract graph persistence operations into Git plumbing
@@ -262,6 +239,25 @@ export default class GitGraphAdapter extends GraphPersistencePort {
   }
 
   /**
+   * Shared helper for commit creation. Validates parents, builds args, and
+   * executes `git commit-tree` with retry.
+   * @param {{ tree: string, parents: string[], message: string, sign: boolean }} opts
+   * @returns {Promise<string>} The created commit SHA
+   * @private
+   */
+  async _createCommit({ tree, parents, message, sign }) {
+    for (const p of parents) {
+      this._validateOid(p);
+    }
+    const parentArgs = parents.flatMap(p => ['-p', p]);
+    const signArgs = sign ? ['-S'] : [];
+    const args = ['commit-tree', tree, ...parentArgs, ...signArgs, '-m', message];
+
+    const oid = await this._executeWithRetry({ args });
+    return oid.trim();
+  }
+
+  /**
    * Creates a commit pointing to the empty tree.
    * @param {Object} options
    * @param {string} options.message - The commit message (typically CBOR-encoded patch data)
@@ -271,15 +267,7 @@ export default class GitGraphAdapter extends GraphPersistencePort {
    * @throws {Error} If any parent OID is invalid
    */
   async commitNode({ message, parents = [], sign = false }) {
-    for (const p of parents) {
-      this._validateOid(p);
-    }
-    const parentArgs = parents.flatMap(p => ['-p', p]);
-    const signArgs = sign ? ['-S'] : [];
-    const args = ['commit-tree', this.emptyTree, ...parentArgs, ...signArgs, '-m', message];
-
-    const oid = await this._executeWithRetry({ args });
-    return oid.trim();
+    return await this._createCommit({ tree: this.emptyTree, parents, message, sign });
   }
 
   /**
@@ -294,15 +282,7 @@ export default class GitGraphAdapter extends GraphPersistencePort {
    */
   async commitNodeWithTree({ treeOid, parents = [], message, sign = false }) {
     this._validateOid(treeOid);
-    for (const p of parents) {
-      this._validateOid(p);
-    }
-    const parentArgs = parents.flatMap(p => ['-p', p]);
-    const signArgs = sign ? ['-S'] : [];
-    const args = ['commit-tree', treeOid, ...parentArgs, ...signArgs, '-m', message];
-
-    const oid = await this._executeWithRetry({ args });
-    return oid.trim();
+    return await this._createCommit({ tree: treeOid, parents, message, sign });
   }
 
   /**
@@ -402,8 +382,13 @@ export default class GitGraphAdapter extends GraphPersistencePort {
     // -z flag ensures NUL-terminated output and ignores i18n.logOutputEncoding config
     const args = ['log', '-z', `-${limit}`];
     if (format) {
-      // Strip NUL bytes from format - git -z flag handles NUL termination automatically
-      // Node.js child_process rejects args containing null bytes
+      // Strip NUL (\x00) bytes from the caller-supplied format string.
+      // Why: Git's -z flag uses NUL as the record terminator in its output.
+      // If a format string contains literal NUL bytes (e.g. from %x00 expansion
+      // or caller-constructed strings), they corrupt the NUL-delimited output
+      // stream, causing downstream parsers to split records at the wrong
+      // boundaries. Additionally, Node.js child_process rejects argv entries
+      // that contain null bytes, so passing them through would throw.
       // eslint-disable-next-line no-control-regex
       const cleanFormat = format.replace(/\x00/g, '');
       args.push(`--format=${cleanFormat}`);
@@ -415,6 +400,8 @@ export default class GitGraphAdapter extends GraphPersistencePort {
   /**
    * Validates that a ref is safe to use in git commands.
    * Delegates to shared validation in adapterValidation.js.
+   *
+   * Instance method for port interface conformance and test mockability.
    * @param {string} ref - The ref to validate
    * @throws {Error} If ref contains invalid characters, is too long, or starts with -/--
    * @private
@@ -451,7 +438,7 @@ export default class GitGraphAdapter extends GraphPersistencePort {
 
   /**
    * Reads a tree and returns a map of path to content.
-   * Processes blobs sequentially to avoid spawning too many concurrent reads.
+   * Reads blobs in batches of 16 to balance concurrency against fd/process limits.
    * @param {string} treeOid - The tree OID to read
    * @returns {Promise<Record<string, Buffer>>} Map of file path to blob content
    */
@@ -459,9 +446,16 @@ export default class GitGraphAdapter extends GraphPersistencePort {
     const oids = await this.readTreeOids(treeOid);
     /** @type {Record<string, Buffer>} */
     const files = {};
-    // Process sequentially to avoid spawning thousands of concurrent readBlob calls
-    for (const [path, oid] of Object.entries(oids)) {
-      files[path] = await this.readBlob(oid);
+    const entries = Object.entries(oids);
+    const BATCH_SIZE = 16;
+    for (let i = 0; i < entries.length; i += BATCH_SIZE) {
+      const batch = entries.slice(i, i + BATCH_SIZE);
+      const results = await Promise.all(
+        batch.map(([, oid]) => this.readBlob(oid))
+      );
+      for (let j = 0; j < batch.length; j++) {
+        files[batch[j][0]] = results[j];
+      }
     }
     return files;
   }
@@ -539,20 +533,21 @@ export default class GitGraphAdapter extends GraphPersistencePort {
    */
   async readRef(ref) {
     this._validateRef(ref);
-    const exists = await refExists(this._executeWithRetry.bind(this), ref);
-    if (!exists) {
-      return null;
-    }
     try {
+      // --verify ensures exactly one revision is resolved; --quiet suppresses
+      // error messages and makes exit code 1 (not 128) the indicator for
+      // "ref does not exist", simplifying downstream handling.
       const oid = await this._executeWithRetry({
-        args: ['rev-parse', ref]
+        args: ['rev-parse', '--verify', '--quiet', ref]
       });
       return oid.trim();
     } catch (err) {
       const gitErr = /** @type {GitError} */ (err);
+      // Exit code 1: ref does not exist (normal with --verify --quiet)
       if (getExitCode(gitErr) === 1) {
         return null;
       }
+      // Exit code 128 with dangling-object stderr: ref exists but target is missing
       if (isDanglingObjectError(gitErr)) {
         return null;
       }
@@ -602,6 +597,10 @@ export default class GitGraphAdapter extends GraphPersistencePort {
   /**
    * Validates that an OID is safe to use in git commands.
    * Delegates to shared validation in adapterValidation.js.
+   *
+   * Exists as a method (rather than inlining the import) so tests can
+   * spy/stub validation independently and so future adapters sharing
+   * the same port interface can override validation rules.
    * @param {string} oid - The OID to validate
    * @throws {Error} If OID is invalid
    * @private
@@ -613,6 +612,8 @@ export default class GitGraphAdapter extends GraphPersistencePort {
   /**
    * Validates that a limit is a safe positive integer.
    * Delegates to shared validation in adapterValidation.js.
+   *
+   * Instance method for port interface conformance and test mockability.
    * @param {number} limit - The limit to validate
    * @throws {Error} If limit is invalid
    * @private
@@ -759,6 +760,8 @@ export default class GitGraphAdapter extends GraphPersistencePort {
   /**
    * Validates that a config key is safe to use in git commands.
    * Delegates to shared validation in adapterValidation.js.
+   *
+   * Instance method for port interface conformance and test mockability.
    * @param {string} key - The config key to validate
    * @throws {Error} If key is invalid
    * @private

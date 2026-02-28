@@ -49,6 +49,13 @@ export default class IncrementalIndexUpdater {
     this._codec = codec || defaultCodec;
     /** @type {WeakMap<import('../crdt/ORSet.js').ORSet, Map<string, Set<string>>>} */
     this._edgeAdjacencyCache = new WeakMap();
+    /**
+     * Cached next label ID — avoids O(L) max-scan per new label.
+     * Initialized lazily from existing labels on first _ensureLabel call.
+     * @type {number|null}
+     * @private
+     */
+    this._nextLabelId = null;
   }
 
   /**
@@ -72,6 +79,10 @@ export default class IncrementalIndexUpdater {
     const out = {};
 
     const labels = this._loadLabels(loadShard);
+    // Reset cached next label ID so _ensureLabel re-scans the fresh labels
+    // object loaded above. Without this, a stale _nextLabelId from a prior
+    // applyDiff call could collide with IDs already present in the new labels.
+    this._nextLabelId = null;
     let labelsDirty = false;
 
     // Determine which added nodes are true re-adds (already have global IDs).
@@ -368,13 +379,19 @@ export default class IncrementalIndexUpdater {
     if (Object.prototype.hasOwnProperty.call(labels, label)) {
       return false;
     }
-    let maxId = -1;
-    for (const id of Object.values(labels)) {
-      if (id > maxId) {
-        maxId = id;
+    // Lazily initialize _nextLabelId from existing labels (O(L) once),
+    // then O(1) per subsequent new label.
+    if (this._nextLabelId === null) {
+      let maxId = -1;
+      for (const id of Object.values(labels)) {
+        if (id > maxId) {
+          maxId = id;
+        }
       }
+      this._nextLabelId = maxId + 1;
     }
-    labels[label] = maxId + 1;
+    labels[label] = this._nextLabelId;
+    this._nextLabelId++;
     return true;
   }
 
@@ -876,6 +893,9 @@ export default class IncrementalIndexUpdater {
    * @private
    */
   _deserializeBitmap(data, bucket, ownerStr) {
+    // getRoaringBitmap32() is internally memoized (returns cached constructor
+    // after first resolution). The repeated calls are cheap but the pattern
+    // is noisy. A future cleanup could cache the constructor at instance level.
     const RoaringBitmap32 = getRoaringBitmap32();
     if (data[bucket] && data[bucket][ownerStr]) {
       return RoaringBitmap32.deserialize(

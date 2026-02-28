@@ -21,6 +21,9 @@ import IncrementalIndexUpdater from './IncrementalIndexUpdater.js';
 import { orsetElements, orsetContains } from '../crdt/ORSet.js';
 import { decodeEdgeKey } from './KeyCodec.js';
 
+/** Prefix for property shard paths in the index tree. */
+const PROPS_PREFIX = 'props_';
+
 /**
  * @typedef {import('./BitmapNeighborProvider.js').LogicalIndex} LogicalIndex
  */
@@ -66,7 +69,7 @@ function buildInMemoryPropertyReader(tree, codec) {
   /** @type {Record<string, string>} */
   const propShardOids = {};
   for (const path of Object.keys(tree)) {
-    if (path.startsWith('props_')) {
+    if (path.startsWith(PROPS_PREFIX)) {
       propShardOids[path] = path;
     }
   }
@@ -93,7 +96,7 @@ function partitionShardOids(shardOids) {
   const propOids = {};
 
   for (const [path, oid] of Object.entries(shardOids)) {
-    if (path.startsWith('props_')) {
+    if (path.startsWith(PROPS_PREFIX)) {
       propOids[path] = oid;
     } else {
       indexOids[path] = oid;
@@ -104,6 +107,10 @@ function partitionShardOids(shardOids) {
 
 /**
  * Mulberry32 PRNG — deterministic 32-bit generator from a seed.
+ *
+ * mulberry32 is a fast 32-bit PRNG by Tommy Ettinger. The magic constants
+ * (0x6D2B79F5, shifts 15/13/16) are part of the published algorithm.
+ * See: https://gist.github.com/tommyettinger/46a874533244883189143505d203312c
  *
  * @param {number} seed
  * @returns {() => number} Returns values in [0, 1)
@@ -134,6 +141,10 @@ function sampleNodes(allNodes, sampleRate, seed) {
   }
   const rng = mulberry32(seed);
   const sampled = allNodes.filter(() => rng() < sampleRate);
+  // When the initial sample is empty (e.g., graph has fewer nodes than
+  // sample size), we fall back to using all available nodes. This changes
+  // the distribution but is acceptable since the sample is only used for
+  // layout heuristics.
   if (sampled.length === 0) {
     sampled.push(allNodes[Math.floor(rng() * allNodes.length)]);
   }

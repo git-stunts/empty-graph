@@ -160,11 +160,19 @@ export function vvContains(vv, dot) {
 export function vvSerialize(vv) {
   /** @type {Record<string, number>} */
   const obj = {};
+  // Key sort is required for deterministic serialization. The writer count
+  // is typically small (<100), so the O(W log W) cost is negligible.
   const sortedKeys = [...vv.keys()].sort();
 
   for (const key of sortedKeys) {
     const val = vv.get(key);
     if (val !== undefined) {
+      // Invariant assertion — not input validation. Zero counters must never
+      // appear in a VersionVector. They carry no causal information and would
+      // be elided on deserialization, breaking round-trip equality.
+      if (val === 0) {
+        throw new Error(`vvSerialize: zero counter for writerId "${key}" — VersionVector must not contain zero counters`);
+      }
       obj[key] = val;
     }
   }
@@ -174,6 +182,10 @@ export function vvSerialize(vv) {
 
 /**
  * Deserializes a plain object back to a VersionVector.
+ *
+ * Zero counters are elided during deserialization. This is intentional — a
+ * counter of 0 carries no causal information and wastes space. Serialization
+ * must never emit zero counters.
  *
  * @param {Object<string, number>} obj
  * @returns {VersionVector}

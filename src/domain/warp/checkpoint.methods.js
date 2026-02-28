@@ -167,8 +167,28 @@ export async function _loadLatestCheckpoint() {
 
   try {
     return await loadCheckpoint(this._persistence, checkpointSha, { codec: this._codec });
-  } catch {
-    return null;
+  } catch (err) {
+    // "Not found" conditions (missing tree entries, missing blobs) are expected
+    // when a checkpoint ref exists but the objects have been pruned or are
+    // unreachable. In that case, fall back to full replay by returning null.
+    // Decode/corruption errors (e.g., CBOR parse failure, schema mismatch)
+    // should propagate so callers see the real problem.
+    // These string-contains checks match specific error messages from the
+    // persistence layer and codec:
+    //   "missing"          — git cat-file on pruned/unreachable objects
+    //   "not found"        — readTree entry lookup failures
+    //   "ENOENT"           — filesystem-level missing path (bare repo edge case)
+    //   "non-empty string" — readRef/getNodeInfo called with empty/null SHA
+    const msg = err instanceof Error ? err.message : '';
+    if (
+      msg.includes('missing') ||
+      msg.includes('not found') ||
+      msg.includes('ENOENT') ||
+      msg.includes('non-empty string')
+    ) {
+      return null;
+    }
+    throw err;
   }
 }
 
@@ -230,10 +250,16 @@ export async function _validateMigrationBoundary() {
 }
 
 /**
- * Checks if there are any schema:1 patches in the graph.
+ * Checks whether any writer tip contains a schema:1 patch.
+ *
+ * **Heuristic only** — inspects the most recent patch per writer (the tip),
+ * not the full history chain. Older schema:1 patches buried deeper in a
+ * writer's chain will NOT be detected. This is acceptable because migration
+ * typically writes a new tip, so a schema:2+ tip implies the writer has
+ * been migrated.
  *
  * @this {import('../WarpGraph.js').default}
- * @returns {Promise<boolean>} True if schema:1 patches exist
+ * @returns {Promise<boolean>} True if any writer tip is schema:1 (or omits `schema`, treated as legacy v1)
  * @private
  */
 export async function _hasSchema1Patches() {

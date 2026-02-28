@@ -126,7 +126,9 @@ export function lwwSet(eventId, value) {
  * @returns {LWWRegister<T> | null} Register with greater EventId, or null if both null/undefined
  */
 export function lwwMax(a, b) {
-  // Handle null/undefined cases
+  // Null/undefined values are handled defensively for forward compatibility.
+  // Current callers always provide non-null values, but the LWW register
+  // contract permits null as a valid tombstone value.
   if ((a === null || a === undefined) && (b === null || b === undefined)) {
     return null;
   }

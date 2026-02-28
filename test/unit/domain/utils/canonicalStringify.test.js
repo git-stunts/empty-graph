@@ -112,6 +112,44 @@ describe('canonicalStringify', () => {
     });
   });
 
+  describe('cycle and shared-reference handling', () => {
+    it('throws on circular object references', () => {
+      /** @type {Record<string, unknown>} */
+      const obj = { a: 1 };
+      obj.self = obj;
+      expect(() => canonicalStringify(obj)).toThrow(TypeError);
+    });
+
+    it('throws on circular array references', () => {
+      /** @type {unknown[]} */
+      const arr = [1, 2];
+      arr.push(arr);
+      expect(() => canonicalStringify(arr)).toThrow(TypeError);
+    });
+
+    it('allows shared (non-circular) object references', () => {
+      const shared = { x: 1 };
+      const obj = { a: shared, b: shared };
+      expect(canonicalStringify(obj)).toBe('{"a":{"x":1},"b":{"x":1}}');
+    });
+
+    it('allows shared (non-circular) array references', () => {
+      const shared = [1, 2];
+      const obj = { a: shared, b: shared };
+      expect(canonicalStringify(obj)).toBe('{"a":[1,2],"b":[1,2]}');
+    });
+
+    it('allows diamond-shaped object graph', () => {
+      const leaf = { val: 42 };
+      const left = { child: leaf };
+      const right = { child: leaf };
+      const root = { left, right };
+      expect(canonicalStringify(root)).toBe(
+        '{"left":{"child":{"val":42}},"right":{"child":{"val":42}}}',
+      );
+    });
+  });
+
   describe('determinism', () => {
     it('produces identical output regardless of insertion order', () => {
       const obj1 = { z: 1, a: 2, m: 3 };

@@ -601,13 +601,10 @@ describe('GitGraphAdapter', () => {
         .rejects.toThrow('fatal: unknown option');
     });
 
-    it('readRef returns null when show-ref succeeds but rev-parse hits dangling object', async () => {
+    it('readRef returns null when rev-parse hits dangling object (exit 128)', async () => {
       const err128 = /** @type {any} */ (new Error('fatal: bad object'));
       err128.details = { code: 128, stderr: 'fatal: bad object abc123' };
-      // show-ref succeeds (ref exists), then rev-parse fails (dangling)
-      mockPlumbing.execute
-        .mockResolvedValueOnce('')
-        .mockRejectedValueOnce(err128);
+      mockPlumbing.execute.mockRejectedValue(err128);
 
       const result = await adapter.readRef('refs/warp/test/writers/alice');
       expect(result).toBeNull();

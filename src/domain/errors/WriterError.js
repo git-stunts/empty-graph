@@ -26,6 +26,11 @@ import WarpError from './WarpError.js';
  */
 export default class WriterError extends WarpError {
   /**
+   * Note: constructor parameter order differs from other WarpError subclasses
+   * (code, message vs message, code). This is intentional to match the most
+   * common call sites in PatchSession and PatchBuilderV2 where the error code
+   * is the primary discriminator.
+   *
    * @param {string} code - Error code
    * @param {string} message - Human-readable error message
    * @param {Error} [cause] - Original error that caused this error

@@ -166,6 +166,12 @@ const BASE_OPTIONS = {
  * Pre-processes argv to handle --view's optional-value semantics.
  * If --view is followed by a command name or flag (or is last), injects 'ascii'.
  * Validates the view mode value.
+ *
+ * When --view is passed without a value, we inject 'ascii' as the default.
+ * This happens before validation so the downstream parser sees a concrete
+ * value. The synthetic injection is intentional — parseArgs requires --view
+ * to have a value even though the CLI allows bare --view.
+ *
  * @param {string[]} argv
  * @returns {string[]}
  */

@@ -9,6 +9,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`readRef` double I/O (J3)** — single `rev-parse --verify --quiet` replacing redundant `refExists` + `rev-parse` two-call pattern.
+- **`readTree` sequential blob reads (J4)** — pooled concurrent reads with batch size 16 via `Promise.all`.
+- **`findAttachedData` O(E+P) scan (J6)** — string prefix/infix checks instead of split+compare on every edge key.
+- **Schema version recomputed per write (J7)** — `_hasEdgeProps` boolean cache set once in `setEdgeProperty()`.
+- **Checkpoint load swallows corruption (J14)** — now catches only "not found" conditions; decode/corruption errors propagate.
+- **Receipt-path removal O(N*M) (B67/T1)** — `nodeRemoveOutcome`/`edgeRemoveOutcome` now use `buildDotToElement` reverse index.
+- **`orsetClone` via empty join (B73/T2)** — dedicated `orsetClone()` function replacing `orsetJoin(x, empty)` pattern.
+- **`orsetJoin` inconsistent cloning (T11)** — b-branch now clones dots via `new Set()` matching a-branch pattern.
+- **`orsetSerialize` O(N log N) decodes (T37)** — pre-decodes all dots before sorting, reducing decode calls from O(N log N) to O(N).
+- **`canonicalStringify` stack overflow on cycles (T18)** — added `WeakSet`-based cycle detection; throws `TypeError` on circular references. Stack-based tracking allows valid shared (non-circular) references.
+- **`matchGlob` unbounded regex cache (T19)** — cache now clears when exceeding 1000 entries.
+- **`commitNode`/`commitNodeWithTree` duplication (T6)** — extracted shared logic into `_createCommit` helper.
+- **`PatchSession` generic Error on post-commit ops (T33)** — now throws `WriterError` with code `SESSION_COMMITTED`.
+- **`schemas.js` Infinity/NaN validation (T28)** — added `Number.isFinite` refinement to all `z.coerce.number()` chains.
+- **`SyncProtocol` scattered Map↔Object conversions (T23)** — extracted `frontierToObject`/`objectToFrontier` helpers.
+- **`IncrementalIndexUpdater` O(L) max-ID loop (T35)** — cached `_nextLabelId` for O(1) per new label.
+
+### Documentation
+
+- **`_hasSchema1Patches` tip-only semantics (J16)** — JSDoc clarifying heuristic checks writer tips only, not full history.
+- **`vvDeserialize` zero-counter elision (B75/T9)** — JSDoc + debug assertion in `vvSerialize`.
+- **Writer `_commitInProgress` guard (B74/T32)** — JSDoc documenting reentrancy safety and finally-block reset.
+- **TSK TSK documentation batch** — 20+ JSDoc/comment additions across CheckpointService (T4, T25, T26), GitGraphAdapter (T5, T7), CborCodec (T8), LWW (T10), EventId (T12), Dot (T22), VersionVector (T38), LRUCache (T20), RefLayout (T31), QueryBuilder (T13), MaterializedViewService (T14, T34), WriterError (T16), StorageError (T17, T29), SyncProtocol (T24), infrastructure (T27), JoinReducer (T3), IncrementalIndexUpdater (T36).
+
+### Refactored
+
+- **`MaterializedViewService` DRY (T15)** — extracted `PROPS_PREFIX` constant.
+- **`IncrementalIndexUpdater` stale `_nextLabelId` (CR-1)** — reset cached label ID on each `computeDirtyShards` call so freshly-loaded labels don't collide with prior state.
+- **`matchGlob` cache eviction boundary (CR-2)** — insert before evict + `>=` threshold so just-compiled regex survives the clear.
+- **`MaterializedViewService` import ordering (CR-3)** — moved `PROPS_PREFIX` constant below all imports.
+- **`canonicalStringify` shared-reference false positive (CR-R1)** — cycle detection now uses stack-based tracking (try/finally delete) instead of ever-growing seen set, so valid DAG structures with shared references are not rejected.
+- **`nodeRemoveOutcome`/`edgeRemoveOutcome` iterate normalized Set (CR-R2)** — effectiveness loop now iterates `targetDots` (the normalized Set) instead of raw `op.observedDots` for consistency with the reverse-index lookup.
+
 - **`join()` overwrites merged state (S1)** — `join()` now installs the merged state as canonical (`_stateDirty = false`) with synchronous adjacency build, instead of setting `_stateDirty = true` which caused `_ensureFreshState()` to throw `E_STALE_STATE` or trigger a full `materialize()` that discarded the merge result. Version vector is cloned from the merged frontier. (B108)
 - **`_cachedViewHash` leak in dirty paths** — `_onPatchCommitted` fallback path and `_maybeRunGC` frontier-changed path now clear `_cachedViewHash` when setting `_stateDirty = true`, maintaining the coherence invariant. (B108)
 - **Sync stale-read after apply (C1)** — `applySyncResponse` now routes through `_setMaterializedState()` instead of raw `_cachedState` assignment, rebuilding adjacency, indexes, and view. Previously queries after sync could return stale index/provider data. (B105)

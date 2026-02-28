@@ -36,7 +36,7 @@ export const pathSchema = z.object({
   to: z.string().optional(),
   dir: z.enum(['out', 'in', 'both']).optional(),
   label: z.union([z.string(), z.array(z.string())]).optional(),
-  'max-depth': z.coerce.number().int().nonnegative().optional(),
+  'max-depth': z.coerce.number().int().nonnegative().refine(n => Number.isFinite(n), { message: 'must be a finite number' }).optional(),
 }).strict().transform((val) => ({
   from: val.from ?? null,
   to: val.to ?? null,
@@ -102,7 +102,7 @@ export const seekSchema = z.object({
   'clear-cache': z.boolean().default(false),
   'no-persistent-cache': z.boolean().default(false),
   diff: z.boolean().default(false),
-  'diff-limit': z.coerce.number().int({ message: '--diff-limit must be a positive integer' }).positive({ message: '--diff-limit must be a positive integer' }).default(2000),
+  'diff-limit': z.coerce.number().int({ message: '--diff-limit must be a positive integer' }).positive({ message: '--diff-limit must be a positive integer' }).refine(n => Number.isFinite(n), { message: '--diff-limit must be a finite number' }).default(2000),
 }).strict().superRefine((val, ctx) => {
   // Count mutually exclusive action flags
   const actions = [
@@ -181,8 +181,8 @@ export const seekSchema = z.object({
 // ============================================================================
 
 export const verifyIndexSchema = z.object({
-  seed: z.coerce.number().int().min(-2147483648).max(2147483647).optional(),
-  'sample-rate': z.coerce.number().gt(0, '--sample-rate must be greater than 0').max(1).optional().default(0.1),
+  seed: z.coerce.number().int().min(-2147483648).max(2147483647).refine(n => Number.isFinite(n), { message: 'must be a finite number' }).optional(),
+  'sample-rate': z.coerce.number().gt(0, '--sample-rate must be greater than 0').max(1).refine(n => Number.isFinite(n), { message: 'must be a finite number' }).optional().default(0.1),
 }).strict().transform((val) => ({
   seed: val.seed,
   sampleRate: val['sample-rate'],

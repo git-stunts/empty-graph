@@ -7,10 +7,24 @@
  * - Array elements that are undefined/function/symbol become "null"
  * - Object properties with undefined/function/symbol values are omitted
  *
+ * Throws TypeError on circular references rather than stack-overflowing.
+ *
  * @param {unknown} value - Any JSON-serializable value
  * @returns {string} Canonical JSON string with sorted keys
  */
 export function canonicalStringify(value) {
+  return _canonicalStringify(value, new WeakSet());
+}
+
+/**
+ * Internal recursive helper with cycle detection.
+ *
+ * @param {unknown} value - Any JSON-serializable value
+ * @param {WeakSet<object>} seen - Set of already-visited objects for cycle detection
+ * @returns {string} Canonical JSON string with sorted keys
+ * @private
+ */
+function _canonicalStringify(value, seen) {
   if (value === undefined) {
     return 'null';
   }
@@ -18,26 +32,42 @@ export function canonicalStringify(value) {
     return 'null';
   }
   if (Array.isArray(value)) {
-    // Map elements: undefined/function/symbol -> "null", others recurse
-    const elements = value.map(el => {
-      if (el === undefined || typeof el === 'function' || typeof el === 'symbol') {
-        return 'null';
-      }
-      return canonicalStringify(el);
-    });
-    return `[${elements.join(',')}]`;
+    if (seen.has(value)) {
+      throw new TypeError('Circular reference detected in canonicalStringify');
+    }
+    seen.add(value);
+    try {
+      // Map elements: undefined/function/symbol -> "null", others recurse
+      const elements = value.map(el => {
+        if (el === undefined || typeof el === 'function' || typeof el === 'symbol') {
+          return 'null';
+        }
+        return _canonicalStringify(el, seen);
+      });
+      return `[${elements.join(',')}]`;
+    } finally {
+      seen.delete(value);
+    }
   }
   if (typeof value === 'object') {
-    const obj = /** @type {Record<string, unknown>} */ (value);
-    // Filter out keys with undefined/function/symbol values, then sort
-    const keys = Object.keys(obj)
-      .filter(k => {
-        const v = obj[k];
-        return v !== undefined && typeof v !== 'function' && typeof v !== 'symbol';
-      })
-      .sort();
-    const pairs = keys.map(k => `${JSON.stringify(k)}:${canonicalStringify(obj[k])}`);
-    return `{${pairs.join(',')}}`;
+    if (seen.has(value)) {
+      throw new TypeError('Circular reference detected in canonicalStringify');
+    }
+    seen.add(value);
+    try {
+      const obj = /** @type {Record<string, unknown>} */ (value);
+      // Filter out keys with undefined/function/symbol values, then sort
+      const keys = Object.keys(obj)
+        .filter(k => {
+          const v = obj[k];
+          return v !== undefined && typeof v !== 'function' && typeof v !== 'symbol';
+        })
+        .sort();
+      const pairs = keys.map(k => `${JSON.stringify(k)}:${_canonicalStringify(obj[k], seen)}`);
+      return `{${pairs.join(',')}}`;
+    } finally {
+      seen.delete(value);
+    }
   }
   return JSON.stringify(value);
 }

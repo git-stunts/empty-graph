@@ -83,6 +83,33 @@ function normalizePatch(patch) {
 }
 
 /**
+ * Converts a frontier Map to a plain object for JSON serialization.
+ *
+ * @param {Map<string, string>} map - Frontier as Map<writerId, sha>
+ * @returns {{ [x: string]: string }} Plain object representation
+ * @private
+ */
+function frontierToObject(map) {
+  /** @type {{ [x: string]: string }} */
+  const obj = {};
+  for (const [writerId, sha] of map) {
+    obj[writerId] = sha;
+  }
+  return obj;
+}
+
+/**
+ * Converts a frontier plain object back to a Map.
+ *
+ * @param {{ [x: string]: string }} obj - Frontier as plain object
+ * @returns {Map<string, string>} Frontier as Map<writerId, sha>
+ * @private
+ */
+function objectToFrontier(obj) {
+  return new Map(Object.entries(obj));
+}
+
+/**
  * Loads a patch from a commit.
  *
  * WARP stores patches as Git blobs, with the blob OID embedded in the
@@ -341,16 +368,9 @@ export function computeSyncDelta(localFrontier, remoteFrontier) {
  * // Send over HTTP: await fetch(url, { body: JSON.stringify(request) })
  */
 export function createSyncRequest(frontier) {
-  // Convert Map to plain object for serialization
-  /** @type {{ [x: string]: string }} */
-  const frontierObj = {};
-  for (const [writerId, sha] of frontier) {
-    frontierObj[writerId] = sha;
-  }
-
   return {
     type: /** @type {'sync-request'} */ ('sync-request'),
-    frontier: frontierObj,
+    frontier: frontierToObject(frontier),
   };
 }
 
@@ -395,8 +415,7 @@ export function createSyncRequest(frontier) {
 export async function processSyncRequest(request, localFrontier, persistence, graphName, { codec, logger } = /** @type {{ codec?: import('../../ports/CodecPort.js').default, logger?: import('../../ports/LoggerPort.js').default }} */ ({})) {
   const log = logger || nullLogger;
 
-  // Convert incoming frontier from object to Map
-  const remoteFrontier = new Map(Object.entries(request.frontier));
+  const remoteFrontier = objectToFrontier(request.frontier);
 
   // Compute what the requester needs
   const delta = computeSyncDelta(remoteFrontier, localFrontier);
@@ -465,16 +484,9 @@ export async function processSyncRequest(request, localFrontier, persistence, gr
     }
   }
 
-  // Convert local frontier to plain object
-  /** @type {{ [x: string]: string }} */
-  const frontierObj = {};
-  for (const [writerId, sha] of localFrontier) {
-    frontierObj[writerId] = sha;
-  }
-
   return {
     type: /** @type {'sync-response'} */ ('sync-response'),
-    frontier: frontierObj,
+    frontier: frontierToObject(localFrontier),
     patches,
     skippedWriters,
   };
@@ -528,7 +540,10 @@ export function applySyncResponse(response, state, frontier) {
   const newFrontier = cloneFrontier(frontier);
   let applied = 0;
 
-  // Group patches by writer to ensure proper ordering
+  // Patches arrive pre-grouped by writer from the sync response. This
+  // re-grouping is defensive — it handles edge cases where patches from
+  // multiple writers arrive interleaved (e.g., from a relay that merges
+  // streams).
   const patchesByWriter = new Map();
   for (const { writerId, sha, patch } of response.patches) {
     if (!patchesByWriter.has(writerId)) {
@@ -643,15 +658,9 @@ export function syncNeeded(localFrontier, remoteFrontier) {
  * }
  */
 export function createEmptySyncResponse(frontier) {
-  /** @type {{ [x: string]: string }} */
-  const frontierObj = {};
-  for (const [writerId, sha] of frontier) {
-    frontierObj[writerId] = sha;
-  }
-
   return {
     type: /** @type {'sync-response'} */ ('sync-response'),
-    frontier: frontierObj,
+    frontier: frontierToObject(frontier),
     patches: [],
   };
 }
