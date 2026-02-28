@@ -82,3 +82,12 @@ Items noticed during development that are worth addressing but were out of scope
 - Add a nightly PR hygiene job that reports PRs with green CI but missing required human reviews.
 - Add a pre-push helper that prints `gh pr checks` and unresolved-comment counts in one concise table.
 - Add an integration test that verifies repeated `@coderabbitai review` commands do not mask unresolved inline review threads.
+
+## 2026-02-28 PR #55 Code Review Follow-Ups
+
+### From review retrospective
+
+- **Persistence error code enum** — Replace string-contains matching in `_loadLatestCheckpoint()` (and similar catch blocks) with typed error codes (`E_MISSING_OBJECT`, `E_REF_NOT_FOUND`, etc.) at the adapter layer. Currently safe (documented in 9e48052), but a code/symbol approach would eliminate the class of false-positive concerns entirely.
+- **Circular/shared-reference test helper** — Add a `createCircular()` / `createDiamond()` test factory that returns properly JSDoc-annotated self-referential objects, avoiding repeated `Record<string, unknown>` casts in strict TS test files.
+- **CHANGELOG follow-up sub-section pattern** — Consider a lightweight convention for code-review follow-up entries (e.g., `### Review Follow-Ups` or inline `(CR-*)` tags) to distinguish original-PR fixes from post-review fixes without duplicating subsystem mentions across Fixed/Refactored.
+- **Pre-push hook performance** — The IRONCLAD pre-push gate runs the full 4430-test suite (~22s) on every push. Explore a tiered approach: fast smoke tests on push, full suite only on CI. Would cut push-to-remote cycle from ~25s to ~5s.
