@@ -18,7 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`orsetClone` via empty join (B73/T2)** — dedicated `orsetClone()` function replacing `orsetJoin(x, empty)` pattern.
 - **`orsetJoin` inconsistent cloning (T11)** — b-branch now clones dots via `new Set()` matching a-branch pattern.
 - **`orsetSerialize` O(N log N) decodes (T37)** — pre-decodes all dots before sorting, reducing decode calls from O(N log N) to O(N).
-- **`canonicalStringify` stack overflow on cycles (T18)** — added `WeakSet`-based cycle detection; throws `TypeError` on circular references.
+- **`canonicalStringify` stack overflow on cycles (T18)** — added `WeakSet`-based cycle detection; throws `TypeError` on circular references. Stack-based tracking allows valid shared (non-circular) references.
 - **`matchGlob` unbounded regex cache (T19)** — cache now clears when exceeding 1000 entries.
 - **`commitNode`/`commitNodeWithTree` duplication (T6)** — extracted shared logic into `_createCommit` helper.
 - **`PatchSession` generic Error on post-commit ops (T33)** — now throws `WriterError` with code `SESSION_COMMITTED`.
@@ -39,6 +39,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`IncrementalIndexUpdater` stale `_nextLabelId` (CR-1)** — reset cached label ID on each `computeDirtyShards` call so freshly-loaded labels don't collide with prior state.
 - **`matchGlob` cache eviction boundary (CR-2)** — insert before evict + `>=` threshold so just-compiled regex survives the clear.
 - **`MaterializedViewService` import ordering (CR-3)** — moved `PROPS_PREFIX` constant below all imports.
+- **`canonicalStringify` shared-reference false positive (CR-R1)** — cycle detection now uses stack-based tracking (try/finally delete) instead of ever-growing seen set, so valid DAG structures with shared references are not rejected.
+- **`nodeRemoveOutcome`/`edgeRemoveOutcome` iterate normalized Set (CR-R2)** — effectiveness loop now iterates `targetDots` (the normalized Set) instead of raw `op.observedDots` for consistency with the reverse-index lookup.
 
 - **`join()` overwrites merged state (S1)** — `join()` now installs the merged state as canonical (`_stateDirty = false`) with synchronous adjacency build, instead of setting `_stateDirty = true` which caused `_ensureFreshState()` to throw `E_STALE_STATE` or trigger a full `materialize()` that discarded the merge result. Version vector is cloned from the merged frontier. (B108)
 - **`_cachedViewHash` leak in dirty paths** — `_onPatchCommitted` fallback path and `_maybeRunGC` frontier-changed path now clear `_cachedViewHash` when setting `_stateDirty = true`, maintaining the coherence invariant. (B108)

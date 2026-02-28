@@ -457,7 +457,7 @@ B5, B6, B13, B17, B18, B25, B45 — rejected 2026-02-17 with cause recorded in `
 ### Milestones: M10 → M12 → M13 → M11
 
 1. **M10 SENTINEL** — Trust + sync safety + correctness — DONE except B2 spec
-2. **M12 SCALPEL** — STANK audit cleanup (minus edge prop encoding) — **DONE** (all tasks complete, pending M12 gate verification)
+2. **M12 SCALPEL** — STANK audit cleanup (minus edge prop encoding) — **DONE** (all tasks complete, gate verified)
 3. **M13 SCALPEL II** — Edge property encoding schema v4 migration (B116) — dedicated milestone, after M12 gate
 4. **M11 COMPASS II** — Developer experience (B2 impl, B3, B11) — after M13
 
@@ -610,7 +610,7 @@ Pick opportunistically between milestones. Recommended order within tiers:
 Every milestone has a hard gate. No milestone blurs into the next.
 Execution: M10 SENTINEL → **M12 SCALPEL** → **M13 SCALPEL II** → M11 COMPASS II. Standalone items fill the gaps.
 
-M12 is top priority — T8 (6 remaining JANK items) and T9 (TSK TSK batch) are the last tasks. Edge property encoding (B116/S2) was extracted to M13 as a dedicated schema migration milestone requiring its own design phase. M13 must land before new features (M11).
+M12 is complete (including T8/T9). Edge property encoding (B116/S2) was extracted to M13 as a dedicated schema migration milestone requiring its own design phase. M13 must land before new features (M11).
 
 BACKLOG.md is now fully absorbed into this file. It can be archived or deleted.
 Rejected items live in `GRAVEYARD.md`. Resurrections require an RFC.

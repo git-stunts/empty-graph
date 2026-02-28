@@ -332,7 +332,7 @@ function nodeRemoveOutcome(orset, op) {
   const dotToElement = buildDotToElement(orset, targetDots);
 
   let effective = false;
-  for (const encodedDot of op.observedDots) {
+  for (const encodedDot of targetDots) {
     if (!orset.tombstones.has(encodedDot) && dotToElement.has(encodedDot)) {
       effective = true;
       break;
@@ -395,7 +395,7 @@ function edgeRemoveOutcome(orset, op) {
   const dotToElement = buildDotToElement(orset, targetDots);
 
   let effective = false;
-  for (const encodedDot of op.observedDots) {
+  for (const encodedDot of targetDots) {
     if (!orset.tombstones.has(encodedDot) && dotToElement.has(encodedDot)) {
       effective = true;
       break;

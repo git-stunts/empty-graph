@@ -259,7 +259,7 @@ export async function _validateMigrationBoundary() {
  * been migrated.
  *
  * @this {import('../WarpGraph.js').default}
- * @returns {Promise<boolean>} True if any writer tip is schema:1
+ * @returns {Promise<boolean>} True if any writer tip is schema:1 (or omits `schema`, treated as legacy v1)
  * @private
  */
 export async function _hasSchema1Patches() {

@@ -36,30 +36,38 @@ function _canonicalStringify(value, seen) {
       throw new TypeError('Circular reference detected in canonicalStringify');
     }
     seen.add(value);
-    // Map elements: undefined/function/symbol -> "null", others recurse
-    const elements = value.map(el => {
-      if (el === undefined || typeof el === 'function' || typeof el === 'symbol') {
-        return 'null';
-      }
-      return _canonicalStringify(el, seen);
-    });
-    return `[${elements.join(',')}]`;
+    try {
+      // Map elements: undefined/function/symbol -> "null", others recurse
+      const elements = value.map(el => {
+        if (el === undefined || typeof el === 'function' || typeof el === 'symbol') {
+          return 'null';
+        }
+        return _canonicalStringify(el, seen);
+      });
+      return `[${elements.join(',')}]`;
+    } finally {
+      seen.delete(value);
+    }
   }
   if (typeof value === 'object') {
     if (seen.has(value)) {
       throw new TypeError('Circular reference detected in canonicalStringify');
     }
     seen.add(value);
-    const obj = /** @type {Record<string, unknown>} */ (value);
-    // Filter out keys with undefined/function/symbol values, then sort
-    const keys = Object.keys(obj)
-      .filter(k => {
-        const v = obj[k];
-        return v !== undefined && typeof v !== 'function' && typeof v !== 'symbol';
-      })
-      .sort();
-    const pairs = keys.map(k => `${JSON.stringify(k)}:${_canonicalStringify(obj[k], seen)}`);
-    return `{${pairs.join(',')}}`;
+    try {
+      const obj = /** @type {Record<string, unknown>} */ (value);
+      // Filter out keys with undefined/function/symbol values, then sort
+      const keys = Object.keys(obj)
+        .filter(k => {
+          const v = obj[k];
+          return v !== undefined && typeof v !== 'function' && typeof v !== 'symbol';
+        })
+        .sort();
+      const pairs = keys.map(k => `${JSON.stringify(k)}:${_canonicalStringify(obj[k], seen)}`);
+      return `{${pairs.join(',')}}`;
+    } finally {
+      seen.delete(value);
+    }
   }
   return JSON.stringify(value);
 }
