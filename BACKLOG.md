@@ -22,6 +22,17 @@ Items noticed during development that are worth addressing but were out of scope
 - Add markdownlint to pre-commit to catch MD024 (duplicate headings) and MD040 (fenced code language) before review.
 - Consider a `no-empty-catch` ESLint rule (or at least `no-catch-without-comment`) to prevent silent error swallowing.
 
+## 2026-02-27 PR Feedback Follow-Ups
+
+- Add `scripts/pr-review-triage.sh` to summarize unresolved/outdated review threads via GraphQL.
+- Add a CI helper that reports review-comment commit SHA drift versus PR head SHA.
+- Add maintainer docs for stale-review triage protocol (validate on current HEAD, cite evidence, resolve outdated threads safely).
+- Add `npm run pr:review-status` to standardize merge-readiness checks (threads, checks, review count, cooldown status).
+- Add CI merge gating that fails when unresolved review threads remain.
+- Add CI/pre-merge guard to require latest bot review cycle completion before merge.
+- Add repository merge protection policy for minimum review count threshold.
+- Add maintainer playbook for CodeRabbit cooldown/retrigger timing to avoid unnecessary pings.
+- Add anti-spam guidance for repeated `@coderabbitai review` comments when no new commits exist.
 ## 2026-02-28 PR Feedback Follow-Ups
 
 - Add a `pr:quorum:human` check that excludes bot reviews and validates maintainer minimums before merge prompts.

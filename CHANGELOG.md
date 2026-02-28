@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Sync bookkeeping race on install failure** — `applySyncResponse` now defers `_lastFrontier`/`_patchesSinceGC` mutations until after `_setMaterializedState` succeeds, preventing inconsistent bookkeeping if state install throws. (CR-50)
 - **Unknown sync ops silently dropped (C2)** — `applySyncResponse` in `SyncProtocol` now validates every op against `isKnownOp()` before `join()`. Unknown ops throw `SchemaUnsupportedError` (fail closed) instead of being silently ignored. (B106)
 - **Sync divergence exception-as-control-flow (S3)** — `processSyncRequest` now performs an `isAncestor()` pre-check (when available on persistence) to detect diverged writers without the expensive chain walk. Falls back to `loadPatchRange` throw for adapters without `isAncestor`. (B107)
+- **Incremental index re-add restore scan (S5)** — `IncrementalIndexUpdater` now separates genuinely-new nodes from re-added nodes and restores implicit edges via an endpoint adjacency cache keyed by `state.edgeAlive`, avoiding full alive-edge rescans on re-add paths. (B66)
+- **`_purgeNodeEdges` bitmap churn (S6)** — dead-node row purge now deserializes once, mutates in place (`bitmap.clear()`), and serializes once for both forward and reverse owner-row loops. (B113)
+- **Incremental adjacency cache coherency on reused updater instances** — once initialized, `IncrementalIndexUpdater` now reconciles `_edgeAdjacencyCache` on every diff (including non-readd diffs), preventing stale edge restoration candidates after edge membership changes. (PR-52 follow-up)
 
 ### Changed
 
@@ -31,6 +34,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`_onPatchCommitted` dirty-path assertion** — coverage gap test now also asserts `_stateDirty === true`. (L1)
 - **`_setMaterializedState` rejection-path test** — verifies `applySyncResponse` does not advance `_lastFrontier`/`_patchesSinceGC` when state install fails. (CR-50)
+- **IncrementalIndexUpdater performance regressions** — added coverage for new-node add path (no re-add edge restoration side effects) and node-removal purge behavior across forward/reverse edge rows. (B66/B113)
+- **IncrementalIndexUpdater cache-coherency regression** — added a reused-instance multi-diff sequence ensuring node re-add restoration reflects current `edgeAlive` membership after intermediate edge add/remove diffs. (PR-52 follow-up)
 
 ## [12.2.0] — 2026-02-27
 

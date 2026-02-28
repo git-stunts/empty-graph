@@ -1,9 +1,16 @@
 /**
- * Stateless service that computes dirty shard buffers from a PatchDiff.
+ * Stateful service that computes dirty shard buffers from a PatchDiff.
  *
  * Given a diff of alive-ness transitions + a shard loader for the existing
  * index tree, produces only the shard buffers that changed. The caller
  * merges them back into the tree via `{ ...existingTree, ...dirtyShards }`.
+ *
+ * Instance state:
+ * - `_edgeAdjacencyCache` stores a WeakMap keyed by `state.edgeAlive` ORSet
+ *   identity, mapping nodeId -> incident alive edge keys.
+ * - Cache lifetime is tied to the updater instance and is reconciled per diff
+ *   once initialized. Reuse one instance for a single linear state stream;
+ *   create a new instance to reset cache state across independent streams.
  *
  * @module domain/services/IncrementalIndexUpdater
  */
@@ -40,6 +47,8 @@ export default class IncrementalIndexUpdater {
    */
   constructor({ codec } = {}) {
     this._codec = codec || defaultCodec;
+    /** @type {WeakMap<import('../crdt/ORSet.js').ORSet, Map<string, Set<string>>>} */
+    this._edgeAdjacencyCache = new WeakMap();
   }
 
   /**
@@ -64,6 +73,16 @@ export default class IncrementalIndexUpdater {
 
     const labels = this._loadLabels(loadShard);
     let labelsDirty = false;
+
+    // Determine which added nodes are true re-adds (already have global IDs).
+    // Brand-new nodes cannot have pre-existing indexed edges to restore.
+    const readdedNodes = new Set();
+    for (const nodeId of diff.nodesAdded) {
+      const meta = this._getOrLoadMeta(computeShardKey(nodeId), metaCache, loadShard);
+      if (this._findGlobalId(meta, nodeId) !== undefined) {
+        readdedNodes.add(nodeId);
+      }
+    }
 
     for (const nodeId of diff.nodesAdded) {
       this._handleNodeAdd(nodeId, metaCache, loadShard);
@@ -96,25 +115,22 @@ export default class IncrementalIndexUpdater {
       this._handleEdgeRemove(edge, labels, metaCache, fwdCache, revCache, loadShard);
     }
 
-    // Restore edges for re-added nodes. When a node transitions
-    // not-alive -> alive, edges touching it that are alive in the ORSet
-    // become visible again. The diff only tracks explicit EdgeAdd ops,
-    // not these implicit visibility transitions.
-    //
-    // Known O(E) worst-case: scans all alive edges. For genuinely new nodes
-    // (not re-adds), this scan is unnecessary since they can't have pre-existing
-    // edges. _findGlobalId returns undefined for new nodes, so this could be
-    // short-circuited — deferred for a future optimization pass.
-    if (diff.nodesAdded.length > 0) {
-      const addedSet = new Set(diff.nodesAdded);
+    // Keep adjacency cache in sync for every diff once initialized, so later
+    // re-add restores never consult stale edge membership.
+    let readdAdjacency = null;
+    if (readdedNodes.size > 0 || this._edgeAdjacencyCache.has(state.edgeAlive)) {
+      readdAdjacency = this._getOrBuildAliveEdgeAdjacency(state, diff);
+    }
+
+    // Restore edges for re-added nodes only. When a node transitions
+    // not-alive -> alive, alive OR-Set edges touching it become visible again.
+    // Brand-new nodes are skipped because they have no prior global ID.
+    if (readdedNodes.size > 0 && readdAdjacency) {
       const diffEdgeSet = new Set(
         diff.edgesAdded.map((e) => `${e.from}\0${e.to}\0${e.label}`),
       );
-      for (const edgeKey of orsetElements(state.edgeAlive)) {
+      for (const edgeKey of this._collectReaddedEdgeKeys(readdAdjacency, readdedNodes)) {
         const { from, to, label } = decodeEdgeKey(edgeKey);
-        if (!addedSet.has(from) && !addedSet.has(to)) {
-          continue;
-        }
         if (!orsetContains(state.nodeAlive, from) || !orsetContains(state.nodeAlive, to)) {
           continue;
         }
@@ -255,15 +271,16 @@ export default class IncrementalIndexUpdater {
     for (const bucket of Object.keys(fwdData)) {
       const gidStr = String(deadGid);
       if (fwdData[bucket] && fwdData[bucket][gidStr]) {
-        // Before clearing, find the targets so we can clean reverse bitmaps
-        const targets = RoaringBitmap32.deserialize(
+        // Deserialize once, collect targets, then clear+serialize in place.
+        const bm = RoaringBitmap32.deserialize(
           toBytes(fwdData[bucket][gidStr]),
           true,
-        ).toArray();
+        );
+        const targets = bm.toArray();
 
         // Clear this node's outgoing bitmap
-        const empty = new RoaringBitmap32();
-        fwdData[bucket][gidStr] = empty.serialize(true);
+        bm.clear();
+        fwdData[bucket][gidStr] = bm.serialize(true);
 
         // Remove deadGid from each target's reverse bitmap
         for (const targetGid of targets) {
@@ -273,12 +290,12 @@ export default class IncrementalIndexUpdater {
             const revData = this._getOrLoadEdgeShard(revCache, 'rev', targetShard, loadShard);
             const targetGidStr = String(targetGid);
             if (revData[bucket] && revData[bucket][targetGidStr]) {
-              const bm = RoaringBitmap32.deserialize(
+              const targetBm = RoaringBitmap32.deserialize(
                 toBytes(revData[bucket][targetGidStr]),
                 true,
               );
-              bm.remove(deadGid);
-              revData[bucket][targetGidStr] = bm.serialize(true);
+              targetBm.remove(deadGid);
+              revData[bucket][targetGidStr] = targetBm.serialize(true);
             }
           }
         }
@@ -290,13 +307,14 @@ export default class IncrementalIndexUpdater {
     for (const bucket of Object.keys(revData)) {
       const gidStr = String(deadGid);
       if (revData[bucket] && revData[bucket][gidStr]) {
-        const sources = RoaringBitmap32.deserialize(
+        const bm = RoaringBitmap32.deserialize(
           toBytes(revData[bucket][gidStr]),
           true,
-        ).toArray();
+        );
+        const sources = bm.toArray();
 
-        const empty = new RoaringBitmap32();
-        revData[bucket][gidStr] = empty.serialize(true);
+        bm.clear();
+        revData[bucket][gidStr] = bm.serialize(true);
 
         // Remove deadGid from each source's forward bitmap
         for (const sourceGid of sources) {
@@ -306,12 +324,12 @@ export default class IncrementalIndexUpdater {
             const fwdDataPeer = this._getOrLoadEdgeShard(fwdCache, 'fwd', sourceShard, loadShard);
             const sourceGidStr = String(sourceGid);
             if (fwdDataPeer[bucket] && fwdDataPeer[bucket][sourceGidStr]) {
-              const bm = RoaringBitmap32.deserialize(
+              const sourceBm = RoaringBitmap32.deserialize(
                 toBytes(fwdDataPeer[bucket][sourceGidStr]),
                 true,
               );
-              bm.remove(deadGid);
-              fwdDataPeer[bucket][sourceGidStr] = bm.serialize(true);
+              sourceBm.remove(deadGid);
+              fwdDataPeer[bucket][sourceGidStr] = sourceBm.serialize(true);
             }
           }
         }
@@ -741,6 +759,111 @@ export default class IncrementalIndexUpdater {
    */
   _findGlobalId(meta, nodeId) {
     return meta.nodeToGlobalMap.get(nodeId);
+  }
+
+  /**
+   * Collects alive edge keys incident to re-added nodes.
+   *
+   * Uses an ORSet-keyed adjacency cache so repeated updates can enumerate
+   * candidates by degree rather than scanning all alive edges each time.
+   *
+   * @param {Map<string, Set<string>>} adjacency
+   * @param {Set<string>} readdedNodes
+   * @returns {Set<string>}
+   * @private
+   */
+  _collectReaddedEdgeKeys(adjacency, readdedNodes) {
+    const keys = new Set();
+    for (const nodeId of readdedNodes) {
+      const incident = adjacency.get(nodeId);
+      if (!incident) {
+        continue;
+      }
+      for (const edgeKey of incident) {
+        keys.add(edgeKey);
+      }
+    }
+    return keys;
+  }
+
+  /**
+   * Gets or builds a node -> alive edgeKey adjacency map for state.edgeAlive.
+   *
+   * For cached maps, applies diff edge transitions to keep membership current.
+   *
+   * @param {import('./JoinReducer.js').WarpStateV5} state
+   * @param {import('../types/PatchDiff.js').PatchDiff} diff
+   * @returns {Map<string, Set<string>>}
+   * @private
+   */
+  _getOrBuildAliveEdgeAdjacency(state, diff) {
+    const { edgeAlive } = state;
+    let adjacency = this._edgeAdjacencyCache.get(edgeAlive);
+    if (!adjacency) {
+      adjacency = new Map();
+      for (const edgeKey of orsetElements(edgeAlive)) {
+        const { from, to } = decodeEdgeKey(edgeKey);
+        this._addEdgeKeyToAdjacency(adjacency, from, edgeKey);
+        this._addEdgeKeyToAdjacency(adjacency, to, edgeKey);
+      }
+      this._edgeAdjacencyCache.set(edgeAlive, adjacency);
+      return adjacency;
+    }
+
+    for (const edge of diff.edgesAdded) {
+      const edgeKey = `${edge.from}\0${edge.to}\0${edge.label}`;
+      if (!orsetContains(edgeAlive, edgeKey)) {
+        continue;
+      }
+      this._addEdgeKeyToAdjacency(adjacency, edge.from, edgeKey);
+      this._addEdgeKeyToAdjacency(adjacency, edge.to, edgeKey);
+    }
+    for (const edge of diff.edgesRemoved) {
+      const edgeKey = `${edge.from}\0${edge.to}\0${edge.label}`;
+      if (orsetContains(edgeAlive, edgeKey)) {
+        continue;
+      }
+      this._removeEdgeKeyFromAdjacency(adjacency, edge.from, edgeKey);
+      this._removeEdgeKeyFromAdjacency(adjacency, edge.to, edgeKey);
+    }
+
+    return adjacency;
+  }
+
+  /**
+   * Adds an edge key to one endpoint's adjacency set.
+   *
+   * @param {Map<string, Set<string>>} adjacency
+   * @param {string} nodeId
+   * @param {string} edgeKey
+   * @private
+   */
+  _addEdgeKeyToAdjacency(adjacency, nodeId, edgeKey) {
+    let set = adjacency.get(nodeId);
+    if (!set) {
+      set = new Set();
+      adjacency.set(nodeId, set);
+    }
+    set.add(edgeKey);
+  }
+
+  /**
+   * Removes an edge key from one endpoint's adjacency set.
+   *
+   * @param {Map<string, Set<string>>} adjacency
+   * @param {string} nodeId
+   * @param {string} edgeKey
+   * @private
+   */
+  _removeEdgeKeyFromAdjacency(adjacency, nodeId, edgeKey) {
+    const set = adjacency.get(nodeId);
+    if (!set) {
+      return;
+    }
+    set.delete(edgeKey);
+    if (set.size === 0) {
+      adjacency.delete(nodeId);
+    }
   }
 
   /**

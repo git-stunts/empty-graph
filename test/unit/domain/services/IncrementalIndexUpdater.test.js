@@ -167,6 +167,138 @@ describe('IncrementalIndexUpdater', () => {
       expect(index3.isAlive('A')).toBe(true);
     });
 
+    it('skips re-add edge restoration when adding a genuinely new node', () => {
+      const state1 = buildState({
+        nodes: ['A', 'B'],
+        edges: [{ from: 'A', to: 'B', label: 'knows' }],
+        props: [],
+      });
+      const tree1 = buildTree(state1);
+
+      const state2 = buildState({
+        nodes: ['A', 'B', 'C'],
+        edges: [{ from: 'A', to: 'B', label: 'knows' }],
+        props: [],
+      });
+
+      const diff = {
+        nodesAdded: ['C'],
+        nodesRemoved: [],
+        edgesAdded: [],
+        edgesRemoved: [],
+        propsChanged: [],
+      };
+
+      const updater = new IncrementalIndexUpdater();
+      const dirtyShards = updater.computeDirtyShards({
+        diff,
+        state: state2,
+        loadShard: (path) => tree1[path],
+      });
+
+      expect(
+        Object.keys(dirtyShards).some((path) => path.startsWith('fwd_') || path.startsWith('rev_')),
+      ).toBe(false);
+
+      const tree2 = { ...tree1, ...dirtyShards };
+      const index2 = readIndex(tree2);
+      expect(index2.isAlive('C')).toBe(true);
+      expect(index2.getEdges('A', 'out').find((e) => e.neighborId === 'B' && e.label === 'knows')).toBeDefined();
+    });
+
+    it('keeps re-add restoration coherent after edge diffs on a reused updater instance', () => {
+      const state = buildState({
+        nodes: ['A', 'B'],
+        edges: [{ from: 'A', to: 'B', label: 'knows' }],
+        props: [],
+      });
+      const tree1 = buildTree(state);
+      const updater = new IncrementalIndexUpdater();
+
+      // Remove B, then re-add it to initialize the updater's adjacency cache.
+      orsetRemove(state.nodeAlive, orsetGetDots(state.nodeAlive, 'B'));
+      const removedB = updater.computeDirtyShards({
+        diff: {
+          nodesAdded: [],
+          nodesRemoved: ['B'],
+          edgesAdded: [],
+          edgesRemoved: [],
+          propsChanged: [],
+        },
+        state,
+        loadShard: (path) => tree1[path],
+      });
+      const tree2 = { ...tree1, ...removedB };
+
+      applyOpV2(state, { type: 'NodeAdd', node: 'B', dot: createDot('w1', 200) }, createEventId(200, 'w1', 'a'.repeat(40), 200));
+      const readdedB1 = updater.computeDirtyShards({
+        diff: {
+          nodesAdded: ['B'],
+          nodesRemoved: [],
+          edgesAdded: [],
+          edgesRemoved: [],
+          propsChanged: [],
+        },
+        state,
+        loadShard: (path) => tree2[path],
+      });
+      const tree3 = { ...tree2, ...readdedB1 };
+
+      // Edge transition with no re-added nodes must still reconcile cache state.
+      const edgeKey = encodeEdgeKey('A', 'B', 'knows');
+      orsetRemove(state.edgeAlive, orsetGetDots(state.edgeAlive, edgeKey));
+      const removedEdge = updater.computeDirtyShards({
+        diff: {
+          nodesAdded: [],
+          nodesRemoved: [],
+          edgesAdded: [],
+          edgesRemoved: [{ from: 'A', to: 'B', label: 'knows' }],
+          propsChanged: [],
+        },
+        state,
+        loadShard: (path) => tree3[path],
+      });
+      const tree4 = { ...tree3, ...removedEdge };
+
+      // Re-add B again; stale adjacency would incorrectly resurrect A->B.
+      orsetRemove(state.nodeAlive, orsetGetDots(state.nodeAlive, 'B'));
+      const removedBAgain = updater.computeDirtyShards({
+        diff: {
+          nodesAdded: [],
+          nodesRemoved: ['B'],
+          edgesAdded: [],
+          edgesRemoved: [],
+          propsChanged: [],
+        },
+        state,
+        loadShard: (path) => tree4[path],
+      });
+      const tree5 = { ...tree4, ...removedBAgain };
+
+      applyOpV2(state, { type: 'NodeAdd', node: 'B', dot: createDot('w1', 201) }, createEventId(201, 'w1', 'a'.repeat(40), 201));
+      const readdedB2 = updater.computeDirtyShards({
+        diff: {
+          nodesAdded: ['B'],
+          nodesRemoved: [],
+          edgesAdded: [],
+          edgesRemoved: [],
+          propsChanged: [],
+        },
+        state,
+        loadShard: (path) => tree5[path],
+      });
+      const tree6 = { ...tree5, ...readdedB2 };
+      const index6 = readIndex(tree6);
+
+      expect(index6.isAlive('B')).toBe(true);
+      expect(
+        index6.getEdges('A', 'out').find((e) => e.neighborId === 'B' && e.label === 'knows'),
+      ).toBeUndefined();
+      expect(
+        index6.getEdges('B', 'in').find((e) => e.neighborId === 'A' && e.label === 'knows'),
+      ).toBeUndefined();
+    });
+
     it('throws ShardIdOverflowError when shard exceeds 2^24 local IDs', () => {
       // Pick two nodeIds that hash to the same shard
       const nodeA = 'A';
@@ -241,6 +373,56 @@ describe('IncrementalIndexUpdater', () => {
       expect(index2.getGlobalId('A')).toBe(originalGid);
       // B unaffected
       expect(index2.isAlive('B')).toBe(true);
+    });
+
+    it('purges incident edge rows in both directions when removing a node', () => {
+      const state = buildState({
+        nodes: ['A', 'B', 'C'],
+        edges: [
+          { from: 'A', to: 'B', label: 'knows' },
+          { from: 'B', to: 'A', label: 'likes' },
+          { from: 'C', to: 'A', label: 'follows' },
+          { from: 'B', to: 'C', label: 'peer' },
+        ],
+        props: [],
+      });
+      const tree1 = buildTree(state);
+
+      const diff = {
+        nodesAdded: [],
+        nodesRemoved: ['A'],
+        edgesAdded: [],
+        edgesRemoved: [],
+        propsChanged: [],
+      };
+
+      const updater = new IncrementalIndexUpdater();
+      const dirtyShards = updater.computeDirtyShards({
+        diff,
+        state,
+        loadShard: (path) => tree1[path],
+      });
+
+      const tree2 = { ...tree1, ...dirtyShards };
+      const index2 = readIndex(tree2);
+
+      expect(index2.isAlive('A')).toBe(false);
+
+      const bOut = index2.getEdges('B', 'out');
+      expect(bOut.find((e) => e.neighborId === 'A')).toBeUndefined();
+      expect(bOut.find((e) => e.neighborId === 'C' && e.label === 'peer')).toBeDefined();
+
+      const bIn = index2.getEdges('B', 'in');
+      expect(bIn.find((e) => e.neighborId === 'A')).toBeUndefined();
+
+      const cOut = index2.getEdges('C', 'out');
+      expect(cOut.find((e) => e.neighborId === 'A')).toBeUndefined();
+
+      const cIn = index2.getEdges('C', 'in');
+      expect(cIn.find((e) => e.neighborId === 'B' && e.label === 'peer')).toBeDefined();
+
+      expect(index2.getEdges('A', 'out')).toHaveLength(0);
+      expect(index2.getEdges('A', 'in')).toHaveLength(0);
     });
   });
 
