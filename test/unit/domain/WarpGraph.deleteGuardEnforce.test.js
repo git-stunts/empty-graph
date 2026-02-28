@@ -169,14 +169,22 @@ describe('WarpGraph deleteGuard enforcement (HS/DELGUARD/2)', () => {
   // Warn mode
   // ---------------------------------------------------------------------------
 
+  /** @param {import('vitest').Mock} warnSpy */
+  function mockLogger(warnSpy) {
+    const logger = { info: vi.fn(), warn: warnSpy, error: vi.fn(), debug: vi.fn(), child: () => logger };
+    return logger;
+  }
+
   describe('warn mode', () => {
-    it('logs console.warn and commits when deleting node with properties', async () => {
+    it('logs warning via logger when deleting node with properties', async () => {
       repo = await createGitRepo('delguard');
+      const warnSpy = vi.fn();
       const graph = await WarpGraph.open({
         persistence: repo.persistence,
         graphName: 'test',
         writerId: 'w1',
         onDeleteWithData: 'warn',
+        logger: mockLogger(warnSpy),
       });
 
       // Create a node with a property
@@ -187,33 +195,28 @@ describe('WarpGraph deleteGuard enforcement (HS/DELGUARD/2)', () => {
 
       await graph.materialize();
 
-      // Spy on console.warn
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const sha = await (await graph.createPatch())
+        .removeNode('n1')
+        .commit();
 
-      try {
-        const sha = await (await graph.createPatch())
-          .removeNode('n1')
-          .commit();
+      expect(typeof sha).toBe('string');
+      expect(sha.length).toBe(40);
 
-        expect(typeof sha).toBe('string');
-        expect(sha.length).toBe(40);
-
-        // Verify warning was logged
-        expect(warnSpy).toHaveBeenCalledOnce();
-        expect(warnSpy.mock.calls[0][0]).toMatch(/Deleting node 'n1'/);
-        expect(warnSpy.mock.calls[0][0]).toMatch(/propert/);
-      } finally {
-        warnSpy.mockRestore();
-      }
+      // Verify warning was logged via logger (not console.warn)
+      expect(warnSpy).toHaveBeenCalledOnce();
+      expect(warnSpy.mock.calls[0][0]).toMatch(/Deleting node 'n1'/);
+      expect(warnSpy.mock.calls[0][0]).toMatch(/propert/);
     }, { timeout: 15000 });
 
-    it('logs console.warn when deleting node with edges', async () => {
+    it('logs warning via logger when deleting node with edges', async () => {
       repo = await createGitRepo('delguard');
+      const warnSpy = vi.fn();
       const graph = await WarpGraph.open({
         persistence: repo.persistence,
         graphName: 'test',
         writerId: 'w1',
         onDeleteWithData: 'warn',
+        logger: mockLogger(warnSpy),
       });
 
       await (await graph.createPatch())
@@ -224,28 +227,24 @@ describe('WarpGraph deleteGuard enforcement (HS/DELGUARD/2)', () => {
 
       await graph.materialize();
 
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const sha = await (await graph.createPatch())
+        .removeNode('n1')
+        .commit();
 
-      try {
-        const sha = await (await graph.createPatch())
-          .removeNode('n1')
-          .commit();
-
-        expect(typeof sha).toBe('string');
-        expect(warnSpy).toHaveBeenCalled();
-        expect(warnSpy.mock.calls[0][0]).toMatch(/edge/);
-      } finally {
-        warnSpy.mockRestore();
-      }
+      expect(typeof sha).toBe('string');
+      expect(warnSpy).toHaveBeenCalled();
+      expect(warnSpy.mock.calls[0][0]).toMatch(/edge/);
     }, { timeout: 15000 });
 
     it('does not warn when deleting node with no attached data', async () => {
       repo = await createGitRepo('delguard');
+      const warnSpy = vi.fn();
       const graph = await WarpGraph.open({
         persistence: repo.persistence,
         graphName: 'test',
         writerId: 'w1',
         onDeleteWithData: 'warn',
+        logger: mockLogger(warnSpy),
       });
 
       // Create a bare node
@@ -255,18 +254,12 @@ describe('WarpGraph deleteGuard enforcement (HS/DELGUARD/2)', () => {
 
       await graph.materialize();
 
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const sha = await (await graph.createPatch())
+        .removeNode('n1')
+        .commit();
 
-      try {
-        const sha = await (await graph.createPatch())
-          .removeNode('n1')
-          .commit();
-
-        expect(typeof sha).toBe('string');
-        expect(warnSpy).not.toHaveBeenCalled();
-      } finally {
-        warnSpy.mockRestore();
-      }
+      expect(typeof sha).toBe('string');
+      expect(warnSpy).not.toHaveBeenCalled();
     }, { timeout: 15000 });
   });
 
@@ -302,11 +295,13 @@ describe('WarpGraph deleteGuard enforcement (HS/DELGUARD/2)', () => {
 
     it('warn mode works through writer().commitPatch()', async () => {
       repo = await createGitRepo('delguard');
+      const warnSpy = vi.fn();
       const graph = await WarpGraph.open({
         persistence: repo.persistence,
         graphName: 'test',
         writerId: 'w1',
         onDeleteWithData: 'warn',
+        logger: mockLogger(warnSpy),
       });
 
       await (await graph.createPatch())
@@ -316,24 +311,14 @@ describe('WarpGraph deleteGuard enforcement (HS/DELGUARD/2)', () => {
 
       await graph.materialize();
 
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const writer = await graph.writer('w1');
+      const sha = await writer.commitPatch(p => {
+        p.removeNode('n1');
+      });
 
-      try {
-        const writer = await graph.writer('w1');
-        const sha = await writer.commitPatch(p => {
-          p.removeNode('n1');
-        });
-
-        expect(typeof sha).toBe('string');
-        // Filter out deprecated warnings from createWriter
-        const delGuardWarns = warnSpy.mock.calls.filter(c =>
-          typeof c[0] === 'string' && c[0].includes('Deleting node')
-        );
-        expect(delGuardWarns.length).toBe(1);
-        expect(delGuardWarns[0][0]).toMatch(/propert/);
-      } finally {
-        warnSpy.mockRestore();
-      }
+      expect(typeof sha).toBe('string');
+      expect(warnSpy).toHaveBeenCalledOnce();
+      expect(warnSpy.mock.calls[0][0]).toMatch(/propert/);
     }, { timeout: 15000 });
   });
 
@@ -344,11 +329,13 @@ describe('WarpGraph deleteGuard enforcement (HS/DELGUARD/2)', () => {
   describe('cascade mode (validation skipped)', () => {
     it('does not throw or warn when deleting node with attached data', async () => {
       repo = await createGitRepo('delguard');
+      const warnSpy = vi.fn();
       const graph = await WarpGraph.open({
         persistence: repo.persistence,
         graphName: 'test',
         writerId: 'w1',
         onDeleteWithData: 'cascade',
+        logger: mockLogger(warnSpy),
       });
 
       await (await graph.createPatch())
@@ -360,23 +347,13 @@ describe('WarpGraph deleteGuard enforcement (HS/DELGUARD/2)', () => {
 
       await graph.materialize();
 
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      // Should not throw and should not warn (cascade skips validation)
+      const sha = await (await graph.createPatch())
+        .removeNode('n1')
+        .commit();
 
-      try {
-        // Should not throw and should not warn (cascade skips validation)
-        const sha = await (await graph.createPatch())
-          .removeNode('n1')
-          .commit();
-
-        expect(typeof sha).toBe('string');
-        // No delete-guard warnings should have been emitted
-        const delGuardWarns = warnSpy.mock.calls.filter(c =>
-          typeof c[0] === 'string' && c[0].includes('Deleting node')
-        );
-        expect(delGuardWarns.length).toBe(0);
-      } finally {
-        warnSpy.mockRestore();
-      }
+      expect(typeof sha).toBe('string');
+      expect(warnSpy).not.toHaveBeenCalled();
     }, { timeout: 15000 });
   });
 

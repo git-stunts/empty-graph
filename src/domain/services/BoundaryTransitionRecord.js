@@ -164,6 +164,7 @@ export async function createBTR(initialState, payload, options) {
     throw new TypeError('payload must be a ProvenancePayload');
   }
 
+  // eslint-disable-next-line no-restricted-syntax -- wall-clock default for BTR timestamp
   const { key, timestamp = new Date().toISOString(), crypto, codec } = options;
 
   // Validate HMAC key is not empty/falsy

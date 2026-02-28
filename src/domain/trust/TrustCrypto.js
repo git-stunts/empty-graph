@@ -17,6 +17,13 @@ export const SUPPORTED_ALGORITHMS = new Set(['ed25519']);
 const ED25519_PUBLIC_KEY_LENGTH = 32;
 
 /**
+ * DER-encoded SPKI prefix for Ed25519 public keys (RFC 8410, Section 4).
+ * Prepend to a 32-byte raw key to form a valid SPKI structure for `createPublicKey()`.
+ * @see https://www.rfc-editor.org/rfc/rfc8410#section-4
+ */
+const ED25519_SPKI_PREFIX = Buffer.from('302a300506032b6570032100', 'hex');
+
+/**
  * Decodes a base64-encoded Ed25519 public key and validates its length.
  *
  * @param {string} base64 - Base64-encoded raw public key bytes
@@ -81,11 +88,7 @@ export function verifySignature({
   const raw = decodePublicKey(publicKeyBase64);
 
   const keyObject = createPublicKey({
-    key: Buffer.concat([
-      // DER prefix for Ed25519 public key (RFC 8410)
-      Buffer.from('302a300506032b6570032100', 'hex'),
-      raw,
-    ]),
+    key: Buffer.concat([ED25519_SPKI_PREFIX, raw]),
     format: 'der',
     type: 'spki',
   });

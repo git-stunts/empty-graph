@@ -15,6 +15,7 @@
  */
 
 import defaultCodec from '../utils/defaultCodec.js';
+import nullLogger from '../utils/nullLogger.js';
 import { validateWriterId, buildWriterRef } from '../utils/RefLayout.js';
 import { PatchSession } from './PatchSession.js';
 import { PatchBuilderV2 } from '../services/PatchBuilderV2.js';
@@ -44,8 +45,9 @@ export class Writer {
    * @param {(result: {patch: Object, sha: string}) => void | Promise<void>} [options.onCommitSuccess] - Callback invoked after successful commit with { patch, sha }
    * @param {'reject'|'cascade'|'warn'} [options.onDeleteWithData='warn'] - Policy when deleting a node with attached data
    * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for CBOR serialization (defaults to domain-local codec)
+   * @param {import('../../ports/LoggerPort.js').default} [options.logger] - Logger port
    */
-  constructor({ persistence, graphName, writerId, versionVector, getCurrentState, onCommitSuccess, onDeleteWithData = 'warn', codec }) {
+  constructor({ persistence, graphName, writerId, versionVector, getCurrentState, onCommitSuccess, onDeleteWithData = 'warn', codec, logger }) {
     validateWriterId(writerId);
 
     /** @type {import('../../ports/GraphPersistencePort.js').default & import('../../ports/RefPort.js').default & import('../../ports/CommitPort.js').default} */
@@ -71,6 +73,9 @@ export class Writer {
 
     /** @type {import('../../ports/CodecPort.js').default|undefined} */
     this._codec = codec || defaultCodec;
+
+    /** @type {import('../../ports/LoggerPort.js').default} */
+    this._logger = logger || nullLogger;
 
     /** @type {boolean} */
     this._commitInProgress = false;
@@ -151,6 +156,7 @@ export class Writer {
       onCommitSuccess: this._onCommitSuccess,
       onDeleteWithData: this._onDeleteWithData,
       codec: this._codec,
+      logger: this._logger,
     });
 
     // Return PatchSession wrapping the builder

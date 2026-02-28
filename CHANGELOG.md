@@ -7,9 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`new Date()` and `Date()` banned in domain code (M2)** — added `NewExpression[callee.name='Date']` and `CallExpression[callee.name='Date']` ESLint selectors; three legitimate call sites annotated with `eslint-disable`.
+- **Writer logger fallback (L1)** — `Writer._logger` defaults to `nullLogger` instead of `undefined`, preventing downstream NPE when no logger is injected.
+- **PatchBuilderV2 logger type (L2)** — `@param`/`@type` narrowed from `{ warn: Function }` to `LoggerPort`.
+- **Delete-guard test used `console.warn` spy (M1)** — replaced stale `console.warn` spy with injected mock logger; `child()` now returns self.
+- **Fork name random suffix (L4)** — `.padEnd(8, '0')` guarantees 8-char suffix from `Math.random().toString(36)`.
+- **ORSet error message em dash (L5)** — replaced `—` with `--` for ASCII-safe error messages.
+
 ### Changed
 
 - **STANK audit relocated** — moved `STANK.md` to `docs/audits/2026-02-complexity-audit.md` and reconciled all 46 items with v12.2.1 disposition statuses (45 fixed, 1 deferred to M13).
+- **`MIGRATION_PROBLEM.md` relocated (N3)** — moved to `docs/design/MIGRATION_PROBLEM.md`.
+- **ROADMAP format (N2)** — normalized B46/B47/B26/B71/B126 done markers to `~~**X**~~ — **DONE.**` style.
+- **`no-empty` rule annotated (N1)** — added comment documenting B126 intent (rule already active via `eslint:recommended`).
+- **ROADMAP inventory table (R2)** — moved B26/B46/B47/B71/B126 from Standalone to Standalone (done); counts reconciled.
+- **MIGRATION_PROBLEM.md fenced code block** — added `text` language tag (MD040).
 
 ## [12.2.1] — 2026-02-28
 

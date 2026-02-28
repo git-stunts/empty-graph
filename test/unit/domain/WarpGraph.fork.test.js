@@ -192,12 +192,12 @@ describe('WarpGraph.fork', () => {
       const fork = await graph.fork({ from: 'alice', at: SHA1 });
 
       expect(fork).toBeInstanceOf(WarpGraph);
-      expect(fork.graphName).toMatch(/^test-graph-fork-\d+-[a-z0-9]{4}$/);
+      expect(fork.graphName).toMatch(/^test-graph-fork-[a-z0-9]{8}$/);
       expect(fork.writerId).toMatch(/^w_[0-9a-hjkmnp-tv-z]{26}$/);
 
       // Verify updateRef was called to point fork writer at the fork point
       expect(persistence.updateRef).toHaveBeenCalledWith(
-        expect.stringMatching(/^refs\/warp\/test-graph-fork-\d+-[a-z0-9]{4}\/writers\/w_/),
+        expect.stringMatching(/^refs\/warp\/test-graph-fork-[a-z0-9]{8}\/writers\/w_/),
         SHA1
       );
     });

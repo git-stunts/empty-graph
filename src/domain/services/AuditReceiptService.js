@@ -339,7 +339,8 @@ export class AuditReceiptService {
     // Compute opsDigest
     const opsDigest = await computeOpsDigest(ops, this._crypto);
 
-    // Timestamp
+    // Wall-clock timestamp for audit receipt (not a perf timer)
+    // eslint-disable-next-line no-restricted-syntax
     const timestamp = Date.now();
 
     // Determine prevAuditCommit

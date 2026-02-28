@@ -164,6 +164,9 @@ export default tseslint.config(
       "no-void": ["error", { "allowAsStatement": true }],
       "no-console": "error",
 
+      // ── Catch blocks (B126: documents intent — already active via eslint:recommended) ──
+      "no-empty": ["error", { "allowEmptyCatch": false }],
+
       // ── Correctness ──────────────────────────────────────────────────────
       "no-self-compare": "error",
       "no-template-curly-in-string": "error",
@@ -264,6 +267,27 @@ export default tseslint.config(
     files: ["src/ports/**/*.js"],
     rules: {
       "@typescript-eslint/require-await": "off",
+    },
+  },
+
+  // ── Domain purity: ban Date.now(), new Date(), and Date() — use ClockPort ──
+  {
+    files: ["src/domain/**/*.js"],
+    rules: {
+      "no-restricted-syntax": ["error",
+        {
+          "selector": "CallExpression[callee.object.name='Date'][callee.property.name='now']",
+          "message": "Date.now() is banned in domain code. Use ClockPort / ClockAdapter instead.",
+        },
+        {
+          "selector": "NewExpression[callee.name='Date']",
+          "message": "new Date() is banned in domain code. Use ClockPort / ClockAdapter instead.",
+        },
+        {
+          "selector": "CallExpression[callee.name='Date']",
+          "message": "Date() is banned in domain code. Use ClockPort / ClockAdapter instead.",
+        },
+      ],
     },
   },
 

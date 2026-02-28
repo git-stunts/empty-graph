@@ -257,6 +257,7 @@ export class AuditVerifierService {
 
     return {
       graph: graphName,
+      // eslint-disable-next-line no-restricted-syntax -- wall-clock timestamp for audit report
       verifiedAt: new Date().toISOString(),
       summary: { total: chains.length, valid, partial, invalid },
       chains,

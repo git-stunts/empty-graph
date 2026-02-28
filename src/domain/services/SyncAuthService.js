@@ -68,6 +68,8 @@ export function buildCanonicalPayload({ keyId, method, path, timestamp, nonce, c
  */
 export async function signSyncRequest({ method, path, contentType, body, secret, keyId }, { crypto } = {}) {
   const c = crypto || defaultCrypto;
+  // Wall-clock timestamp required for HMAC replay protection (not a perf timer)
+  // eslint-disable-next-line no-restricted-syntax
   const timestamp = String(Date.now());
   const nonce = globalThis.crypto.randomUUID();
 
@@ -187,6 +189,7 @@ export default class SyncAuthService {
     this._mode = mode;
     this._crypto = crypto || defaultCrypto;
     this._logger = logger || nullLogger;
+    // eslint-disable-next-line no-restricted-syntax -- wall-clock fallback for HMAC verification
     this._wallClockMs = wallClockMs || (() => Date.now());
     this._maxClockSkewMs = typeof maxClockSkewMs === 'number' ? maxClockSkewMs : MAX_CLOCK_SKEW_MS;
     this._nonceCache = new LRUCache(nonceCapacity || DEFAULT_NONCE_CAPACITY);

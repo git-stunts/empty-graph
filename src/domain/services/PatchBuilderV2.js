@@ -85,7 +85,7 @@ export class PatchBuilderV2 {
    * @param {Function|null} [options.onCommitSuccess] - Callback invoked after successful commit
    * @param {'reject'|'cascade'|'warn'} [options.onDeleteWithData='warn'] - Policy when deleting a node with attached data
    * @param {import('../../ports/CodecPort.js').default} [options.codec] - Codec for serialization
-   * @param {{ warn: Function }} [options.logger] - Logger for non-fatal warnings
+   * @param {import('../../ports/LoggerPort.js').default} [options.logger] - Logger for non-fatal warnings
    */
   constructor({ persistence, graphName, writerId, lamport, versionVector, getCurrentState, expectedParentSha = null, onCommitSuccess = null, onDeleteWithData = 'warn', codec, logger }) {
     /** @type {import('../../ports/GraphPersistencePort.js').default & import('../../ports/RefPort.js').default & import('../../ports/CommitPort.js').default & import('../../ports/BlobPort.js').default & import('../../ports/TreePort.js').default} */
@@ -133,7 +133,7 @@ export class PatchBuilderV2 {
     /** @type {import('../../ports/CodecPort.js').default} */
     this._codec = codec || defaultCodec;
 
-    /** @type {{ warn: Function }} */
+    /** @type {import('../../ports/LoggerPort.js').default} */
     this._logger = logger || nullLogger;
 
     /**
@@ -305,8 +305,7 @@ export class PatchBuilderV2 {
         }
 
         if (this._onDeleteWithData === 'warn') {
-          // eslint-disable-next-line no-console
-          console.warn(
+          this._logger.warn(
             `[warp] Deleting node '${nodeId}' which has attached data (${summary}). ` +
             `Orphaned data will remain in state.`
           );
@@ -726,7 +725,7 @@ export class PatchBuilderV2 {
           await this._onCommitSuccess({ patch, sha: newCommitSha });
         } catch (err) {
           // Commit is already persisted — log but don't fail the caller.
-          this._logger.warn(`[warp] onCommitSuccess callback failed (sha=${newCommitSha}):`, err);
+          this._logger.warn(`[warp] onCommitSuccess callback failed (sha=${newCommitSha}):`, { error: err });
         }
       }
 
