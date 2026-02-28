@@ -7,8 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [12.4.0] — 2026-02-28
+
+### Added
+
+- **Reserved graph name validation (B78)** — `validateGraphName()` rejects ref-layout keywords (`writers`, `checkpoints`, `coverage`, etc.) as graph name segments.
+- **`listRefs()` limit parameter (B77)** — optional `{ limit }` options bag; `GitGraphAdapter` passes `--count=N`, `InMemoryGraphAdapter` slices.
+- **`WARP_QUICK_PUSH` env var (B82)** — pre-push hook skips unit tests when set to `1` or `true`.
+- **`--quiet` flag for surface validator (B84)** — suppresses stdout; stderr (errors/warnings) always flows.
+- **`PersistenceError` with typed error codes (B120)** — `E_MISSING_OBJECT`, `E_REF_NOT_FOUND`, `E_REF_IO` replace brittle `message.includes()` checks.
+- **`createCircular(n)` / `createDiamond()` test topology helpers (B121)** — reusable graph fixtures for traversal tests.
+- **Checkpoint validation edge-case tests (B122)** — 21 tests covering schema mismatch, empty state, missing frontier.
+- **Surface validator unit tests (B92)** — 34 tests for `parseExportBlock`, `extractJsExports`, `extractDtsExports`.
+- **Type surface manifest completeness** — 85 type/interface/class exports added; 0 errors, 0 warnings.
+
 ### Fixed
 
+- **JSDoc wildcards `{[x: string]: *}` → `unknown` in TickReceipt (B52)** — replaced non-standard JSDoc wildcard with `unknown`.
+- **SyncAuthService `keys` param documented as required (B52)** — constructor JSDoc corrected.
+- **Misleading `= {}` constructor defaults removed (B51)** — `DagTraversal`, `DagPathFinding`, `DagTopology`, `BitmapIndexReader` no longer suggest optional dependencies.
+- **Surface validator regexes now match `export declare interface/type` (B91)** — `.d.ts` exports no longer missed.
+- **`extractJsExports` now matches `export class` (B94)** — class exports included in surface extraction.
+- **HttpServerPort request/response types upgraded (B55)** — `Object` → proper typedefs.
+- **`skippedWriters` added to `syncWith` manifest return type (B50)** — type surface now reflects actual return shape.
 - **`new Date()` and `Date()` banned in domain code (M2)** — added `NewExpression[callee.name='Date']` and `CallExpression[callee.name='Date']` ESLint selectors; three legitimate call sites annotated with `eslint-disable`.
 - **Writer logger fallback (L1)** — `Writer._logger` defaults to `nullLogger` instead of `undefined`, preventing downstream NPE when no logger is injected.
 - **PatchBuilderV2 logger type (L2)** — `@param`/`@type` narrowed from `{ warn: Function }` to `LoggerPort`.
@@ -24,6 +45,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`no-empty` rule annotated (N1)** — added comment documenting B126 intent (rule already active via `eslint:recommended`).
 - **ROADMAP inventory table (R2)** — moved B26/B46/B47/B71/B126 from Standalone to Standalone (done); counts reconciled.
 - **MIGRATION_PROBLEM.md fenced code block** — added `text` language tag (MD040).
+
+### Refactored
+
+- **`parseExportBlock()` extracted as shared helper (B93)** — accepts block body; reused by JS and `.d.ts` extractors.
+- **`GitAdapterError` → `PersistenceError` (B120)** — domain error class is now adapter-agnostic.
 
 ## [12.3.0] — 2026-02-28
 

@@ -1,7 +1,7 @@
 # ROADMAP — @git-stunts/git-warp
 
-> **Current version:** v12.3.0
-> **Last reconciled:** 2026-02-28 (M13 ADR 1 complete; M11 unblocked; STANK.md reconciled against v12.3.0)
+> **Current version:** v12.4.0
+> **Last reconciled:** 2026-02-28 (v12.4.0 released; standalone lane batch complete)
 
 ---
 
