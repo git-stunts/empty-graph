@@ -22,7 +22,7 @@ import { reduceV5, createEmptyStateV5, cloneStateV5 } from './JoinReducer.js';
  * A single patch entry in the provenance payload.
  *
  * @typedef {Object} PatchEntry
- * @property {Object} patch - The decoded patch object (writer, lamport, ops, context)
+ * @property {import('../types/WarpTypesV2.js').PatchV2} patch - The decoded patch object
  * @property {string} sha - The Git SHA of the patch commit
  */
 

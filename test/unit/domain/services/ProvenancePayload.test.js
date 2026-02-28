@@ -539,7 +539,7 @@ describe('ProvenancePayload', () => {
       const payload = new ProvenancePayload([patchA, patchB]);
 
       const json = payload.toJSON();
-      json.push({ patch: {}, sha: 'extra' });
+      json.push(/** @type {import('../../../../src/domain/services/ProvenancePayload.js').PatchEntry} */ ({ patch: {}, sha: 'extra' }));
 
       expect(payload.length).toBe(2);
     });

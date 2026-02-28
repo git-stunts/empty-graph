@@ -38,15 +38,9 @@ import { decodeEdgeKey, decodePropKey, isEdgePropKey } from './KeyCodec.js';
 
 /**
  * @typedef {Object} StateDiffResult
- * @property {Object} nodes - Node changes
- * @property {string[]} nodes.added - Added node IDs (sorted)
- * @property {string[]} nodes.removed - Removed node IDs (sorted)
- * @property {Object} edges - Edge changes
- * @property {EdgeChange[]} edges.added - Added edges (sorted)
- * @property {EdgeChange[]} edges.removed - Removed edges (sorted)
- * @property {Object} props - Property changes
- * @property {PropSet[]} props.set - Set/changed properties (sorted)
- * @property {PropRemoved[]} props.removed - Removed properties (sorted)
+ * @property {{ added: string[], removed: string[] }} nodes - Node changes
+ * @property {{ added: EdgeChange[], removed: EdgeChange[] }} edges - Edge changes
+ * @property {{ set: PropSet[], removed: PropRemoved[] }} props - Property changes
  */
 
 /**

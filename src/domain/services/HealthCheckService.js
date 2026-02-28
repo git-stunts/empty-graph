@@ -116,9 +116,7 @@ export default class HealthCheckService {
    *
    * @typedef {Object} HealthResult
    * @property {'healthy'|'degraded'|'unhealthy'} status - Overall health status
-   * @property {Object} components - Component health breakdown
-   * @property {RepositoryHealth} components.repository - Repository health
-   * @property {IndexHealth} components.index - Index health
+   * @property {{ repository: RepositoryHealth, index: IndexHealth }} components - Component health breakdown
    * @property {string} [cachedAt] - ISO timestamp if result is cached
    *
    * @typedef {Object} RepositoryHealth
