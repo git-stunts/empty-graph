@@ -64,8 +64,8 @@ export default class NodeHttpAdapter extends HttpServerPort {
   }
 
   /**
-   * @param {Function} requestHandler
-   * @returns {{ listen: Function, close: Function, address: Function }}
+   * @param {(request: import('../../ports/HttpServerPort.js').HttpRequest) => Promise<import('../../ports/HttpServerPort.js').HttpResponse>} requestHandler
+   * @returns {import('../../ports/HttpServerPort.js').HttpServerHandle}
    */
   createServer(requestHandler) {
     const logger = this._logger;

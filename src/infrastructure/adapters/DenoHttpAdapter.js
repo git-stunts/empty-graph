@@ -90,7 +90,7 @@ function toDenoResponse(plain) {
  * Creates a Deno.serve-compatible handler that bridges to the
  * HttpServerPort request handler contract.
  *
- * @param {Function} requestHandler
+ * @param {(request: import('../../ports/HttpServerPort.js').HttpRequest) => Promise<import('../../ports/HttpServerPort.js').HttpResponse>} requestHandler
  * @param {{ error: Function }} logger
  * @returns {(request: Request) => Promise<Response>}
  */
@@ -191,8 +191,8 @@ export default class DenoHttpAdapter extends HttpServerPort {
   }
 
   /**
-   * @param {Function} requestHandler
-   * @returns {{ listen: Function, close: Function, address: Function }}
+   * @param {(request: import('../../ports/HttpServerPort.js').HttpRequest) => Promise<import('../../ports/HttpServerPort.js').HttpResponse>} requestHandler
+   * @returns {import('../../ports/HttpServerPort.js').HttpServerHandle}
    */
   createServer(requestHandler) {
     const handler = createHandler(requestHandler, this._logger);

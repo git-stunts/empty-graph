@@ -96,7 +96,7 @@ function toResponse(portResponse) {
  * Creates the Bun fetch handler that bridges between Request/Response
  * and the HttpServerPort plain-object contract.
  *
- * @param {Function} requestHandler - Port-style async handler
+ * @param {(request: import('../../ports/HttpServerPort.js').HttpRequest) => Promise<import('../../ports/HttpServerPort.js').HttpResponse>} requestHandler - Port-style async handler
  * @param {{ error: Function }} logger
  * @returns {(request: Request) => Promise<Response>}
  */
@@ -192,8 +192,8 @@ export default class BunHttpAdapter extends HttpServerPort {
   }
 
   /**
-   * @param {Function} requestHandler
-   * @returns {{ listen: Function, close: Function, address: Function }}
+   * @param {(request: import('../../ports/HttpServerPort.js').HttpRequest) => Promise<import('../../ports/HttpServerPort.js').HttpResponse>} requestHandler
+   * @returns {import('../../ports/HttpServerPort.js').HttpServerHandle}
    */
   createServer(requestHandler) {
     const fetchHandler = createFetchHandler(requestHandler, this._logger);
