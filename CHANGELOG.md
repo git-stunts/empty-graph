@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **tsconfig.src.json / tsconfig.test.json missing d.ts includes** — added `globals.d.ts` and `_wiredMethods.d.ts` to both split configs; eliminated 113 + 634 false TS2339 errors for WarpGraph wired methods.
+- **TestPatch typedef divergence** — `TemporalQuery.checkpoint.test.js` used hand-rolled `TestPatch` that drifted from `PatchV2` (`schema: number` vs `2|3`, `context: Map` vs plain object); replaced with `PatchV2` import.
+
+### Changed
+
+- **`@param {Object}` → inline typed shapes (190 sites, 72 files)** — every `@param {Object} foo` + `@param {type} foo.bar` sub-property group collapsed to `@param {{ bar: type }} foo`.
+- **`@property {Object}` → typed shapes (6 sites)** — `StateDiffResult`, `HealthResult`, `TrustAssessment`, `PatchEntry`.
+- **`{Function}` → typed signatures (4 sites)** — `NodeHttpAdapter`, `BunHttpAdapter`, `DenoHttpAdapter` handler/logger params.
+- **`{Object}` → `Record<string, unknown>` (1 site)** — `defaultCodec.js` constructor guard cast.
+- **`{Buffer}` → `{Uint8Array}` across ports/adapters** — multi-runtime alignment (Node/Bun/Deno).
+- **`globals.d.ts` augmented** — added `declare var Bun` / `declare var Deno` for `globalThis.*` access.
+- **`parseCommandArgs` generic return** — `@template T` + `ZodType<T>` so callers get schema-inferred types.
+- **JoinReducer typed shapes** — added `OpLike`/`PatchLike` typedefs; replaced 10 `{Object}` params.
+- **GitGraphAdapter typed shapes** — added `GitPlumbingLike`/`CollectableStream` typedefs.
+
 ## [12.4.0] — 2026-02-28
 
 ### Added
