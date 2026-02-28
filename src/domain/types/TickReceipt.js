@@ -279,9 +279,9 @@ export function canonicalJson(receipt) {
  */
 function sortedReplacer(_key, value) {
   if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
-    /** @type {{ [x: string]: * }} */
+    /** @type {{ [x: string]: unknown }} */
     const sorted = {};
-    const obj = /** @type {{ [x: string]: * }} */ (value);
+    const obj = /** @type {{ [x: string]: unknown }} */ (value);
     for (const k of Object.keys(obj).sort()) {
       sorted[k] = obj[k];
     }

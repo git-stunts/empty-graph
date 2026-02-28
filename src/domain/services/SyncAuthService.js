@@ -174,7 +174,7 @@ function _validateAllowedWriters(allowedWriters) {
 export default class SyncAuthService {
   /**
    * @param {Object} options
-   * @param {Record<string, string>} options.keys - Key-id to secret mapping
+   * @param {Record<string, string>} options.keys - Key-id to secret mapping (required; throws if missing)
    * @param {'enforce'|'log-only'} [options.mode='enforce'] - Auth enforcement mode
    * @param {number} [options.nonceCapacity] - Nonce LRU capacity
    * @param {number} [options.maxClockSkewMs] - Max clock skew tolerance

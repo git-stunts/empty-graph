@@ -91,7 +91,7 @@ export default class BitmapIndexReader {
    *   When exceeded, least recently used shards are evicted to free memory.
    * @param {import('../../ports/CryptoPort.js').default} [options.crypto] - CryptoPort instance for checksum verification.
    */
-  constructor({ storage, strict = true, logger = nullLogger, maxCachedShards = DEFAULT_MAX_CACHED_SHARDS, crypto } = /** @type {{ storage: IndexStoragePort, strict?: boolean, logger?: LoggerPort, maxCachedShards?: number, crypto?: CryptoPort }} */ ({})) {
+  constructor({ storage, strict = true, logger = nullLogger, maxCachedShards = DEFAULT_MAX_CACHED_SHARDS, crypto }) {
     if (!storage) {
       throw new Error('BitmapIndexReader requires a storage adapter');
     }
