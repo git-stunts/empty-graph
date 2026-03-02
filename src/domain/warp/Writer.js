@@ -41,7 +41,7 @@ export class Writer {
   constructor({ persistence, graphName, writerId, versionVector, getCurrentState, onCommitSuccess, onDeleteWithData = 'warn', codec, logger }) {
     validateWriterId(writerId);
 
-    /** @type {import('../../ports/CommitPort.js').default & import('../../ports/BlobPort.js').default & import('../../ports/TreePort.js').default & import('../../ports/RefPort.js').default} */
+    /** @type {import('../../ports/CommitPort.js').default & import('../../ports/BlobPort.js').default & import('../../ports/TreePort.js').default & import('../../ports/RefPort.js').default} Wider than Writer's own calls; satisfies PatchBuilderV2 constructor. */
     this._persistence = persistence;
 
     /** @type {string} */

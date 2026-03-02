@@ -31,7 +31,7 @@ import * as materializeMethods from './warp/materialize.methods.js';
 import * as materializeAdvancedMethods from './warp/materializeAdvanced.methods.js';
 
 /**
- * @typedef {import('../ports/RefPort.js').default & import('../ports/CommitPort.js').default & import('../ports/BlobPort.js').default & import('../ports/TreePort.js').default} FullPersistence
+ * @typedef {import('../ports/CommitPort.js').default & import('../ports/BlobPort.js').default & import('../ports/TreePort.js').default & import('../ports/RefPort.js').default} FullPersistence
  */
 
 const DEFAULT_ADJACENCY_CACHE_SIZE = 3;
