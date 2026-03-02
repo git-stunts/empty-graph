@@ -93,7 +93,7 @@ export async function openGraph(options) {
     }
   }
   const graph = /** @type {WarpGraphInstance} */ (/** @type {unknown} */ (await WarpGraph.open({
-    persistence,
+    persistence: /** @type {import('../../src/domain/WarpGraph.js').FullPersistence} */ (/** @type {unknown} */ (persistence)),
     graphName,
     writerId: options.writer,
     crypto: new WebCryptoAdapter(),
