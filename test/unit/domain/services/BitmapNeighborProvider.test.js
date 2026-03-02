@@ -82,8 +82,21 @@ describe('BitmapNeighborProvider', () => {
     expect(provider.latencyClass).toBe('async-local');
   });
 
-  it('throws when neither indexReader nor logicalIndex is provided (M10)', () => {
-    expect(() => new BitmapNeighborProvider({})).toThrow(
+  it('allows construction without indexReader or logicalIndex (lazy init)', () => {
+    const empty = new BitmapNeighborProvider({});
+    expect(empty).toBeDefined();
+  });
+
+  it('throws on getNeighbors when neither source is configured (B141)', async () => {
+    const empty = new BitmapNeighborProvider({});
+    await expect(empty.getNeighbors('node:a', 'outgoing')).rejects.toThrow(
+      'BitmapNeighborProvider requires either indexReader or logicalIndex',
+    );
+  });
+
+  it('throws on hasNode when neither source is configured (B141)', async () => {
+    const empty = new BitmapNeighborProvider({});
+    await expect(empty.hasNode('node:a')).rejects.toThrow(
       'BitmapNeighborProvider requires either indexReader or logicalIndex',
     );
   });

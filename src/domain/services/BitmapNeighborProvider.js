@@ -61,13 +61,17 @@ export default class BitmapNeighborProvider extends NeighborProviderPort {
   /**
    * @param {{ indexReader?: BitmapIndexReader, logicalIndex?: LogicalIndex }} params
    */
-  constructor({ indexReader, logicalIndex }) {
+  constructor({ indexReader, logicalIndex } = {}) {
     super();
-    if (!indexReader && !logicalIndex) {
-      throw new Error('BitmapNeighborProvider requires either indexReader or logicalIndex');
-    }
     this._reader = indexReader ?? null;
     this._logical = logicalIndex ?? null;
+  }
+
+  /** @throws {Error} If neither indexReader nor logicalIndex is configured. */
+  _assertReady() {
+    if (!this._reader && !this._logical) {
+      throw new Error('BitmapNeighborProvider requires either indexReader or logicalIndex');
+    }
   }
 
   /**
@@ -77,6 +81,7 @@ export default class BitmapNeighborProvider extends NeighborProviderPort {
    * @returns {Promise<import('../../ports/NeighborProviderPort.js').NeighborEdge[]>}
    */
   async getNeighbors(nodeId, direction, options) {
+    this._assertReady();
     if (this._logical) {
       return this._getLogicalNeighbors(nodeId, direction, options);
     }
@@ -88,6 +93,7 @@ export default class BitmapNeighborProvider extends NeighborProviderPort {
    * @returns {Promise<boolean>}
    */
   async hasNode(nodeId) {
+    this._assertReady();
     if (this._logical) {
       return this._logical.isAlive(nodeId);
     }
