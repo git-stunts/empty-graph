@@ -41,6 +41,10 @@ function buildState() {
 }
 
 describe('Buffer-free index paths', () => {
+  // B133: Intentional globalThis.Buffer mutation.
+  // This test verifies index operations work without the Buffer global.
+  // The mutation is safely scoped within a try/finally that restores
+  // the original value, preventing cross-test contamination.
   it('builds, reads, and incrementally updates without globalThis.Buffer', () => {
     const globalRef = /** @type {{ Buffer: unknown }} */ (/** @type {any} */ (globalThis));
     const originalBuffer = globalRef.Buffer;

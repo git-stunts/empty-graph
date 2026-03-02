@@ -20,6 +20,9 @@ const FIXED_TIME = 1_700_000_000_000;
 async function buildSignedRequest(overrides = {}) {
   const body = Buffer.from(JSON.stringify({ type: 'sync-request', frontier: {} }));
   const timestamp = String(FIXED_TIME);
+  // B133: crypto.randomUUID() is intentional — the nonce value is irrelevant
+  // to the test outcome (signature verification uses the same nonce for both
+  // signing and verifying).
   const nonce = globalThis.crypto.randomUUID();
   const contentType = 'application/json';
   const bodySha256 = await defaultCrypto.hash('sha256', body);
