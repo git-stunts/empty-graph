@@ -1,8 +1,6 @@
 import HttpServerPort from '../../ports/HttpServerPort.js';
+import { MAX_BODY_BYTES, noopLogger } from './httpAdapterUtils.js';
 import { createServer } from 'node:http';
-
-/** Absolute streaming body limit (10 MB). */
-const MAX_BODY_BYTES = 10 * 1024 * 1024;
 
 /**
  * Collects the request body and dispatches to the handler, returning
@@ -44,8 +42,6 @@ async function dispatch(req, res, { handler, logger }) {
     res.end('Internal Server Error');
   }
 }
-
-const noopLogger = { error() {} };
 
 /**
  * Node.js HTTP adapter implementing HttpServerPort.
