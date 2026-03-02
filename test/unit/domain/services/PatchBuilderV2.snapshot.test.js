@@ -48,30 +48,34 @@ describe('PatchBuilderV2 snapshot (C4)', () => {
     const dot = createDot('w1', 1);
     orsetAdd(state.nodeAlive, 'node:a', dot);
 
-    const builder = makeBuilder(() => state);
+    const spy = vi.fn(() => state);
+    const builder = makeBuilder(spy);
 
     // Trigger snapshot capture
     builder.removeNode('node:a');
+    expect(spy).toHaveBeenCalledTimes(1);
 
     // Mutate the original state after snapshot capture
     orsetAdd(state.nodeAlive, 'node:b', createDot('w1', 2));
 
-    // The snapshot should NOT see node:b — it was captured before mutation.
-    // Access the internal snapshot to verify.
-    const snapshot = /** @type {any} */ (builder)._snapshotState;
-    expect(snapshot).toBeDefined();
-    // The snapshot IS the same object reference (no clone), but that's fine —
-    // the invariant is that getCurrentState is called once, not that it's cloned.
+    // Second remove reuses the cached snapshot (spy not called again)
+    builder.removeNode('node:a');
+    expect(spy).toHaveBeenCalledTimes(1);
   });
 
   it('returns null snapshot when getCurrentState returns null', () => {
-    const builder = makeBuilder(() => null);
+    const spy = vi.fn(() => null);
+    const builder = makeBuilder(spy);
 
     // removeNode with null state should not throw — it simply observes no dots
     builder.removeNode('nonexistent');
 
-    const snapshot = /** @type {any} */ (builder)._snapshotState;
-    expect(snapshot).toBeNull();
+    // getCurrentState was called (snapshot attempted)
+    expect(spy).toHaveBeenCalledTimes(1);
+
+    // Second call still doesn't re-invoke getCurrentState (null is cached)
+    builder.removeNode('nonexistent');
+    expect(spy).toHaveBeenCalledTimes(1);
   });
 
   it('does not capture snapshot for addNode (only removes need it)', () => {

@@ -140,12 +140,12 @@ describe('BitmapIndexReader', () => {
     });
 
     it('clears cache when called', () => {
-      reader._idToShaCache = ['test'];
       reader.loadedShards.set('test', {});
+      reader.shardOids.set('test', 'aaaa');
 
       reader.setup({});
 
-      expect(reader._idToShaCache).toBeNull();
+      expect(reader.shardOids.size).toBe(0);
       expect(reader.loadedShards.size).toBe(0);
     });
   });
