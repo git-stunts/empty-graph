@@ -16,6 +16,10 @@ import {
   validateOid,
   validateSha256,
 } from './MessageCodecInternal.js';
+import {
+  requireTrailer,
+  validateKindDiscriminator,
+} from './TrailerValidation.js';
 
 // -----------------------------------------------------------------------------
 // Encoder
@@ -74,41 +78,22 @@ export function decodeAuditMessage(message) {
     seen.add(key);
   }
 
-  // Validate kind discriminator
-  const kind = trailers[TRAILER_KEYS.kind];
-  if (kind !== 'audit') {
-    throw new Error(`Invalid audit message: eg-kind must be 'audit', got '${kind}'`);
-  }
+  validateKindDiscriminator(trailers, 'audit');
 
   // Extract and validate required fields
-  const graph = trailers[TRAILER_KEYS.graph];
-  if (!graph) {
-    throw new Error('Invalid audit message: missing required trailer eg-graph');
-  }
+  const graph = requireTrailer(trailers, 'graph', 'audit');
   validateGraphName(graph);
 
-  const writer = trailers[TRAILER_KEYS.writer];
-  if (!writer) {
-    throw new Error('Invalid audit message: missing required trailer eg-writer');
-  }
+  const writer = requireTrailer(trailers, 'writer', 'audit');
   validateWriterId(writer);
 
-  const dataCommit = trailers[TRAILER_KEYS.dataCommit];
-  if (!dataCommit) {
-    throw new Error('Invalid audit message: missing required trailer eg-data-commit');
-  }
+  const dataCommit = requireTrailer(trailers, 'dataCommit', 'audit');
   validateOid(dataCommit, 'dataCommit');
 
-  const opsDigest = trailers[TRAILER_KEYS.opsDigest];
-  if (!opsDigest) {
-    throw new Error('Invalid audit message: missing required trailer eg-ops-digest');
-  }
+  const opsDigest = requireTrailer(trailers, 'opsDigest', 'audit');
   validateSha256(opsDigest, 'opsDigest');
 
-  const schemaStr = trailers[TRAILER_KEYS.schema];
-  if (!schemaStr) {
-    throw new Error('Invalid audit message: missing required trailer eg-schema');
-  }
+  const schemaStr = requireTrailer(trailers, 'schema', 'audit');
   if (!/^\d+$/.test(schemaStr)) {
     throw new Error(
       `Invalid audit message: eg-schema must be a positive integer, got '${schemaStr}'`,
