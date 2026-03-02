@@ -496,21 +496,6 @@ export class ClockAdapter extends ClockPort {
   timestamp(): string;
 }
 
-/**
- * @deprecated Use ClockAdapter instead. Backward-compatibility re-export.
- */
-export class PerformanceClockAdapter extends ClockPort {
-  now(): number;
-  timestamp(): string;
-}
-
-/**
- * @deprecated Use ClockAdapter instead. Backward-compatibility re-export.
- */
-export class GlobalClockAdapter extends ClockPort {
-  now(): number;
-  timestamp(): string;
-}
 
 /**
  * Port interface for seek materialization cache operations.

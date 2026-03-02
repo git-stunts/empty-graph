@@ -37,8 +37,6 @@ import InMemoryGraphAdapter from './src/infrastructure/adapters/InMemoryGraphAda
 import NoOpLogger from './src/infrastructure/adapters/NoOpLogger.js';
 import ConsoleLogger, { LogLevel } from './src/infrastructure/adapters/ConsoleLogger.js';
 import ClockAdapter from './src/infrastructure/adapters/ClockAdapter.js';
-import PerformanceClockAdapter from './src/infrastructure/adapters/PerformanceClockAdapter.js';
-import GlobalClockAdapter from './src/infrastructure/adapters/GlobalClockAdapter.js';
 import {
   ForkError,
   IndexError,
@@ -133,8 +131,6 @@ export {
   // Seek cache (RECALL)
   SeekCachePort,
   ClockAdapter,
-  PerformanceClockAdapter,
-  GlobalClockAdapter,
 
   // Error types for integrity failure handling
   ForkError,

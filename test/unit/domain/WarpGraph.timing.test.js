@@ -314,7 +314,7 @@ describe('WarpGraph operation timing (LH/TIMING/1)', () => {
   // ==========================================================================
 
   describe('default clock', () => {
-    it('uses PerformanceClockAdapter when no clock is injected', async () => {
+    it('uses ClockAdapter default when no clock is injected', async () => {
       const graph = await WarpGraph.open({
         persistence,
         graphName: 'test',

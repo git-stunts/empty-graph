@@ -31,8 +31,6 @@ import WarpGraphDefault, {
   // Clock infrastructure
   ClockPort,
   ClockAdapter,
-  PerformanceClockAdapter,
-  GlobalClockAdapter,
 
 
   // Error types
@@ -172,15 +170,6 @@ describe('index.js exports', () => {
       expect(typeof ClockAdapter).toBe('function');
     });
 
-    it('exports PerformanceClockAdapter', () => {
-      expect(PerformanceClockAdapter).toBeDefined();
-      expect(typeof PerformanceClockAdapter).toBe('function');
-    });
-
-    it('exports GlobalClockAdapter', () => {
-      expect(GlobalClockAdapter).toBeDefined();
-      expect(typeof GlobalClockAdapter).toBe('function');
-    });
   });
 
   describe('error types', () => {
