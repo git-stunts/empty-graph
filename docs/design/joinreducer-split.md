@@ -203,7 +203,7 @@ export { RECEIPT_OP_TYPE, VALID_RECEIPT_OPS } from './ReceiptBuilder.js';
 
 ## Internal Call Graph
 
-```
+```text
 reduceV5()
   ├─ createEmptyStateV5()    [WarpStateFactory]
   ├─ cloneStateV5()          [WarpStateFactory]
