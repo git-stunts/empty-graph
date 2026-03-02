@@ -228,6 +228,8 @@ Items picked up opportunistically without blocking milestones. No milestone assi
 | B79 | **WARPGRAPH CONSTRUCTOR LIFECYCLE DOCS** — document cache invalidation strategy for 25 instance variables: which operations dirty which caches, which flush them. From B-AUDIT-16 (TSK TSK). **File:** `src/domain/WarpGraph.js:69-198` |
 | B80 | **CHECKPOINTSERVICE CONTENT BLOB UNBOUNDED MEMORY** — iterates all properties into single `Set` before tree serialization. Stream content OIDs in batches. From B-AUDIT-10 (JANK). **File:** `src/domain/services/CheckpointService.js:224-226` |
 | B81 | **`attachContent` ORPHAN BLOB GUARD** — `attachContent()` unconditionally writes blob before `setProperty()`. Validate before push to prevent orphan blobs. From B-CODE-2. **File:** `src/domain/services/PatchBuilderV2.js` |
+| B146 | **UNIFY `CorePersistence` / `FullPersistence` TYPEDEFS** — `CorePersistence` (`WarpPersistence.js`) and `FullPersistence` (`WarpGraph.js`) are identical `CommitPort & BlobPort & TreePort & RefPort` intersections. Consolidate into one canonical typedef and update all import sites. From B145 PR review. |
+| B147 | **RFC FIELD COUNT DRIFT DETECTOR** — script that counts WarpGraph instance fields (grep `this._` in constructor) and warns if design RFC field counts diverge. Prevents stale numbers in `warpgraph-decomposition.md`. From B145 PR review. |
 
 ### CI & Tooling Pack
 
@@ -346,11 +348,11 @@ Pick opportunistically between milestones. Recommended order within tiers:
 | **Milestone (M12)** | 18 | B66, B67, B70, B73, B75, B105–B115, B117, B118 |
 | **Milestone (M13)** | 1 | B116 (internal: DONE; wire-format: DEFERRED) |
 | **Milestone (M14)** | 16 | B130–B145 |
-| **Standalone** | 37 | B12, B19, B22, B28, B34–B37, B43, B44, B48, B49, B53, B54, B57, B76, B79–B81, B83, B85–B88, B95–B99, B102–B104, B119, B123–B125, B127–B129 |
+| **Standalone** | 39 | B12, B19, B22, B28, B34–B37, B43, B44, B48, B49, B53, B54, B57, B76, B79–B81, B83, B85–B88, B95–B99, B102–B104, B119, B123–B125, B127–B129, B146, B147 |
 | **Standalone (done)** | 23 | B26, B46, B47, B50–B52, B55, B71, B72, B77, B78, B82, B84, B89–B94, B120–B122, B126 |
 | **Deferred** | 8 | B4, B7, B16, B20, B21, B27, B100, B101 |
 | **Rejected** | 7 | B5, B6, B13, B17, B18, B25, B45 |
-| **Total tracked** | **120** (23 done) | |
+| **Total tracked** | **122** (23 done) | |
 
 ### STANK.md Cross-Reference
 
