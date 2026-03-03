@@ -35,6 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Fake timer lifecycle (B131)** — moved `vi.useFakeTimers()` from `beforeAll` to `beforeEach` and `vi.useRealTimers()` into `afterEach` in `WarpGraph.watch.test.js`.
 - **Test determinism (B132)** — seeded `Math.random()` in benchmarks with Mulberry32 RNG (`0xDEADBEEF`), added `seed: 42` to all fast-check property tests, replaced random delays in stress test with deterministic values.
 - **Global mutation documentation (B133)** — documented intentional `globalThis.Buffer` mutation in `noBufferGlobal.test.js` and `crypto.randomUUID()` usage in `SyncAuthService.test.js`.
+- **Code review fixes (B148)** — removed dead code from BisectService, added `--writer` validation to bisect CLI, fixed exit code constant.
 
 ## [12.4.1] — 2026-02-28
 
@@ -1538,7 +1539,7 @@ Implements [Paper III](https://doi.org/10.5281/zenodo.17963669) (Computational H
 
 #### Query API (V7 Task 7)
 - **`graph.hasNode(nodeId)`** - Check if node exists in materialized state
-- **`graph.getNodeProps(nodeId)`** - Get all properties for a node as Map
+- **`graph.getNodeProps(nodeId)`** - Get all properties for a node (returns `Record<string, unknown>` since v13.0.0)
 - **`graph.neighbors(nodeId, dir?, label?)`** - Get neighbors with direction/label filtering
 - **`graph.getNodes()`** - Get all visible node IDs
 - **`graph.getEdges()`** - Get all visible edges as `{from, to, label}` array

@@ -167,36 +167,7 @@ Design-only items. RFCs filed — implementation deferred to future milestones.
 
 ## Milestone 11 — COMPASS II ✅ COMPLETE (v13.0.0)
 
-**Theme:** Developer experience
-**Objective:** Ship bisect, public observer API, and batch patch ergonomics.
-**Triage date:** 2026-02-17
-**Completed:** 2026-03-03
-
-### M11.T1 — Causality Bisect (Implementation)
-
-- **Status:** `DONE`
-
-**Items:**
-
-- **B2** ✅ (CAUSALITY BISECT) — `BisectService` + `git warp bisect` CLI. Binary search over writer patch chain. O(log N) materializations. 6 test vectors.
-
-### M11.T2 — Observer API
-
-- **Status:** `DONE`
-
-**Items:**
-
-- **B3** ✅ (OBSERVER API) — `subscribe()` and `watch()` promoted to `@stability stable` with `@since 13.0.0`. Fixed `onError` type to `unknown`. `watch()` pattern type corrected to `string | string[]`.
-
-### M11.T3 — Batch Patch API
-
-- **Status:** `DONE`
-
-**Items:**
-
-- **B11** ✅ (`graph.patchMany()` BATCH API) — sequential batch helper. Each callback sees state from prior commit. Returns array of SHAs. Inherits reentrancy guard.
-
-**M11 Gate:** ✅ All gates met. Bisect correctness verified with 6 test vectors. Observer API stable with JSDoc annotations. patchMany tested with 6 scenarios including reentrancy guard.
+Archived to [COMPLETED.md](docs/ROADMAP/COMPLETED.md#milestone-11--compass-ii).
 
 ---
 
@@ -351,10 +322,10 @@ Pick opportunistically between milestones. Recommended order within tiers:
 | **Milestone (M13)** | 1 | B116 (internal: DONE; wire-format: DEFERRED) |
 | **Milestone (M14)** | 16 | B130–B145 |
 | **Standalone** | 39 | B12, B19, B22, B28, B34–B37, B43, B44, B48, B49, B53, B54, B57, B76, B79–B81, B83, B85–B88, B95–B99, B102–B104, B119, B123–B125, B127–B129, B146, B147 |
-| **Standalone (done)** | 23 | B26, B46, B47, B50–B52, B55, B71, B72, B77, B78, B82, B84, B89–B94, B120–B122, B126 |
+| **Standalone (done)** | 24 | B26, B46, B47, B50–B52, B55, B71, B72, B77, B78, B82, B84, B89–B94, B120–B122, B126, B148 |
 | **Deferred** | 8 | B4, B7, B16, B20, B21, B27, B100, B101 |
 | **Rejected** | 7 | B5, B6, B13, B17, B18, B25, B45 |
-| **Total tracked** | **122** (23 done) | |
+| **Total tracked** | **123** (24 done) | |
 
 ### STANK.md Cross-Reference
 

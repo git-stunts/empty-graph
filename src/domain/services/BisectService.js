@@ -20,11 +20,6 @@
  */
 
 /**
- * @typedef {Object} BisectTestFn
- * @property {(state: import('./JoinReducer.js').WarpStateV5, sha: string) => Promise<boolean>} testFn
- */
-
-/**
  * Builds a "found" result from a candidate entry.
  *
  * @param {{writerId: string, entry: {sha: string, patch: {lamport: number}}, steps: number, totalCandidates: number}} opts
@@ -61,9 +56,6 @@ function resolveCandidates(patches, good, bad) {
   }
 
   const candidates = patches.slice(goodIdx + 1, badIdx + 1);
-  if (candidates.length === 0) {
-    return { error: 'no candidates between good and bad' };
-  }
   return { candidates };
 }
 

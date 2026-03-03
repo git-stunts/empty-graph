@@ -7,7 +7,7 @@
  * fields.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { evaluateWriters } from '../../../../src/domain/trust/TrustEvaluator.js';
 import { buildState } from '../../../../src/domain/trust/TrustStateBuilder.js';
 import { TrustAssessmentSchema } from '../../../../src/domain/trust/schemas.js';
@@ -28,9 +28,6 @@ const ENFORCE_POLICY = Object.freeze({
 
 /** Top-level keys the CLI trust handler adds beyond the evaluator output. */
 const CLI_ENVELOPE_KEYS = ['graph'];
-
-/** Keys the CLI overrides inside the `trust` object. */
-const CLI_TRUST_OVERRIDES = ['status', 'source', 'sourceDetail'];
 
 /**
  * All keys that must appear in a CLI trust payload's `trust` object.

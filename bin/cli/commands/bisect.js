@@ -1,5 +1,5 @@
 import { execSync } from 'node:child_process';
-import { EXIT_CODES, parseCommandArgs } from '../infrastructure.js';
+import { EXIT_CODES, parseCommandArgs, usageError } from '../infrastructure.js';
 import { bisectSchema } from '../schemas.js';
 import { openGraph } from '../shared.js';
 import BisectService from '../../../src/domain/services/BisectService.js';
@@ -48,6 +48,10 @@ function runTestCommand(testCmd, sha, graphName) {
  * @returns {Promise<{payload: unknown, exitCode: number}>}
  */
 export default async function handleBisect({ options, args }) {
+  if (options.writer === 'cli') {
+    throw usageError('bisect requires --writer <id>');
+  }
+
   const { good, bad, test: testCmd } = parseBisectArgs(args);
   const { graph, graphName } = await openGraph(options);
   const writerId = options.writer;
@@ -64,7 +68,7 @@ export default async function handleBisect({ options, args }) {
   if (result.result === 'range-error') {
     return {
       payload: { error: { code: 'E_BISECT_RANGE', message: result.message } },
-      exitCode: EXIT_CODES.USAGE + 1, // exit code 2 per spec
+      exitCode: EXIT_CODES.NOT_FOUND,
     };
   }
 
