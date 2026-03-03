@@ -274,6 +274,61 @@ describe('WarpGraph.subscribe() (PL/SUB/1)', () => {
       // Handler was called
       expect(onChange).toHaveBeenCalledTimes(1);
     });
+
+    it('handler A cross-unsubscribes handler B mid-callback; B still fires for current notification', async () => {
+      /** @type {any} */
+      let subB;
+
+      const onChangeB = vi.fn();
+      const onChangeA = vi.fn(() => {
+        // A removes B mid-iteration
+        subB.unsubscribe();
+      });
+
+      // Subscribe A first, then B — A fires first in snapshot order
+      graph.subscribe({ onChange: onChangeA });
+      subB = graph.subscribe({ onChange: onChangeB });
+
+      await (await graph.createPatch()).addNode('user:alice').commit();
+      await graph.materialize();
+
+      // Both fired for the current notification (snapshot iteration)
+      expect(onChangeA).toHaveBeenCalledTimes(1);
+      expect(onChangeB).toHaveBeenCalledTimes(1);
+
+      // On the next materialize, B must NOT fire (it was unsubscribed)
+      await (await graph.createPatch()).addNode('user:bob').commit();
+      await graph.materialize();
+
+      expect(onChangeA).toHaveBeenCalledTimes(2);
+      expect(onChangeB).toHaveBeenCalledTimes(1); // Still 1 — no second call
+    });
+
+    it('subscribing a new handler C during callback — C does not fire for current diff', async () => {
+      const onChangeC = vi.fn();
+
+      const onChangeA = vi.fn(() => {
+        // A subscribes C mid-notification
+        graph.subscribe({ onChange: onChangeC });
+      });
+
+      graph.subscribe({ onChange: onChangeA });
+
+      await (await graph.createPatch()).addNode('user:alice').commit();
+      await graph.materialize();
+
+      // A fired, but C was added after the snapshot — C should NOT fire
+      expect(onChangeA).toHaveBeenCalledTimes(1);
+      expect(onChangeC).not.toHaveBeenCalled();
+
+      // On the next materialize, C SHOULD fire
+      await (await graph.createPatch()).addNode('user:bob').commit();
+      await graph.materialize();
+
+      expect(onChangeA).toHaveBeenCalledTimes(2);
+      expect(onChangeC).toHaveBeenCalledTimes(1);
+      expect(onChangeC.mock.calls[0][0].nodes.added).toContain('user:bob');
+    });
   });
 });
 
