@@ -372,9 +372,9 @@ describe('TrustPayloadParity — error path', () => {
 
   it('error payload evidenceSummary has all zero counters', () => {
     const payload = buildErrorPayload('g', { source: 'ref', sourceDetail: null });
-
+    const summary = /** @type {Record<string, number>} */ (payload.trust.evidenceSummary);
     for (const key of REQUIRED_EVIDENCE_KEYS) {
-      expect(payload.trust.evidenceSummary[key]).toBe(0);
+      expect(summary[key]).toBe(0);
     }
   });
 
@@ -449,8 +449,9 @@ describe('TrustPayloadParity — not-configured path', () => {
 
   it('not_configured evidenceSummary has all zero counters', () => {
     const payload = buildNotConfiguredPayload('g');
+    const summary = /** @type {Record<string, number>} */ (payload.trust.evidenceSummary);
     for (const key of REQUIRED_EVIDENCE_KEYS) {
-      expect(payload.trust.evidenceSummary[key]).toBe(0);
+      expect(summary[key]).toBe(0);
     }
   });
 });

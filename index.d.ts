@@ -988,7 +988,7 @@ export { CommitDagTraversalService as TraversalService };
  * @since 13.0.0
  */
 export class BisectService {
-  constructor(options: { graph: WarpGraph });
+  constructor(options: { graph: { getWriterPatches: WarpGraph['getWriterPatches']; materialize: WarpGraph['materialize'] } });
 
   /**
    * Runs bisect on a single writer's patch chain.

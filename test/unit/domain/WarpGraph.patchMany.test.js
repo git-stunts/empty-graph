@@ -29,7 +29,7 @@ describe('WarpGraph.patchMany()', () => {
         autoMaterialize: true,
       });
       const shas = await graph.patchMany(
-        (p) => p.addNode('n:1').setProperty('n:1', 'k', 'v'),
+        (p) => { p.addNode('n:1').setProperty('n:1', 'k', 'v'); },
       );
       expect(shas).toHaveLength(1);
       expect(typeof shas[0]).toBe('string');
@@ -52,9 +52,9 @@ describe('WarpGraph.patchMany()', () => {
         autoMaterialize: true,
       });
       const shas = await graph.patchMany(
-        (p) => p.addNode('n:1').setProperty('n:1', 'role', 'admin'),
-        (p) => p.addNode('n:2').setProperty('n:2', 'role', 'user'),
-        (p) => p.addEdge('n:1', 'n:2', 'manages'),
+        (p) => { p.addNode('n:1').setProperty('n:1', 'role', 'admin'); },
+        (p) => { p.addNode('n:2').setProperty('n:2', 'role', 'user'); },
+        (p) => { p.addEdge('n:1', 'n:2', 'manages'); },
       );
       expect(shas).toHaveLength(3);
 
@@ -82,7 +82,7 @@ describe('WarpGraph.patchMany()', () => {
 
       // First patch creates node, second patch sets a property that depends on it
       const shas = await graph.patchMany(
-        (p) => p.addNode('n:1').setProperty('n:1', 'step', 1),
+        (p) => { p.addNode('n:1').setProperty('n:1', 'step', 1); },
         async (p) => {
           // Verify node from first patch is visible
           const has = await graph.hasNode('n:1');
@@ -111,9 +111,9 @@ describe('WarpGraph.patchMany()', () => {
 
       await expect(
         graph.patchMany(
-          (p) => p.addNode('n:1'),
+          (p) => { p.addNode('n:1'); },
           () => { throw new Error('deliberate'); },
-          (p) => p.addNode('n:3'), // should never run
+          (p) => { p.addNode('n:3'); }, // should never run
         ),
       ).rejects.toThrow('deliberate');
 
@@ -139,7 +139,7 @@ describe('WarpGraph.patchMany()', () => {
         graph.patchMany(
           async () => {
             // Nesting patch() inside patchMany should trigger reentrancy guard
-            await graph.patch((p) => p.addNode('sneaky'));
+            await graph.patch((p) => { p.addNode('sneaky'); });
           },
         ),
       ).rejects.toThrow(/not reentrant/);

@@ -67,9 +67,15 @@ function resolveCandidates(patches, good, bad) {
   return { candidates };
 }
 
+/**
+ * @typedef {Object} BisectGraph
+ * @property {(writerId: string) => Promise<Array<{patch: {lamport: number}, sha: string}>>} getWriterPatches
+ * @property {(opts: {ceiling: number}) => Promise<import('./JoinReducer.js').WarpStateV5>} materialize
+ */
+
 export default class BisectService {
   /**
-   * @param {{ graph: import('../WarpGraph.js').default }} options
+   * @param {{ graph: BisectGraph }} options
    */
   constructor({ graph }) {
     this._graph = graph;

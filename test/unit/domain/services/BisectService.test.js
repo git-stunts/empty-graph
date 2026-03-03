@@ -17,11 +17,11 @@ describe('BisectService', () => {
 
       // Create 5 patches: A, B, C (introduces 'bug'), D, E
       const shas = [];
-      shas.push(await graph.patch(p => p.addNode('n:1')));        // A
-      shas.push(await graph.patch(p => p.addNode('n:2')));        // B
-      shas.push(await graph.patch(p => p.addNode('bug')));        // C — first bad
-      shas.push(await graph.patch(p => p.addNode('n:3')));        // D
-      shas.push(await graph.patch(p => p.addNode('n:4')));        // E
+      shas.push(await graph.patch(p => { p.addNode('n:1'); }));        // A
+      shas.push(await graph.patch(p => { p.addNode('n:2'); }));        // B
+      shas.push(await graph.patch(p => { p.addNode('bug'); }));        // C — first bad
+      shas.push(await graph.patch(p => { p.addNode('n:3'); }));        // D
+      shas.push(await graph.patch(p => { p.addNode('n:4'); }));        // E
 
       const bisect = new BisectService({ graph });
       const result = await bisect.run({
@@ -54,7 +54,7 @@ describe('BisectService', () => {
         autoMaterialize: true,
       });
 
-      const sha = await graph.patch(p => p.addNode('n:1'));
+      const sha = await graph.patch(p => { p.addNode('n:1'); });
 
       const bisect = new BisectService({ graph });
       const result = await bisect.run({
@@ -81,8 +81,8 @@ describe('BisectService', () => {
         autoMaterialize: true,
       });
 
-      const shaA = await graph.patch(p => p.addNode('n:1'));  // A — good
-      const shaB = await graph.patch(p => p.addNode('bug'));   // B — bad
+      const shaA = await graph.patch(p => { p.addNode('n:1'); });  // A — good
+      const shaB = await graph.patch(p => { p.addNode('bug'); });   // B — bad
 
       const bisect = new BisectService({ graph });
       const result = await bisect.run({
@@ -114,8 +114,8 @@ describe('BisectService', () => {
         autoMaterialize: true,
       });
 
-      const shaA = await graph.patch(p => p.addNode('n:1'));
-      const shaB = await graph.patch(p => p.addNode('n:2'));
+      const shaA = await graph.patch(p => { p.addNode('n:1'); });
+      const shaB = await graph.patch(p => { p.addNode('n:2'); });
 
       const bisect = new BisectService({ graph });
       // Reversed: good=B (later), bad=A (earlier)
@@ -143,7 +143,7 @@ describe('BisectService', () => {
         autoMaterialize: true,
       });
 
-      const sha = await graph.patch(p => p.addNode('n:1'));
+      const sha = await graph.patch(p => { p.addNode('n:1'); });
       const fakeSha = 'deadbeef'.repeat(5);
 
       const bisect = new BisectService({ graph });
@@ -172,12 +172,12 @@ describe('BisectService', () => {
       });
 
       const shas = [];
-      shas.push(await graph.patch(p => p.addNode('n:1')));   // A — good
-      shas.push(await graph.patch(p => p.addNode('n:2')));   // B
-      shas.push(await graph.patch(p => p.addNode('bug')));   // C — first bad
-      shas.push(await graph.patch(p => p.addNode('n:3')));   // D — bad
+      shas.push(await graph.patch(p => { p.addNode('n:1'); }));   // A — good
+      shas.push(await graph.patch(p => { p.addNode('n:2'); }));   // B
+      shas.push(await graph.patch(p => { p.addNode('bug'); }));   // C — first bad
+      shas.push(await graph.patch(p => { p.addNode('n:3'); }));   // D — bad
 
-      const observedShas = [];
+      /** @type {string[]} */ const observedShas = [];
 
       const bisect = new BisectService({ graph });
       const result = await bisect.run({

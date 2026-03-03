@@ -15,7 +15,7 @@
 
 /**
  * @typedef {Object} WarpGraphInstance
- * @property {(opts?: {ceiling?: number}) => Promise<void>} materialize
+ * @property {(opts?: {ceiling?: number}) => Promise<import('../../src/domain/services/JoinReducer.js').WarpStateV5>} materialize
  * @property {() => Promise<Array<{id: string}>>} getNodes
  * @property {() => Promise<Array<{from: string, to: string, label?: string}>>} getEdges
  * @property {() => Promise<string|null>} createCheckpoint
