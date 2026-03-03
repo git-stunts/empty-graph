@@ -3,7 +3,6 @@ import { EXIT_CODES, parseCommandArgs } from '../infrastructure.js';
 import { bisectSchema } from '../schemas.js';
 import { openGraph } from '../shared.js';
 import BisectService from '../../../src/domain/services/BisectService.js';
-import { orsetContains } from '../../../src/domain/crdt/ORSet.js';
 
 /** @typedef {import('../types.js').CliOptions} CliOptions */
 
@@ -59,14 +58,7 @@ export default async function handleBisect({ options, args }) {
     good,
     bad,
     writerId,
-    testFn: async (state, sha) => {
-      // Expose state as env for the test command — the command
-      // can query the graph via the CLI to inspect state.
-      // For now we just pass the SHA and graph name.
-      void state;
-      void orsetContains;
-      return runTestCommand(testCmd, sha, graphName);
-    },
+    testFn: (_state, sha) => Promise.resolve(runTestCommand(testCmd, sha, graphName)),
   });
 
   if (result.result === 'range-error') {

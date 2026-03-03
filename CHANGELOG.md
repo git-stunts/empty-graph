@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Observer API stabilized (B3)** — `subscribe()` and `watch()` promoted to `@stability stable` with `@since 13.0.0` annotations. Fixed `onError` callback type from `(error: Error)` to `(error: unknown)` to match runtime catch semantics. `watch()` pattern param now correctly typed as `string | string[]` in `_wiredMethods.d.ts`.
 - **`graph.patchMany()` batch patch API (B11)** — applies multiple patch callbacks sequentially. Each callback sees state from prior commits. Returns array of commit SHAs. Inherits reentrancy guard from `graph.patch()`.
+- **Causality bisect (B2)** — `BisectService` performs binary search over a writer's patch chain to find the first bad patch. CLI: `git warp bisect --good <sha> --bad <sha> --test <cmd> --writer <id>`. O(log N) materializations. Exit codes: 0=found, 1=usage, 2=range error, 3=internal.
 
 ### Changed
 

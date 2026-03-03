@@ -327,6 +327,11 @@ exports[`WarpGraph API surface > all prototype methods have correct property des
     "enumerable": false,
     "type": "method",
   },
+  "patchMany": {
+    "configurable": true,
+    "enumerable": false,
+    "type": "method",
+  },
   "patchesFor": {
     "configurable": true,
     "enumerable": false,
@@ -430,7 +435,7 @@ exports[`WarpGraph API surface > all prototype methods have correct property des
 }
 `;
 
-exports[`WarpGraph API surface > prototype method count matches snapshot 1`] = `85`;
+exports[`WarpGraph API surface > prototype method count matches snapshot 1`] = `86`;
 
 exports[`WarpGraph API surface > prototype methods match snapshot 1`] = `
 [
@@ -499,6 +504,7 @@ exports[`WarpGraph API surface > prototype methods match snapshot 1`] = `
   "observer",
   "onDeleteWithData",
   "patch",
+  "patchMany",
   "patchesFor",
   "persistence",
   "processSyncRequest",
