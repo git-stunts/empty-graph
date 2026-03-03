@@ -21,6 +21,9 @@ import { matchGlob } from '../utils/matchGlob.js';
  * Errors thrown by handlers are caught and forwarded to `onError` if provided.
  * One handler's error does not prevent other handlers from being called.
  *
+ * @public
+ * @since 13.0.0 (stable)
+ * @stability stable
  * @this {import('../WarpGraph.js').default}
  * @param {{ onChange: (diff: import('../services/StateDiff.js').StateDiffResult) => void, onError?: (error: unknown) => void, replay?: boolean }} options - Subscription options
  * @returns {{unsubscribe: () => void}} Subscription handle
@@ -98,6 +101,9 @@ export function subscribe({ onChange, onError, replay = false }) {
  * if the frontier has changed (e.g., remote writes detected). The poll interval must
  * be at least 1000ms.
  *
+ * @public
+ * @since 13.0.0 (stable)
+ * @stability stable
  * @this {import('../WarpGraph.js').default}
  * @param {string|string[]} pattern - Glob pattern(s) (e.g., 'user:*', 'order:123', '*')
  * @param {{ onChange: (diff: import('../services/StateDiff.js').StateDiffResult) => void, onError?: (error: unknown) => void, poll?: number }} options - Watch options

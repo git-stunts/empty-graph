@@ -172,8 +172,8 @@ declare module '../WarpGraph.js' {
     translationCost(configA: ObserverConfig, configB: ObserverConfig): Promise<TranslationCostResult>;
 
     // ── subscribe.methods.js ──────────────────────────────────────────────
-    subscribe(options: { onChange: (diff: StateDiffResult) => void; onError?: (error: Error) => void; replay?: boolean }): { unsubscribe: () => void };
-    watch(pattern: string, options: { onChange: (diff: StateDiffResult) => void; onError?: (error: Error) => void; poll?: number }): { unsubscribe: () => void };
+    subscribe(options: { onChange: (diff: StateDiffResult) => void; onError?: (error: unknown) => void; replay?: boolean }): { unsubscribe: () => void };
+    watch(pattern: string | string[], options: { onChange: (diff: StateDiffResult) => void; onError?: (error: unknown) => void; poll?: number }): { unsubscribe: () => void };
     _notifySubscribers(diff: StateDiffResult, currentState: WarpStateV5): void;
 
     // ── provenance.methods.js ─────────────────────────────────────────────

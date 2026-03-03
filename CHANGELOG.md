@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Observer API stabilized (B3)** — `subscribe()` and `watch()` promoted to `@stability stable` with `@since 13.0.0` annotations. Fixed `onError` callback type from `(error: Error)` to `(error: unknown)` to match runtime catch semantics. `watch()` pattern param now correctly typed as `string | string[]` in `_wiredMethods.d.ts`.
+
 ### Changed
 
 - **GraphPersistencePort narrowing (B145)** — domain services now declare focused port intersections (`CommitPort & BlobPort`, etc.) in JSDoc instead of the 23-method composite `GraphPersistencePort`. Removed `ConfigPort` from the composite (23 → 21 methods); adapters still implement `configGet`/`configSet` on their prototypes. Zero behavioral change.

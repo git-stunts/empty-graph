@@ -1906,19 +1906,27 @@ export default class WarpGraph {
   /** Returns a lightweight status snapshot of the graph. */
   status(): Promise<WarpGraphStatus>;
 
-  /** Subscribes to graph changes after each materialize(). */
+  /**
+   * Subscribes to graph changes after each materialize().
+   * @since 13.0.0
+   * @stability stable
+   */
   subscribe(options: {
     onChange: (diff: StateDiffResult) => void;
-    onError?: (error: Error) => void;
+    onError?: (error: unknown) => void;
     replay?: boolean;
   }): { unsubscribe: () => void };
 
-  /** Filtered watcher that only fires for changes matching a glob pattern. */
+  /**
+   * Filtered watcher that only fires for changes matching a glob pattern.
+   * @since 13.0.0
+   * @stability stable
+   */
   watch(
     pattern: string | string[],
     options: {
       onChange: (diff: StateDiffResult) => void;
-      onError?: (error: Error) => void;
+      onError?: (error: unknown) => void;
       poll?: number;
     },
   ): { unsubscribe: () => void };
