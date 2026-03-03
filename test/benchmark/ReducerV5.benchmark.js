@@ -34,6 +34,9 @@ import {
   randomHex,
   runBenchmark,
 } from './benchmarkUtils.js';
+import { createRng } from '../helpers/seededRng.js';
+
+const BENCHMARK_SEED = 0xDEADBEEF;
 
 // ============================================================================
 // Configuration
@@ -67,7 +70,9 @@ function generateV5Patches(patchCount, options = {}) {
     writerCount = 5,
     opsPerPatch = 3,
     includeRemoves = true,
+    seed = BENCHMARK_SEED,
   } = options;
+  const rng = createRng(seed);
 
   const patches = [];
   const writers = Array.from({ length: writerCount }, (_, i) => `writer-${i}`);
@@ -78,7 +83,7 @@ function generateV5Patches(patchCount, options = {}) {
     const writerIdx = i % writerCount;
     const writer = writers[writerIdx];
     const lamport = Math.floor(i / writerCount) + 1;
-    const sha = randomHex(16);
+    const sha = randomHex(16, rng);
 
     // Track writer's dot counter
     const currentCounter = writerCounters.get(writer) || 0;
@@ -88,7 +93,7 @@ function generateV5Patches(patchCount, options = {}) {
     const context = createVersionVector();
 
     for (let j = 0; j < opsPerPatch; j++) {
-      const opType = Math.floor(Math.random() * 100);
+      const opType = Math.floor(rng.next() * 100);
       const nodeId = `node-${i}-${j}`;
 
       if (opType < 40) {
@@ -102,8 +107,8 @@ function generateV5Patches(patchCount, options = {}) {
         if (nodePool.length >= 2) {
           nextCounter++;
           const dot = createDot(writer, nextCounter);
-          const from = nodePool[Math.floor(Math.random() * nodePool.length)].id;
-          const to = nodePool[Math.floor(Math.random() * nodePool.length)].id;
+          const from = nodePool[Math.floor(rng.next() * nodePool.length)].id;
+          const to = nodePool[Math.floor(rng.next() * nodePool.length)].id;
           ops.push(createEdgeAddV2(from, to, 'link', dot));
         } else {
           // Fall back to NodeAdd if not enough nodes
@@ -115,7 +120,7 @@ function generateV5Patches(patchCount, options = {}) {
       } else if (opType < 80) {
         // 20% - PropSet
         if (nodePool.length > 0) {
-          const targetNode = nodePool[Math.floor(Math.random() * nodePool.length)].id;
+          const targetNode = nodePool[Math.floor(rng.next() * nodePool.length)].id;
           ops.push(createPropSetV2(targetNode, `prop-${j}`, createInlineValue(i * opsPerPatch + j)));
         } else {
           // Add node first if pool empty
@@ -127,7 +132,7 @@ function generateV5Patches(patchCount, options = {}) {
       } else if (opType < 90 && includeRemoves) {
         // 10% - NodeRemove (with observed dots)
         if (nodePool.length > 0) {
-          const targetIdx = Math.floor(Math.random() * nodePool.length);
+          const targetIdx = Math.floor(rng.next() * nodePool.length);
           const target = nodePool[targetIdx];
           ops.push({ type: 'NodeRemove', observedDots: new Set([target.dot]) });
           // Remove from pool
@@ -316,7 +321,7 @@ describe('WARP V5 Reducer Performance Benchmarks', () => {
   describe('Determinism at Scale', () => {
     it('shuffled 1K V5 patches produce identical state', () => {
       const patches = generateV5Patches(1000);
-      const shuffled = [...patches].sort(() => Math.random() - 0.5);
+      const shuffled = createRng(BENCHMARK_SEED).shuffle(patches);
 
       const state1 = reduceV5(patches);
       const state2 = reduceV5(shuffled);

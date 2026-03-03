@@ -1,25 +1,12 @@
 import defaultCodec from '../utils/defaultCodec.js';
 import defaultCrypto from '../utils/defaultCrypto.js';
+import { computeChecksum } from '../utils/checksumUtils.js';
 import { getRoaringBitmap32, getNativeRoaringAvailable } from '../utils/roaring.js';
 import { canonicalStringify } from '../utils/canonicalStringify.js';
 import { SHARD_VERSION } from '../utils/shardVersion.js';
 
 // Re-export for backwards compatibility
 export { SHARD_VERSION };
-
-/**
- * Computes a SHA-256 checksum of the given data.
- * Uses canonical JSON stringification for deterministic output
- * across different JavaScript engines.
- *
- * @param {Record<string, unknown>} data - The data object to checksum
- * @param {import('../../ports/CryptoPort.js').default} crypto - CryptoPort instance
- * @returns {Promise<string>} Hex-encoded SHA-256 hash
- */
-const computeChecksum = async (data, crypto) => {
-  const json = canonicalStringify(data);
-  return await crypto.hash('sha256', json);
-};
 
 /** @type {boolean|null} Whether native Roaring bindings are available (null = unknown until first use) */
 let _nativeRoaringAvailable = null;

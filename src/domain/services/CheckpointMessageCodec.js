@@ -22,6 +22,11 @@ import {
   validateSha256,
   validateSchema,
 } from './MessageCodecInternal.js';
+import {
+  requireTrailer,
+  parsePositiveIntTrailer,
+  validateKindDiscriminator,
+} from './TrailerValidation.js';
 
 // -----------------------------------------------------------------------------
 // Encoder
@@ -90,41 +95,16 @@ export function decodeCheckpointMessage(message) {
   const decoded = codec.decode(message);
   const { trailers } = decoded;
 
-  // Validate kind discriminator
-  const kind = trailers[TRAILER_KEYS.kind];
-  if (kind !== 'checkpoint') {
-    throw new Error(`Invalid checkpoint message: eg-kind must be 'checkpoint', got '${kind}'`);
-  }
-
-  // Extract and validate required fields
-  const graph = trailers[TRAILER_KEYS.graph];
-  if (!graph) {
-    throw new Error('Invalid checkpoint message: missing required trailer eg-graph');
-  }
-
-  const stateHash = trailers[TRAILER_KEYS.stateHash];
-  if (!stateHash) {
-    throw new Error('Invalid checkpoint message: missing required trailer eg-state-hash');
-  }
-
-  const frontierOid = trailers[TRAILER_KEYS.frontierOid];
-  if (!frontierOid) {
-    throw new Error('Invalid checkpoint message: missing required trailer eg-frontier-oid');
-  }
-
-  const indexOid = trailers[TRAILER_KEYS.indexOid];
-  if (!indexOid) {
-    throw new Error('Invalid checkpoint message: missing required trailer eg-index-oid');
-  }
-
-  const schemaStr = trailers[TRAILER_KEYS.schema];
-  if (!schemaStr) {
-    throw new Error('Invalid checkpoint message: missing required trailer eg-schema');
-  }
-  const schema = parseInt(schemaStr, 10);
-  if (!Number.isInteger(schema) || schema < 1) {
-    throw new Error(`Invalid checkpoint message: eg-schema must be a positive integer, got '${schemaStr}'`);
-  }
+  validateKindDiscriminator(trailers, 'checkpoint');
+  const graph = requireTrailer(trailers, 'graph', 'checkpoint');
+  validateGraphName(graph);
+  const stateHash = requireTrailer(trailers, 'stateHash', 'checkpoint');
+  validateSha256(stateHash, 'stateHash');
+  const frontierOid = requireTrailer(trailers, 'frontierOid', 'checkpoint');
+  validateOid(frontierOid, 'frontierOid');
+  const indexOid = requireTrailer(trailers, 'indexOid', 'checkpoint');
+  validateOid(indexOid, 'indexOid');
+  const schema = parsePositiveIntTrailer(trailers, 'schema', 'checkpoint');
 
   // Extract optional checkpoint version (v5 for schema:2/3/4)
   const checkpointVersion = trailers[TRAILER_KEYS.checkpointVersion] || null;

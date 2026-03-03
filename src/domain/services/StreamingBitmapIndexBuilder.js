@@ -1,5 +1,6 @@
 import defaultCodec from '../utils/defaultCodec.js';
 import defaultCrypto from '../utils/defaultCrypto.js';
+import { computeChecksum } from '../utils/checksumUtils.js';
 import ShardCorruptionError from '../errors/ShardCorruptionError.js';
 import ShardValidationError from '../errors/ShardValidationError.js';
 import nullLogger from '../utils/nullLogger.js';
@@ -31,20 +32,6 @@ const BYTES_PER_ID_MAPPING = 120;
  * @const {number}
  */
 const BITMAP_BASE_OVERHEAD = 64;
-
-/**
- * Computes a SHA-256 checksum of the given data.
- * Uses canonical JSON stringification for deterministic output
- * across different JavaScript engines.
- *
- * @param {Record<string, unknown>} data - The data object to checksum
- * @param {import('../../ports/CryptoPort.js').default} crypto - CryptoPort instance
- * @returns {Promise<string>} Hex-encoded SHA-256 hash
- */
-const computeChecksum = async (data, crypto) => {
-  const json = canonicalStringify(data);
-  return await crypto.hash('sha256', json);
-};
 
 /**
  * Streaming bitmap index builder with memory-bounded operation.

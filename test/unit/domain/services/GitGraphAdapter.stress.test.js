@@ -12,8 +12,8 @@ describe('GitGraphAdapter Concurrency Stress Test', () => {
       execute: vi.fn().mockImplementation(async ({ args }) => {
         const id = ++callCounter;
         callLog.push({ id, start: Date.now(), args: args[0] });
-        // Simulate variable latency (0-10ms)
-        await new Promise(r => setTimeout(r, Math.random() * 10));
+        // Simulate deterministic latency: 0, 2, or 4ms based on call id
+        await new Promise(r => setTimeout(r, (id % 3) * 2));
         callLog.push({ id, end: Date.now() });
         // Return unique SHA for each call (valid hex format)
         return `abcd${id.toString(16).padStart(4, '0')}`;
@@ -45,7 +45,7 @@ describe('GitGraphAdapter Concurrency Stress Test', () => {
     const mockPlumbing = {
       emptyTree: '4b825dc642cb6eb9a060e54bf8d69288fbee4904',
       execute: vi.fn().mockImplementation(async ({ args }) => {
-        await new Promise(r => setTimeout(r, Math.random() * 5));
+        await new Promise(r => setTimeout(r, 0));
         if (args[0] === 'commit-tree') return 'abcd1234abcd1234';
         if (args[0] === 'show') return 'message content';
         if (args[0] === 'rev-parse') return 'def456def456def4';

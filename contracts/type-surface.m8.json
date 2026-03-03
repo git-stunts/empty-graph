@@ -421,8 +421,6 @@
     "NoOpLogger": { "kind": "class" },
     "ConsoleLogger": { "kind": "class" },
     "ClockAdapter": { "kind": "class" },
-    "PerformanceClockAdapter": { "kind": "class", "deprecated": true },
-    "GlobalClockAdapter": { "kind": "class", "deprecated": true },
     "HealthStatus": { "kind": "const" },
     "LogLevel": { "kind": "const" },
     "TraversalService": { "kind": "class", "deprecated": true, "alias": "CommitDagTraversalService" },

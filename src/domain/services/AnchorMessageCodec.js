@@ -15,6 +15,11 @@ import {
   TRAILER_KEYS,
   validateSchema,
 } from './MessageCodecInternal.js';
+import {
+  requireTrailer,
+  parsePositiveIntTrailer,
+  validateKindDiscriminator,
+} from './TrailerValidation.js';
 
 // -----------------------------------------------------------------------------
 // Encoder
@@ -65,26 +70,9 @@ export function decodeAnchorMessage(message) {
   const decoded = codec.decode(message);
   const { trailers } = decoded;
 
-  // Validate kind discriminator
-  const kind = trailers[TRAILER_KEYS.kind];
-  if (kind !== 'anchor') {
-    throw new Error(`Invalid anchor message: eg-kind must be 'anchor', got '${kind}'`);
-  }
-
-  // Extract and validate required fields
-  const graph = trailers[TRAILER_KEYS.graph];
-  if (!graph) {
-    throw new Error('Invalid anchor message: missing required trailer eg-graph');
-  }
-
-  const schemaStr = trailers[TRAILER_KEYS.schema];
-  if (!schemaStr) {
-    throw new Error('Invalid anchor message: missing required trailer eg-schema');
-  }
-  const schema = parseInt(schemaStr, 10);
-  if (!Number.isInteger(schema) || schema < 1) {
-    throw new Error(`Invalid anchor message: eg-schema must be a positive integer, got '${schemaStr}'`);
-  }
+  validateKindDiscriminator(trailers, 'anchor');
+  const graph = requireTrailer(trailers, 'graph', 'anchor');
+  const schema = parsePositiveIntTrailer(trailers, 'schema', 'anchor');
 
   return {
     kind: 'anchor',

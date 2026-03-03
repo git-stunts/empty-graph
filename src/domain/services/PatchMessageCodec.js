@@ -17,6 +17,11 @@ import {
   validatePositiveInteger,
   validateSchema,
 } from './MessageCodecInternal.js';
+import {
+  requireTrailer,
+  parsePositiveIntTrailer,
+  validateKindDiscriminator,
+} from './TrailerValidation.js';
 
 // -----------------------------------------------------------------------------
 // Encoder
@@ -78,45 +83,15 @@ export function decodePatchMessage(message) {
   const decoded = codec.decode(message);
   const { trailers } = decoded;
 
-  // Validate kind discriminator
-  const kind = trailers[TRAILER_KEYS.kind];
-  if (kind !== 'patch') {
-    throw new Error(`Invalid patch message: eg-kind must be 'patch', got '${kind}'`);
-  }
-
-  // Extract and validate required fields
-  const graph = trailers[TRAILER_KEYS.graph];
-  if (!graph) {
-    throw new Error('Invalid patch message: missing required trailer eg-graph');
-  }
-
-  const writer = trailers[TRAILER_KEYS.writer];
-  if (!writer) {
-    throw new Error('Invalid patch message: missing required trailer eg-writer');
-  }
-
-  const lamportStr = trailers[TRAILER_KEYS.lamport];
-  if (!lamportStr) {
-    throw new Error('Invalid patch message: missing required trailer eg-lamport');
-  }
-  const lamport = parseInt(lamportStr, 10);
-  if (!Number.isInteger(lamport) || lamport < 1) {
-    throw new Error(`Invalid patch message: eg-lamport must be a positive integer, got '${lamportStr}'`);
-  }
-
-  const patchOid = trailers[TRAILER_KEYS.patchOid];
-  if (!patchOid) {
-    throw new Error('Invalid patch message: missing required trailer eg-patch-oid');
-  }
-
-  const schemaStr = trailers[TRAILER_KEYS.schema];
-  if (!schemaStr) {
-    throw new Error('Invalid patch message: missing required trailer eg-schema');
-  }
-  const schema = parseInt(schemaStr, 10);
-  if (!Number.isInteger(schema) || schema < 1) {
-    throw new Error(`Invalid patch message: eg-schema must be a positive integer, got '${schemaStr}'`);
-  }
+  validateKindDiscriminator(trailers, 'patch');
+  const graph = requireTrailer(trailers, 'graph', 'patch');
+  validateGraphName(graph);
+  const writer = requireTrailer(trailers, 'writer', 'patch');
+  validateWriterId(writer);
+  const lamport = parsePositiveIntTrailer(trailers, 'lamport', 'patch');
+  const patchOid = requireTrailer(trailers, 'patchOid', 'patch');
+  validateOid(patchOid, 'patchOid');
+  const schema = parsePositiveIntTrailer(trailers, 'schema', 'patch');
 
   return {
     kind: 'patch',
