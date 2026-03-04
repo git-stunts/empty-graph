@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **Vitest 2.1.9 → 4.0.18** — major test framework upgrade. Migrated deprecated `test(name, fn, { timeout })` signatures to `test(name, { timeout }, fn)` across 7 test files (40 call sites). Fixed `vi.fn().mockImplementation()` constructor mocks to use `function` expressions per Vitest 4 requirements. Resolves 5 remaining moderate-severity npm audit advisories (`esbuild` [GHSA-67mh-4wv8-2f99](https://github.com/advisories/GHSA-67mh-4wv8-2f99), `vite`, `@vitest/mocker`, `vite-node`, `vitest`). **`npm audit` now reports 0 vulnerabilities.**
+
 ## [13.0.1] — 2026-03-03
 
 ### Fixed
