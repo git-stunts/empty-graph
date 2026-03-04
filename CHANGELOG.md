@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **5 new graph algorithms in `GraphTraversal`** — `levels()` (longest-path level assignment for DAGs), `transitiveReduction()` (minimal edge set preserving reachability), `transitiveClosure()` (all implied reachability edges with `maxEdges` safety), `rootAncestors()` (find all in-degree-0 ancestors via backward BFS). All methods respect `NeighborProviderPort` abstraction, support `AbortSignal` cancellation, and produce deterministic output. Corresponding `LogicalTraversal` facade methods added. New error code: `E_MAX_EDGES_EXCEEDED`.
+- **4 new test fixtures** — `F15_WIDE_DAG_FOR_LEVELS`, `F16_TRANSITIVE_REDUCTION`, `F17_MULTI_ROOT_DAG`, `F18_TRANSITIVE_CLOSURE_CHAIN` in the canonical fixture DSL.
+- **BFS reverse reachability verification tests** — confirms `bfs(node, { direction: 'in' })` correctly discovers all backward-reachable ancestors.
 - **`roaring-wasm` WASM fallback for Bun/Deno bitmap indexes** — `initRoaring()` now has a three-tier fallback chain: (1) ESM `import('roaring')`, (2) CJS `createRequire('roaring')`, (3) `import('roaring-wasm')` with WASM initialization. The WASM tier activates automatically when native V8 bindings are unavailable (Bun's JSC, Deno). Bitmap index tests (`materializedView`, `materialize.checkpointIndex.notStale`) are no longer excluded from the Bun test suite. Serialization formats are wire-compatible — portable bitmaps produced by native and WASM are byte-identical.
 
 ### Fixed
