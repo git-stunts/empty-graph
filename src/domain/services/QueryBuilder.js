@@ -672,7 +672,7 @@ export default class QueryBuilder {
       if (cached !== undefined) {
         return cached;
       }
-      const propsRecord = (await this._graph.getNodeProps(nodeId)) || {};
+      const propsRecord = (await this._graph.getNodeProps(nodeId)) || Object.create(null);
       propsMemo.set(nodeId, propsRecord);
       return propsRecord;
     };

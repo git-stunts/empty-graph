@@ -286,11 +286,11 @@ B5, B6, B13, B17, B18, B25, B45 — rejected 2026-02-17 with cause recorded in `
 
 ### Milestones: M10 → M12 → M13 → M11 → M14
 
-1. **M10 SENTINEL** — Trust + sync safety + correctness — DONE except B2 spec
+1. **M10 SENTINEL** — Trust + sync safety + correctness — **DONE**
 2. **M12 SCALPEL** — STANK audit cleanup (minus edge prop encoding) — **DONE** (all tasks complete, gate verified)
 3. **M13 SCALPEL II** — Edge property canonicalization — **DONE** (internal model complete; wire-format cutover deferred by ADR 3)
-4. **M14 HYGIENE** — Test quality, DRY extraction, SOLID quick-wins — **NEXT** (from HEX_AUDIT)
-5. **M11 COMPASS II** — Developer experience (B2 impl, B3, B11) — ✅ **DONE** (v13.0.0), archived
+4. **M11 COMPASS II** — Developer experience (B2 impl, B3, B11) — ✅ **DONE** (v13.0.0), archived
+5. **M14 HYGIENE** — Test quality, DRY extraction, SOLID quick-wins — **NEXT** (from HEX_AUDIT)
 
 ### Standalone Priority Sequence
 
@@ -325,7 +325,7 @@ Pick opportunistically between milestones. Recommended order within tiers:
 | **Standalone (done)** | 29 | B26, B44, B46, B47, B50–B52, B55, B71, B72, B77, B78, B82, B84, B89–B94, B100, B120–B122, B124, B125, B126, B146, B148 |
 | **Deferred** | 7 | B4, B7, B16, B20, B21, B27, B101 |
 | **Rejected** | 7 | B5, B6, B13, B17, B18, B25, B45 |
-| **Total tracked** | **123** (29 done) | |
+| **Total tracked** | **123** total; 29 standalone done | |
 
 ### STANK.md Cross-Reference
 
