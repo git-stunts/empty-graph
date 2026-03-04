@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **Roaring native module loading under Vite 7** — `initRoaring()` now catches dynamic `import('roaring')` failures and falls back to `createRequire()` for direct `.node` binary loading. Fixes `test-bun` CI failures caused by Vite 7's module runner intercepting native C++ addon imports.
+- **Roaring native module loading under Bun** — `initRoaring()` now catches dynamic `import('roaring')` failures and falls back to `createRequire()` for direct `.node` binary loading. Bun Dockerfile updated to install `nodejs`, `python3`, and `ca-certificates` so that `node-pre-gyp` can download or compile the roaring native binary (Bun reports a fictional Node ABI v137 with no prebuilt available). Fixes `test-bun` CI failures caused by missing native binary after Vitest 4 upgrade invalidated Docker layer cache.
 
 ### Changed
 
