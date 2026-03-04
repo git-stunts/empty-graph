@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Roaring native module loading under Bun** — `initRoaring()` now catches dynamic `import('roaring')` failures and falls back to `createRequire()` for direct `.node` binary loading.
+- **Stale `nativeAvailability` cache on `initRoaring()` reinit** — `getNativeRoaringAvailable()` now returns the correct value after swapping roaring implementations via `initRoaring(mod)`. Previously, the cached availability from the old module was returned.
+- **Lost root causes on roaring load failure** — when all three tiers (native ESM, CJS require, WASM) fail, `initRoaring()` now throws `AggregateError` with per-tier errors instead of a plain `Error`, preserving diagnostic detail.
 
 ### Changed
 
