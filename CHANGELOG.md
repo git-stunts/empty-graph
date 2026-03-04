@@ -5,10 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [13.0.0] — 2026-03-03
+
+### Added
+
+- **Observer API stabilized (B3)** — `subscribe()` and `watch()` promoted to `@stability stable` with `@since 13.0.0` annotations. Fixed `onError` callback type from `(error: Error)` to `(error: unknown)` to match runtime catch semantics. `watch()` pattern param now correctly typed as `string | string[]` in `_wiredMethods.d.ts`.
+- **`graph.patchMany()` batch patch API (B11)** — applies multiple patch callbacks sequentially. Each callback sees state from prior commits. Returns array of commit SHAs. Inherits reentrancy guard from `graph.patch()`.
+- **Causality bisect (B2)** — `BisectService` performs binary search over a writer's patch chain to find the first bad patch. CLI: `git warp bisect --good <sha> --bad <sha> --test <cmd> --writer <id>`. O(log N) materializations. Exit codes: 0=found, 1=usage, 2=range error, 3=internal.
 
 ### Changed
 
+- **BREAKING: `getNodeProps()` returns `Record<string, unknown>` instead of `Map<string, unknown>` (B100)** — aligns with `getEdgeProps()` which already returns a plain object. Callers must replace `.get('key')` with `.key` or `['key']`, `.has('key')` with `'key' in props`, and `.size` with `Object.keys(props).length`. `ObserverView.getNodeProps()` follows the same change.
 - **GraphPersistencePort narrowing (B145)** — domain services now declare focused port intersections (`CommitPort & BlobPort`, etc.) in JSDoc instead of the 23-method composite `GraphPersistencePort`. Removed `ConfigPort` from the composite (23 → 21 methods); adapters still implement `configGet`/`configSet` on their prototypes. Zero behavioral change.
 - **Codec trailer validation extraction (B134, B138)** — created `TrailerValidation.js` with `requireTrailer()`, `parsePositiveIntTrailer()`, `validateKindDiscriminator()`. All 4 message codec decoders now use shared helpers exclusively. Patch and Checkpoint decoders now also perform semantic field validation (graph name, writer ID, OID, SHA-256) matching the Audit decoder pattern. Internal refactor for valid inputs, with stricter rejection of malformed messages.
 - **HTTP adapter shared utilities (B135)** — created `httpAdapterUtils.js` with `MAX_BODY_BYTES`, `readStreamBody()`, `noopLogger`. Eliminates duplication across Node/Bun/Deno HTTP adapters. Internal refactor, no behavioral change.
@@ -25,6 +32,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Fake timer lifecycle (B131)** — moved `vi.useFakeTimers()` from `beforeAll` to `beforeEach` and `vi.useRealTimers()` into `afterEach` in `WarpGraph.watch.test.js`.
 - **Test determinism (B132)** — seeded `Math.random()` in benchmarks with Mulberry32 RNG (`0xDEADBEEF`), added `seed: 42` to all fast-check property tests, replaced random delays in stress test with deterministic values.
 - **Global mutation documentation (B133)** — documented intentional `globalThis.Buffer` mutation in `noBufferGlobal.test.js` and `crypto.randomUUID()` usage in `SyncAuthService.test.js`.
+- **Code review fixes (B148):**
+  - **CLI hardening** — added `--writer` validation to bisect, SHA format regex on `--good`/`--bad`, rethrow ENOENT/EACCES from test command runner instead of swallowing.
+  - **BisectService cleanup** — removed dead code, added invariant comment, replaced `BisectResult` interface with discriminated union type, fixed exit code constant.
+  - **Prototype-pollution hardening** — `Object.create(null)` for property bags in `getNodeProps`, `getEdgeProps`, `getEdges`, `buildPropsSnapshot`; fixed indexed-path null masking in `getNodeProps`.
+  - **Docs housekeeping** — reconciled ROADMAP inventory counts (24→29 done), fixed M11 sequencing, removed done items from priority tiers, fixed stale test vector counts (6→9), corrected Deno test name, moved B100 to `### Changed`.
 
 ## [12.4.1] — 2026-02-28
 
@@ -1528,7 +1540,7 @@ Implements [Paper III](https://doi.org/10.5281/zenodo.17963669) (Computational H
 
 #### Query API (V7 Task 7)
 - **`graph.hasNode(nodeId)`** - Check if node exists in materialized state
-- **`graph.getNodeProps(nodeId)`** - Get all properties for a node as Map
+- **`graph.getNodeProps(nodeId)`** - Get all properties for a node (returns `Record<string, unknown>` since v13.0.0)
 - **`graph.neighbors(nodeId, dir?, label?)`** - Get neighbors with direction/label filtering
 - **`graph.getNodes()`** - Get all visible node IDs
 - **`graph.getEdges()`** - Get all visible edges as `{from, to, label}` array

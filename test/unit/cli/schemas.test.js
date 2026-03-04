@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  bisectSchema,
   doctorSchema,
   historySchema,
   installHooksSchema,
@@ -9,6 +10,42 @@ import {
   viewSchema,
   seekSchema,
 } from '../../../bin/cli/schemas.js';
+
+describe('bisectSchema', () => {
+  const VALID_SHA = 'a'.repeat(40);
+  const VALID_SHA_2 = 'b'.repeat(40);
+
+  it('accepts valid 40-char hex SHAs', () => {
+    const result = bisectSchema.parse({ good: VALID_SHA, bad: VALID_SHA_2, test: 'exit 0' });
+    expect(result.good).toBe(VALID_SHA);
+    expect(result.bad).toBe(VALID_SHA_2);
+    expect(result.test).toBe('exit 0');
+  });
+
+  it('rejects short SHA for --good', () => {
+    expect(() => bisectSchema.parse({ good: 'abc123', bad: VALID_SHA_2, test: 'exit 0' })).toThrow(/40-character hex SHA/);
+  });
+
+  it('rejects short SHA for --bad', () => {
+    expect(() => bisectSchema.parse({ good: VALID_SHA, bad: 'abc123', test: 'exit 0' })).toThrow(/40-character hex SHA/);
+  });
+
+  it('rejects uppercase hex', () => {
+    expect(() => bisectSchema.parse({ good: 'A'.repeat(40), bad: VALID_SHA_2, test: 'exit 0' })).toThrow(/40-character hex SHA/);
+  });
+
+  it('rejects empty --good', () => {
+    expect(() => bisectSchema.parse({ good: '', bad: VALID_SHA_2, test: 'exit 0' })).toThrow();
+  });
+
+  it('rejects empty --test', () => {
+    expect(() => bisectSchema.parse({ good: VALID_SHA, bad: VALID_SHA_2, test: '' })).toThrow();
+  });
+
+  it('rejects unknown keys', () => {
+    expect(() => bisectSchema.parse({ good: VALID_SHA, bad: VALID_SHA_2, test: 'exit 0', unknown: true })).toThrow();
+  });
+});
 
 describe('doctorSchema', () => {
   it('defaults strict to false', () => {

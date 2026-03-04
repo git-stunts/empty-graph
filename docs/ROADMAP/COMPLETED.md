@@ -67,6 +67,41 @@
 
 ---
 
+## Milestone 11 — COMPASS II
+
+**Theme:** Developer experience
+**Objective:** Ship bisect, public observer API, and batch patch ergonomics.
+**Triage date:** 2026-02-17
+**Completed:** 2026-03-03
+
+### M11.T1 — Causality Bisect (Implementation)
+
+- **Status:** `DONE`
+
+**Items:**
+
+- **B2** ✅ (CAUSALITY BISECT) — `BisectService` + `git warp bisect` CLI. Binary search over writer patch chain. O(log N) materializations. 9 test vectors.
+
+### M11.T2 — Observer API
+
+- **Status:** `DONE`
+
+**Items:**
+
+- **B3** ✅ (OBSERVER API) — `subscribe()` and `watch()` promoted to `@stability stable` with `@since 13.0.0`. Fixed `onError` type to `unknown`. `watch()` pattern type corrected to `string | string[]`.
+
+### M11.T3 — Batch Patch API
+
+- **Status:** `DONE`
+
+**Items:**
+
+- **B11** ✅ (`graph.patchMany()` BATCH API) — sequential batch helper. Each callback sees state from prior commit. Returns array of SHAs. Inherits reentrancy guard.
+
+**M11 Gate:** ✅ All gates met. Bisect correctness verified with 9 test vectors. Observer API stable with JSDoc annotations. patchMany tested with 6 scenarios including reentrancy guard.
+
+---
+
 ## Milestone 12 — SCALPEL
 
 **Theme:** Comprehensive STANK audit cleanup — correctness, performance & code quality

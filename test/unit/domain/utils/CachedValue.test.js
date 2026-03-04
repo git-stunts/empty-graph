@@ -411,4 +411,50 @@ describe('CachedValue', () => {
       expect(value.array).toEqual([1, 2, 3]);
     });
   });
+
+  // -----------------------------------------------------------------------
+  // Null-payload semantics
+  //
+  // Returning `null` from compute means "no value available." This is an
+  // intentional design contract: null is the sentinel that _isValid() checks,
+  // so a null result is never cached. Every subsequent get() recomputes, and
+  // the cache reports itself as empty. This prevents stale "absence" from
+  // being treated as a valid cached answer.
+  // -----------------------------------------------------------------------
+  describe('null-payload semantics', () => {
+    it('null return triggers recomputation on every get()', async () => {
+      const clock = createMockClock();
+      const compute = vi.fn().mockResolvedValue(null);
+      const cache = new CachedValue({ clock, ttlMs: 5000, compute });
+
+      const first = await cache.get();
+      const second = await cache.get();
+
+      expect(first).toBeNull();
+      expect(second).toBeNull();
+      expect(compute).toHaveBeenCalledTimes(2);
+    });
+
+    it('getWithMetadata returns fromCache=false for null', async () => {
+      const clock = createMockClock();
+      const compute = vi.fn().mockResolvedValue(null);
+      const cache = new CachedValue({ clock, ttlMs: 5000, compute });
+
+      await cache.get();
+      const result = await cache.getWithMetadata();
+
+      expect(result.value).toBeNull();
+      expect(result.fromCache).toBe(false);
+    });
+
+    it('hasValue returns false when compute returned null', async () => {
+      const clock = createMockClock();
+      const compute = vi.fn().mockResolvedValue(null);
+      const cache = new CachedValue({ clock, ttlMs: 5000, compute });
+
+      await cache.get();
+
+      expect(cache.hasValue).toBe(false);
+    });
+  });
 });

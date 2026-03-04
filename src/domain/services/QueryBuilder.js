@@ -255,21 +255,21 @@ function cloneValue(value) {
 }
 
 /**
- * Builds a frozen, deterministic snapshot of node properties from a Map.
+ * Builds a frozen, deterministic snapshot of node properties from a Record.
  *
  * Keys are sorted lexicographically for deterministic iteration order.
  * Values are deep-cloned to prevent mutation of the original state.
  *
- * @param {Map<string, unknown>} propsMap - Map of property names to values
+ * @param {Record<string, unknown>} propsRecord - Object of property names to values
  * @returns {Readonly<Record<string, unknown>>} Frozen object with sorted keys and cloned values
  * @private
  */
-function buildPropsSnapshot(propsMap) {
+function buildPropsSnapshot(propsRecord) {
   /** @type {Record<string, unknown>} */
-  const props = {};
-  const keys = [...propsMap.keys()].sort();
+  const props = Object.create(null);
+  const keys = Object.keys(propsRecord).sort();
   for (const key of keys) {
-    props[key] = cloneValue(propsMap.get(key));
+    props[key] = cloneValue(propsRecord[key]);
   }
   return deepFreeze(props);
 }
@@ -307,12 +307,12 @@ function buildEdgesSnapshot(edges, directionKey) {
  * The snapshot includes the node's ID, properties, outgoing edges, and incoming edges.
  * All data is deeply frozen to prevent mutation.
  *
- * @param {{ id: string, propsMap: Map<string, unknown>, edgesOut: Array<{label: string, neighborId: string}>, edgesIn: Array<{label: string, neighborId: string}> }} params - Node data
+ * @param {{ id: string, propsRecord: Record<string, unknown>, edgesOut: Array<{label: string, neighborId: string}>, edgesIn: Array<{label: string, neighborId: string}> }} params - Node data
  * @returns {Readonly<QueryNodeSnapshot>} Frozen node snapshot
  * @private
  */
-function createNodeSnapshot({ id, propsMap, edgesOut, edgesIn }) {
-  const props = buildPropsSnapshot(propsMap);
+function createNodeSnapshot({ id, propsRecord, edgesOut, edgesIn }) {
+  const props = buildPropsSnapshot(propsRecord);
   const edgesOutSnapshot = buildEdgesSnapshot(edgesOut, 'to');
   const edgesInSnapshot = buildEdgesSnapshot(edgesIn, 'from');
 
@@ -665,16 +665,16 @@ export default class QueryBuilder {
     const pattern = this._pattern ?? DEFAULT_PATTERN;
 
     // Per-run props memo to avoid redundant getNodeProps calls
-    /** @type {Map<string, Map<string, unknown>>} */
+    /** @type {Map<string, Record<string, unknown>>} */
     const propsMemo = new Map();
     const getProps = async (/** @type {string} */ nodeId) => {
       const cached = propsMemo.get(nodeId);
       if (cached !== undefined) {
         return cached;
       }
-      const propsMap = (await this._graph.getNodeProps(nodeId)) || new Map();
-      propsMemo.set(nodeId, propsMap);
-      return propsMap;
+      const propsRecord = (await this._graph.getNodeProps(nodeId)) || Object.create(null);
+      propsMemo.set(nodeId, propsRecord);
+      return propsRecord;
     };
 
     let workingSet;
@@ -683,12 +683,12 @@ export default class QueryBuilder {
     for (const op of this._operations) {
       if (op.type === 'where') {
         const snapshots = await batchMap(workingSet, async (nodeId) => {
-          const propsMap = await getProps(nodeId);
+          const propsRecord = await getProps(nodeId);
           const edgesOut = adjacency.outgoing.get(nodeId) || [];
           const edgesIn = adjacency.incoming.get(nodeId) || [];
           return {
             nodeId,
-            snapshot: createNodeSnapshot({ id: nodeId, propsMap, edgesOut, edgesIn }),
+            snapshot: createNodeSnapshot({ id: nodeId, propsRecord, edgesOut, edgesIn }),
           };
         });
         const predicate = /** @type {(node: QueryNodeSnapshot) => boolean} */ (op.fn);
@@ -747,8 +747,8 @@ export default class QueryBuilder {
         entry.id = nodeId;
       }
       if (includeProps) {
-        const propsMap = await getProps(nodeId);
-        const props = buildPropsSnapshot(propsMap);
+        const propsRecord = await getProps(nodeId);
+        const props = buildPropsSnapshot(propsRecord);
         if (selectFields || Object.keys(props).length > 0) {
           entry.props = props;
         }
@@ -768,7 +768,7 @@ export default class QueryBuilder {
    *
    * @param {string[]} workingSet - Array of matched node IDs
    * @param {string} stateHash - Hash of the materialized state
-   * @param {(nodeId: string) => Promise<Map<string, unknown>>} getProps - Memoized props fetcher
+   * @param {(nodeId: string) => Promise<Record<string, unknown>>} getProps - Memoized props fetcher
    * @returns {Promise<AggregateResult>} Object containing stateHash and requested aggregation values
    * @private
    */
@@ -798,10 +798,10 @@ export default class QueryBuilder {
       // Pre-fetch all props with bounded concurrency
       const propsList = await batchMap(workingSet, getProps);
 
-      for (const propsMap of propsList) {
+      for (const propsRecord of propsList) {
         for (const { segments, values } of propsByAgg.values()) {
           /** @type {unknown} */
-          let value = propsMap.get(segments[0]);
+          let value = propsRecord[segments[0]];
           for (let i = 1; i < segments.length; i++) {
             if (value && typeof value === 'object') {
               value = /** @type {Record<string, unknown>} */ (value)[segments[i]];

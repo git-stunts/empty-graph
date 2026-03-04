@@ -983,6 +983,36 @@ export class CommitDagTraversalService {
 export { CommitDagTraversalService as TraversalService };
 
 /**
+ * Binary search over WARP graph history.
+ * Finds the first bad patch between a known-good and known-bad commit.
+ * @since 13.0.0
+ */
+export class BisectService {
+  constructor(options: { graph: { getWriterPatches: WarpGraph['getWriterPatches']; materialize: WarpGraph['materialize'] } });
+
+  /**
+   * Runs bisect on a single writer's patch chain.
+   */
+  run(options: {
+    good: string;
+    bad: string;
+    writerId: string;
+    testFn: (state: WarpStateV5, sha: string) => Promise<boolean>;
+  }): Promise<BisectResult>;
+}
+
+/**
+ * Result of a bisect operation.
+ *
+ * Discriminated union on `result`:
+ * - `'found'`: the first bad patch was identified.
+ * - `'range-error'`: the good/bad range was invalid (e.g., SHAs not found, same SHA, not ancestor).
+ */
+export type BisectResult =
+  | { result: 'found'; firstBadPatch: string; writerId: string; lamport: number; steps: number; totalCandidates: number }
+  | { result: 'range-error'; message: string };
+
+/**
  * Error class for graph traversal operations.
  */
 export class TraversalError extends Error {
@@ -1223,7 +1253,7 @@ export class ObserverView {
   getNodes(): Promise<string[]>;
 
   /** Gets filtered properties for a visible node (null if hidden or missing) */
-  getNodeProps(nodeId: string): Promise<Map<string, unknown> | null>;
+  getNodeProps(nodeId: string): Promise<Record<string, unknown> | null>;
 
   /** Gets all visible edges (both endpoints must match the observer pattern) */
   getEdges(): Promise<Array<{ from: string; to: string; label: string; props: Record<string, unknown> }>>;
@@ -1657,6 +1687,15 @@ export default class WarpGraph {
   patch(build: (patch: PatchBuilderV2) => void | Promise<void>): Promise<string>;
 
   /**
+   * Applies multiple patches sequentially. Each callback sees the state
+   * produced by the previous commit.
+   * @since 13.0.0
+   */
+  patchMany(
+    ...builds: Array<(patch: PatchBuilderV2) => void | Promise<void>>
+  ): Promise<string[]>;
+
+  /**
    * Returns patches from a writer's ref chain.
    */
   getWriterPatches(
@@ -1677,7 +1716,7 @@ export default class WarpGraph {
   /**
    * Gets all properties for a node from the materialized state.
    */
-  getNodeProps(nodeId: string): Promise<Map<string, unknown> | null>;
+  getNodeProps(nodeId: string): Promise<Record<string, unknown> | null>;
 
   /**
    * Returns the number of property entries in the materialized state.
@@ -1906,19 +1945,27 @@ export default class WarpGraph {
   /** Returns a lightweight status snapshot of the graph. */
   status(): Promise<WarpGraphStatus>;
 
-  /** Subscribes to graph changes after each materialize(). */
+  /**
+   * Subscribes to graph changes after each materialize().
+   * @since 13.0.0
+   * @stability stable
+   */
   subscribe(options: {
     onChange: (diff: StateDiffResult) => void;
-    onError?: (error: Error) => void;
+    onError?: (error: unknown) => void;
     replay?: boolean;
   }): { unsubscribe: () => void };
 
-  /** Filtered watcher that only fires for changes matching a glob pattern. */
+  /**
+   * Filtered watcher that only fires for changes matching a glob pattern.
+   * @since 13.0.0
+   * @stability stable
+   */
   watch(
     pattern: string | string[],
     options: {
       onChange: (diff: StateDiffResult) => void;
-      onError?: (error: Error) => void;
+      onError?: (error: unknown) => void;
       poll?: number;
     },
   ): { unsubscribe: () => void };

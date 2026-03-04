@@ -354,6 +354,36 @@ describe('WarpGraph.watch() (PL/WATCH/1)', () => {
       expect(onChange1).toHaveBeenCalledTimes(1);
       expect(onChange2).toHaveBeenCalledTimes(1);
     });
+
+    it('unsubscribe during onError callback prevents infinite loop and stops future notifications', async () => {
+      /** @type {any} */
+      let sub;
+
+      const onChange = vi.fn(() => {
+        throw new Error('onChange always throws');
+      });
+      const onError = vi.fn(() => {
+        // Unsubscribe from within onError to stop future notifications
+        sub.unsubscribe();
+      });
+
+      sub = graph.watch('user:*', { onChange, onError });
+
+      await (await graph.createPatch()).addNode('user:alice').commit();
+
+      // Should not throw or loop infinitely
+      await expect(graph.materialize()).resolves.toBeDefined();
+
+      expect(onChange).toHaveBeenCalledTimes(1);
+      expect(onError).toHaveBeenCalledTimes(1);
+
+      // Subsequent materialize must NOT fire the handler (it was unsubscribed)
+      await (await graph.createPatch()).addNode('user:bob').commit();
+      await graph.materialize();
+
+      expect(onChange).toHaveBeenCalledTimes(1); // Still 1 — no second call
+      expect(onError).toHaveBeenCalledTimes(1); // Still 1 — no second call
+    });
   });
 
   describe('edge cases', () => {

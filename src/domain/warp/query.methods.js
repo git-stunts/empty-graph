@@ -37,7 +37,7 @@ export async function hasNode(nodeId) {
  *
  * @this {import('../WarpGraph.js').default}
  * @param {string} nodeId - The node ID to get properties for
- * @returns {Promise<Map<string, unknown>|null>} Map of property key → value, or null if node doesn't exist
+ * @returns {Promise<Record<string, unknown>|null>} Object of property key → value, or null if node doesn't exist
  * @throws {import('../errors/QueryError.js').default} If no cached state exists (code: `E_NO_STATE`)
  */
 export async function getNodeProps(nodeId) {
@@ -47,7 +47,10 @@ export async function getNodeProps(nodeId) {
   if (this._propertyReader && this._logicalIndex?.isAlive(nodeId)) {
     try {
       const record = await this._propertyReader.getNodeProps(nodeId);
-      return record ? new Map(Object.entries(record)) : new Map();
+      if (record !== null) {
+        return record;
+      }
+      // null → index has no data for this node; fall through to linear scan
     } catch {
       // Fall through to linear scan on index read failures.
     }
@@ -60,11 +63,12 @@ export async function getNodeProps(nodeId) {
     return null;
   }
 
-  const props = new Map();
+  /** @type {Record<string, unknown>} */
+  const props = Object.create(null);
   for (const [propKey, register] of s.prop) {
     const decoded = decodePropKey(propKey);
     if (decoded.nodeId === nodeId) {
-      props.set(decoded.propKey, register.value);
+      props[decoded.propKey] = register.value;
     }
   }
 
@@ -98,7 +102,7 @@ export async function getEdgeProps(from, to, label) {
   const birthEvent = s.edgeBirthEvent?.get(edgeKey);
 
   /** @type {Record<string, unknown>} */
-  const props = {};
+  const props = Object.create(null);
   for (const [propKey, register] of s.prop) {
     if (!isEdgePropKey(propKey)) {
       continue;
@@ -265,7 +269,7 @@ export async function getEdges() {
 
     let bag = edgePropsByKey.get(ek);
     if (!bag) {
-      bag = {};
+      bag = Object.create(null);
       edgePropsByKey.set(ek, bag);
     }
     bag[decoded.propKey] = register.value;
@@ -276,7 +280,7 @@ export async function getEdges() {
     const { from, to, label } = decodeEdgeKey(edgeKey);
     if (orsetContains(s.nodeAlive, from) &&
         orsetContains(s.nodeAlive, to)) {
-      const props = edgePropsByKey.get(edgeKey) || {};
+      const props = edgePropsByKey.get(edgeKey) || Object.create(null);
       edges.push({ from, to, label, props });
     }
   }
@@ -351,8 +355,7 @@ export async function getContentOid(nodeId) {
   if (!props) {
     return null;
   }
-  // getNodeProps returns a Map — use .get() for property access
-  const oid = props.get(CONTENT_PROPERTY_KEY);
+  const oid = props[CONTENT_PROPERTY_KEY];
   return (typeof oid === 'string') ? oid : null;
 }
 

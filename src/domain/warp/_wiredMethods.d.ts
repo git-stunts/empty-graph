@@ -160,7 +160,7 @@ declare module '../WarpGraph.js' {
   export default interface WarpGraph {
     // ── query.methods.js ──────────────────────────────────────────────────
     hasNode(nodeId: string): Promise<boolean>;
-    getNodeProps(nodeId: string): Promise<Map<string, unknown> | null>;
+    getNodeProps(nodeId: string): Promise<Record<string, unknown> | null>;
     getEdgeProps(from: string, to: string, label: string): Promise<Record<string, unknown> | null>;
     neighbors(nodeId: string, direction?: 'outgoing' | 'incoming' | 'both', edgeLabel?: string): Promise<Array<{ nodeId: string; label: string; direction: 'outgoing' | 'incoming' }>>;
     getStateSnapshot(): Promise<WarpStateV5 | null>;
@@ -172,8 +172,8 @@ declare module '../WarpGraph.js' {
     translationCost(configA: ObserverConfig, configB: ObserverConfig): Promise<TranslationCostResult>;
 
     // ── subscribe.methods.js ──────────────────────────────────────────────
-    subscribe(options: { onChange: (diff: StateDiffResult) => void; onError?: (error: Error) => void; replay?: boolean }): { unsubscribe: () => void };
-    watch(pattern: string, options: { onChange: (diff: StateDiffResult) => void; onError?: (error: Error) => void; poll?: number }): { unsubscribe: () => void };
+    subscribe(options: { onChange: (diff: StateDiffResult) => void; onError?: (error: unknown) => void; replay?: boolean }): { unsubscribe: () => void };
+    watch(pattern: string | string[], options: { onChange: (diff: StateDiffResult) => void; onError?: (error: unknown) => void; poll?: number }): { unsubscribe: () => void };
     _notifySubscribers(diff: StateDiffResult, currentState: WarpStateV5): void;
 
     // ── provenance.methods.js ─────────────────────────────────────────────
@@ -226,6 +226,7 @@ declare module '../WarpGraph.js' {
     // ── patch.methods.js ──────────────────────────────────────────────────
     createPatch(): Promise<PatchBuilderV2>;
     patch(build: (p: PatchBuilderV2) => void | Promise<void>): Promise<string>;
+    patchMany(...builds: Array<(p: PatchBuilderV2) => void | Promise<void>>): Promise<string[]>;
     _nextLamport(): Promise<{ lamport: number; parentSha: string | null }>;
     _loadWriterPatches(writerId: string, stopAtSha?: string | null): Promise<Array<{ patch: PatchV2; sha: string }>>;
     getWriterPatches(writerId: string, stopAtSha?: string | null): Promise<Array<{ patch: PatchV2; sha: string }>>;

@@ -177,6 +177,16 @@ export const seekSchema = z.object({
 });
 
 // ============================================================================
+// Bisect
+// ============================================================================
+
+export const bisectSchema = z.object({
+  good: z.string().min(1, 'Missing value for --good').regex(/^[0-9a-f]{40}$/, 'Must be a full 40-character hex SHA'),
+  bad: z.string().min(1, 'Missing value for --bad').regex(/^[0-9a-f]{40}$/, 'Must be a full 40-character hex SHA'),
+  test: z.string().min(1, 'Missing value for --test'),
+}).strict();
+
+// ============================================================================
 // Verify-index
 // ============================================================================
 
