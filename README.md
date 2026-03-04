@@ -8,13 +8,13 @@
   <img src="docs/images/hero.gif" alt="git-warp CLI demo" width="600">
 </p>
 
-## What's New (Unreleased)
+## What's New in v13.1.0
 
-- **5 new graph algorithms** — `levels()`, `transitiveReduction()`, `transitiveClosure()`, `rootAncestors()` in `GraphTraversal`, plus BFS reverse reachability verification. All use `NeighborProviderPort` and support cancellation.
-- **`roaring-wasm` WASM fallback for Bun/Deno bitmap indexes** — bitmap indexes now work on Bun (JSC) and Deno via a three-tier fallback: native V8 bindings → CJS require → WASM. Wire-compatible, byte-identical serialization.
-- **Dev dependency security updates** — resolved 4 high-severity advisories (`tar`, `rollup`, `minimatch`, `@isaacs/brace-expansion`). No runtime dependencies affected.
+- **New graph traversal primitives** — `levels()`, `transitiveReduction()`, `transitiveClosure()`, and `rootAncestors()` now ship in `GraphTraversal` and are exposed through the logical traversal facade.
+- **Portable roaring fallback stack** — bitmap indexes now work on Bun and Deno via `roaring-wasm` fallback when native V8 bindings are unavailable, with improved per-tier failure diagnostics.
+- **Toolchain and compatibility hardening** — upgraded to Vitest 4 and fixed Bun/Vite native-module loading edge cases for stable cross-runtime test execution.
 
-See the [full changelog](CHANGELOG.md) for details.
+See the [full changelog](CHANGELOG.md) for complete release details.
 
 ## The Core Idea
 
