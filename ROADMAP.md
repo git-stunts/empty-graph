@@ -203,6 +203,9 @@ Items picked up opportunistically without blocking milestones. No milestone assi
 | B81 | **`attachContent` ORPHAN BLOB GUARD** — `attachContent()` unconditionally writes blob before `setProperty()`. Validate before push to prevent orphan blobs. From B-CODE-2. **File:** `src/domain/services/PatchBuilderV2.js` |
 | ~~B146~~ | ✅ ~~**UNIFY `CorePersistence` / `FullPersistence` TYPEDEFS**~~ — replaced `FullPersistence` with imported `CorePersistence`. Done in v13.0.0. |
 | B147 | **RFC FIELD COUNT DRIFT DETECTOR** — script that counts WarpGraph instance fields (grep `this._` in constructor) and warns if design RFC field counts diverge. Prevents stale numbers in `warpgraph-decomposition.md`. From B145 PR review. |
+| B149 | **LARGE-GRAPH `levels()` — TWO-PASS STREAMING** — `levels()` currently holds O(V+E) via `topologicalSort({ _returnAdjList: true })`. Refactor to two-pass: (1) topo sort discards edge cache, (2) DP pass re-fetches neighbors from provider. Reduces steady-state memory from O(V+E) to O(V). Trade-off: one extra I/O pass over edges. **File:** `src/domain/services/GraphTraversal.js` |
+| B150 | **LARGE-GRAPH `transitiveReduction()` — ON-DEMAND NEIGHBOR FETCH** — `transitiveReduction()` holds full adjacency list from topo sort AND builds a second `Map<string, string[]>` for per-node BFS. Refactor BFS phase to call `getNeighbors()` on demand instead of caching. Reduces memory from O(V+E) to O(V) working set per BFS sweep. Trade-off: redundant provider calls (up to V BFS sweeps re-fetching same neighbors). Consider provider-level LRU to amortize. **File:** `src/domain/services/GraphTraversal.js` |
+| B151 | **LARGE-GRAPH `transitiveClosure()` — STREAMING OUTPUT** — `transitiveClosure()` collects all O(V²) reachability edges in an array before returning. For large graphs this can exhaust memory even with `maxEdges`. Refactor to async iterator/generator that yields `{from, to}` pairs as they're discovered. Per-node BFS working memory is already O(V); the bottleneck is the output array. **File:** `src/domain/services/GraphTraversal.js` |
 
 ### CI & Tooling Pack
 
@@ -321,11 +324,11 @@ Pick opportunistically between milestones. Recommended order within tiers:
 | **Milestone (M12)** | 18 | B66, B67, B70, B73, B75, B105–B115, B117, B118 |
 | **Milestone (M13)** | 1 | B116 (internal: DONE; wire-format: DEFERRED) |
 | **Milestone (M14)** | 16 | B130–B145 |
-| **Standalone** | 35 | B12, B19, B22, B28, B34–B37, B43, B48, B49, B53, B54, B57, B76, B79–B81, B83, B85–B88, B95–B99, B102–B104, B119, B123, B127–B129, B147 |
+| **Standalone** | 38 | B12, B19, B22, B28, B34–B37, B43, B48, B49, B53, B54, B57, B76, B79–B81, B83, B85–B88, B95–B99, B102–B104, B119, B123, B127–B129, B147, B149–B151 |
 | **Standalone (done)** | 29 | B26, B44, B46, B47, B50–B52, B55, B71, B72, B77, B78, B82, B84, B89–B94, B100, B120–B122, B124, B125, B126, B146, B148 |
 | **Deferred** | 7 | B4, B7, B16, B20, B21, B27, B101 |
 | **Rejected** | 7 | B5, B6, B13, B17, B18, B25, B45 |
-| **Total tracked** | **123** total; 29 standalone done | |
+| **Total tracked** | **126** total; 29 standalone done | |
 
 ### STANK.md Cross-Reference
 
