@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **BREAKING: `getNodeProps()` returns `Record<string, unknown>` instead of `Map<string, unknown>` (B100)** — aligns with `getEdgeProps()` which already returns a plain object. Callers must replace `.get('key')` with `.key` or `['key']`, `.has('key')` with `'key' in props`, and `.size` with `Object.keys(props).length`. `ObserverView.getNodeProps()` follows the same change.
 - **GraphPersistencePort narrowing (B145)** — domain services now declare focused port intersections (`CommitPort & BlobPort`, etc.) in JSDoc instead of the 23-method composite `GraphPersistencePort`. Removed `ConfigPort` from the composite (23 → 21 methods); adapters still implement `configGet`/`configSet` on their prototypes. Zero behavioral change.
 - **Codec trailer validation extraction (B134, B138)** — created `TrailerValidation.js` with `requireTrailer()`, `parsePositiveIntTrailer()`, `validateKindDiscriminator()`. All 4 message codec decoders now use shared helpers exclusively. Patch and Checkpoint decoders now also perform semantic field validation (graph name, writer ID, OID, SHA-256) matching the Audit decoder pattern. Internal refactor for valid inputs, with stricter rejection of malformed messages.
 - **HTTP adapter shared utilities (B135)** — created `httpAdapterUtils.js` with `MAX_BODY_BYTES`, `readStreamBody()`, `noopLogger`. Eliminates duplication across Node/Bun/Deno HTTP adapters. Internal refactor, no behavioral change.
@@ -25,17 +26,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **BREAKING: `PerformanceClockAdapter` and `GlobalClockAdapter` exports (B140)** — both were deprecated re-exports of `ClockAdapter`. Deleted shim files, removed from `index.js`, `index.d.ts`, and `type-surface.m8.json`. Use `ClockAdapter` directly.
 
-### Breaking
-
-- **BREAKING: `getNodeProps()` returns `Record<string, unknown>` instead of `Map<string, unknown>` (B100)** — aligns with `getEdgeProps()` which already returns a plain object. Callers must replace `.get('key')` with `.key` or `['key']`, `.has('key')` with `'key' in props`, and `.size` with `Object.keys(props).length`. `ObserverView.getNodeProps()` follows the same change.
-
 ### Fixed
 
 - **Test hardening (B130)** — replaced private field access (`_idToShaCache`, `_snapshotState`, `_cachedState`) with behavioral assertions in `BitmapIndexReader.test.js`, `PatchBuilderV2.snapshot.test.js`, and `WarpGraph.timing.test.js`.
 - **Fake timer lifecycle (B131)** — moved `vi.useFakeTimers()` from `beforeAll` to `beforeEach` and `vi.useRealTimers()` into `afterEach` in `WarpGraph.watch.test.js`.
 - **Test determinism (B132)** — seeded `Math.random()` in benchmarks with Mulberry32 RNG (`0xDEADBEEF`), added `seed: 42` to all fast-check property tests, replaced random delays in stress test with deterministic values.
 - **Global mutation documentation (B133)** — documented intentional `globalThis.Buffer` mutation in `noBufferGlobal.test.js` and `crypto.randomUUID()` usage in `SyncAuthService.test.js`.
-- **Code review fixes (B148)** — removed dead code from BisectService, added `--writer` validation to bisect CLI, fixed exit code constant. Follow-up: reconciled ROADMAP inventory counts (24→29 done), fixed M11 placement in COMPLETED.md, corrected stale Deno test name, added invariant comment in BisectService.
+- **Code review fixes (B148)** — removed dead code from BisectService, added `--writer` validation to bisect CLI, fixed exit code constant. Follow-up: reconciled ROADMAP inventory counts (24→29 done), fixed M11 placement in COMPLETED.md, corrected stale Deno test name, added invariant comment in BisectService. Round 2: moved B100 from `### Breaking` to `### Changed` in CHANGELOG, removed done items from ROADMAP priority tiers, fixed stale test vector counts (6→9), replaced `BisectResult` interface with discriminated union type, added SHA format validation to bisect CLI schema.
 
 ## [12.4.1] — 2026-02-28
 

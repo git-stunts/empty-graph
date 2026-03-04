@@ -1003,16 +1003,14 @@ export class BisectService {
 
 /**
  * Result of a bisect operation.
+ *
+ * Discriminated union on `result`:
+ * - `'found'`: the first bad patch was identified.
+ * - `'range-error'`: the good/bad range was invalid (e.g., SHAs not found, same SHA, not ancestor).
  */
-export interface BisectResult {
-  result: 'found' | 'range-error';
-  firstBadPatch?: string;
-  writerId?: string;
-  lamport?: number;
-  steps?: number;
-  totalCandidates?: number;
-  message?: string;
-}
+export type BisectResult =
+  | { result: 'found'; firstBadPatch: string; writerId: string; lamport: number; steps: number; totalCandidates: number }
+  | { result: 'range-error'; message: string };
 
 /**
  * Error class for graph traversal operations.

@@ -30,7 +30,6 @@
 | M8 | IRONCLAD | v11.x | Type Safety |
 | M9 | PARTITION | v12.0.0 | Architectural Decomposition |
 
-
 ---
 
 ## Milestone 10 — SENTINEL (completed tasks)
@@ -81,7 +80,7 @@
 
 **Items:**
 
-- **B2** ✅ (CAUSALITY BISECT) — `BisectService` + `git warp bisect` CLI. Binary search over writer patch chain. O(log N) materializations. 6 test vectors.
+- **B2** ✅ (CAUSALITY BISECT) — `BisectService` + `git warp bisect` CLI. Binary search over writer patch chain. O(log N) materializations. 9 test vectors.
 
 ### M11.T2 — Observer API
 
@@ -99,7 +98,7 @@
 
 - **B11** ✅ (`graph.patchMany()` BATCH API) — sequential batch helper. Each callback sees state from prior commit. Returns array of SHAs. Inherits reentrancy guard.
 
-**M11 Gate:** ✅ All gates met. Bisect correctness verified with 6 test vectors. Observer API stable with JSDoc annotations. patchMany tested with 6 scenarios including reentrancy guard.
+**M11 Gate:** ✅ All gates met. Bisect correctness verified with 9 test vectors. Observer API stable with JSDoc annotations. patchMany tested with 6 scenarios including reentrancy guard.
 
 ---
 

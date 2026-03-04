@@ -547,7 +547,7 @@
     "PatchEntry": { "kind": "interface" },
     "WarpStateV5": { "kind": "interface" },
     "BTR": { "kind": "interface" },
-    "BisectResult": { "kind": "interface" },
+    "BisectResult": { "kind": "type" },
     "BTRVerificationResult": { "kind": "interface" },
     "CreateBTROptions": { "kind": "interface" },
     "VerifyBTROptions": { "kind": "interface" },

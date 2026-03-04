@@ -9,14 +9,22 @@
  */
 
 /**
+ * Result of a bisect operation.
+ *
+ * Discriminated union on `result`:
+ * - `'found'`:      firstBadPatch, writerId, lamport, steps, totalCandidates are present.
+ * - `'range-error'`: message is present.
+ *
+ * See `index.d.ts` for the canonical discriminated-union type.
+ *
  * @typedef {Object} BisectResult
- * @property {'found'|'range-error'} result
- * @property {string} [firstBadPatch] - SHA of first bad patch (only when result === 'found')
- * @property {string} [writerId] - Writer who authored the bad patch
- * @property {number} [lamport] - Lamport tick of the bad patch
- * @property {number} [steps] - Number of bisect steps performed
- * @property {number} [totalCandidates] - Initial candidate count
- * @property {string} [message] - Human-readable error message (only when result === 'range-error')
+ * @property {'found'|'range-error'} result - Discriminant tag
+ * @property {string} [firstBadPatch] - SHA of first bad patch (when result === 'found')
+ * @property {string} [writerId] - Writer who authored the bad patch (when result === 'found')
+ * @property {number} [lamport] - Lamport tick of the bad patch (when result === 'found')
+ * @property {number} [steps] - Number of bisect steps performed (when result === 'found')
+ * @property {number} [totalCandidates] - Initial candidate count (when result === 'found')
+ * @property {string} [message] - Human-readable error message (when result === 'range-error')
  */
 
 /**

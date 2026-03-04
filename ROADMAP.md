@@ -297,8 +297,8 @@ B5, B6, B13, B17, B18, B25, B45 — rejected 2026-02-17 with cause recorded in `
 Pick opportunistically between milestones. Recommended order within tiers:
 
 1. ~~**Immediate** (B46, B47, B26, B71, B126)~~ — **ALL DONE.**
-2. **Near-term correctness** (B44, B76, B80, B81, B124) — prioritize items touching core services
-3. **Near-term DX** (B36, B37, B43, B125, B127) — test ergonomics and developer velocity
+2. **Near-term correctness** (B76, B80, B81) — prioritize items touching core services
+3. **Near-term DX** (B36, B37, B43, B127) — test ergonomics and developer velocity
 4. **Near-term docs/types** (B34, B35) — alignment and documentation
 5. **Near-term tooling** (B12, B48, B49, B53, B54, B57, B28) — remaining type safety items
 6. **CI & Tooling Pack** (B83, B85–B88, B119, B123, B128) — batch as one PR
