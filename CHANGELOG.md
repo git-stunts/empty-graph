@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **ROADMAP priority triage** — 45 standalone items sorted into 6 priority tiers (P0–P6) with wave-based execution order and dependency chain mapping. Replaced flat Near-Term table with priority-grouped sub-tables. All milestones (M10–M14) marked complete. Inventory corrected to 133 total tracked items.
 - **Vitest 2.1.9 → 4.0.18** — major test framework upgrade. Migrated deprecated `test(name, fn, { timeout })` signatures to `test(name, { timeout }, fn)` across 7 test files (40 call sites). Fixed `vi.fn().mockImplementation()` constructor mocks to use `function` expressions per Vitest 4 requirements. Resolves 5 remaining moderate-severity npm audit advisories (`esbuild` [GHSA-67mh-4wv8-2f99](https://github.com/advisories/GHSA-67mh-4wv8-2f99), `vite`, `@vitest/mocker`, `vite-node`, `vitest`). **`npm audit` now reports 0 vulnerabilities.**
 
 ## [13.0.1] — 2026-03-03
