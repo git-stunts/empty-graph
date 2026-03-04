@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **Roaring native module loading under Bun** — `initRoaring()` now catches dynamic `import('roaring')` failures and falls back to `createRequire()` for direct `.node` binary loading. Bun Dockerfile updated to install `nodejs`, `python3`, and `ca-certificates` so that `node-pre-gyp` can download or compile the roaring native binary (Bun reports a fictional Node ABI v137 with no prebuilt available). Fixes `test-bun` CI failures caused by missing native binary after Vitest 4 upgrade invalidated Docker layer cache.
+- **Roaring native module loading under Bun** — `initRoaring()` now catches dynamic `import('roaring')` failures and falls back to `createRequire()` for direct `.node` binary loading. Bitmap index tests (`materializedView`, `materialize.checkpointIndex.notStale`) excluded from Bun test suite: the `roaring` package uses V8 C++ API (not Node-API/NAPI), making it fundamentally incompatible with Bun's JavaScriptCore runtime. Bitmap indexes gracefully degrade to linear scan when roaring is unavailable.
 
 ### Changed
 

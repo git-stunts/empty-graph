@@ -32,14 +32,20 @@ services:
     command: ["sh", "-c", "npx vitest run test/unit test/integration && bats test/bats/"]
     profiles: [node22, full]
 
-  # Bun: API integration tests only (CLI is Node-only)
+  # Bun: API integration tests only (CLI is Node-only).
+  # Bitmap index tests are excluded — the roaring package uses V8 C++ API (not
+  # Node-API/NAPI), which is incompatible with Bun's JavaScriptCore runtime.
+  # Bitmap indexes gracefully degrade to linear scan when roaring is unavailable.
   test-bun:
     build:
       context: ..
       dockerfile: git-warp/docker/Dockerfile.bun
     environment:
       - GIT_STUNTS_DOCKER=1
-    command: ["bunx", "vitest", "run", "test/integration/api/"]
+    command: >-
+      bunx vitest run test/integration/api/
+      --exclude test/integration/api/materializedView.test.js
+      --exclude test/integration/api/materialize.checkpointIndex.notStale.test.js
     profiles: [bun, full]
 
   # Deno: API integration tests via Deno.test() wrappers
