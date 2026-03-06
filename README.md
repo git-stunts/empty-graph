@@ -331,13 +331,14 @@ const canReach = await graph.traverse.isReachable('user:alice', 'user:bob', {
 
 ### Graph Traversal Directory
 
-git-warp includes a high-performance traversal engine with 11+ deterministic algorithms:
+git-warp includes a high-performance traversal engine with 15 deterministic algorithms:
 
 | Category | Algorithms |
 | :--- | :--- |
 | **Search** | BFS, DFS, Shortest Path (Unweighted), Reachability |
 | **Weighted** | Dijkstra (Weighted Shortest Path), A*, Bidirectional A* |
 | **Analytical** | Topological Sort (Kahn's), Connected Components, Levels (DAG) |
+| **Ancestry** | Common Ancestors, Root Ancestors |
 | **Reduction** | **Transitive Reduction** (v13.1), **Transitive Closure** (v13.1) |
 | **Critical Path** | Weighted Longest Path (DAG) |
 
