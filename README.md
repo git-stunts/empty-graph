@@ -569,17 +569,20 @@ git warp seek --load before-refactor
 
 # Return to the present and clear the cursor
 git warp seek --latest
+
+# Cache management
+git warp seek --clear-cache             # purge persistent seek cache
+git warp seek --no-persistent-cache --tick 5  # skip cache for one invocation
 ```
 
 When a seek cursor is active, `query`, `info`, `materialize`, and `history` automatically show state at the selected tick.
 
+```bash
 # Visualize query results (ascii output by default)
 git warp query --match 'user:*' --outgoing manages --view
 ```
 
 All commands accept `--repo <path>` to target a specific Git repository, `--json` for machine-readable output, and `--view [mode]` for visual output (ascii by default, or browser, svg:FILE, html:FILE).
-
-When a seek cursor is active, `query`, `info`, `materialize`, and `history` automatically show state at the selected tick.
 
 <p align="center">
   <img src="docs/seek-demo.gif" alt="git warp seek time-travel demo" width="600">
