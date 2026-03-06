@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Documentation enhancements in README.md** — Added a high-level Documentation Map, a detailed Graph Traversal Directory (listing all 15 algorithms), an expanded Time-Travel (Seek) guide, and updated Runtime Compatibility information (Node.js, Bun, Deno).
+- **Documentation enhancements in README.md** — Added a high-level Documentation Map, a detailed Graph Traversal Directory, an expanded Time-Travel (Seek) guide, and updated Runtime Compatibility information (Node.js, Bun, Deno).
 - **Local-First Applications use-case** — Added git-warp as a backend for LoFi software.
 
 ## [13.1.0] - 2026-03-04
