@@ -1,8 +1,11 @@
-# @git-stunts/git-warp
+<div align="center"><img src="https://github.com/user-attachments/assets/a8e4e0da-ba13-4b8e-aeb3-4eced40123a5" />
+<h1><code>npm install @git-stunts/git-warp</code></h1>
+
 
 [![CI](https://github.com/git-stunts/git-warp/actions/workflows/ci.yml/badge.svg)](https://github.com/git-stunts/git-warp/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![npm version](https://badge.fury.io/js/%40git-stunts%2Fgit-warp.svg)](https://www.npmjs.com/package/@git-stunts/git-warp)
+</div>
 
 <p align="center">
   <img src="docs/images/hero.gif" alt="git-warp CLI demo" width="600">
