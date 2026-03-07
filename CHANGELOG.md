@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Browser-compatible `InMemoryGraphAdapter`** — Replaced hard `node:crypto` and `node:stream` imports with lazy-loaded fallbacks. A new `hash` constructor option lets callers inject a synchronous SHA-1 function for environments where `node:crypto` is unavailable (e.g. browsers). `node:stream` is now dynamically imported only in `logNodesStream()`.
+- **Browser-safe `defaultCrypto`** — The domain-level crypto default now lazy-loads `node:crypto` via top-level `await import()` with a try/catch, so importing `WarpGraph` in a browser no longer crashes at module evaluation time. Callers must inject crypto via `WarpGraph.open({ crypto })` when `node:crypto` is unavailable.
+- **`sha1sync` utility** (`@git-stunts/git-warp/sha1sync`) — Minimal synchronous SHA-1 implementation (~110 LOC) for browser content addressing with `InMemoryGraphAdapter`. Not for security — only for Git object ID computation.
+- **`browser.js` entry point** (`@git-stunts/git-warp/browser`) — Curated re-export of browser-safe code: `WarpGraph`, `InMemoryGraphAdapter`, `WebCryptoAdapter`, CRDT primitives, errors, and `generateWriterId`. No `node:` imports in the critical path.
 - **Documentation enhancements in README.md** — Added a high-level Documentation Map, a detailed Graph Traversal Directory, an expanded Time-Travel (Seek) guide, and updated Runtime Compatibility information (Node.js, Bun, Deno).
 - **Local-First Applications use-case** — Added git-warp as a backend for LoFi software.
 

@@ -250,6 +250,7 @@ No hard dependencies. Pick up opportunistically after P2.
 |----|------|--------|
 | B155 | **`levels()` AS LIGHTWEIGHT `--view` LAYOUT** — `levels()` is exactly the Y-axis assignment a layered DAG layout needs. For simple DAGs, `levels()` + left-to-right X sweep could produce clean layouts without the 2.5MB ELK import. Offer `--view --layout=levels` as an instant rendering mode, reserving ELK for complex graphs. **Files:** `src/visualization/layouts/`, `bin/cli/commands/view.js` | M |
 | B156 | **STRUCTURAL DIFF VIA TRANSITIVE REDUCTION** — compute `transitiveReduction(stateA)` vs `transitiveReduction(stateB)` to produce a compact structural diff that strips implied edges and shows only "load-bearing" changes. Natural fit for H1 (Time-Travel Delta Engine) as `warp diff --mode=structural`. | L |
+| B157 | ✅ **BROWSER COMPATIBILITY (Operation Browsa, Phase 1-3)** — Make `InMemoryGraphAdapter` and `defaultCrypto` browser-safe by lazy-loading `node:crypto`/`node:stream`. New `sha1sync` utility for browser content addressing. New `browser.js` entry point and `./browser`+`./sha1sync` package exports. | M |
 
 ### P6 — Documentation & Process
 
@@ -382,10 +383,10 @@ B36 (P1) ──→ (improves velocity for B99, B19, B22, future tests)
 | **Milestone (M13)** | 1 | B116 (internal: DONE; wire-format: DEFERRED) |
 | **Milestone (M14)** | 16 | B130–B145 |
 | **Standalone** | 45 | B12, B19, B22, B28, B34–B37, B43, B48, B49, B53, B54, B57, B76, B79–B81, B83, B85–B88, B95–B99, B102–B104, B119, B123, B127–B129, B147, B149–B156 |
-| **Standalone (done)** | 29 | B26, B44, B46, B47, B50–B52, B55, B71, B72, B77, B78, B82, B84, B89–B94, B100, B120–B122, B124, B125, B126, B146, B148 |
+| **Standalone (done)** | 30 | B26, B44, B46, B47, B50–B52, B55, B71, B72, B77, B78, B82, B84, B89–B94, B100, B120–B122, B124, B125, B126, B146, B148, B157 |
 | **Deferred** | 7 | B4, B7, B16, B20, B21, B27, B101 |
 | **Rejected** | 7 | B5, B6, B13, B17, B18, B25, B45 |
-| **Total tracked** | **133** total; 29 standalone done | |
+| **Total tracked** | **134** total; 30 standalone done | |
 
 ### STANK.md Cross-Reference
 

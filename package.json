@@ -38,6 +38,14 @@
       "import": "./src/visualization/index.js",
       "default": "./src/visualization/index.js"
     },
+    "./browser": {
+      "import": "./browser.js",
+      "default": "./browser.js"
+    },
+    "./sha1sync": {
+      "import": "./src/infrastructure/adapters/sha1sync.js",
+      "default": "./src/infrastructure/adapters/sha1sync.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
@@ -46,6 +54,7 @@
     "bin/cli",
     "bin/git-warp",
     "src",
+    "browser.js",
     "index.js",
     "index.d.ts",
     "README.md",
