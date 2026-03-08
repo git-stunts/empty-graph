@@ -41,7 +41,7 @@ async function createWsAdapter(staticDir) {
  * @returns {boolean}
  */
 function isLoopback(h) {
-  return h === '127.0.0.1' || h === '::1' || h === 'localhost';
+  return h === '127.0.0.1' || h === '::1' || h === 'localhost' || h.startsWith('127.');
 }
 
 /** @typedef {import('../types.js').CliOptions} CliOptions */

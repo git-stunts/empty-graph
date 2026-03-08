@@ -281,9 +281,13 @@ export async function _materializeWithCeiling(ceiling, collectReceipts, t0) {
   // Persistent cache check — skip when collectReceipts is requested
   let cacheKey;
   if (this._seekCache && !collectReceipts) {
-    cacheKey = await buildSeekCacheKey(ceiling, frontier);
     try {
-      const cached = await this._seekCache.get(cacheKey);
+      cacheKey = await buildSeekCacheKey(ceiling, frontier);
+    } catch {
+      // crypto unavailable (e.g., browser) — treat as cache miss
+    }
+    try {
+      const cached = cacheKey ? await this._seekCache.get(cacheKey) : undefined;
       if (cached) {
         try {
           const state = deserializeFullStateV5(cached.buffer, { codec: this._codec });
@@ -299,7 +303,9 @@ export async function _materializeWithCeiling(ceiling, collectReceipts, t0) {
           return freezePublicState(state);
         } catch {
           // Corrupted payload — self-heal by removing the bad entry
-          try { await this._seekCache.delete(cacheKey); } catch { /* best-effort */ }
+          if (cacheKey) {
+            try { await this._seekCache.delete(cacheKey); } catch { /* best-effort */ }
+          }
         }
       }
     } catch {
@@ -347,12 +353,16 @@ export async function _materializeWithCeiling(ceiling, collectReceipts, t0) {
 
   // Store to persistent cache (fire-and-forget — failure is non-fatal)
   if (this._seekCache && !collectReceipts && allPatches.length > 0) {
-    if (!cacheKey) {
-      cacheKey = await buildSeekCacheKey(ceiling, frontier);
+    try {
+      if (!cacheKey) {
+        cacheKey = await buildSeekCacheKey(ceiling, frontier);
+      }
+      const buf = serializeFullStateV5(state, { codec: this._codec });
+      this._persistSeekCacheEntry(cacheKey, buf, state)
+        .catch(() => {});
+    } catch {
+      // crypto unavailable — skip cache write
     }
-    const buf = serializeFullStateV5(state, { codec: this._codec });
-    this._persistSeekCacheEntry(cacheKey, buf, state)
-      .catch(() => {});
   }
 
   // Skip auto-checkpoint and GC — this is an exploratory read

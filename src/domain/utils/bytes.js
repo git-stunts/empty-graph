@@ -99,6 +99,9 @@ export function base64Encode(bytes) {
  * @returns {Uint8Array}
  */
 export function base64Decode(b64) {
+  if (!/^[A-Za-z0-9+/]*={0,2}$/.test(b64)) {
+    throw new RangeError(`Invalid base64 string: ${b64.length > 20 ? `${b64.slice(0, 20)}…` : b64}`);
+  }
   let len = b64.length;
   if (b64[len - 1] === '=') { len--; }
   if (b64[len - 1] === '=') { len--; }

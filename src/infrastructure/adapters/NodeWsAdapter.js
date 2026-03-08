@@ -84,7 +84,11 @@ function listenWithHttp(staticDir, opts) {
     state.httpServer = createHttpServer(createStaticHandler(staticDir));
     state.wss = new WebSocketServer({ server: state.httpServer });
     state.wss.on('connection', (/** @type {import('ws').WebSocket} */ ws) => onConnection(wrapConnection(ws)));
-    const onError = (/** @type {Error} */ err) => reject(err);
+    const onError = (/** @type {Error} */ err) => {
+      state.wss = null;
+      state.httpServer = null;
+      reject(err);
+    };
     state.httpServer.on('error', onError);
     state.httpServer.listen(port, bindHost, () => {
       // Remove startup error listener — the promise is resolved.
@@ -107,7 +111,11 @@ function listenWsOnly(opts) {
   const { onConnection, port, bindHost, state } = opts;
   return new Promise((resolve, reject) => {
     state.wss = new WebSocketServer({ port, host: bindHost });
-    const onError = (/** @type {Error} */ err) => reject(err);
+    const onError = (/** @type {Error} */ err) => {
+      state.wss = null;
+      state.httpServer = null;
+      reject(err);
+    };
     state.wss.on('listening', () => {
       // Remove startup error listener — the promise is resolved.
       state.wss?.removeListener('error', onError);
@@ -171,9 +179,12 @@ export default class NodeWsAdapter extends WebSocketServerPort {
           for (const client of state.wss.clients) {
             client.close();
           }
+          const httpSrv = state.httpServer;
           state.wss.close((/** @type {Error|undefined} */ wssErr) => {
-            if (state.httpServer) {
-              state.httpServer.close((httpErr) => {
+            state.wss = null;
+            state.httpServer = null;
+            if (httpSrv) {
+              httpSrv.close((httpErr) => {
                 const err = wssErr || httpErr;
                 if (err) { reject(err); } else { resolve(); }
               });

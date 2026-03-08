@@ -242,6 +242,9 @@ export default class WarpServeService {
    * @returns {Promise<{ port: number, host: string }>}
    */
   async listen(port, host) {
+    if (this._server) {
+      throw new Error('Server is already listening');
+    }
     this._server = this._wsPort.createServer((conn) => this._onConnection(conn));
 
     // Subscribe to each graph for live diff push
@@ -265,6 +268,14 @@ export default class WarpServeService {
       sub.unsubscribe();
     }
     this._subscriptions.clear();
+
+    for (const client of this._clients) {
+      try {
+        client.conn.close();
+      } catch {
+        // Best-effort — connection may already be dead.
+      }
+    }
     this._clients.clear();
 
     if (this._server) {
@@ -375,19 +386,21 @@ export default class WarpServeService {
     if (!resolved) { return; }
     const { graphName, graph } = resolved;
 
-    session.openGraphs.add(graphName);
-
+    let state;
     try {
-      const state = await graph.materialize();
-      const serialized = serializeState(graphName, state);
-      session.conn.send(envelope('state', serialized, msg.id));
+      state = await graph.materialize();
     } catch (err) {
       session.conn.send(errorEnvelope(
         'E_MATERIALIZE_FAILED',
         err instanceof Error ? err.message : 'Materialization failed',
         msg.id,
       ));
+      return;
     }
+
+    session.openGraphs.add(graphName);
+    const serialized = serializeState(graphName, state);
+    session.conn.send(envelope('state', serialized, msg.id));
   }
 
   /**
@@ -423,18 +436,22 @@ export default class WarpServeService {
    * @private
    */
   async _applyMutateOps(session, msg, { graph, ops }) {
+    // Pre-validate ALL ops before creating a patch
+    for (const { op, args } of ops) {
+      if (!ALLOWED_MUTATE_OPS.has(op)) {
+        session.conn.send(errorEnvelope('E_INVALID_OP', `Unknown mutation op: ${op}`, msg.id));
+        return;
+      }
+      const argError = validateMutateArgs(op, args);
+      if (argError) {
+        session.conn.send(errorEnvelope('E_INVALID_ARGS', argError, msg.id));
+        return;
+      }
+    }
+
     try {
       const patch = await graph.createPatch();
       for (const { op, args } of ops) {
-        if (!ALLOWED_MUTATE_OPS.has(op)) {
-          session.conn.send(errorEnvelope('E_INVALID_OP', `Unknown mutation op: ${op}`, msg.id));
-          return;
-        }
-        const argError = validateMutateArgs(op, args);
-        if (argError) {
-          session.conn.send(errorEnvelope('E_INVALID_ARGS', argError, msg.id));
-          return;
-        }
         await patch[op](...args);
       }
       const sha = await patch.commit();

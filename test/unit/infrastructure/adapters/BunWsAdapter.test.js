@@ -70,8 +70,11 @@ describe('BunWsAdapter', () => {
   let mock;
   /** @type {import('../../../../src/ports/WebSocketServerPort.js').WsServerHandle|null} */
   let server = null;
+  /** @type {any} */
+  let originalBun;
 
   beforeEach(() => {
+    originalBun = globalThis.Bun;
     mock = createBunMock();
   });
 
@@ -80,7 +83,11 @@ describe('BunWsAdapter', () => {
       await server.close();
       server = null;
     }
-    Reflect.deleteProperty(globalThis, 'Bun');
+    if (originalBun === undefined) {
+      Reflect.deleteProperty(globalThis, 'Bun');
+    } else {
+      globalThis.Bun = originalBun;
+    }
   });
 
   it('is an instance of WebSocketServerPort', () => {

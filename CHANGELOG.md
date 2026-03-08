@@ -14,6 +14,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Catch-all error envelope missing correlation ID** — The last-resort `.catch()` on `_onMessage` now best-effort extracts the request `id` from the raw JSON for client-side correlation.
 - **`jsr.json` missing `./browser` and `./sha1sync` exports** — Subpath exports added to `package.json` were not mirrored in `jsr.json`. JSR consumers can now import both.
 - **`CasBlobAdapter` JSDoc `Buffer|Uint8Array`** — Narrowed `encryptionKey` type to `Uint8Array` per project convention.
+- **`WarpServeService.listen()` double-call guard** — Calling `listen()` twice no longer silently creates duplicate subscriptions. Second call throws `"Server is already listening"`.
+- **`WarpServeService.close()` dangling sockets** — Active WebSocket connections are now closed during shutdown instead of being silently abandoned.
+- **`WarpServeService._handleOpen()` premature openGraphs add** — Graph is now marked as open only after materialization succeeds, preventing stale entries on failure.
+- **`WarpServeService._applyMutateOps()` interleaved validation** — All ops in a batch are validated before `createPatch()` is called, avoiding wasted patch allocations on invalid input.
+- **`base64Decode` silent garbage acceptance** — Malformed base64 input now throws `RangeError` instead of silently decoding to wrong output.
+- **`NodeWsAdapter` state leak on failed start** — `listen()` failures now reset internal state (`_wss`, `_httpServer`), unblocking subsequent retry attempts.
+- **`isLoopback()` incomplete range** — Now recognizes the full `127.0.0.0/8` range, not just `127.0.0.1`.
+- **`buildSeekCacheKey` outside try/catch** — Cache key generation failure (e.g., crypto unavailable) is now caught and treated as a cache miss instead of breaking materialization.
+- **`BunWsAdapter` test `globalThis.Bun` leak** — Tests now save and restore the original `globalThis.Bun` instead of deleting it unconditionally.
+- **`vi.waitFor()` boolean callbacks in serve tests** — Replaced 22 boolean-returning callbacks with assertion-based ones to prevent premature resolution.
 
 - **`git warp serve` silent blob data loss** — Mutation ops like `attachContent` and `attachEdgeContent` are async (they write blobs), but `_applyMutateOps` was not awaiting them. `patch.commit()` could fire before the blob write completed. Now all ops are awaited.
 - **DenoWsAdapter port-0 resolution** — When binding to port 0 (OS-assigned), `onListen` resolved with the requested port (0) instead of the actual assigned port. Now reads `server.addr.port`, matching Node and Bun adapter behavior.

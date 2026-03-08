@@ -186,7 +186,7 @@ describe('WarpServeService', () => {
         v: 1, type: 'open', id: 'o1',
         payload: { graph: 'test-graph', writerId: 'w1' },
       }));
-      await vi.waitFor(() => client.sent.length >= 2); // hello + state
+      await vi.waitFor(() => { expect(client.sent.length).toBeGreaterThanOrEqual(2); }); // hello + state
       client.sent.length = 0;
 
       // Disconnect
@@ -340,7 +340,7 @@ describe('WarpServeService', () => {
         v: 1, type: 'open', id: 'open-1',
         payload: { graph: 'test-graph', writerId: 'w1' },
       }));
-      await vi.waitFor(() => client.sent.length >= 2); // hello + state
+      await vi.waitFor(() => { expect(client.sent.length).toBeGreaterThanOrEqual(2); }); // hello + state
       client.sent.length = 0;
 
       client.sendFromClient(JSON.stringify({
@@ -366,7 +366,7 @@ describe('WarpServeService', () => {
         v: 1, type: 'open', id: 'o1',
         payload: { graph: 'test-graph', writerId: 'w1' },
       }));
-      await vi.waitFor(() => client.sent.length >= 2);
+      await vi.waitFor(() => { expect(client.sent.length).toBeGreaterThanOrEqual(2); });
       client.sent.length = 0;
 
       client.sendFromClient(JSON.stringify({
@@ -392,7 +392,7 @@ describe('WarpServeService', () => {
         v: 1, type: 'open', id: 'o1',
         payload: { graph: 'test-graph', writerId: 'w1' },
       }));
-      await vi.waitFor(() => client.sent.length >= 2);
+      await vi.waitFor(() => { expect(client.sent.length).toBeGreaterThanOrEqual(2); });
       client.sent.length = 0;
 
       client.sendFromClient(JSON.stringify({
@@ -418,7 +418,7 @@ describe('WarpServeService', () => {
         v: 1, type: 'open', id: 'o1',
         payload: { graph: 'test-graph', writerId: 'w1' },
       }));
-      await vi.waitFor(() => client.sent.length >= 2);
+      await vi.waitFor(() => { expect(client.sent.length).toBeGreaterThanOrEqual(2); });
       client.sent.length = 0;
 
       client.sendFromClient(JSON.stringify({
@@ -444,7 +444,7 @@ describe('WarpServeService', () => {
         v: 1, type: 'open', id: 'o1',
         payload: { graph: 'test-graph', writerId: 'w1' },
       }));
-      await vi.waitFor(() => client.sent.length >= 2);
+      await vi.waitFor(() => { expect(client.sent.length).toBeGreaterThanOrEqual(2); });
       client.sent.length = 0;
 
       client.sendFromClient(JSON.stringify({
@@ -468,7 +468,7 @@ describe('WarpServeService', () => {
         v: 1, type: 'open', id: 'o1',
         payload: { graph: 'test-graph', writerId: 'w1' },
       }));
-      await vi.waitFor(() => client.sent.length >= 2);
+      await vi.waitFor(() => { expect(client.sent.length).toBeGreaterThanOrEqual(2); });
       client.sent.length = 0;
 
       client.sendFromClient(JSON.stringify({
@@ -493,7 +493,7 @@ describe('WarpServeService', () => {
         v: 1, type: 'open', id: 'o1',
         payload: { graph: 'test-graph', writerId: 'w1' },
       }));
-      await vi.waitFor(() => client.sent.length >= 2);
+      await vi.waitFor(() => { expect(client.sent.length).toBeGreaterThanOrEqual(2); });
       client.sent.length = 0;
 
       client.sendFromClient(JSON.stringify({
@@ -519,7 +519,7 @@ describe('WarpServeService', () => {
         v: 1, type: 'open', id: 'o1',
         payload: { graph: 'test-graph', writerId: 'w1' },
       }));
-      await vi.waitFor(() => client.sent.length >= 2);
+      await vi.waitFor(() => { expect(client.sent.length).toBeGreaterThanOrEqual(2); });
       client.sent.length = 0;
 
       // Override createPatch to return a mock with an async attachContent
@@ -569,7 +569,7 @@ describe('WarpServeService', () => {
         v: 1, type: 'open', id: 'o1',
         payload: { graph: 'test-graph', writerId: 'w1' },
       }));
-      await vi.waitFor(() => client.sent.length >= 2);
+      await vi.waitFor(() => { expect(client.sent.length).toBeGreaterThanOrEqual(2); });
       client.sent.length = 0;
 
       graph.createPatch.mockRejectedValueOnce(new Error('disk full'));
@@ -636,7 +636,7 @@ describe('WarpServeService', () => {
         v: 1, type: 'open', id: 'o1',
         payload: { graph: 'test-graph', writerId: 'w1' },
       }));
-      await vi.waitFor(() => client.sent.length >= 2);
+      await vi.waitFor(() => { expect(client.sent.length).toBeGreaterThanOrEqual(2); });
       client.sent.length = 0;
 
       client.sendFromClient(JSON.stringify({
@@ -660,7 +660,7 @@ describe('WarpServeService', () => {
         v: 1, type: 'open', id: 'o1',
         payload: { graph: 'test-graph', writerId: 'w1' },
       }));
-      await vi.waitFor(() => client.sent.length >= 2);
+      await vi.waitFor(() => { expect(client.sent.length).toBeGreaterThanOrEqual(2); });
       client.sent.length = 0;
 
       client.sendFromClient(JSON.stringify({
@@ -701,7 +701,7 @@ describe('WarpServeService', () => {
         v: 1, type: 'open', id: 'o1',
         payload: { graph: 'test-graph', writerId: 'w1' },
       }));
-      await vi.waitFor(() => client.sent.length >= 2);
+      await vi.waitFor(() => { expect(client.sent.length).toBeGreaterThanOrEqual(2); });
       client.sent.length = 0;
 
       client.sendFromClient(JSON.stringify({
@@ -725,7 +725,7 @@ describe('WarpServeService', () => {
         v: 1, type: 'open', id: 'o1',
         payload: { graph: 'test-graph', writerId: 'w1' },
       }));
-      await vi.waitFor(() => client.sent.length >= 2);
+      await vi.waitFor(() => { expect(client.sent.length).toBeGreaterThanOrEqual(2); });
       client.sent.length = 0;
 
       client.sendFromClient(JSON.stringify({
@@ -747,7 +747,7 @@ describe('WarpServeService', () => {
         v: 1, type: 'open', id: 'o1',
         payload: { graph: 'test-graph', writerId: 'w1' },
       }));
-      await vi.waitFor(() => client.sent.length >= 2);
+      await vi.waitFor(() => { expect(client.sent.length).toBeGreaterThanOrEqual(2); });
       graph.materialize.mockClear();
       client.sent.length = 0;
 
@@ -789,7 +789,7 @@ describe('WarpServeService', () => {
         v: 1, type: 'open', id: 'o1',
         payload: { graph: 'test-graph', writerId: 'w1' },
       }));
-      await vi.waitFor(() => client.sent.length >= 2);
+      await vi.waitFor(() => { expect(client.sent.length).toBeGreaterThanOrEqual(2); });
       client.sent.length = 0;
 
       // Simulate a graph change
@@ -830,7 +830,7 @@ describe('WarpServeService', () => {
         v: 1, type: 'open', id: 'o1',
         payload: { graph: 'test-graph', writerId: 'w1' },
       }));
-      await vi.waitFor(() => client1.sent.length >= 2);
+      await vi.waitFor(() => { expect(client1.sent.length).toBeGreaterThanOrEqual(2); });
       client1.sent.length = 0;
 
       const client2 = ws.simulateConnection();
@@ -838,7 +838,7 @@ describe('WarpServeService', () => {
         v: 1, type: 'open', id: 'o2',
         payload: { graph: 'test-graph', writerId: 'w2' },
       }));
-      await vi.waitFor(() => client2.sent.length >= 2);
+      await vi.waitFor(() => { expect(client2.sent.length).toBeGreaterThanOrEqual(2); });
       client2.sent.length = 0;
 
       // Trigger a diff
@@ -883,7 +883,7 @@ describe('WarpServeService', () => {
         v: 1, type: 'open', id: 'o1',
         payload: { graph: 'test-graph', writerId: 'w1' },
       }));
-      await vi.waitFor(() => client1.sent.length >= 2);
+      await vi.waitFor(() => { expect(client1.sent.length).toBeGreaterThanOrEqual(2); });
 
       // Client 2: healthy
       const client2 = ws.simulateConnection();
@@ -891,7 +891,7 @@ describe('WarpServeService', () => {
         v: 1, type: 'open', id: 'o2',
         payload: { graph: 'test-graph', writerId: 'w2' },
       }));
-      await vi.waitFor(() => client2.sent.length >= 2);
+      await vi.waitFor(() => { expect(client2.sent.length).toBeGreaterThanOrEqual(2); });
       client2.sent.length = 0;
 
       // Make client1's send throw (simulating a dead WebSocket)
@@ -934,7 +934,7 @@ describe('WarpServeService', () => {
         v: 1, type: 'open', id: 'o1',
         payload: { graph: 'beta', writerId: 'w1' },
       }));
-      await vi.waitFor(() => client.sent.length >= 2);
+      await vi.waitFor(() => { expect(client.sent.length).toBeGreaterThanOrEqual(2); });
       client.sent.length = 0;
 
       // Alpha changes — client should NOT get it
@@ -1016,7 +1016,7 @@ describe('WarpServeService', () => {
         v: 1, type: 'open', id: 'o1',
         payload: { graph: 'test-graph', writerId: 'w1' },
       }));
-      await vi.waitFor(() => client.sent.length >= 2);
+      await vi.waitFor(() => { expect(client.sent.length).toBeGreaterThanOrEqual(2); });
       client.sent.length = 0;
 
       client.sendFromClient(JSON.stringify({
@@ -1039,7 +1039,7 @@ describe('WarpServeService', () => {
         v: 1, type: 'open', id: 'o1',
         payload: { graph: 'test-graph', writerId: 'w1' },
       }));
-      await vi.waitFor(() => client.sent.length >= 2);
+      await vi.waitFor(() => { expect(client.sent.length).toBeGreaterThanOrEqual(2); });
       client.sent.length = 0;
 
       client.sendFromClient(JSON.stringify({
@@ -1062,7 +1062,7 @@ describe('WarpServeService', () => {
         v: 1, type: 'open', id: 'o1',
         payload: { graph: 'test-graph', writerId: 'w1' },
       }));
-      await vi.waitFor(() => client.sent.length >= 2);
+      await vi.waitFor(() => { expect(client.sent.length).toBeGreaterThanOrEqual(2); });
       client.sent.length = 0;
 
       client.sendFromClient(JSON.stringify({
