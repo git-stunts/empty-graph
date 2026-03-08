@@ -225,9 +225,10 @@ const props = await ws.inspect({ graph: 'default', nodeId: 'user:alice' });
 
 ---
 
-### T7 — Simplify Vite Config and Clean Up
+### T7 — Simplify Vite Config and Clean Up ✅ DONE
 
-**Status:** PENDING
+**Commit:** `7acbd96`
+**Status:** DONE
 
 **Goal:** The Vite config currently stubs out a dozen Node modules because git-warp runs in the browser. With the server pivot, the browser no longer imports git-warp at all — it only uses `WarpSocket`.
 
@@ -253,9 +254,9 @@ const props = await ws.inspect({ graph: 'default', nodeId: 'user:alice' });
 
 ---
 
-### T8 — Connection Status UI
+### T8 — Connection Status UI ✅ DONE
 
-**Status:** PENDING
+**Status:** DONE — Already implemented during T5. `App.vue` has green/yellow/red status dot, server URL display, graph selector dropdown, writer ID badge, error bar, and disconnected prompt with reconnect button.
 
 **Goal:** Show the user whether the browser is connected to the server, and handle disconnection gracefully.
 
@@ -274,9 +275,9 @@ const props = await ws.inspect({ graph: 'default', nodeId: 'user:alice' });
 
 ---
 
-### T9 — Polish and Ship
+### T9 — Polish and Ship ✅ DONE
 
-**Status:** PENDING
+**Status:** DONE
 
 **Goal:** Final polish before merging to main.
 

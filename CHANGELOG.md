@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Browsa: scenario runner** — Removed `ScenarioPanel.vue` and all scenario infrastructure. Multi-writer scenarios don't apply to the single-connection WebSocket model.
 - **Browsa: in-memory sync** — Removed `InProcessSyncBus.js` and `InsecureCryptoAdapter.js`. No in-memory sync or browser-side crypto needed with the server-backed architecture.
 - **Browsa: multi-viewport grid** — Removed 4-viewport layout, sync buttons, and online/offline toggles. Multiple browser windows serve the multi-writer use case instead.
+- **Browsa: Vite stubs** — Removed `src/stubs/` directory (empty.js, node-crypto.js, node-stream.js, node-module.js), `trailerCodecBufferShim()` plugin, and all resolve aliases. The browser no longer imports git-warp — it communicates via WebSocket only.
 
 ### Upgraded
 
