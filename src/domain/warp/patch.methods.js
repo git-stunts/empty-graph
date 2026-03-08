@@ -427,7 +427,7 @@ export async function _ensureFreshState() {
  *
  * @this {import('../WarpGraph.js').default}
  * @param {{ patchOid: string, encrypted: boolean }} patchMeta
- * @returns {Promise<Uint8Array|Buffer>}
+ * @returns {Promise<Uint8Array>}
  */
 export async function _readPatchBlob(patchMeta) {
   if (patchMeta.encrypted) {

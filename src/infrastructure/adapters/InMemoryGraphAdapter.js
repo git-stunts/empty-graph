@@ -52,10 +52,8 @@ function hexToBytes(hex) {
 }
 
 /**
- * Converts a string or Uint8Array to bytes. In Node, prefers Buffer for
- * string inputs to preserve backwards compatibility with callers that
- * expect Buffer instances from readBlob/readTree.
- * @param {string|Uint8Array|Buffer} data
+ * Converts a string or Uint8Array to bytes.
+ * @param {string|Uint8Array} data
  * @returns {Uint8Array}
  */
 function toBytes(data) {
@@ -63,9 +61,6 @@ function toBytes(data) {
     return data;
   }
   if (typeof data === 'string') {
-    if (typeof Buffer !== 'undefined') {
-      return Buffer.from(data);
-    }
     return _encoder.encode(data);
   }
   throw new Error('Expected string or Uint8Array');

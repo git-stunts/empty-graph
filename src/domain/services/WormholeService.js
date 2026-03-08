@@ -97,7 +97,7 @@ async function processCommit({ persistence, sha, graphName, expectedWriter, code
     });
   }
 
-  /** @type {Uint8Array|Buffer} */
+  /** @type {Uint8Array} */
   let patchBuffer;
   if (patchMeta.encrypted) {
     if (!patchBlobStorage) {

@@ -43,7 +43,8 @@ const defaultCrypto = {
     if (!_createHmac) {
       throw new Error('No crypto available. Pass { crypto } to WarpGraph.open().');
     }
-    return _createHmac(algorithm, key).update(data).digest();
+    const result = _createHmac(algorithm, key).update(data).digest();
+    return new Uint8Array(result.buffer, result.byteOffset, result.byteLength);
   },
   timingSafeEqual(a, b) {
     if (!_timingSafeEqual) {

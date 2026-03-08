@@ -146,7 +146,7 @@ async function loadPatchFromCommit(persistence, sha, { codec: codecOpt, patchBlo
   const decoded = decodePatchMessage(message);
 
   // Read the patch blob (encrypted or plain)
-  /** @type {Uint8Array|Buffer} */
+  /** @type {Uint8Array} */
   let patchBuffer;
   if (decoded.encrypted) {
     if (!patchBlobStorage) {

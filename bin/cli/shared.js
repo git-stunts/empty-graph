@@ -3,6 +3,7 @@ import path from 'node:path';
 import process from 'node:process';
 import readline from 'node:readline';
 import { execFileSync } from 'node:child_process';
+import { textEncode } from '../../src/domain/utils/bytes.js';
 // @ts-expect-error — no type declarations for @git-stunts/plumbing
 import GitPlumbing, { ShellRunnerFactory } from '@git-stunts/plumbing';
 import WarpGraph from '../../src/domain/WarpGraph.js';
@@ -161,7 +162,7 @@ export async function readActiveCursor(persistence, graphName) {
 export async function writeActiveCursor(persistence, graphName, cursor) {
   const ref = buildCursorActiveRef(graphName);
   const json = JSON.stringify(cursor);
-  const oid = await persistence.writeBlob(Buffer.from(json, 'utf8'));
+  const oid = await persistence.writeBlob(textEncode(json));
   await persistence.updateRef(ref, oid);
 }
 

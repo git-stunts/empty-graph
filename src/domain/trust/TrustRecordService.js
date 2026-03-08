@@ -71,7 +71,7 @@ export class TrustRecordService {
     }
 
     // 2. RecordId integrity
-    if (!verifyRecordId(record)) {
+    if (!await verifyRecordId(record)) {
       throw new TrustError(
         'Trust record recordId does not match content',
         { code: 'E_TRUST_RECORD_ID_MISMATCH' },
@@ -193,7 +193,7 @@ export class TrustRecordService {
       }
 
       // RecordId integrity
-      if (!verifyRecordId(record)) {
+      if (!await verifyRecordId(record)) {
         errors.push({ index: i, error: 'RecordId does not match content' });
       }
 
@@ -343,8 +343,7 @@ export class TrustRecordService {
   async _persistRecord(ref, record, parentSha) {
     // Encode record as CBOR blob
     const encoded = this._codec.encode(record);
-    // Buffer.from() ensures Uint8Array from codec is accepted by writeBlob
-    const blobOid = await this._persistence.writeBlob(Buffer.from(encoded));
+    const blobOid = await this._persistence.writeBlob(encoded);
 
     // Create tree with single entry (mktree format)
     const treeOid = await this._persistence.writeTree([`100644 blob ${blobOid}\trecord.cbor`]);
