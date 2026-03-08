@@ -78,7 +78,10 @@ async function main() {
     : null;
 
   if (close) {
+    let closing = false;
     const shutdown = async () => {
+      if (closing) { return; }
+      closing = true;
       await close();
       process.exit(EXIT_CODES.OK);
     };

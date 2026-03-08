@@ -58,7 +58,7 @@ function isLegacyBlobError(err) {
 
 export default class CasBlobAdapter extends BlobStoragePort {
   /**
-   * @param {{ plumbing: *, persistence: *, encryptionKey?: Buffer|Uint8Array, logger?: import('../../ports/LoggerPort.js').default }} options
+   * @param {{ plumbing: *, persistence: *, encryptionKey?: Uint8Array, logger?: import('../../ports/LoggerPort.js').default }} options
    */
   constructor({ plumbing, persistence, encryptionKey, logger }) {
     super();

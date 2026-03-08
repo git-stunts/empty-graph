@@ -7,7 +7,9 @@
   "exports": {
     ".": "./index.js",
     "./node": "./src/domain/entities/GraphNode.js",
-    "./visualization": "./src/visualization/index.js"
+    "./visualization": "./src/visualization/index.js",
+    "./browser": "./browser.js",
+    "./sha1sync": "./src/infrastructure/adapters/sha1sync.js"
   },
   "publish": {
     "include": [

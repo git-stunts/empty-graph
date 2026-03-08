@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`_broadcastDiff` Set mutation during iteration** — Deleting dead clients from `this._clients` mid-`for...of` could skip the next entry. Dead connections are now collected and evicted after the loop completes.
+- **Double-SIGINT re-entrancy in `serve` shutdown** — Rapid Ctrl+C fired `shutdown()` concurrently twice, racing `close()` and `process.exit()`. Added a `closing` guard.
+- **Catch-all error envelope missing correlation ID** — The last-resort `.catch()` on `_onMessage` now best-effort extracts the request `id` from the raw JSON for client-side correlation.
+- **`jsr.json` missing `./browser` and `./sha1sync` exports** — Subpath exports added to `package.json` were not mirrored in `jsr.json`. JSR consumers can now import both.
+- **`CasBlobAdapter` JSDoc `Buffer|Uint8Array`** — Narrowed `encryptionKey` type to `Uint8Array` per project convention.
+
 - **`git warp serve` silent blob data loss** — Mutation ops like `attachContent` and `attachEdgeContent` are async (they write blobs), but `_applyMutateOps` was not awaiting them. `patch.commit()` could fire before the blob write completed. Now all ops are awaited.
 - **DenoWsAdapter port-0 resolution** — When binding to port 0 (OS-assigned), `onListen` resolved with the requested port (0) instead of the actual assigned port. Now reads `server.addr.port`, matching Node and Bun adapter behavior.
 - **Static file handler symlink traversal** — A symlink inside `staticDir` pointing outside the root could bypass `safePath()` and serve arbitrary files. `tryReadFile` now resolves symlinks with `realpath()` and re-checks the prefix before reading.

@@ -293,13 +293,17 @@ export default class WarpServeService {
       graphs: [...this._graphs.keys()],
     }));
 
-    conn.onMessage((msg) => {
-      this._onMessage(session, msg).catch((err) => {
+    conn.onMessage((raw) => {
+      this._onMessage(session, raw).catch((err) => {
         // Errors are caught and sent as error envelopes inside _onMessage handlers.
         // This catch prevents unhandled rejection for truly unexpected failures.
+        // Best-effort: try to extract the request id for correlation.
+        let id;
+        try { id = JSON.parse(raw).id; } catch { /* unparseable — no id */ }
         session.conn.send(errorEnvelope(
           'E_INTERNAL',
           err instanceof Error ? err.message : 'Internal error',
+          id,
         ));
       });
     });
@@ -519,17 +523,23 @@ export default class WarpServeService {
    */
   _broadcastDiff(graphName, diff) {
     const msg = envelope('diff', { graph: graphName, diff });
+    /** @type {ClientSession[]} */
+    const dead = [];
     for (const client of this._clients) {
       if (client.openGraphs.has(graphName)) {
         try {
           client.conn.send(msg);
         } catch {
-          // Dead connection — evict silently.  No logger is available at
-          // this layer; the `onClose` handler also evicts, but `send()`
-          // can throw before `close` fires on a reset connection.
-          this._clients.delete(client);
+          // Dead connection — evict after iteration.  No logger is
+          // available at this layer; the `onClose` handler also evicts,
+          // but `send()` can throw before `close` fires on a reset
+          // connection.  We must not delete from the Set mid-iteration.
+          dead.push(client);
         }
       }
+    }
+    for (const client of dead) {
+      this._clients.delete(client);
     }
   }
 }
