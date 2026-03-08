@@ -37,6 +37,10 @@ async function createWsAdapter(staticDir) {
 /**
  * Returns true when the host string resolves to the loopback interface.
  *
+ * Wildcard addresses (`0.0.0.0`, `::`, `0:0:0:0:0:0:0:0`) bind to ALL
+ * interfaces — including public ones — and are intentionally NOT treated
+ * as loopback.  {@link assertExposeSafety} will require `--expose` for them.
+ *
  * @param {string} h
  * @returns {boolean}
  */

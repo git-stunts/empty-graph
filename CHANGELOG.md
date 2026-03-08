@@ -18,7 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`WarpServeService` oversized property value guard** — Wildcard-typed mutation args exceeding 64 KiB are rejected with `E_INVALID_ARGS`.
 - **`SyncProtocol` / `WormholeService` null blob guard** — `readBlob()` / `retrieve()` results are now null-checked, throwing `PersistenceError(E_MISSING_OBJECT)` instead of passing `null` to the codec.
 - **`hexDecode` regex replaced with charCode loop** — Direct character code validation avoids regex backtracking on large inputs.
-- **WS adapter pre-handler message buffering** — Messages arriving before `onMessage(handler)` is called are now buffered and flushed when the handler is set. Prevents message loss in Bun and Deno adapters when connection setup is asynchronous.
+- **WS adapter pre-handler message buffering** — Messages arriving before `onMessage(handler)` is called are now buffered and flushed when the handler is set. Prevents message loss in all WS adapters (Node, Bun, Deno) when connection setup is asynchronous.
 - **NodeWsAdapter `onError` callback** — Constructor now accepts an optional `onError` callback that surfaces runtime server errors instead of silently swallowing them.
 - **`wsAdapterUtils.messageToString()` TextDecoder reuse** — Hoisted `TextDecoder` to module level, avoiding per-call allocation.
 - **Static file handler response objects frozen** — `FORBIDDEN` and `NOT_FOUND` response constants are now `Object.freeze()`d to prevent accidental mutation.

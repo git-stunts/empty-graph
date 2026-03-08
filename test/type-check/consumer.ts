@@ -432,6 +432,19 @@ const decoded = decodeEdgePropKey(encoded);
 const isEdge: boolean = isEdgePropKey(encoded);
 
 // ---------------------------------------------------------------------------
+// Browser entry point — verify missing exports (#1)
+// ---------------------------------------------------------------------------
+import {
+  WarpError as BrowserWarpError,
+  createVersionVector as browserCreateVV,
+  generateWriterId as browserGenWriterId,
+} from '../../browser.js';
+
+const _browserErr: BrowserWarpError = new BrowserWarpError('test', { code: 'TEST' });
+const _browserVV: Map<string, number> = browserCreateVV();
+const _browserWriterId: string = browserGenWriterId();
+
+// ---------------------------------------------------------------------------
 // Negative tests -- must FAIL compilation (verified via @ts-expect-error)
 // ---------------------------------------------------------------------------
 

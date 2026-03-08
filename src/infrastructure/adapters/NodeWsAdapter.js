@@ -14,10 +14,15 @@ function wrapConnection(ws) {
   let messageHandler = null;
   /** @type {((code?: number, reason?: string) => void)|null} */
   let closeHandler = null;
+  /** @type {string[]} */
+  const messageBuffer = [];
 
   ws.on('message', (/** @type {import('ws').RawData} */ data) => {
+    const text = messageToString(data);
     if (messageHandler) {
-      messageHandler(messageToString(data));
+      messageHandler(text);
+    } else {
+      messageBuffer.push(text);
     }
   });
 
@@ -33,7 +38,14 @@ function wrapConnection(ws) {
         ws.send(message);
       }
     },
-    onMessage(handler) { messageHandler = handler; },
+    onMessage(handler) {
+      // Flush any messages that arrived before the handler was set
+      for (const buffered of messageBuffer) {
+        handler(buffered);
+      }
+      messageBuffer.length = 0;
+      messageHandler = handler;
+    },
     onClose(handler) { closeHandler = handler; },
     close() { ws.close(); },
   };

@@ -58,6 +58,8 @@
     "src",
     "browser.js",
     "index.js",
+    "browser.d.ts",
+    "sha1sync.d.ts",
     "index.d.ts",
     "README.md",
     "LICENSE",

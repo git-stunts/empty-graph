@@ -203,6 +203,51 @@ describe('NodeWsAdapter', () => {
     expect(addr.port).toBeGreaterThan(0);
   });
 
+  it('buffers messages arriving before onMessage handler is set', async () => {
+    const adapter = new NodeWsAdapter();
+    /** @type {import('../../../../src/ports/WebSocketServerPort.js').WsConnection|null} */
+    let savedConn = null;
+    /** @type {string[]} */
+    const received = [];
+    /** @type {Function} */
+    let resolveReady;
+    const readyPromise = new Promise((r) => { resolveReady = r; });
+
+    server = adapter.createServer((conn) => {
+      // Save conn but DON'T call onMessage yet — simulates delayed setup
+      savedConn = conn;
+      resolveReady(undefined);
+    });
+    const addr = await server.listen(0);
+
+    const ws = new globalThis.WebSocket(`ws://127.0.0.1:${addr.port}`);
+    await new Promise((resolve, reject) => {
+      ws.onopen = resolve;
+      ws.onerror = reject;
+    });
+    await readyPromise;
+
+    // Send messages before onMessage handler is registered
+    ws.send('early-1');
+    ws.send('early-2');
+
+    // Small delay to ensure messages arrive at the server
+    await new Promise((r) => { setTimeout(r, 100); });
+
+    // Now set the handler — should flush buffered messages
+    expect(savedConn).not.toBeNull();
+    const conn = /** @type {import('../../../../src/ports/WebSocketServerPort.js').WsConnection} */ (/** @type {unknown} */ (savedConn));
+    conn.onMessage((/** @type {string} */ msg) => { received.push(msg); });
+    expect(received).toEqual(['early-1', 'early-2']);
+
+    // Subsequent messages go directly to handler
+    ws.send('late-1');
+    await new Promise((r) => { setTimeout(r, 100); });
+    expect(received).toEqual(['early-1', 'early-2', 'late-1']);
+
+    ws.close();
+  });
+
   describe('with staticDir', () => {
     /** @type {string} */
     let staticDir;

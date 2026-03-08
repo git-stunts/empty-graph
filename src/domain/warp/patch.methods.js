@@ -18,6 +18,7 @@ import { decodePatchMessage, detectMessageKind } from '../services/WarpMessageCo
 import { Writer } from './Writer.js';
 import { generateWriterId, resolveWriterId } from '../utils/WriterId.js';
 import EncryptionError from '../errors/EncryptionError.js';
+import PersistenceError from '../errors/PersistenceError.js';
 
 /** @typedef {import('../types/WarpPersistence.js').CorePersistence} CorePersistence */
 
@@ -438,7 +439,15 @@ export async function _readPatchBlob(patchMeta) {
     }
     return await this._patchBlobStorage.retrieve(patchMeta.patchOid);
   }
-  return await this._persistence.readBlob(patchMeta.patchOid);
+  const blob = await this._persistence.readBlob(patchMeta.patchOid);
+  if (!blob) {
+    throw new PersistenceError(
+      `Patch blob not found: ${patchMeta.patchOid}`,
+      PersistenceError.E_MISSING_OBJECT,
+      { context: { oid: patchMeta.patchOid } },
+    );
+  }
+  return blob;
 }
 
 /**

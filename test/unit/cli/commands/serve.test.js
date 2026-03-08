@@ -209,6 +209,33 @@ describe('handleServe', () => {
     expect(openCall.writerId).toContain('5000');
   });
 
+  it('rejects 0.0.0.0 without --expose', async () => {
+    await expect(
+      handleServe({
+        options: /** @type {any} */ ({ repo: '.', writer: 'cli' }),
+        args: ['--host', '0.0.0.0'],
+      }),
+    ).rejects.toThrow(/--expose/);
+  });
+
+  it('rejects :: without --expose', async () => {
+    await expect(
+      handleServe({
+        options: /** @type {any} */ ({ repo: '.', writer: 'cli' }),
+        args: ['--host', '::'],
+      }),
+    ).rejects.toThrow(/--expose/);
+  });
+
+  it('rejects 0:0:0:0:0:0:0:0 without --expose', async () => {
+    await expect(
+      handleServe({
+        options: /** @type {any} */ ({ repo: '.', writer: 'cli' }),
+        args: ['--host', '0:0:0:0:0:0:0:0'],
+      }),
+    ).rejects.toThrow(/--expose/);
+  });
+
   it('returns a close function for clean shutdown', async () => {
     const result = await handleServe({
       options: /** @type {any} */ ({ repo: '.', writer: 'cli' }),
