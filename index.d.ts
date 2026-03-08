@@ -452,11 +452,11 @@ export abstract class GraphPersistencePort {
  */
 export abstract class IndexStoragePort {
   /** Writes a blob and returns its OID */
-  abstract writeBlob(content: Buffer | string): Promise<string>;
+  abstract writeBlob(content: Uint8Array | string): Promise<string>;
   /** Writes a tree from entries and returns its OID */
   abstract writeTree(entries: string[]): Promise<string>;
   /** Reads a blob by OID */
-  abstract readBlob(oid: string): Promise<Buffer>;
+  abstract readBlob(oid: string): Promise<Uint8Array>;
   /** Reads a tree and returns a map of path to blob OID */
   abstract readTreeOids(treeOid: string): Promise<Record<string, string>>;
   /** Updates a ref to point to an OID */
@@ -484,11 +484,11 @@ export type LogLevelValue = 0 | 1 | 2 | 3 | 4;
  */
 export abstract class CryptoPort {
   /** Computes a hash digest of the given data */
-  abstract hash(algorithm: string, data: string | Buffer | Uint8Array): Promise<string>;
+  abstract hash(algorithm: string, data: string | Uint8Array): Promise<string>;
   /** Computes an HMAC of the given data */
-  abstract hmac(algorithm: string, key: string | Buffer | Uint8Array, data: string | Buffer | Uint8Array): Promise<Buffer | Uint8Array>;
-  /** Constant-time comparison of two buffers */
-  abstract timingSafeEqual(a: Buffer | Uint8Array, b: Buffer | Uint8Array): boolean;
+  abstract hmac(algorithm: string, key: string | Uint8Array, data: string | Uint8Array): Promise<Uint8Array>;
+  /** Constant-time comparison of two byte arrays */
+  abstract timingSafeEqual(a: Uint8Array, b: Uint8Array): boolean;
 }
 
 /**
