@@ -542,6 +542,18 @@ export abstract class SeekCachePort {
 }
 
 /**
+ * Port interface for content blob storage operations.
+ * Abstracts how large binary content is stored and retrieved.
+ * @abstract
+ */
+export abstract class BlobStoragePort {
+  /** Stores content and returns a storage identifier (e.g. CAS tree OID). */
+  abstract store(content: Uint8Array | string, options?: { slug?: string }): Promise<string>;
+  /** Retrieves content by its storage identifier. */
+  abstract retrieve(oid: string): Promise<Uint8Array>;
+}
+
+/**
  * Port interface for structured logging operations.
  * @abstract
  */
@@ -1513,6 +1525,18 @@ export class WriterError extends Error {
   constructor(code: string, message: string, cause?: Error);
 }
 
+/**
+ * Error thrown when a patch requires decryption but no patchBlobStorage
+ * (with encryption key) is configured.
+ */
+export class EncryptionError extends Error {
+  readonly name: 'EncryptionError';
+  readonly code: string;
+  readonly context: Record<string, unknown>;
+
+  constructor(message: string, options?: { code?: string; context?: Record<string, unknown> });
+}
+
 // ============================================================================
 // GC Types
 // ============================================================================
@@ -1672,6 +1696,10 @@ export default class WarpGraph {
     crypto?: CryptoPort;
     codec?: unknown;
     seekCache?: SeekCachePort;
+    /** Content blob storage (for attachContent/attachEdgeContent). */
+    blobStorage?: BlobStoragePort;
+    /** Patch blob storage — when set, patch CBOR is encrypted via this port. */
+    patchBlobStorage?: BlobStoragePort;
   }): Promise<WarpGraph>;
 
   /**

@@ -279,8 +279,8 @@ Upgrade from `@git-stunts/git-cas` v3.0.0 to v5.2.4 and leverage new capabilitie
 | B160 | ✅ **BLOB ATTACHMENTS VIA CAS** — New `BlobStoragePort` + `CasBlobAdapter` provide a hexagonal abstraction for content blob storage. `PatchBuilderV2.attachContent()`/`attachEdgeContent()` use CAS (chunked, CDC-deduped, optionally encrypted) when `blobStorage` is injected; fall back to raw `persistence.writeBlob()` without it. `getContent()`/`getEdgeContent()` retrieve via `blobStorage.retrieve()` with automatic fallback to raw Git blobs for pre-CAS content. Wired through `WarpGraph`, `Writer`, and all patch creation paths. 16 new tests (4909 total). | M |
 | B161 | ✅ **ENCRYPTED SEEK CACHE** — `CasSeekCacheAdapter` now accepts optional `encryptionKey` constructor param. When set, all `store()` and `restore()` calls pass the key to git-cas for AES-256-GCM encryption/decryption. 6 new tests (52 total). | S |
 | B162 | ✅ **OBSERVABILITY ALIGNMENT** — new `LoggerObservabilityBridge` adapter translates git-cas `ObservabilityPort` calls (metric, log, span) into git-warp `LoggerPort` calls. `CasSeekCacheAdapter` accepts optional `logger` param; when provided, CAS operations surface through git-warp's structured logging. 7 new bridge tests + 2 adapter tests. | M |
-| B163 | **STREAMING RESTORE FOR LARGE STATES** — git-cas v4 added `restoreStream()` for O(chunkSize) memory restore. For very large graphs, the seek cache restore could use streaming + incremental CBOR decoding instead of buffering the entire state with `cas.restore()`. **Files:** `src/infrastructure/adapters/CasSeekCacheAdapter.js` | M |
-| B164 | **GRAPH ENCRYPTION AT REST** — encrypt CBOR patch payloads before committing to Git, making graph data opaque without the key. Use git-cas envelope encryption so multiple authorized users can decrypt. Wraps `PatchBuilderV2.commit()` to encrypt before write and `JoinReducer` to decrypt before apply. **Files:** `src/domain/services/PatchBuilderV2.js`, `src/domain/services/JoinReducer.js`, `src/domain/services/WarpMessageCodec.js`, new encryption port | L |
+| B163 | ✅ **STREAMING RESTORE FOR LARGE STATES** — `CasSeekCacheAdapter.get()` now prefers `cas.restoreStream()` (git-cas v4+) for I/O pipelining, accumulating chunks via async iterator. Falls back to `cas.restore()` for older git-cas. 2 new tests (58 total). | M |
+| B164 | ✅ **GRAPH ENCRYPTION AT REST** — New `patchBlobStorage` option on `WarpGraph.open()`. When a `BlobStoragePort` (e.g. `CasBlobAdapter` with encryption key) is injected, patch CBOR is written/read via CAS instead of raw Git blobs. `eg-encrypted: true` trailer marks encrypted commits. All 6 read sites + write path threaded. `EncryptionError` thrown when reading encrypted patches without key. Mixed encrypted/plain patches supported via backward-compatible fallback. 14 new tests (4969 total). | L |
 
 ### Uncategorized / Platform
 
@@ -413,8 +413,8 @@ B158 (P7) ──→ B159 (P7)   CDC seek cache
 | **Milestone (M12)** | 18 | B66, B67, B70, B73, B75, B105–B115, B117, B118 |
 | **Milestone (M13)** | 1 | B116 (internal: DONE; wire-format: DEFERRED) |
 | **Milestone (M14)** | 16 | B130–B145 |
-| **Standalone** | 47 | B12, B19, B22, B28, B34–B37, B43, B48, B49, B53, B54, B57, B76, B79–B81, B83, B85–B88, B95–B99, B102–B104, B119, B123, B127–B129, B147, B149–B156, B163, B164 |
-| **Standalone (done)** | 35 | B26, B44, B46, B47, B50–B52, B55, B71, B72, B77, B78, B82, B84, B89–B94, B100, B120–B122, B124, B125, B126, B146, B148, B157, B158, B159, B160, B161, B162 |
+| **Standalone** | 45 | B12, B19, B22, B28, B34–B37, B43, B48, B49, B53, B54, B57, B76, B79–B81, B83, B85–B88, B95–B99, B102–B104, B119, B123, B127–B129, B147, B149–B156 |
+| **Standalone (done)** | 37 | B26, B44, B46, B47, B50–B52, B55, B71, B72, B77, B78, B82, B84, B89–B94, B100, B120–B122, B124, B125, B126, B146, B148, B157, B158, B159, B160, B161, B162, B163, B164 |
 | **Deferred** | 7 | B4, B7, B16, B20, B21, B27, B101 |
 | **Rejected** | 7 | B5, B6, B13, B17, B18, B25, B45 |
 | **Total tracked** | **141** total; 30 standalone done | |
