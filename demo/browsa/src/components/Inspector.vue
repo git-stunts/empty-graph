@@ -39,14 +39,14 @@ function close() {
 </script>
 
 <template>
-  <div class="da-cone">
-    <div class="cone-header">
-      <span class="cone-title">Da Cone</span>
-      <span class="cone-node-id">{{ nodeId }}</span>
-      <button class="cone-close" @click="close">x</button>
+  <div class="inspector">
+    <div class="inspector-header">
+      <span class="inspector-title">Inspector</span>
+      <span class="inspector-node-id">{{ nodeId }}</span>
+      <button class="inspector-close" @click="close">x</button>
     </div>
-    <div class="cone-body">
-      <div class="cone-section">
+    <div class="inspector-body">
+      <div class="inspector-section">
         <div class="section-title">Properties</div>
         <div
           v-for="prop in nodeProps"
@@ -63,7 +63,7 @@ function close() {
         </div>
         <div v-if="nodeProps.length === 0" class="empty">No properties</div>
       </div>
-      <div class="cone-section">
+      <div class="inspector-section">
         <div class="section-title">Edges ({{ connectedEdges.length }})</div>
         <div
           v-for="(edge, idx) in connectedEdges"
@@ -83,7 +83,7 @@ function close() {
 </template>
 
 <style scoped>
-.da-cone {
+.inspector {
   position: absolute;
   bottom: 80px;
   right: 8px;
@@ -95,18 +95,18 @@ function close() {
   z-index: 10;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
 }
-.cone-header {
+.inspector-header {
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 6px 8px;
   border-bottom: 1px solid #21262d;
 }
-.cone-title {
+.inspector-title {
   font-weight: 700;
   color: #d2a8ff;
 }
-.cone-node-id {
+.inspector-node-id {
   flex: 1;
   color: #8b949e;
   font-family: monospace;
@@ -115,7 +115,7 @@ function close() {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.cone-close {
+.inspector-close {
   background: none;
   border: none;
   color: #8b949e;
@@ -123,16 +123,16 @@ function close() {
   font-size: 13px;
   padding: 0 2px;
 }
-.cone-close:hover { color: #ff7b72; }
-.cone-body {
+.inspector-close:hover { color: #ff7b72; }
+.inspector-body {
   padding: 6px 8px;
   max-height: 200px;
   overflow-y: auto;
 }
-.cone-section {
+.inspector-section {
   margin-bottom: 8px;
 }
-.cone-section:last-child { margin-bottom: 0; }
+.inspector-section:last-child { margin-bottom: 0; }
 .section-title {
   color: #58a6ff;
   font-weight: 600;

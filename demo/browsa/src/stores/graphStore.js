@@ -334,7 +334,7 @@ export const useGraphStore = defineStore('graph', () => {
   }
 
   /**
-   * Select a node in a viewport (for Da Cone / provenance).
+   * Select a node in a viewport (for inspector / provenance).
    * @param {string} viewportId
    * @param {string|null} nodeId
    */

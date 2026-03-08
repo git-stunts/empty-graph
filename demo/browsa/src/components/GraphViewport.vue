@@ -4,7 +4,7 @@ import { useGraphStore } from '../stores/graphStore.js';
 import GraphCanvas from './GraphCanvas.vue';
 import Controls from './Controls.vue';
 import TimeSlider from './TimeSlider.vue';
-import DaCone from './DaCone.vue';
+import Inspector from './Inspector.vue';
 
 const props = defineProps({ viewportId: String });
 const store = useGraphStore();
@@ -37,7 +37,7 @@ const vp = computed(() => store.viewports[props.viewportId]);
       <TimeSlider :viewport-id="props.viewportId" />
     </div>
 
-    <DaCone
+    <Inspector
       v-if="vp && vp.selectedNode"
       :viewport-id="props.viewportId"
       :node-id="vp.selectedNode"
