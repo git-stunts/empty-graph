@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **JSDoc type annotations** — Resolved 39 pre-existing `tsc --noEmit` strict-mode errors across 17 source files. Added missing `encrypted`, `blobStorage`, and `patchBlobStorage` fields to JSDoc `@param`/`@typedef` types; created `WarpGraphWithMixins` typedef for mixin methods calling `_readPatchBlob`; installed `@types/ws` for Node WebSocket adapter; fixed `Uint8Array<ArrayBufferLike>` assignability issues; narrowed `chunking.strategy` literal types for CAS adapters; added type annotations to callback parameters in WS adapters.
+
 ### Changed
 
 - **BREAKING: Uint8Array migration** — All domain-layer and port contract types narrowed from `Buffer|Uint8Array` to `Uint8Array`. Return types of `readBlob()`, `hmac()`, `serialize()`, `getContent()`, `getEdgeContent()`, and all bitmap index methods now return `Uint8Array` instead of `Buffer`. Downstream TypeScript consumers using Buffer-specific APIs (`.toString('hex')`, `.equals()`) on return values must migrate to `hexEncode()`/`textDecode()` from `domain/utils/bytes.js` and standard comparison operators. Buffer is now confined to infrastructure adapters only.

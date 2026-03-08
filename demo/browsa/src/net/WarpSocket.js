@@ -205,8 +205,8 @@ export default class WarpSocket {
       }, this._requestTimeoutMs);
 
       this._pending.set(id, {
-        resolve: (value) => { clearTimeout(timer); resolve(value); },
-        reject: (err) => { clearTimeout(timer); reject(err); },
+        resolve: (/** @type {unknown} */ value) => { clearTimeout(timer); resolve(value); },
+        reject: (/** @type {unknown} */ err) => { clearTimeout(timer); reject(err); },
       });
 
       if (this._ws) {
