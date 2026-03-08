@@ -49,6 +49,7 @@ export default tseslint.config(
         AbortSignal: "readonly",
         performance: "readonly",
         global: "readonly",
+        WebSocket: "readonly",
       },
     },
     plugins: {

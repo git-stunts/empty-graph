@@ -49,7 +49,7 @@ const { default: SeekCachePort } = await import(
 function makePersistence() {
   return {
     readRef: vi.fn().mockResolvedValue(null),
-    readBlob: vi.fn().mockResolvedValue(Buffer.from('{}', 'utf8')),
+    readBlob: vi.fn().mockResolvedValue(new TextEncoder().encode('{}')),
     writeBlob: vi.fn().mockResolvedValue('blob-oid-1'),
     updateRef: vi.fn().mockResolvedValue(undefined),
     deleteRef: vi.fn().mockResolvedValue(undefined),
@@ -62,13 +62,13 @@ function makePlumbing() {
 
 /** Builds a JSON index buffer for readBlob to return. */
 function indexBuffer(entries = {}) {
-  return Buffer.from(JSON.stringify({ schemaVersion: 1, entries }), 'utf8');
+  return new TextEncoder().encode(JSON.stringify({ schemaVersion: 1, entries }));
 }
 
 const GRAPH_NAME = 'test-graph';
 const EXPECTED_REF = `refs/warp/${GRAPH_NAME}/seek-cache`;
 const SAMPLE_KEY = 'v1:t42-abcdef0123456789';
-const SAMPLE_BUFFER = Buffer.from('serialized-state-data');
+const SAMPLE_BUFFER = new TextEncoder().encode('serialized-state-data');
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -126,7 +126,7 @@ describe('CasSeekCacheAdapter', () => {
     });
 
     it('stores encryptionKey when provided', () => {
-      const key = Buffer.alloc(32, 0xab);
+      const key = new Uint8Array(32).fill(0xab);
       const encrypted = new CasSeekCacheAdapter({
         persistence,
         plumbing,
@@ -244,7 +244,7 @@ describe('CasSeekCacheAdapter', () => {
     it('returns buffer on cache hit', async () => {
       const treeOid = 'tree-oid-abc';
       const manifest = { chunks: ['c1'] };
-      const stateBuffer = Buffer.from('restored-state');
+      const stateBuffer = new TextEncoder().encode('restored-state');
 
       persistence.readRef.mockResolvedValue('index-oid');
       persistence.readBlob.mockResolvedValue(
@@ -263,7 +263,7 @@ describe('CasSeekCacheAdapter', () => {
     it('updates lastAccessedAt on successful cache hit', async () => {
       const treeOid = 'tree-oid-abc';
       const manifest = { chunks: ['c1'] };
-      const stateBuffer = Buffer.from('restored-state');
+      const stateBuffer = new TextEncoder().encode('restored-state');
       const originalEntry = {
         treeOid,
         createdAt: '2025-01-01T00:00:00Z',
@@ -321,7 +321,7 @@ describe('CasSeekCacheAdapter', () => {
     });
 
     it('passes encryptionKey to cas.restore when configured', async () => {
-      const encKey = Buffer.alloc(32, 0xab);
+      const encKey = new Uint8Array(32).fill(0xab);
       const encAdapter = new CasSeekCacheAdapter({
         persistence,
         plumbing,
@@ -330,7 +330,7 @@ describe('CasSeekCacheAdapter', () => {
       });
       const treeOid = 'tree-oid-enc';
       const manifest = { chunks: ['c1'] };
-      const stateBuffer = Buffer.from('encrypted-state');
+      const stateBuffer = new TextEncoder().encode('encrypted-state');
 
       persistence.readRef.mockResolvedValue('index-oid');
       persistence.readBlob.mockResolvedValue(
@@ -356,7 +356,7 @@ describe('CasSeekCacheAdapter', () => {
         indexBuffer({ [SAMPLE_KEY]: { treeOid, createdAt: new Date().toISOString() } })
       );
       mockReadManifest.mockResolvedValue(manifest);
-      mockRestore.mockResolvedValue({ buffer: Buffer.from('plain') });
+      mockRestore.mockResolvedValue({ buffer: new TextEncoder().encode('plain') });
 
       await adapter.get(SAMPLE_KEY);
 
@@ -374,8 +374,8 @@ describe('CasSeekCacheAdapter', () => {
 
       const treeOid = 'tree-stream';
       const manifest = { chunks: ['c1', 'c2'] };
-      const chunk1 = Buffer.from('hello-');
-      const chunk2 = Buffer.from('world');
+      const chunk1 = new TextEncoder().encode('hello-');
+      const chunk2 = new TextEncoder().encode('world');
 
       persistence.readRef.mockResolvedValue('index-oid');
       persistence.readBlob.mockResolvedValue(
@@ -408,7 +408,7 @@ describe('CasSeekCacheAdapter', () => {
 
       const treeOid = 'tree-fallback';
       const manifest = { chunks: ['c1'] };
-      const stateBuffer = Buffer.from('fallback-state');
+      const stateBuffer = new TextEncoder().encode('fallback-state');
 
       persistence.readRef.mockResolvedValue('index-oid');
       persistence.readBlob.mockResolvedValue(
@@ -490,7 +490,7 @@ describe('CasSeekCacheAdapter', () => {
     });
 
     it('passes encryptionKey to cas.store when configured', async () => {
-      const encKey = Buffer.alloc(32, 0xab);
+      const encKey = new Uint8Array(32).fill(0xab);
       const encAdapter = new CasSeekCacheAdapter({
         persistence,
         plumbing,
@@ -793,7 +793,7 @@ describe('CasSeekCacheAdapter', () => {
       mockStore.mockResolvedValue({ chunks: [] });
       mockCreateTree.mockResolvedValue('new-tree');
 
-      await tinyAdapter.set('v1:t99-newhash', Buffer.from('new'));
+      await tinyAdapter.set('v1:t99-newhash', new TextEncoder().encode('new'));
 
       const writtenJson = JSON.parse(
         new TextDecoder().decode(persistence.writeBlob.mock.calls[0][0])
@@ -874,7 +874,7 @@ describe('CasSeekCacheAdapter', () => {
 
     it('returns empty index when blob is invalid JSON', async () => {
       persistence.readRef.mockResolvedValue('oid');
-      persistence.readBlob.mockResolvedValue(Buffer.from('not-json!!!'));
+      persistence.readBlob.mockResolvedValue(new TextEncoder().encode('not-json!!!'));
       const result = await adapter._readIndex();
       expect(result).toEqual({ schemaVersion: 1, entries: {} });
     });
@@ -882,7 +882,7 @@ describe('CasSeekCacheAdapter', () => {
     it('returns empty index when schemaVersion mismatches', async () => {
       persistence.readRef.mockResolvedValue('oid');
       persistence.readBlob.mockResolvedValue(
-        Buffer.from(JSON.stringify({ schemaVersion: 999, entries: { x: {} } }))
+        new TextEncoder().encode(JSON.stringify({ schemaVersion: 999, entries: { x: {} } }))
       );
       const result = await adapter._readIndex();
       expect(result).toEqual({ schemaVersion: 1, entries: {} });

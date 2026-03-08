@@ -182,6 +182,8 @@ describe('handleServe', () => {
     const openCall = /** @type {any} */ (WarpGraph.open).mock.calls[0][0];
     // Port 0 means the OS assigns an ephemeral port — writerId should NOT embed "0"
     expect(openCall.writerId).toContain('ephemeral');
+    // Positive format check: serve-<host>-ephemeral-<base36>-<pid>
+    expect(openCall.writerId).toMatch(/^serve-[\w.-]+-ephemeral-[a-z0-9]+-\d+$/);
     expect(openCall.writerId).not.toContain('-0-');
     expect(openCall.writerId).not.toMatch(/-0$/);
   });

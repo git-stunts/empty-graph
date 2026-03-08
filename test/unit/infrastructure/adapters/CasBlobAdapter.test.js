@@ -131,7 +131,7 @@ describe('CasBlobAdapter', () => {
       mockStore.mockResolvedValue({});
       mockCreateTree.mockResolvedValue('tree-oid');
 
-      const encKey = Buffer.from('0'.repeat(64), 'hex');
+      const encKey = new Uint8Array(32);
       const adapter = new CasBlobAdapter({
         plumbing: makePlumbing(),
         persistence: makePersistence(),
@@ -163,7 +163,7 @@ describe('CasBlobAdapter', () => {
   describe('retrieve()', () => {
     it('retrieves content via CAS when manifest exists', async () => {
       const manifest = { chunks: ['chunk1'] };
-      const contentBuf = Buffer.from('restored content');
+      const contentBuf = new TextEncoder().encode('restored content');
       mockReadManifest.mockResolvedValue(manifest);
       mockRestore.mockResolvedValue({ buffer: contentBuf });
 
@@ -182,9 +182,9 @@ describe('CasBlobAdapter', () => {
     it('passes encryptionKey to CAS restore when configured', async () => {
       const manifest = { chunks: ['chunk1'] };
       mockReadManifest.mockResolvedValue(manifest);
-      mockRestore.mockResolvedValue({ buffer: Buffer.from('decrypted') });
+      mockRestore.mockResolvedValue({ buffer: new TextEncoder().encode('decrypted') });
 
-      const encKey = Buffer.from('0'.repeat(64), 'hex');
+      const encKey = new Uint8Array(32);
       const adapter = new CasBlobAdapter({
         plumbing: makePlumbing(),
         persistence: makePersistence(),

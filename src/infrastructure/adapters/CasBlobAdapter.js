@@ -14,6 +14,7 @@
 
 import BlobStoragePort from '../../ports/BlobStoragePort.js';
 import { createLazyCas } from './lazyCasInit.js';
+import LoggerObservabilityBridge from './LoggerObservabilityBridge.js';
 import { Readable } from 'node:stream';
 
 /** @typedef {{ readManifest: Function, restore: Function, store: Function, createTree: Function }} CasStore */
@@ -84,9 +85,6 @@ export default class CasBlobAdapter extends BlobStoragePort {
       chunking: { strategy: 'cdc' },
     };
     if (this._logger) {
-      const { default: LoggerObservabilityBridge } = await import(
-        './LoggerObservabilityBridge.js'
-      );
       opts.observability = new LoggerObservabilityBridge(this._logger);
     }
     return new ContentAddressableStore(opts);

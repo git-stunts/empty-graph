@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import WarpServeService from '../../../../src/domain/services/WarpServeService.js';
 
 /**
@@ -152,6 +152,10 @@ describe('WarpServeService', () => {
       await service.listen(0);
     });
 
+    afterEach(async () => {
+      await service?.close();
+    });
+
     it('sends a hello message on connect', () => {
       const client = ws.simulateConnection();
       expect(client.sent.length).toBe(1);
@@ -221,6 +225,10 @@ describe('WarpServeService', () => {
       graph = createMockGraph();
       service = new WarpServeService({ wsPort: ws.port, graphs: [graph] });
       await service.listen(0);
+    });
+
+    afterEach(async () => {
+      await service?.close();
     });
 
     it('responds with materialized state when client opens a graph', async () => {
@@ -331,6 +339,10 @@ describe('WarpServeService', () => {
       graph = createMockGraph();
       service = new WarpServeService({ wsPort: ws.port, graphs: [graph] });
       await service.listen(0);
+    });
+
+    afterEach(async () => {
+      await service?.close();
     });
 
     it('applies addNode mutation and returns ack', async () => {
@@ -609,6 +621,39 @@ describe('WarpServeService', () => {
       expect(msg.type).toBe('error');
       expect(msg.payload.code).toBe('E_NOT_OPENED');
     });
+
+    it('rejects mutate targeting a different graph than opened', async () => {
+      const localWs = createMockWsPort();
+      const alpha = createMockGraph({ graphName: 'alpha' });
+      const beta = createMockGraph({ graphName: 'beta' });
+      const svc = new WarpServeService({ wsPort: localWs.port, graphs: [alpha, beta] });
+      await svc.listen(0);
+
+      const client = localWs.simulateConnection();
+      // Open alpha only
+      client.sendFromClient(JSON.stringify({
+        v: 1, type: 'open', id: 'o1',
+        payload: { graph: 'alpha' },
+      }));
+      await vi.waitFor(() => { expect(client.sent.length).toBeGreaterThanOrEqual(2); });
+      client.sent.length = 0;
+
+      // Try to mutate beta (not opened)
+      client.sendFromClient(JSON.stringify({
+        v: 1, type: 'mutate', id: 'mut-cross',
+        payload: {
+          graph: 'beta',
+          ops: [{ op: 'addNode', args: ['node:x'] }],
+        },
+      }));
+
+      await vi.waitFor(() => expect(client.sent.length).toBeGreaterThan(0));
+      const msg = JSON.parse(client.sent[0]);
+      expect(msg.type).toBe('error');
+      expect(msg.payload.code).toBe('E_NOT_OPENED');
+
+      await svc.close();
+    });
   });
 
   // ── Protocol: inspect ───────────────────────────────────────────────
@@ -627,6 +672,10 @@ describe('WarpServeService', () => {
       graph.getNodeProps.mockResolvedValue({ name: 'Alice', role: 'admin' });
       service = new WarpServeService({ wsPort: ws.port, graphs: [graph] });
       await service.listen(0);
+    });
+
+    afterEach(async () => {
+      await service?.close();
     });
 
     it('returns node properties', async () => {
@@ -693,6 +742,10 @@ describe('WarpServeService', () => {
       graph = createMockGraph();
       service = new WarpServeService({ wsPort: ws.port, graphs: [graph] });
       await service.listen(0);
+    });
+
+    afterEach(async () => {
+      await service?.close();
     });
 
     it('re-materializes with ceiling and sends state', async () => {
@@ -989,6 +1042,10 @@ describe('WarpServeService', () => {
       await service.listen(0);
     });
 
+    afterEach(async () => {
+      await service?.close();
+    });
+
     it('returns error for invalid JSON', async () => {
       const client = ws.simulateConnection();
       client.sent.length = 0;
@@ -1224,9 +1281,10 @@ describe('WarpServeService', () => {
       const client = ws.simulateConnection();
       client.sent.length = 0;
 
-      // Send a valid-looking message that will cause _onMessage to throw
-      // unexpectedly (not a handled error path).
-      // We mock _onMessage to throw to simulate a truly unexpected failure.
+      // Override _onMessage to throw — this is the only way to trigger the
+      // outer .catch() in _onConnection, since all handler-level errors are
+      // caught by each handler's own try/catch. The monkey-patch simulates a
+      // truly unexpected failure (e.g., a bug in message dispatch).
       /** @type {any} */ (service)._onMessage = async () => {
         throw new Error('secret internal path /etc/shadow');
       };

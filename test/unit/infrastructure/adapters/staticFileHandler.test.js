@@ -15,8 +15,8 @@ describe('handleStaticRequest', () => {
     await writeFile(join(root, 'assets', 'app.js'), 'console.log("hi")');
     await writeFile(join(root, 'assets', 'style.css'), 'body { color: red }');
     await writeFile(join(root, 'data.json'), '{"ok":true}');
-    await writeFile(join(root, 'image.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47]));
-    await writeFile(join(root, 'favicon.ico'), Buffer.from([0x00]));
+    await writeFile(join(root, 'image.png'), new Uint8Array([0x89, 0x50, 0x4e, 0x47]));
+    await writeFile(join(root, 'favicon.ico'), new Uint8Array([0x00]));
   });
 
   afterAll(async () => {

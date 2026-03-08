@@ -132,10 +132,7 @@ describe('WarpGraph encryption at rest (B164)', () => {
       writerId: 'writer-2',
     });
 
-    /** @type {unknown} */
-    const err = await openPromise.then(() => null, (e) => e);
-    expect(err).toBeInstanceOf(EncryptionError);
-    expect(/** @type {Error} */ (err).message).toMatch(/encrypted patches/);
+    await expect(openPromise).rejects.toThrow(/encrypted patches/);
   });
 
   it('handles mixed encrypted and unencrypted patches', async () => {

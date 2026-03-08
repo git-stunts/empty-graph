@@ -99,7 +99,7 @@ async function resolveStaticDir(raw) {
  *
  * @param {import('../types.js').Persistence} persistence
  * @param {string|null} [graphOption]
- * @returns {Promise<{ persistence: import('../types.js').Persistence, targetGraphs: string[] }>}
+ * @returns {Promise<string[]>}
  */
 async function resolveTargetGraphs(persistence, graphOption) {
   const graphNames = await listGraphNames(persistence);
@@ -109,8 +109,7 @@ async function resolveTargetGraphs(persistence, graphOption) {
   if (graphOption && !graphNames.includes(graphOption)) {
     throw notFoundError(`Graph not found: ${graphOption}`);
   }
-  const targetGraphs = graphOption ? [graphOption] : graphNames;
-  return { persistence, targetGraphs };
+  return graphOption ? [graphOption] : graphNames;
 }
 
 /**
@@ -182,7 +181,7 @@ export default async function handleServe({ options, args }) {
 
   const staticDir = await resolveStaticDir(values.static);
   const { persistence } = await createPersistence(options.repo);
-  const { targetGraphs } = await resolveTargetGraphs(persistence, options.graph);
+  const targetGraphs = await resolveTargetGraphs(persistence, options.graph);
 
   const writerId = explicitWriterId || deriveWriterId(host, port);
   const graphs = await openGraphs(persistence, targetGraphs, writerId);
