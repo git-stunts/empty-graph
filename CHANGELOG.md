@@ -7,10 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Removed
-
-- **Inspector extracted to standalone repo** — The Git WARP Inspector (formerly `demo/browsa/`) has been extracted to [git-stunts/git-warp-web-inspector](https://github.com/git-stunts/git-warp-web-inspector). The `demo/` directory, `test/unit/browsa/`, and `TASKS.md` have been removed from this repository.
-
 ### Fixed
 
 - **`base64Encode` / `base64Decode` memory overhead** — Replaced intermediate binary string approach (`String.fromCharCode` / `charCodeAt` via `btoa`/`atob`) with direct table-based base64 encoding/decoding, eliminating memory spikes on large buffers (e.g., StreamingBitmapIndexBuilder shards).
@@ -20,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`git warp serve` IPv6 URL bracketing** — IPv6 addresses like `::1` are now bracketed in WebSocket and HTTP URLs (`ws://[::1]:3000`) per RFC 3986.
 - **Inspector WebSocket default URL** — Hardcoded `ws://localhost:3000` replaced with `window.location`-derived URL, so `--static` serving on any port connects correctly without needing `?server=` param.
 - **JSDoc type annotations** — Resolved 39 pre-existing `tsc --noEmit` strict-mode errors across 17 source files. Added missing `encrypted`, `blobStorage`, and `patchBlobStorage` fields to JSDoc `@param`/`@typedef` types; created `WarpGraphWithMixins` typedef for mixin methods calling `_readPatchBlob`; installed `@types/ws` for Node WebSocket adapter; fixed `Uint8Array<ArrayBufferLike>` assignability issues; narrowed `chunking.strategy` literal types for CAS adapters; added type annotations to callback parameters in WS adapters.
+- **Inspector: "Go live" after time-travel** — `setCeiling(Infinity)` now calls `socket.open()` to re-materialize at head instead of sending `seek` with no ceiling (which the server rejected as invalid). Time-travel back to live state works correctly now.
+- **Inspector: localStorage persistence timing** — Server URL is now persisted to `localStorage` only after a successful connection, preventing a bad URL from locking users into a reconnect loop on reload.
+- **CasBlobAdapter error propagation** — `retrieve()` no longer silently falls back to raw Git blob reads on decryption, integrity, or permission errors. Only "not a CAS manifest" errors trigger the backward-compatibility fallback.
+- **Dead `writerIds` code removed** — `WarpServeService` no longer stores per-session `writerIds` from `open` messages. The field was populated but never consumed — all mutations use the server's writer identity.
 
 ### Changed
 
@@ -33,11 +33,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`src/domain/utils/bytes.js`** — Portable byte-manipulation utilities replacing Node.js Buffer methods: `hexEncode`, `hexDecode`, `base64Encode`, `base64Decode`, `concatBytes`, `textEncode`, `textDecode`. Works identically on Node, Bun, Deno, and browsers.
 - **ESLint `no-restricted-globals` for Buffer** — `Buffer` is now banned in `src/domain/**/*.js` via ESLint. Future regressions are caught at lint time.
 - **`git warp serve --expose` flag** — Binding to a non-loopback address now requires `--expose` to prevent accidental network exposure. Without the flag, the command exits with a usage error.
-
 - **Inspector: architecture pivot to WebSocket** — Rewired the Vue app from in-memory `WarpGraph` instances to a live WebSocket connection via `WarpSocket`. The browser now connects to `git warp serve` and views/edits a real Git-backed graph. Replaced the 4-viewport multi-writer demo with a single-viewport, single-connection model. All mutations go through `socket.mutate()` and state updates arrive via server-pushed diffs.
+- **Bun + Deno WebSocket adapters** — `git warp serve` now auto-detects the runtime and uses native WebSocket APIs on all three platforms. `BunWsAdapter` uses `Bun.serve()` with the `websocket` handler option; `DenoWsAdapter` uses `Deno.serve()` + `Deno.upgradeWebSocket()`. The `serve` CLI command dynamically imports only the relevant adapter via `createWsAdapter()`, so the `ws` npm package is never loaded on Bun/Deno.
+- **Static file serving** — `git warp serve --static <dir>` serves a built SPA (or any static directory) over HTTP on the same port as the WebSocket server. Supports SPA client-side routing fallback, correct MIME types for common web assets, and path traversal protection.
+- **Browser-compatible `InMemoryGraphAdapter`** — Replaced hard `node:crypto` and `node:stream` imports with lazy-loaded fallbacks. A new `hash` constructor option lets callers inject a synchronous SHA-1 function for environments where `node:crypto` is unavailable (e.g. browsers). `node:stream` is now dynamically imported only in `logNodesStream()`.
+- **Browser-safe `defaultCrypto`** — The domain-level crypto default now lazy-loads `node:crypto` via top-level `await import()` with a try/catch, so importing `WarpGraph` in a browser no longer crashes at module evaluation time. Callers must inject crypto via `WarpGraph.open({ crypto })` when `node:crypto` is unavailable.
+- **`sha1sync` utility** (`@git-stunts/git-warp/sha1sync`) — Minimal synchronous SHA-1 implementation (~110 LOC) for browser content addressing with `InMemoryGraphAdapter`. Not for security — only for Git object ID computation.
+- **`browser.js` entry point** (`@git-stunts/git-warp/browser`) — Curated re-export of browser-safe code: `WarpGraph`, `InMemoryGraphAdapter`, `WebCryptoAdapter`, CRDT primitives, errors, and `generateWriterId`. No `node:` imports in the critical path.
+- **Documentation enhancements in README.md** — Added a high-level Documentation Map, a detailed Graph Traversal Directory, an expanded Time-Travel (Seek) guide, and updated Runtime Compatibility information (Node.js, Bun, Deno).
+- **Local-First Applications use-case** — Added git-warp as a backend for LoFi software.
 
 ### Removed
 
+- **Inspector extracted to standalone repo** — The Git WARP Inspector (formerly `demo/browsa/`) has been extracted to [git-stunts/git-warp-web-inspector](https://github.com/git-stunts/git-warp-web-inspector). The `demo/` directory, `test/unit/browsa/`, and `TASKS.md` have been removed from this repository.
 - **Inspector: scenario runner** — Removed `ScenarioPanel.vue` and all scenario infrastructure. Multi-writer scenarios don't apply to the single-connection WebSocket model.
 - **Inspector: in-memory sync** — Removed `InProcessSyncBus.js` and `InsecureCryptoAdapter.js`. No in-memory sync or browser-side crypto needed with the server-backed architecture.
 - **Inspector: multi-viewport grid** — Removed 4-viewport layout, sync buttons, and online/offline toggles. Multiple browser windows serve the multi-writer use case instead.
@@ -53,16 +61,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Streaming seek cache restore (B163)** — `CasSeekCacheAdapter.get()` now prefers `cas.restoreStream()` (git-cas v4+) for I/O pipelining — chunk reads overlap with buffer accumulation. Falls back to `cas.restore()` for older git-cas versions.
 - **Graph encryption at rest (B164)** — New `patchBlobStorage` option on `WarpGraph.open()`. When a `BlobStoragePort` (e.g. `CasBlobAdapter` with encryption key) is injected, patch CBOR is encrypted before writing to Git and decrypted on read. An `eg-encrypted: true` commit trailer marks encrypted patches. All 6 patch read sites and the write path are threaded. `EncryptionError` is thrown when attempting to read encrypted patches without a key. Mixed encrypted and unencrypted patches are fully supported — plain patches read via `persistence.readBlob()`, encrypted via `patchBlobStorage.retrieve()`.
 
-### Added
-- **Bun + Deno WebSocket adapters** — `git warp serve` now auto-detects the runtime and uses native WebSocket APIs on all three platforms. `BunWsAdapter` uses `Bun.serve()` with the `websocket` handler option; `DenoWsAdapter` uses `Deno.serve()` + `Deno.upgradeWebSocket()`. The `serve` CLI command dynamically imports only the relevant adapter via `createWsAdapter()`, so the `ws` npm package is never loaded on Bun/Deno.
-- **Static file serving** — `git warp serve --static <dir>` serves a built SPA (or any static directory) over HTTP on the same port as the WebSocket server. Supports SPA client-side routing fallback, correct MIME types for common web assets, and path traversal protection. With a pre-built inspector, `git warp serve --static demo/browsa/dist` is a single command — no separate Vite dev server needed.
-- **Browser-compatible `InMemoryGraphAdapter`** — Replaced hard `node:crypto` and `node:stream` imports with lazy-loaded fallbacks. A new `hash` constructor option lets callers inject a synchronous SHA-1 function for environments where `node:crypto` is unavailable (e.g. browsers). `node:stream` is now dynamically imported only in `logNodesStream()`.
-- **Browser-safe `defaultCrypto`** — The domain-level crypto default now lazy-loads `node:crypto` via top-level `await import()` with a try/catch, so importing `WarpGraph` in a browser no longer crashes at module evaluation time. Callers must inject crypto via `WarpGraph.open({ crypto })` when `node:crypto` is unavailable.
-- **`sha1sync` utility** (`@git-stunts/git-warp/sha1sync`) — Minimal synchronous SHA-1 implementation (~110 LOC) for browser content addressing with `InMemoryGraphAdapter`. Not for security — only for Git object ID computation.
-- **`browser.js` entry point** (`@git-stunts/git-warp/browser`) — Curated re-export of browser-safe code: `WarpGraph`, `InMemoryGraphAdapter`, `WebCryptoAdapter`, CRDT primitives, errors, and `generateWriterId`. No `node:` imports in the critical path.
-- **Documentation enhancements in README.md** — Added a high-level Documentation Map, a detailed Graph Traversal Directory, an expanded Time-Travel (Seek) guide, and updated Runtime Compatibility information (Node.js, Bun, Deno).
-- **Local-First Applications use-case** — Added git-warp as a backend for LoFi software.
-
 ### Security
 
 - **WebSocket mutation op allowlist** — `WarpServeService._handleMutate` now validates mutation ops against `ALLOWED_MUTATE_OPS` (`addNode`, `removeNode`, `addEdge`, `removeEdge`, `setProperty`, `setEdgeProperty`, `attachContent`, `attachEdgeContent`). Previously, any method on the `PatchBuilderV2` prototype could be invoked by a WebSocket client, including internal methods.
@@ -71,13 +69,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`hexDecode` input validation** — `hexDecode()` now throws `RangeError` on odd-length or non-hex input instead of silently coercing invalid characters to `0x00`.
 - **WarpSocket request timeout** — `WarpSocket._request()` now enforces a configurable timeout (default 30s). Pending requests that receive no server response reject with a timeout error instead of leaking forever.
 - **Vite `allowedHosts` scoped** — Inspector dev server no longer sets `allowedHosts: true`. Restricted to `localhost` and `127.0.0.1` to prevent DNS rebinding.
-
-### Fixed
-
-- **Inspector: "Go live" after time-travel** — `setCeiling(Infinity)` now calls `socket.open()` to re-materialize at head instead of sending `seek` with no ceiling (which the server rejected as invalid). Time-travel back to live state works correctly now.
-- **Inspector: localStorage persistence timing** — Server URL is now persisted to `localStorage` only after a successful connection, preventing a bad URL from locking users into a reconnect loop on reload.
-- **CasBlobAdapter error propagation** — `retrieve()` no longer silently falls back to raw Git blob reads on decryption, integrity, or permission errors. Only "not a CAS manifest" errors trigger the backward-compatibility fallback.
-- **Dead `writerIds` code removed** — `WarpServeService` no longer stores per-session `writerIds` from `open` messages. The field was populated but never consumed — all mutations use the server's writer identity.
 
 ## [13.1.0] - 2026-03-04
 
