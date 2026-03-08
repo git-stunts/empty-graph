@@ -245,17 +245,34 @@ export default class WarpServeService {
     if (this._server) {
       throw new Error('Server is already listening');
     }
-    this._server = this._wsPort.createServer((conn) => this._onConnection(conn));
 
-    // Subscribe to each graph for live diff push
+    const server = this._wsPort.createServer((conn) => this._onConnection(conn));
+
+    // Subscribe to each graph for live diff push.
+    // Subscriptions are created before bind so diffs aren't missed between
+    // bind and subscribe — but we must clean up if bind fails.
+    /** @type {Map<string, { unsubscribe: () => void }>} */
+    const subs = new Map();
     for (const [graphName, graph] of this._graphs) {
       const sub = graph.subscribe({
         onChange: (/** @type {unknown} */ diff) => this._broadcastDiff(graphName, diff),
       });
-      this._subscriptions.set(graphName, sub);
+      subs.set(graphName, sub);
     }
 
-    return await this._server.listen(port, host);
+    try {
+      const result = await server.listen(port, host);
+      // Bind succeeded — commit state mutations
+      this._server = server;
+      this._subscriptions = subs;
+      return result;
+    } catch (err) {
+      // Bind failed — clean up subscriptions to prevent leaked broadcast handlers
+      for (const [, sub] of subs) {
+        sub.unsubscribe();
+      }
+      throw err;
+    }
   }
 
   /**
@@ -305,15 +322,16 @@ export default class WarpServeService {
     }));
 
     conn.onMessage((raw) => {
-      this._onMessage(session, raw).catch((err) => {
+      this._onMessage(session, raw).catch(() => {
         // Errors are caught and sent as error envelopes inside _onMessage handlers.
         // This catch prevents unhandled rejection for truly unexpected failures.
-        // Best-effort: try to extract the request id for correlation.
+        // Send a generic message to avoid leaking internal details (file paths,
+        // stack traces, etc.) to untrusted WebSocket clients.
         let id;
         try { id = JSON.parse(raw).id; } catch { /* unparseable — no id */ }
         session.conn.send(errorEnvelope(
           'E_INTERNAL',
-          err instanceof Error ? err.message : 'Internal error',
+          'Internal error',
           id,
         ));
       });

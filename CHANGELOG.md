@@ -25,6 +25,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`BunWsAdapter` test `globalThis.Bun` leak** — Tests now save and restore the original `globalThis.Bun` instead of deleting it unconditionally.
 - **`vi.waitFor()` boolean callbacks in serve tests** — Replaced 22 boolean-returning callbacks with assertion-based ones to prevent premature resolution.
 
+- **`WarpServeService.listen()` leaked subscriptions on bind failure** — If `server.listen()` rejected (e.g., EADDRINUSE), graph subscriptions were already registered and never cleaned up, causing ghost broadcast handlers. `listen()` now defers `_server` assignment and subscription registration until bind succeeds, and cleans up on failure.
+- **`_onConnection` catch leaked internal error details** — The last-resort catch handler sent raw `err.message` (which could contain file paths, stack traces, etc.) to untrusted WebSocket clients. Now sends a generic `"Internal error"` message.
 - **`git warp serve` silent blob data loss** — Mutation ops like `attachContent` and `attachEdgeContent` are async (they write blobs), but `_applyMutateOps` was not awaiting them. `patch.commit()` could fire before the blob write completed. Now all ops are awaited.
 - **DenoWsAdapter port-0 resolution** — When binding to port 0 (OS-assigned), `onListen` resolved with the requested port (0) instead of the actual assigned port. Now reads `server.addr.port`, matching Node and Bun adapter behavior.
 - **Static file handler symlink traversal** — A symlink inside `staticDir` pointing outside the root could bypass `safePath()` and serve arbitrary files. `tryReadFile` now resolves symlinks with `realpath()` and re-checks the prefix before reading.
