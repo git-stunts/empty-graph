@@ -188,7 +188,7 @@ const props = await ws.inspect({ graph: 'default', nodeId: 'user:alice' });
 **Implementation notes:**
 - Uses `globalThis.WebSocket` (available in all browsers).
 - Correlation IDs: use a monotonic counter (`req-1`, `req-2`, ...). Store pending promises in a `Map<string, { resolve, reject }>`. On incoming message, if `msg.id` matches a pending request, resolve/reject it. If no `id`, it's a push (diff/error).
-- Reconnect: on `ws.onclose`, wait with backoff, then re-establish. On reconnect, automatically re-send `open` for all previously opened graphs.
+- Reconnect: **DEFERRED** — auto-reconnect with exponential backoff is not yet implemented. The `graphStore.js` exposes a manual `reconnect()` method. Auto-reconnect is planned for a future iteration.
 
 **Dependency:** None (can develop against mock WebSocket in tests)
 

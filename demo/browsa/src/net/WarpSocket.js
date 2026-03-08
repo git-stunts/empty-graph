@@ -19,10 +19,13 @@ const PROTOCOL_VERSION = 1;
  * @typedef {{ code: string, message: string }} ErrorPayload
  */
 
+/** Default request timeout in milliseconds (30 seconds). */
+const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
+
 export default class WarpSocket {
   /**
    * @param {string} url - WebSocket server URL (e.g. ws://localhost:3000)
-   * @param {{ WebSocket?: any }} [options] - Dependency injection for testing
+   * @param {{ WebSocket?: any, requestTimeoutMs?: number }} [options] - Dependency injection for testing
    */
   constructor(url, options = {}) {
     /** @type {string} */
@@ -30,6 +33,9 @@ export default class WarpSocket {
 
     /** @type {any} */
     this._WS = options.WebSocket || globalThis.WebSocket;
+
+    /** @type {number} */
+    this._requestTimeoutMs = options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
 
     /** @type {WebSocket|null} */
     this._ws = null;
@@ -191,10 +197,22 @@ export default class WarpSocket {
     const msg = JSON.stringify({ v: PROTOCOL_VERSION, type, id, payload });
 
     return new Promise((resolve, reject) => {
-      this._pending.set(id, { resolve, reject });
+      const timer = setTimeout(() => {
+        if (this._pending.has(id)) {
+          this._pending.delete(id);
+          reject(new Error(`Request ${type} timed out after ${this._requestTimeoutMs}ms`));
+        }
+      }, this._requestTimeoutMs);
+
+      this._pending.set(id, {
+        resolve: (value) => { clearTimeout(timer); resolve(value); },
+        reject: (err) => { clearTimeout(timer); reject(err); },
+      });
+
       if (this._ws) {
         this._ws.send(msg);
       } else {
+        clearTimeout(timer);
         reject(new Error('Not connected'));
         this._pending.delete(id);
       }

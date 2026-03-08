@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import WarpSocket from '../../../demo/browsa/src/net/WarpSocket.js';
 
 /**
@@ -154,6 +154,88 @@ describe('WarpSocket', () => {
     });
   });
 
+  // ── Request-response: concurrent & timeout ─────────────────────────
+
+  describe('request-response', () => {
+    /** @type {ReturnType<typeof createMockWebSocket>} */
+    let mock;
+    /** @type {WarpSocket} */
+    let ws;
+
+    beforeEach(async () => {
+      mock = createMockWebSocket();
+      ws = new WarpSocket('ws://localhost:3000', { WebSocket: mock.MockWebSocket });
+      const p = ws.connect();
+      mock.simulateOpen();
+      mock.simulateMessage(JSON.stringify({
+        v: 1, type: 'hello', payload: { protocol: 1, graphs: ['test'] },
+      }));
+      await p;
+    });
+
+    it('resolves two concurrent in-flight requests out of order', async () => {
+      // Issue two requests simultaneously
+      const openPromise = ws.open({ graph: 'test', writerId: 'w1' });
+      const inspectPromise = ws.inspect({ graph: 'test', nodeId: 'user:alice' });
+
+      // Extract both sent messages
+      expect(mock.sent.length).toBe(2);
+      const sentOpen = JSON.parse(mock.sent[0]);
+      const sentInspect = JSON.parse(mock.sent[1]);
+      expect(sentOpen.type).toBe('open');
+      expect(sentInspect.type).toBe('inspect');
+
+      // Respond to the SECOND request first
+      mock.simulateMessage(JSON.stringify({
+        v: 1, type: 'inspect', id: sentInspect.id,
+        payload: { graph: 'test', nodeId: 'user:alice', props: { name: 'Alice' } },
+      }));
+
+      // Then respond to the FIRST request
+      mock.simulateMessage(JSON.stringify({
+        v: 1, type: 'state', id: sentOpen.id,
+        payload: { graph: 'test', nodes: [{ id: 'n1', props: {} }], edges: [], frontier: {} },
+      }));
+
+      // Both promises resolve with their correct payloads
+      const openResult = await openPromise;
+      const inspectResult = await inspectPromise;
+
+      expect(openResult.graph).toBe('test');
+      expect(openResult.nodes).toHaveLength(1);
+      expect(openResult.nodes[0].id).toBe('n1');
+
+      expect(inspectResult.graph).toBe('test');
+      expect(inspectResult.nodeId).toBe('user:alice');
+      expect(inspectResult.props).toEqual({ name: 'Alice' });
+    });
+
+    it('rejects with timeout when server does not respond', async () => {
+      vi.useFakeTimers();
+
+      const timeoutMock = createMockWebSocket();
+      const timeoutWs = new WarpSocket('ws://localhost:3000', {
+        WebSocket: timeoutMock.MockWebSocket,
+        requestTimeoutMs: 100,
+      });
+      const p = timeoutWs.connect();
+      timeoutMock.simulateOpen();
+      timeoutMock.simulateMessage(JSON.stringify({
+        v: 1, type: 'hello', payload: { protocol: 1, graphs: ['test'] },
+      }));
+      await p;
+
+      const openPromise = timeoutWs.open({ graph: 'test', writerId: 'w1' });
+
+      // Advance past the timeout
+      vi.advanceTimersByTime(100);
+
+      await expect(openPromise).rejects.toThrow(/timed out/);
+
+      vi.useRealTimers();
+    });
+  });
+
   // ── Request-response: mutate ────────────────────────────────────────
 
   describe('mutate', () => {
@@ -293,7 +375,7 @@ describe('WarpSocket', () => {
       expect(received[0].diff.nodes.added).toEqual(['n1']);
     });
 
-    it('does not fire callback for response messages with id', async () => {
+    it('fires callback for diff messages even if they carry an id', async () => {
       const mock = createMockWebSocket();
       const ws = new WarpSocket('ws://localhost:3000', { WebSocket: mock.MockWebSocket });
       const p = ws.connect();
@@ -313,8 +395,7 @@ describe('WarpSocket', () => {
         payload: { graph: 'test', diff: { nodes: { added: [], removed: [] }, edges: { added: [], removed: [] }, props: { set: [], removed: [] } } },
       }));
 
-      // Diff pushes from server never have an id, so this should still fire
-      // (the server never sends diff with an id, but if it did, the callback should still work)
+      // Diff with an unmatched id falls through to push dispatch — callback fires
       expect(received).toHaveLength(1);
     });
   });

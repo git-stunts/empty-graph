@@ -289,6 +289,32 @@ describe('WarpServeService', () => {
       expect(graph.createPatch).toHaveBeenCalled();
     });
 
+    it('rejects ops not in the allowlist', async () => {
+      const client = ws.simulateConnection();
+      // Open first
+      client.sendFromClient(JSON.stringify({
+        v: 1, type: 'open', id: 'o1',
+        payload: { graph: 'test-graph', writerId: 'w1' },
+      }));
+      await vi.waitFor(() => client.sent.length >= 2);
+      client.sent.length = 0;
+
+      client.sendFromClient(JSON.stringify({
+        v: 1, type: 'mutate', id: 'mut-bad',
+        payload: {
+          graph: 'test-graph',
+          ops: [{ op: 'constructor', args: [] }],
+        },
+      }));
+
+      await vi.waitFor(() => expect(client.sent.length).toBeGreaterThan(0));
+
+      const msg = JSON.parse(client.sent[0]);
+      expect(msg.type).toBe('error');
+      expect(msg.id).toBe('mut-bad');
+      expect(msg.payload.code).toBe('E_INVALID_OP');
+    });
+
     it('rejects mutate before open', async () => {
       const client = ws.simulateConnection();
       client.sent.length = 0;
@@ -436,6 +462,59 @@ describe('WarpServeService', () => {
       expect(msg.payload.diff.nodes.added).toEqual(['node:new']);
     });
 
+    it('broadcasts diffs to all clients subscribed to the same graph', async () => {
+      const ws = createMockWsPort();
+      const graph = createMockGraph();
+
+      /** @type {Function|null} */
+      let capturedOnChange = null;
+      graph.subscribe.mockImplementation((/** @type {any} */ opts) => {
+        capturedOnChange = opts.onChange;
+        return { unsubscribe: vi.fn() };
+      });
+
+      const service = new WarpServeService({ wsPort: ws.port, graphs: [graph] });
+      await service.listen(0);
+
+      // Connect and open two clients on the same graph
+      const client1 = ws.simulateConnection();
+      client1.sendFromClient(JSON.stringify({
+        v: 1, type: 'open', id: 'o1',
+        payload: { graph: 'test-graph', writerId: 'w1' },
+      }));
+      await vi.waitFor(() => client1.sent.length >= 2);
+      client1.sent.length = 0;
+
+      const client2 = ws.simulateConnection();
+      client2.sendFromClient(JSON.stringify({
+        v: 1, type: 'open', id: 'o2',
+        payload: { graph: 'test-graph', writerId: 'w2' },
+      }));
+      await vi.waitFor(() => client2.sent.length >= 2);
+      client2.sent.length = 0;
+
+      // Trigger a diff
+      const fakeDiff = {
+        nodes: { added: ['node:broadcast'], removed: [] },
+        edges: { added: [], removed: [] },
+        props: { set: [], removed: [] },
+      };
+
+      expect(capturedOnChange).not.toBeNull();
+      capturedOnChange(fakeDiff);
+
+      await vi.waitFor(() => expect(client1.sent.length).toBeGreaterThan(0));
+      await vi.waitFor(() => expect(client2.sent.length).toBeGreaterThan(0));
+
+      const msg1 = JSON.parse(client1.sent[0]);
+      const msg2 = JSON.parse(client2.sent[0]);
+
+      expect(msg1.type).toBe('diff');
+      expect(msg1.payload.diff.nodes.added).toEqual(['node:broadcast']);
+      expect(msg2.type).toBe('diff');
+      expect(msg2.payload.diff.nodes.added).toEqual(['node:broadcast']);
+    });
+
     it('does not push diffs to clients that have not opened that graph', async () => {
       const ws = createMockWsPort();
       const g1 = createMockGraph({ graphName: 'alpha' });
@@ -469,9 +548,8 @@ describe('WarpServeService', () => {
         });
       }
 
-      // Give it a tick
-      await new Promise((r) => setTimeout(r, 50));
-      expect(client.sent.length).toBe(0);
+      // _broadcastDiff is synchronous — no async delay needed
+      expect(client.sent).toHaveLength(0);
     });
   });
 
@@ -514,6 +592,92 @@ describe('WarpServeService', () => {
       const msg = JSON.parse(client.sent[0]);
       expect(msg.type).toBe('error');
       expect(msg.payload.code).toBe('E_INVALID_MESSAGE');
+    });
+
+    it('returns E_INVALID_PAYLOAD for open with missing graph', async () => {
+      const client = ws.simulateConnection();
+      client.sent.length = 0;
+
+      client.sendFromClient(JSON.stringify({
+        v: 1, type: 'open', id: 'o-bad',
+        payload: {},
+      }));
+
+      await vi.waitFor(() => expect(client.sent.length).toBeGreaterThan(0));
+
+      const msg = JSON.parse(client.sent[0]);
+      expect(msg.type).toBe('error');
+      expect(msg.id).toBe('o-bad');
+      expect(msg.payload.code).toBe('E_INVALID_PAYLOAD');
+    });
+
+    it('returns E_INVALID_PAYLOAD for mutate with missing ops', async () => {
+      const client = ws.simulateConnection();
+      // Open first
+      client.sendFromClient(JSON.stringify({
+        v: 1, type: 'open', id: 'o1',
+        payload: { graph: 'test-graph', writerId: 'w1' },
+      }));
+      await vi.waitFor(() => client.sent.length >= 2);
+      client.sent.length = 0;
+
+      client.sendFromClient(JSON.stringify({
+        v: 1, type: 'mutate', id: 'mut-bad',
+        payload: { graph: 'test-graph' },
+      }));
+
+      await vi.waitFor(() => expect(client.sent.length).toBeGreaterThan(0));
+
+      const msg = JSON.parse(client.sent[0]);
+      expect(msg.type).toBe('error');
+      expect(msg.id).toBe('mut-bad');
+      expect(msg.payload.code).toBe('E_INVALID_PAYLOAD');
+    });
+
+    it('returns E_INVALID_PAYLOAD for inspect with missing nodeId', async () => {
+      const client = ws.simulateConnection();
+      // Open first
+      client.sendFromClient(JSON.stringify({
+        v: 1, type: 'open', id: 'o1',
+        payload: { graph: 'test-graph', writerId: 'w1' },
+      }));
+      await vi.waitFor(() => client.sent.length >= 2);
+      client.sent.length = 0;
+
+      client.sendFromClient(JSON.stringify({
+        v: 1, type: 'inspect', id: 'ins-bad',
+        payload: { graph: 'test-graph' },
+      }));
+
+      await vi.waitFor(() => expect(client.sent.length).toBeGreaterThan(0));
+
+      const msg = JSON.parse(client.sent[0]);
+      expect(msg.type).toBe('error');
+      expect(msg.id).toBe('ins-bad');
+      expect(msg.payload.code).toBe('E_INVALID_PAYLOAD');
+    });
+
+    it('returns E_INVALID_PAYLOAD for seek with missing ceiling', async () => {
+      const client = ws.simulateConnection();
+      // Open first
+      client.sendFromClient(JSON.stringify({
+        v: 1, type: 'open', id: 'o1',
+        payload: { graph: 'test-graph', writerId: 'w1' },
+      }));
+      await vi.waitFor(() => client.sent.length >= 2);
+      client.sent.length = 0;
+
+      client.sendFromClient(JSON.stringify({
+        v: 1, type: 'seek', id: 'sk-bad',
+        payload: { graph: 'test-graph' },
+      }));
+
+      await vi.waitFor(() => expect(client.sent.length).toBeGreaterThan(0));
+
+      const msg = JSON.parse(client.sent[0]);
+      expect(msg.type).toBe('error');
+      expect(msg.id).toBe('sk-bad');
+      expect(msg.payload.code).toBe('E_INVALID_PAYLOAD');
     });
 
     it('returns error for unknown message type', async () => {

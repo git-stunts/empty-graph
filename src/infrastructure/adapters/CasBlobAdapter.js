@@ -118,8 +118,14 @@ export default class CasBlobAdapter extends BlobStoragePort {
       }
       const { buffer } = await cas.restore(restoreOpts);
       return buffer;
-    } catch {
-      // Fallback: OID may be a raw Git blob (pre-CAS content)
+    } catch (err) {
+      // Fallback: OID may be a raw Git blob (pre-CAS content).
+      // Only fall through for "not a manifest" errors (missing tree, bad format).
+      // Rethrow corruption, decryption, and I/O errors.
+      const msg = err instanceof Error ? err.message : '';
+      if (msg.includes('decrypt') || msg.includes('integrity') || msg.includes('EACCES')) {
+        throw err;
+      }
       return await this._persistence.readBlob(oid);
     }
   }

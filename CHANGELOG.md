@@ -38,6 +38,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Documentation enhancements in README.md** — Added a high-level Documentation Map, a detailed Graph Traversal Directory, an expanded Time-Travel (Seek) guide, and updated Runtime Compatibility information (Node.js, Bun, Deno).
 - **Local-First Applications use-case** — Added git-warp as a backend for LoFi software.
 
+### Security
+
+- **WebSocket mutation op allowlist** — `WarpServeService._handleMutate` now validates mutation ops against `ALLOWED_MUTATE_OPS` (`addNode`, `removeNode`, `addEdge`, `removeEdge`, `setProperty`, `setEdgeProperty`, `attachContent`, `attachEdgeContent`). Previously, any method on the `PatchBuilderV2` prototype could be invoked by a WebSocket client, including internal methods.
+- **Protocol payload validation** — All `WarpServeService` message handlers (`open`, `mutate`, `inspect`, `seek`) now validate incoming payloads for required fields and correct types before processing. Invalid payloads receive `E_INVALID_PAYLOAD` error envelopes.
+- **WarpSocket request timeout** — `WarpSocket._request()` now enforces a configurable timeout (default 30s). Pending requests that receive no server response reject with a timeout error instead of leaking forever.
+- **Vite `allowedHosts` scoped** — Browsa dev server no longer sets `allowedHosts: true`. Restricted to `localhost` and `127.0.0.1` to prevent DNS rebinding.
+
+### Fixed
+
+- **CasBlobAdapter error propagation** — `retrieve()` no longer silently falls back to raw Git blob reads on decryption, integrity, or permission errors. Only "not a CAS manifest" errors trigger the backward-compatibility fallback.
+- **Dead `writerIds` code removed** — `WarpServeService` no longer stores per-session `writerIds` from `open` messages. The field was populated but never consumed — all mutations use the server's writer identity.
+
 ## [13.1.0] - 2026-03-04
 
 ### Added

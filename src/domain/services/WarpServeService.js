@@ -19,6 +19,22 @@ import { decodePropKey, isEdgePropKey, decodeEdgeKey } from './KeyCodec.js';
 const PROTOCOL_VERSION = 1;
 
 /**
+ * Allowlist of PatchBuilderV2 methods that WebSocket clients may invoke.
+ * Prevents arbitrary method calls via untrusted `op` strings.
+ * @type {Set<string>}
+ */
+const ALLOWED_MUTATE_OPS = new Set([
+  'addNode',
+  'removeNode',
+  'addEdge',
+  'removeEdge',
+  'setProperty',
+  'setEdgeProperty',
+  'attachContent',
+  'attachEdgeContent',
+]);
+
+/**
  * @typedef {import('../../ports/WebSocketServerPort.js').WsConnection} WsConnection
  * @typedef {import('../../ports/WebSocketServerPort.js').WsServerHandle} WsServerHandle
  */
@@ -27,7 +43,6 @@ const PROTOCOL_VERSION = 1;
  * @typedef {Object} ClientSession
  * @property {WsConnection} conn
  * @property {Set<string>} openGraphs - Graph names this client has opened
- * @property {Map<string, string>} writerIds - graphName → writerId
  */
 
 /**
@@ -103,6 +118,35 @@ function envelope(type, payload, id) {
  */
 function errorEnvelope(code, message, id) {
   return envelope('error', { code, message }, id);
+}
+
+/**
+ * Validates payload graph name and resolves the graph object.
+ * Sends an error envelope and returns null on failure.
+ *
+ * @param {ClientSession} session
+ * @param {Envelope} msg
+ * @param {{ graphs: Map<string, unknown>, requireOpen?: boolean }} opts
+ * @returns {{ graphName: string, graph: { materialize: Function, subscribe: Function, getNodeProps: Function, createPatch: Function, query: Function } }|null}
+ */
+function resolveGraph(session, msg, { graphs, requireOpen = true }) {
+  const { payload } = msg;
+  const graphName = /** @type {Record<string, unknown>} */ (payload)?.graph;
+
+  if (typeof graphName !== 'string' || graphName.length === 0) {
+    session.conn.send(errorEnvelope('E_INVALID_PAYLOAD', `${msg.type}: graph must be a non-empty string`, msg.id));
+    return null;
+  }
+  if (requireOpen && !session.openGraphs.has(graphName)) {
+    session.conn.send(errorEnvelope('E_NOT_OPENED', `Graph not opened: ${graphName}`, msg.id));
+    return null;
+  }
+  const graph = graphs.get(graphName);
+  if (!graph) {
+    session.conn.send(errorEnvelope('E_UNKNOWN_GRAPH', `Unknown graph: ${graphName}`, msg.id));
+    return null;
+  }
+  return { graphName, graph };
 }
 
 export default class WarpServeService {
@@ -186,7 +230,6 @@ export default class WarpServeService {
     const session = {
       conn,
       openGraphs: new Set(),
-      writerIds: new Map(),
     };
     this._clients.add(session);
 
@@ -266,16 +309,11 @@ export default class WarpServeService {
    * @private
    */
   async _handleOpen(session, msg) {
-    const { graph: graphName, writerId } = /** @type {{ graph: string, writerId: string }} */ (msg.payload);
-    const graph = this._graphs.get(graphName);
-
-    if (!graph) {
-      session.conn.send(errorEnvelope('E_UNKNOWN_GRAPH', `Unknown graph: ${graphName}`, msg.id));
-      return;
-    }
+    const resolved = resolveGraph(session, msg, { graphs: this._graphs, requireOpen: false });
+    if (!resolved) { return; }
+    const { graphName, graph } = resolved;
 
     session.openGraphs.add(graphName);
-    session.writerIds.set(graphName, writerId);
 
     try {
       const state = await graph.materialize();
@@ -298,22 +336,38 @@ export default class WarpServeService {
    * @private
    */
   async _handleMutate(session, msg) {
-    const { graph: graphName, ops } = /** @type {{ graph: string, ops: Array<{ op: string, args: unknown[] }> }} */ (msg.payload);
+    const { payload } = msg;
+    const ops = /** @type {Array<{ op: string, args: unknown[] }>|undefined} */ (
+      /** @type {Record<string, unknown>} */ (payload)?.ops
+    );
 
-    if (!session.openGraphs.has(graphName)) {
-      session.conn.send(errorEnvelope('E_NOT_OPENED', `Graph not opened: ${graphName}`, msg.id));
+    if (!Array.isArray(ops)) {
+      session.conn.send(errorEnvelope('E_INVALID_PAYLOAD', 'mutate: ops must be an array', msg.id));
       return;
     }
 
-    const graph = this._graphs.get(graphName);
-    if (!graph) {
-      session.conn.send(errorEnvelope('E_UNKNOWN_GRAPH', `Unknown graph: ${graphName}`, msg.id));
-      return;
-    }
+    const resolved = resolveGraph(session, msg, { graphs: this._graphs });
+    if (!resolved) { return; }
 
+    await this._applyMutateOps(session, msg, { graph: resolved.graph, ops });
+  }
+
+  /**
+   * Validate and apply mutation ops for _handleMutate.
+   *
+   * @param {ClientSession} session
+   * @param {Envelope} msg
+   * @param {{ graph: { createPatch: Function }, ops: Array<{ op: string, args: unknown[] }> }} ctx
+   * @private
+   */
+  async _applyMutateOps(session, msg, { graph, ops }) {
     try {
       const patch = await graph.createPatch();
       for (const { op, args } of ops) {
+        if (!ALLOWED_MUTATE_OPS.has(op)) {
+          session.conn.send(errorEnvelope('E_INVALID_OP', `Unknown mutation op: ${op}`, msg.id));
+          return;
+        }
         if (typeof patch[op] === 'function') {
           patch[op](...args);
         }
@@ -337,18 +391,17 @@ export default class WarpServeService {
    * @private
    */
   async _handleInspect(session, msg) {
-    const { graph: graphName, nodeId } = /** @type {{ graph: string, nodeId: string }} */ (msg.payload);
+    const { payload } = msg;
+    const nodeId = /** @type {string} */ (/** @type {Record<string, unknown>} */ (payload)?.nodeId);
 
-    if (!session.openGraphs.has(graphName)) {
-      session.conn.send(errorEnvelope('E_NOT_OPENED', `Graph not opened: ${graphName}`, msg.id));
+    if (typeof nodeId !== 'string' || nodeId.length === 0) {
+      session.conn.send(errorEnvelope('E_INVALID_PAYLOAD', 'inspect: nodeId must be a non-empty string', msg.id));
       return;
     }
 
-    const graph = this._graphs.get(graphName);
-    if (!graph) {
-      session.conn.send(errorEnvelope('E_UNKNOWN_GRAPH', `Unknown graph: ${graphName}`, msg.id));
-      return;
-    }
+    const resolved = resolveGraph(session, msg, { graphs: this._graphs });
+    if (!resolved) { return; }
+    const { graphName, graph } = resolved;
 
     try {
       const props = await graph.getNodeProps(nodeId);
@@ -370,18 +423,17 @@ export default class WarpServeService {
    * @private
    */
   async _handleSeek(session, msg) {
-    const { graph: graphName, ceiling } = /** @type {{ graph: string, ceiling: number }} */ (msg.payload);
+    const { payload } = msg;
+    const ceiling = /** @type {number} */ (/** @type {Record<string, unknown>} */ (payload)?.ceiling);
 
-    if (!session.openGraphs.has(graphName)) {
-      session.conn.send(errorEnvelope('E_NOT_OPENED', `Graph not opened: ${graphName}`, msg.id));
+    if (typeof ceiling !== 'number' || !Number.isFinite(ceiling)) {
+      session.conn.send(errorEnvelope('E_INVALID_PAYLOAD', 'seek: ceiling must be a finite number', msg.id));
       return;
     }
 
-    const graph = this._graphs.get(graphName);
-    if (!graph) {
-      session.conn.send(errorEnvelope('E_UNKNOWN_GRAPH', `Unknown graph: ${graphName}`, msg.id));
-      return;
-    }
+    const resolved = resolveGraph(session, msg, { graphs: this._graphs });
+    if (!resolved) { return; }
+    const { graphName, graph } = resolved;
 
     try {
       const state = await graph.materialize({ ceiling });

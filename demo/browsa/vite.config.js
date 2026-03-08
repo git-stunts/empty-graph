@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [vue()],
   build: { target: 'es2022' },
   server: {
-    allowedHosts: true,
+    allowedHosts: ['localhost', '127.0.0.1'],
     fs: { allow: [resolve(__dirname, '../..')] },
   },
 });
