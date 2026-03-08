@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`base64Encode` / `base64Decode` memory overhead** — Replaced intermediate binary string approach (`String.fromCharCode` / `charCodeAt` via `btoa`/`atob`) with direct table-based base64 encoding/decoding, eliminating memory spikes on large buffers (e.g., StreamingBitmapIndexBuilder shards).
 - **Static file handler null-byte bypass** — `safePath()` now re-checks for `\0` after `decodeURIComponent()` (prevents `%00` bypass) and catches malformed percent-encoding (e.g., `%ZZ`) instead of throwing.
 - **`git warp serve` writerId validation** — The auto-generated writerId (`serve:host:port`) contained colons, which are not allowed by `validateWriterId`. Now sanitizes to `serve-host-port` by replacing invalid characters with dashes.
+- **`git warp serve` port-0 writerId collision** — When binding to port 0 (OS-assigned ephemeral port), every invocation produced the same writerId `serve-127.0.0.1-0`. Now includes a timestamp component (`ephemeral-<base36>`) to prevent collisions.
+- **`git warp serve` IPv6 URL bracketing** — IPv6 addresses like `::1` are now bracketed in WebSocket and HTTP URLs (`ws://[::1]:3000`) per RFC 3986.
 - **Inspector WebSocket default URL** — Hardcoded `ws://localhost:3000` replaced with `window.location`-derived URL, so `--static` serving on any port connects correctly without needing `?server=` param.
 - **JSDoc type annotations** — Resolved 39 pre-existing `tsc --noEmit` strict-mode errors across 17 source files. Added missing `encrypted`, `blobStorage`, and `patchBlobStorage` fields to JSDoc `@param`/`@typedef` types; created `WarpGraphWithMixins` typedef for mixin methods calling `_readPatchBlob`; installed `@types/ws` for Node WebSocket adapter; fixed `Uint8Array<ArrayBufferLike>` assignability issues; narrowed `chunking.strategy` literal types for CAS adapters; added type annotations to callback parameters in WS adapters.
 
@@ -30,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`src/domain/utils/bytes.js`** — Portable byte-manipulation utilities replacing Node.js Buffer methods: `hexEncode`, `hexDecode`, `base64Encode`, `base64Decode`, `concatBytes`, `textEncode`, `textDecode`. Works identically on Node, Bun, Deno, and browsers.
 - **ESLint `no-restricted-globals` for Buffer** — `Buffer` is now banned in `src/domain/**/*.js` via ESLint. Future regressions are caught at lint time.
+- **`git warp serve --expose` flag** — Binding to a non-loopback address now requires `--expose` to prevent accidental network exposure. Without the flag, the command exits with a usage error.
 
 - **Inspector: architecture pivot to WebSocket** — Rewired the Vue app from in-memory `WarpGraph` instances to a live WebSocket connection via `WarpSocket`. The browser now connects to `git warp serve` and views/edits a real Git-backed graph. Replaced the 4-viewport multi-writer demo with a single-viewport, single-connection model. All mutations go through `socket.mutate()` and state updates arrive via server-pushed diffs.
 

@@ -139,6 +139,35 @@ function bracketHost(h) {
 }
 
 /**
+ * Guards against binding to a non-loopback address without --expose.
+ *
+ * @param {string} host
+ * @param {boolean} expose
+ */
+function assertExposeSafety(host, expose) {
+  if (!isLoopback(host) && !expose) {
+    throw usageError(
+      `Binding to non-loopback address '${host}' exposes the server to the network. ` +
+      'Pass --expose to confirm this is intentional.',
+    );
+  }
+}
+
+/**
+ * Logs startup information to stderr.
+ *
+ * @param {{url: string, targetGraphs: string[], staticDir: string|null, urlHost: string, port: number}} info
+ */
+function logStartup({ url, targetGraphs, staticDir, urlHost, port }) {
+  process.stderr.write(`Listening on ${url}\n`);
+  process.stderr.write(`Serving graph(s): ${targetGraphs.join(', ')}\n`);
+  if (staticDir) {
+    process.stderr.write(`Serving static files from ${staticDir}\n`);
+    process.stderr.write(`Open http://${urlHost}:${port} in your browser\n`);
+  }
+}
+
+/**
  * Handles the `serve` command: starts a WebSocket server exposing
  * graph(s) in the repository for browser-based viewing and mutation.
  *
@@ -148,13 +177,7 @@ function bracketHost(h) {
 export default async function handleServe({ options, args }) {
   const { values } = parseCommandArgs(args, SERVE_OPTIONS, serveSchema, { allowPositionals: false });
   const { port, host, expose } = values;
-
-  if (!isLoopback(host) && !expose) {
-    throw usageError(
-      `Binding to non-loopback address '${host}' exposes the server to the network. ` +
-      'Pass --expose to confirm this is intentional.',
-    );
-  }
+  assertExposeSafety(host, expose);
 
   const staticDir = await resolveStaticDir(values.static);
   const { persistence } = await createPersistence(options.repo);
@@ -168,12 +191,7 @@ export default async function handleServe({ options, args }) {
 
   const urlHost = bracketHost(addr.host);
   const url = `ws://${urlHost}:${addr.port}`;
-  process.stderr.write(`Listening on ${url}\n`);
-  process.stderr.write(`Serving graph(s): ${targetGraphs.join(', ')}\n`);
-  if (staticDir) {
-    process.stderr.write(`Serving static files from ${staticDir}\n`);
-    process.stderr.write(`Open http://${urlHost}:${addr.port} in your browser\n`);
-  }
+  logStartup({ url, targetGraphs, staticDir, urlHost, port: addr.port });
 
   return {
     payload: { url, host: addr.host, port: addr.port, graphs: targetGraphs },

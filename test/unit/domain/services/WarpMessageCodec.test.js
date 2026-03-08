@@ -435,13 +435,13 @@ eg-schema: 1`;
     });
 
     it('decodes encrypted=true from eg-encrypted trailer', () => {
-      const encoded = encodePatchMessage(/** @type {any} */ ({
+      const encoded = encodePatchMessage({
         graph: 'events',
         writer: 'node-1',
         lamport: 1,
         patchOid: VALID_OID_SHA1,
         encrypted: true,
-      }));
+      });
       const decoded = decodePatchMessage(encoded);
       expect(decoded.encrypted).toBe(true);
     });
