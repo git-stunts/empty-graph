@@ -284,6 +284,23 @@ describe('CasBlobAdapter', () => {
       expect(persistence.readBlob).toHaveBeenCalledWith('missing-oid');
     });
 
+    it('throws descriptive error when legacy fallback readBlob returns null', async () => {
+      const persistence = makePersistence();
+      persistence.readBlob.mockResolvedValue(null);
+      const casErr = Object.assign(new Error('No manifest entry'), { code: 'MANIFEST_NOT_FOUND' });
+      mockReadManifest.mockRejectedValue(casErr);
+
+      const adapter = new CasBlobAdapter({
+        plumbing: makePlumbing(),
+        persistence,
+      });
+
+      await expect(adapter.retrieve('ghost-oid')).rejects.toThrow(
+        'Blob not found: OID "ghost-oid" is neither a CAS manifest nor a readable Git blob',
+      );
+      expect(persistence.readBlob).toHaveBeenCalledWith('ghost-oid');
+    });
+
     it('rethrows non-legacy CAS errors', async () => {
       const persistence = makePersistence();
       const casErr = Object.assign(new Error('decryption failed'), { code: 'INTEGRITY_ERROR' });

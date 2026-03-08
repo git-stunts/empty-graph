@@ -115,6 +115,17 @@ function validateMutateArgs(op, args) {
  */
 
 /**
+ * Shape of a graph instance provided to WarpServeService.
+ * @typedef {Object} GraphHandle
+ * @property {string} graphName
+ * @property {(opts?: { ceiling?: number }) => Promise<import('./JoinReducer.js').WarpStateV5>} materialize
+ * @property {(opts: { onChange: (diff: unknown) => void }) => { unsubscribe: () => void }} subscribe
+ * @property {(nodeId: string) => Promise<Record<string, unknown>>} getNodeProps
+ * @property {() => Promise<{ addNode: (id: string) => Promise<void>, removeNode: (id: string) => Promise<void>, addEdge: (from: string, to: string, label: string) => Promise<void>, removeEdge: (from: string, to: string, label: string) => Promise<void>, setProperty: (nodeId: string, key: string, value: unknown) => Promise<void>, setEdgeProperty: (from: string, to: string, label: string, key: string, value: unknown) => Promise<void>, attachContent: (nodeId: string, content: string) => Promise<void>, attachEdgeContent: (from: string, to: string, label: string, content: string) => Promise<void>, commit: () => Promise<string>, [key: string]: (...args: unknown[]) => Promise<unknown> }>} createPatch
+ * @property {(opts?: unknown) => Promise<unknown>} query
+ */
+
+/**
  * Envelope shape for all protocol messages.
  * @typedef {Object} Envelope
  * @property {number} v - Protocol version
@@ -204,8 +215,8 @@ function errorEnvelope(code, message, id) {
  *
  * @param {ClientSession} session
  * @param {Envelope} msg
- * @param {{ graphs: Map<string, { materialize: Function, subscribe: Function, getNodeProps: Function, createPatch: Function, query: Function }>, requireOpen?: boolean }} opts
- * @returns {{ graphName: string, graph: { materialize: Function, subscribe: Function, getNodeProps: Function, createPatch: Function, query: Function } }|null}
+ * @param {{ graphs: Map<string, GraphHandle>, requireOpen?: boolean }} opts
+ * @returns {{ graphName: string, graph: GraphHandle }|null}
  */
 function resolveGraph(session, msg, { graphs, requireOpen = true }) {
   const { payload } = msg;
@@ -346,15 +357,16 @@ export default class WarpServeService {
     }));
 
     conn.onMessage((raw) => {
+      // Extract correlation ID before the async call so the catch handler
+      // can correlate the error without re-parsing the raw message.
+      let id;
+      try { id = JSON.parse(raw).id; } catch { /* unparseable — no id */ }
+
       this._onMessage(session, raw).catch(() => {
         // Errors are caught and sent as error envelopes inside _onMessage handlers.
         // This catch prevents unhandled rejection for truly unexpected failures.
         // Send a generic message to avoid leaking internal details (file paths,
         // stack traces, etc.) to untrusted WebSocket clients.
-        // Best-effort extract correlation ID. The message was already size-checked
-        // (≤1 MiB) and parsed once in _onMessage, so re-parsing is bounded.
-        let id;
-        try { id = JSON.parse(raw).id; } catch { /* unparseable — no id */ }
         session.conn.send(errorEnvelope(
           'E_INTERNAL',
           'Internal error',

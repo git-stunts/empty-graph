@@ -1,6 +1,6 @@
 # ROADMAP — @git-stunts/git-warp
 
-> **Current version:** v13.0.0
+> **Current version:** v14.0.0
 > **Last reconciled:** 2026-03-04 (priority triage: 45 standalone items sorted into P0–P6 tiers, wave-based execution order, dependency chains mapped)
 > **Completed milestones:** [docs/ROADMAP/COMPLETED.md](docs/ROADMAP/COMPLETED.md)
 
@@ -189,12 +189,12 @@ No dependencies. Do these first.
 
 ### P1 — Correctness & Test Infrastructure
 
-B36 and B37 improve velocity for all future test work — do them early. B19 + B22 batch as one PR (Conformance Property Pack). B165–B167 batch as one PR (Defensive Hardening Sprint).
+B36 and B37 improve velocity for all future test work — do them early. B19 + B22 batch as one PR (Conformance Property Pack). B165 and B167 completed (Defensive Hardening Sprint); B166 remains.
 
 | ID | Item | Effort |
 |----|------|--------|
 | B165 | ✅ **WARPSERVESERVICE `listen()` DEFERRED STATE MUTATION** — `listen()` now defers `_server` assignment and subscription registration until bind succeeds; on failure, cleans up subscriptions. `_onConnection` catch now sends generic `"Internal error"` instead of raw `err.message`. **File:** `src/domain/services/WarpServeService.js` | S |
-| B166 | **ADAPTER CLEANUP CONTRACTS** — `NodeWsAdapter.close()` doesn't reset `state.wss`/`state.httpServer`/remove listeners after shutdown; `listenWithHttp` error path leaks partial state; `graphStore` failed `connect()` doesn't clean up. **Files:** `src/infrastructure/adapters/NodeWsAdapter.js`, `demo/browsa/src/stores/graphStore.js` | M |
+| B166 | **ADAPTER CLEANUP CONTRACTS** — `NodeWsAdapter.close()` doesn't reset `state.wss`/`state.httpServer`/remove listeners after shutdown; `listenWithHttp` error path leaks partial state. **File:** `src/infrastructure/adapters/NodeWsAdapter.js` | M |
 | B167 | ✅ **SERVE TEST COVERAGE GAPS** — Added tests for: listen-failure cleanup (leaked subscriptions), double-listen guard, error sanitization (no internal detail leakage), `attachContent`/`attachEdgeContent` smoke tests through mutation pipeline. **File:** `test/unit/domain/services/WarpServeService.test.js` | S |
 | B36 | **FLUENT STATE BUILDER FOR TESTS** — `StateBuilder` helper replacing manual `WarpStateV5` literals | M |
 | B37 | **SHARED MOCK PERSISTENCE FIXTURE** — dedup `createMockPersistence()` across trust test files | S |
@@ -416,11 +416,11 @@ B158 (P7) ──→ B159 (P7)   CDC seek cache
 | **Milestone (M12)** | 18 | B66, B67, B70, B73, B75, B105–B115, B117, B118 |
 | **Milestone (M13)** | 1 | B116 (internal: DONE; wire-format: DEFERRED) |
 | **Milestone (M14)** | 16 | B130–B145 |
-| **Standalone** | 48 | B12, B19, B22, B28, B34–B37, B43, B48, B49, B53, B54, B57, B76, B79–B81, B83, B85–B88, B95–B99, B102–B104, B119, B123, B127–B129, B147, B149–B156, B165–B167 |
-| **Standalone (done)** | 37 | B26, B44, B46, B47, B50–B52, B55, B71, B72, B77, B78, B82, B84, B89–B94, B100, B120–B122, B124, B125, B126, B146, B148, B157, B158, B159, B160, B161, B162, B163, B164 |
+| **Standalone** | 46 | B12, B19, B22, B28, B34–B37, B43, B48, B49, B53, B54, B57, B76, B79–B81, B83, B85–B88, B95–B99, B102–B104, B119, B123, B127–B129, B147, B149–B156, B166 |
+| **Standalone (done)** | 39 | B26, B44, B46, B47, B50–B52, B55, B71, B72, B77, B78, B82, B84, B89–B94, B100, B120–B122, B124, B125, B126, B146, B148, B157, B158, B159, B160, B161, B162, B163, B164, B165, B167 |
 | **Deferred** | 7 | B4, B7, B16, B20, B21, B27, B101 |
 | **Rejected** | 7 | B5, B6, B13, B17, B18, B25, B45 |
-| **Total tracked** | **144** total; 37 standalone done | |
+| **Total tracked** | **144** total; 39 standalone done | |
 
 ### STANK.md Cross-Reference
 

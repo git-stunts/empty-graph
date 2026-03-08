@@ -105,7 +105,7 @@ export default class CasBlobAdapter extends BlobStoragePort {
       : content;
     const source = Readable.from([buf]);
 
-    /** @type {{ source: *, slug: string, filename: string, encryptionKey?: Buffer|Uint8Array }} */
+    /** @type {{ source: *, slug: string, filename: string, encryptionKey?: Uint8Array }} */
     const storeOpts = {
       source,
       slug: options?.slug || `blob-${Date.now().toString(36)}`,
@@ -132,7 +132,7 @@ export default class CasBlobAdapter extends BlobStoragePort {
 
     try {
       const manifest = await cas.readManifest({ treeOid: oid });
-      /** @type {{ manifest: *, encryptionKey?: Buffer|Uint8Array }} */
+      /** @type {{ manifest: *, encryptionKey?: Uint8Array }} */
       const restoreOpts = { manifest };
       if (this._encryptionKey) {
         restoreOpts.encryptionKey = this._encryptionKey;
@@ -146,7 +146,13 @@ export default class CasBlobAdapter extends BlobStoragePort {
       if (!isLegacyBlobError(err)) {
         throw err;
       }
-      return await this._persistence.readBlob(oid);
+      const blob = await this._persistence.readBlob(oid);
+      if (blob === null || blob === undefined) {
+        throw new Error(
+          `Blob not found: OID "${oid}" is neither a CAS manifest nor a readable Git blob`,
+        );
+      }
+      return blob;
     }
   }
 }

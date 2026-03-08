@@ -16,7 +16,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Browser and sha1sync subpath exports missing `types` field** — `package.json` `"./browser"` and `"./sha1sync"` exports now include `"types"` entries pointing to `browser.d.ts` and `sha1sync.d.ts`, enabling TypeScript resolution for subpath consumers.
 - **`jsr.json` missing `browser.js` in publish.include** — JSR consumers importing `@git-stunts/git-warp/browser` now receive the file.
 - **`git warp serve` help text missing `--port`, `--host`, `--expose` flags** — All serve-specific options now appear in `--help` output.
-
 - **`WarpServeService` non-integer seek ceiling** — Fractional ceilings (e.g. `3.5`) are now rejected with `E_INVALID_PAYLOAD`. `Infinity` is intentionally accepted (treated as head).
 - **`WarpServeService` oversized message guard** — Messages exceeding 1 MiB are rejected with `E_MESSAGE_TOO_LARGE` before `JSON.parse`, preventing OOM on malicious payloads.
 - **`WarpServeService` oversized property value guard** — Wildcard-typed mutation args exceeding 64 KiB are rejected with `E_INVALID_ARGS`.
@@ -42,7 +41,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`buildSeekCacheKey` outside try/catch** — Cache key generation failure (e.g., crypto unavailable) is now caught and treated as a cache miss instead of breaking materialization.
 - **`BunWsAdapter` test `globalThis.Bun` leak** — Tests now save and restore the original `globalThis.Bun` instead of deleting it unconditionally.
 - **`vi.waitFor()` boolean callbacks in serve tests** — Replaced 22 boolean-returning callbacks with assertion-based ones to prevent premature resolution.
-
 - **`WarpServeService.listen()` leaked subscriptions on bind failure** — If `server.listen()` rejected (e.g., EADDRINUSE), graph subscriptions were already registered and never cleaned up, causing ghost broadcast handlers. `listen()` now defers `_server` assignment and subscription registration until bind succeeds, and cleans up on failure.
 - **`_onConnection` catch leaked internal error details** — The last-resort catch handler sent raw `err.message` (which could contain file paths, stack traces, etc.) to untrusted WebSocket clients. Now sends a generic `"Internal error"` message.
 - **`git warp serve` silent blob data loss** — Mutation ops like `attachContent` and `attachEdgeContent` are async (they write blobs), but `_applyMutateOps` was not awaiting them. `patch.commit()` could fire before the blob write completed. Now all ops are awaited.
@@ -78,6 +76,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Lazy CAS init extracted** — The duplicated lazy-promise-with-error-reset pattern in `CasBlobAdapter._getCas()` and `CasSeekCacheAdapter._getCas()` replaced with shared `createLazyCas()` factory in `lazyCasInit.js`.
 - **`computeRecordId()` and `verifyRecordId()` are now async** — These functions in `TrustCanonical.js` now use the injected `CryptoPort` instead of importing `node:crypto` directly. Callers must `await` the result.
 - **`hmac()` returns `Uint8Array`** — `NodeCryptoAdapter.hmac()`, `WebCryptoAdapter.hmac()`, and `defaultCrypto.hmac()` now return `Uint8Array` instead of `Buffer`. The raw HMAC digest bytes are identical; only the wrapper type changed.
+- **`@git-stunts/git-cas` v3.0.0 → v5.2.4** — Two major version jump. New capabilities now available: `ObservabilityPort` (replaces EventEmitter), streaming restore, CDC chunking (98.4% chunk reuse), envelope encryption (DEK/KEK), key rotation. No breaking changes for git-warp's usage — `CasSeekCacheAdapter` continues to work as-is.
+- **CDC chunking for seek cache** — `CasSeekCacheAdapter` now uses content-defined chunking (`CdcChunker`) instead of fixed-size chunking. Consecutive seek snapshots share most content; CDC's rolling-hash boundaries yield ~98.4% chunk reuse on incremental edits, significantly reducing Git object storage for the seek cache.
+- **Encrypted seek cache** — `CasSeekCacheAdapter` accepts an optional `encryptionKey` constructor param. When set, cached state snapshots are encrypted at rest using AES-256-GCM via git-cas.
+- **CAS observability bridge** — New `LoggerObservabilityBridge` adapter translates git-cas `ObservabilityPort` calls (metric, log, span) into git-warp `LoggerPort` calls. `CasSeekCacheAdapter` accepts an optional `logger` param to surface CAS operations through git-warp's structured logging.
+- **Blob attachments via CAS (B160)** — New `BlobStoragePort` and `CasBlobAdapter` provide a hexagonal abstraction for content blob storage. When `blobStorage` is injected, `attachContent()`/`attachEdgeContent()` store blobs via git-cas (CDC-chunked, optionally encrypted) instead of raw Git blobs. `getContent()`/`getEdgeContent()` retrieve via CAS with automatic fallback to raw Git blobs for backward compatibility with pre-CAS content.
+- **Streaming seek cache restore (B163)** — `CasSeekCacheAdapter.get()` now prefers `cas.restoreStream()` (git-cas v4+) for I/O pipelining — chunk reads overlap with buffer accumulation. Falls back to `cas.restore()` for older git-cas versions.
+- **Graph encryption at rest (B164)** — New `patchBlobStorage` option on `WarpGraph.open()`. When a `BlobStoragePort` (e.g. `CasBlobAdapter` with encryption key) is injected, patch CBOR is encrypted before writing to Git and decrypted on read. An `eg-encrypted: true` commit trailer marks encrypted patches. All 6 patch read sites and the write path are threaded. `EncryptionError` is thrown when attempting to read encrypted patches without a key. Mixed encrypted and unencrypted patches are fully supported — plain patches read via `persistence.readBlob()`, encrypted via `patchBlobStorage.retrieve()`.
 
 ### Added
 
@@ -103,16 +108,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Inspector: in-memory sync** — Removed `InProcessSyncBus.js` and `InsecureCryptoAdapter.js`. No in-memory sync or browser-side crypto needed with the server-backed architecture.
 - **Inspector: multi-viewport grid** — Removed 4-viewport layout, sync buttons, and online/offline toggles. Multiple browser windows serve the multi-writer use case instead.
 - **Inspector: Vite stubs** — Removed `src/stubs/` directory (empty.js, node-crypto.js, node-stream.js, node-module.js), `trailerCodecBufferShim()` plugin, and all resolve aliases. The browser no longer imports git-warp — it communicates via WebSocket only.
-
-### Upgraded
-
-- **`@git-stunts/git-cas` v3.0.0 → v5.2.4** — Two major version jump. New capabilities now available: `ObservabilityPort` (replaces EventEmitter), streaming restore, CDC chunking (98.4% chunk reuse), envelope encryption (DEK/KEK), key rotation. No breaking changes for git-warp's usage — `CasSeekCacheAdapter` continues to work as-is.
-- **CDC chunking for seek cache** — `CasSeekCacheAdapter` now uses content-defined chunking (`CdcChunker`) instead of fixed-size chunking. Consecutive seek snapshots share most content; CDC's rolling-hash boundaries yield ~98.4% chunk reuse on incremental edits, significantly reducing Git object storage for the seek cache.
-- **Encrypted seek cache** — `CasSeekCacheAdapter` accepts an optional `encryptionKey` constructor param. When set, cached state snapshots are encrypted at rest using AES-256-GCM via git-cas.
-- **CAS observability bridge** — New `LoggerObservabilityBridge` adapter translates git-cas `ObservabilityPort` calls (metric, log, span) into git-warp `LoggerPort` calls. `CasSeekCacheAdapter` accepts an optional `logger` param to surface CAS operations through git-warp's structured logging.
-- **Blob attachments via CAS (B160)** — New `BlobStoragePort` and `CasBlobAdapter` provide a hexagonal abstraction for content blob storage. When `blobStorage` is injected, `attachContent()`/`attachEdgeContent()` store blobs via git-cas (CDC-chunked, optionally encrypted) instead of raw Git blobs. `getContent()`/`getEdgeContent()` retrieve via CAS with automatic fallback to raw Git blobs for backward compatibility with pre-CAS content.
-- **Streaming seek cache restore (B163)** — `CasSeekCacheAdapter.get()` now prefers `cas.restoreStream()` (git-cas v4+) for I/O pipelining — chunk reads overlap with buffer accumulation. Falls back to `cas.restore()` for older git-cas versions.
-- **Graph encryption at rest (B164)** — New `patchBlobStorage` option on `WarpGraph.open()`. When a `BlobStoragePort` (e.g. `CasBlobAdapter` with encryption key) is injected, patch CBOR is encrypted before writing to Git and decrypted on read. An `eg-encrypted: true` commit trailer marks encrypted patches. All 6 patch read sites and the write path are threaded. `EncryptionError` is thrown when attempting to read encrypted patches without a key. Mixed encrypted and unencrypted patches are fully supported — plain patches read via `persistence.readBlob()`, encrypted via `patchBlobStorage.retrieve()`.
 
 ### Security
 
