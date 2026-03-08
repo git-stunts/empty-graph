@@ -119,6 +119,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **WarpSocket request timeout** — `WarpSocket._request()` now enforces a configurable timeout (default 30s). Pending requests that receive no server response reject with a timeout error instead of leaking forever.
 - **Vite `allowedHosts` scoped** — Inspector dev server no longer sets `allowedHosts: true`. Restricted to `localhost` and `127.0.0.1` to prevent DNS rebinding.
 
+### Documentation
+
+- **README `git warp serve` flags** — Added `--expose` and `--writer-id` to the CLI usage example.
+
 ## [13.1.0] - 2026-03-04
 
 ### Added
