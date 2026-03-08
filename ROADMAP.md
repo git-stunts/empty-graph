@@ -276,7 +276,7 @@ Upgrade from `@git-stunts/git-cas` v3.0.0 to v5.2.4 and leverage new capabilitie
 |----|------|--------|
 | B158 | ✅ **UPGRADE `@git-stunts/git-cas` TO v5** — bumped `^3.0.0` → `^5.2.4`. 4872 tests pass, zero regressions. | S |
 | B159 | ✅ **CDC CHUNKING FOR SEEK CACHE** — `CasSeekCacheAdapter._initCas()` now constructs CAS with `chunking: { strategy: 'cdc' }`. ~98% chunk reuse on incremental snapshots. | S |
-| B160 | **BLOB ATTACHMENTS VIA CAS** — `BlobValue` ops exist in the patch format (`PatchBuilderV2`) but have no actual blob storage backend. Wire git-cas as the backend: `attachContent()` stores the blob as a CAS asset (chunked, optionally encrypted), and the graph property stores the CAS tree OID. Restore via `cas.restore()` on read. Completes a half-built feature. **Files:** `src/domain/services/PatchBuilderV2.js`, `src/domain/WarpGraph.js`, new `src/infrastructure/adapters/CasBlobAdapter.js` | M |
+| B160 | ✅ **BLOB ATTACHMENTS VIA CAS** — New `BlobStoragePort` + `CasBlobAdapter` provide a hexagonal abstraction for content blob storage. `PatchBuilderV2.attachContent()`/`attachEdgeContent()` use CAS (chunked, CDC-deduped, optionally encrypted) when `blobStorage` is injected; fall back to raw `persistence.writeBlob()` without it. `getContent()`/`getEdgeContent()` retrieve via `blobStorage.retrieve()` with automatic fallback to raw Git blobs for pre-CAS content. Wired through `WarpGraph`, `Writer`, and all patch creation paths. 16 new tests (4909 total). | M |
 | B161 | ✅ **ENCRYPTED SEEK CACHE** — `CasSeekCacheAdapter` now accepts optional `encryptionKey` constructor param. When set, all `store()` and `restore()` calls pass the key to git-cas for AES-256-GCM encryption/decryption. 6 new tests (52 total). | S |
 | B162 | ✅ **OBSERVABILITY ALIGNMENT** — new `LoggerObservabilityBridge` adapter translates git-cas `ObservabilityPort` calls (metric, log, span) into git-warp `LoggerPort` calls. `CasSeekCacheAdapter` accepts optional `logger` param; when provided, CAS operations surface through git-warp's structured logging. 7 new bridge tests + 2 adapter tests. | M |
 | B163 | **STREAMING RESTORE FOR LARGE STATES** — git-cas v4 added `restoreStream()` for O(chunkSize) memory restore. For very large graphs, the seek cache restore could use streaming + incremental CBOR decoding instead of buffering the entire state with `cas.restore()`. **Files:** `src/infrastructure/adapters/CasSeekCacheAdapter.js` | M |
@@ -413,8 +413,8 @@ B158 (P7) ──→ B159 (P7)   CDC seek cache
 | **Milestone (M12)** | 18 | B66, B67, B70, B73, B75, B105–B115, B117, B118 |
 | **Milestone (M13)** | 1 | B116 (internal: DONE; wire-format: DEFERRED) |
 | **Milestone (M14)** | 16 | B130–B145 |
-| **Standalone** | 48 | B12, B19, B22, B28, B34–B37, B43, B48, B49, B53, B54, B57, B76, B79–B81, B83, B85–B88, B95–B99, B102–B104, B119, B123, B127–B129, B147, B149–B156, B160, B163, B164 |
-| **Standalone (done)** | 34 | B26, B44, B46, B47, B50–B52, B55, B71, B72, B77, B78, B82, B84, B89–B94, B100, B120–B122, B124, B125, B126, B146, B148, B157, B158, B159, B161, B162 |
+| **Standalone** | 47 | B12, B19, B22, B28, B34–B37, B43, B48, B49, B53, B54, B57, B76, B79–B81, B83, B85–B88, B95–B99, B102–B104, B119, B123, B127–B129, B147, B149–B156, B163, B164 |
+| **Standalone (done)** | 35 | B26, B44, B46, B47, B50–B52, B55, B71, B72, B77, B78, B82, B84, B89–B94, B100, B120–B122, B124, B125, B126, B146, B148, B157, B158, B159, B160, B161, B162 |
 | **Deferred** | 7 | B4, B7, B16, B20, B21, B27, B101 |
 | **Rejected** | 7 | B5, B6, B13, B17, B18, B25, B45 |
 | **Total tracked** | **141** total; 30 standalone done | |

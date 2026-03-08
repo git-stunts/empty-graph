@@ -101,7 +101,7 @@ export class PatchBuilderV2 {
    *
    * @param {{ persistence: import('../../ports/CommitPort.js').default & import('../../ports/BlobPort.js').default & import('../../ports/TreePort.js').default & import('../../ports/RefPort.js').default, graphName: string, writerId: string, lamport: number, versionVector: import('../crdt/VersionVector.js').VersionVector, getCurrentState: () => import('../services/JoinReducer.js').WarpStateV5 | null, expectedParentSha?: string|null, onCommitSuccess?: ((result: {patch: import('../types/WarpTypesV2.js').PatchV2, sha: string}) => void | Promise<void>)|null, onDeleteWithData?: 'reject'|'cascade'|'warn', codec?: import('../../ports/CodecPort.js').default, logger?: import('../../ports/LoggerPort.js').default }} options
    */
-  constructor({ persistence, graphName, writerId, lamport, versionVector, getCurrentState, expectedParentSha = null, onCommitSuccess = null, onDeleteWithData = 'warn', codec, logger }) {
+  constructor({ persistence, graphName, writerId, lamport, versionVector, getCurrentState, expectedParentSha = null, onCommitSuccess = null, onDeleteWithData = 'warn', codec, logger, blobStorage }) {
     /** @type {import('../../ports/CommitPort.js').default & import('../../ports/BlobPort.js').default & import('../../ports/TreePort.js').default & import('../../ports/RefPort.js').default} */
     this._persistence = /** @type {import('../../ports/CommitPort.js').default & import('../../ports/BlobPort.js').default & import('../../ports/TreePort.js').default & import('../../ports/RefPort.js').default} */ (persistence);
 
@@ -156,6 +156,9 @@ export class PatchBuilderV2 {
      * @type {string[]}
      */
     this._contentBlobs = [];
+
+    /** @type {import('../../ports/BlobStoragePort.js').default|null} */
+    this._blobStorage = blobStorage || null;
 
     /**
      * Observed operands — entities whose current state was consulted to build
@@ -536,7 +539,9 @@ export class PatchBuilderV2 {
     // Validate identifiers before writing blob to avoid orphaned blobs
     _assertNoReservedBytes(nodeId, 'nodeId');
     _assertNoReservedBytes(CONTENT_PROPERTY_KEY, 'key');
-    const oid = await this._persistence.writeBlob(content);
+    const oid = this._blobStorage
+      ? await this._blobStorage.store(content, { slug: `${this._graphName}/${nodeId}` })
+      : await this._persistence.writeBlob(content);
     this.setProperty(nodeId, CONTENT_PROPERTY_KEY, oid);
     this._contentBlobs.push(oid);
     return this;
@@ -559,7 +564,9 @@ export class PatchBuilderV2 {
     _assertNoReservedBytes(to, 'to');
     _assertNoReservedBytes(label, 'label');
     _assertNoReservedBytes(CONTENT_PROPERTY_KEY, 'key');
-    const oid = await this._persistence.writeBlob(content);
+    const oid = this._blobStorage
+      ? await this._blobStorage.store(content, { slug: `${this._graphName}/${from}/${to}/${label}` })
+      : await this._persistence.writeBlob(content);
     this.setEdgeProperty(from, to, label, CONTENT_PROPERTY_KEY, oid);
     this._contentBlobs.push(oid);
     return this;

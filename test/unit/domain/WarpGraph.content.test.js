@@ -119,6 +119,70 @@ describe('WarpGraph content attachment (query methods)', () => {
     });
   });
 
+  describe('getContent() with blobStorage', () => {
+    it('uses blobStorage.retrieve() when blobStorage is provided', async () => {
+      const casBuf = Buffer.from('cas-stored content');
+      const blobStorage = {
+        store: vi.fn(),
+        retrieve: vi.fn().mockResolvedValue(casBuf),
+      };
+      /** @type {any} */ (graph)._blobStorage = blobStorage;
+
+      setupGraphState(graph, (/** @type {any} */ state) => {
+        addNode(state, 'doc:1', 1);
+        const propKey = encodePropKey('doc:1', '_content');
+        state.prop.set(propKey, { eventId: null, value: 'cas-tree-oid' });
+      });
+
+      const content = await graph.getContent('doc:1');
+
+      expect(content).toEqual(casBuf);
+      expect(blobStorage.retrieve).toHaveBeenCalledWith('cas-tree-oid');
+      expect(mockPersistence.readBlob).not.toHaveBeenCalled();
+    });
+
+    it('falls back to persistence.readBlob() when blobStorage is not provided', async () => {
+      const rawBuf = Buffer.from('raw blob');
+      mockPersistence.readBlob.mockResolvedValue(rawBuf);
+
+      setupGraphState(graph, (/** @type {any} */ state) => {
+        addNode(state, 'doc:1', 1);
+        const propKey = encodePropKey('doc:1', '_content');
+        state.prop.set(propKey, { eventId: null, value: 'raw-oid' });
+      });
+
+      const content = await graph.getContent('doc:1');
+
+      expect(content).toEqual(rawBuf);
+      expect(mockPersistence.readBlob).toHaveBeenCalledWith('raw-oid');
+    });
+  });
+
+  describe('getEdgeContent() with blobStorage', () => {
+    it('uses blobStorage.retrieve() when blobStorage is provided', async () => {
+      const casBuf = Buffer.from('cas-edge content');
+      const blobStorage = {
+        store: vi.fn(),
+        retrieve: vi.fn().mockResolvedValue(casBuf),
+      };
+      /** @type {any} */ (graph)._blobStorage = blobStorage;
+
+      setupGraphState(graph, (/** @type {any} */ state) => {
+        addNode(state, 'a', 1);
+        addNode(state, 'b', 2);
+        addEdge(state, 'a', 'b', 'rel', 3);
+        const propKey = encodeEdgePropKey('a', 'b', 'rel', '_content');
+        state.prop.set(propKey, { eventId: { lamport: 2, writerId: 'w1', patchSha: 'aabbccdd', opIndex: 0 }, value: 'cas-edge-oid' });
+      });
+
+      const content = await graph.getEdgeContent('a', 'b', 'rel');
+
+      expect(content).toEqual(casBuf);
+      expect(blobStorage.retrieve).toHaveBeenCalledWith('cas-edge-oid');
+      expect(mockPersistence.readBlob).not.toHaveBeenCalled();
+    });
+  });
+
   describe('getEdgeContentOid()', () => {
     it('returns the _content property value for an edge', async () => {
       setupGraphState(graph, (/** @type {any} */ state) => {

@@ -48,6 +48,7 @@ export async function createPatch() {
     onCommitSuccess: (/** @type {{patch?: import('../types/WarpTypesV2.js').PatchV2, sha?: string}} */ opts) => this._onPatchCommitted(this._writerId, opts),
     codec: this._codec,
     logger: this._logger || undefined,
+    blobStorage: this._blobStorage || undefined,
   });
 }
 
@@ -326,6 +327,7 @@ export async function writer(writerId) {
     onCommitSuccess: /** @type {(result: {patch: import('../types/WarpTypesV2.js').PatchV2, sha: string}) => void} */ ((/** @type {{patch?: import('../types/WarpTypesV2.js').PatchV2, sha?: string}} */ opts) => this._onPatchCommitted(resolvedWriterId, opts)),
     codec: this._codec,
     logger: this._logger || undefined,
+    blobStorage: this._blobStorage || undefined,
   });
 }
 
@@ -383,6 +385,7 @@ export async function createWriter(opts = {}) {
     onCommitSuccess: /** @type {(result: {patch: import('../types/WarpTypesV2.js').PatchV2, sha: string}) => void} */ ((/** @type {{patch?: import('../types/WarpTypesV2.js').PatchV2, sha?: string}} */ commitOpts) => this._onPatchCommitted(freshWriterId, commitOpts)),
     codec: this._codec,
     logger: this._logger || undefined,
+    blobStorage: this._blobStorage || undefined,
   });
 }
 
