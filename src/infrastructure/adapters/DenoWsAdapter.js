@@ -82,7 +82,9 @@ export default class DenoWsAdapter extends WebSocketServerPort {
               port,
               hostname: bindHost,
               onListen() {
-                resolve({ port: server.addr.port, host: bindHost });
+                // server is assigned synchronously by Deno.serve() before
+                // onListen fires, so it is always non-null here.
+                resolve({ port: /** @type {DenoServer} */ (server).addr.port, host: bindHost });
               },
             },
             async (req) => {

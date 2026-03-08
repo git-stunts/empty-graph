@@ -10,7 +10,7 @@ import DenoWsAdapter from '../../../../src/infrastructure/adapters/DenoWsAdapter
 function createDenoMock() {
   /** @type {Function|null} */
   let handler = null;
-  /** @type {{ shutdown: ReturnType<typeof vi.fn> }|null} */
+  /** @type {{ shutdown: ReturnType<typeof vi.fn>, addr: { transport: string, hostname: string, port: number } }|null} */
   let mockServer = null;
 
   /** @type {any} */
