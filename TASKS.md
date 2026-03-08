@@ -72,9 +72,10 @@ Versioned JSON envelope: `{ v: 1, type: string, id?: string, payload: unknown }`
 
 ---
 
-### T2 — Node WebSocket Adapter
+### T2 — Node WebSocket Adapter ✅ DONE
 
-**Status:** PENDING
+**Commit:** `8ed8c64`
+**Status:** DONE
 
 **Goal:** Implement `WebSocketServerPort` for Node.js using the `ws` npm package.
 

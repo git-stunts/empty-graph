@@ -204,3 +204,12 @@ export const verifyIndexSchema = z.object({
 
 // No command-level options; schema exists for forward compatibility
 export const reindexSchema = z.object({}).strict();
+
+// ============================================================================
+// Serve
+// ============================================================================
+
+export const serveSchema = z.object({
+  port: z.coerce.number().int().min(0).max(65535).default(3000),
+  host: z.string().min(1).default('127.0.0.1'),
+}).strict();

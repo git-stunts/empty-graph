@@ -50,6 +50,7 @@ Commands:
   patch            Decode and inspect raw patches
   tree             ASCII tree traversal from root nodes
   bisect           Binary search for first bad patch in writer history
+  serve            Start WebSocket server for browser-based graph viewer
   view             Interactive TUI graph browser (requires @git-stunts/git-warp-tui)
   install-hooks    Install post-merge git hook
 
@@ -154,7 +155,7 @@ export function notFoundError(message) {
   return new CliError(message, { code: 'E_NOT_FOUND', exitCode: EXIT_CODES.NOT_FOUND });
 }
 
-export const KNOWN_COMMANDS = ['info', 'query', 'path', 'history', 'check', 'doctor', 'materialize', 'seek', 'verify-audit', 'verify-index', 'reindex', 'trust', 'patch', 'tree', 'bisect', 'install-hooks', 'view'];
+export const KNOWN_COMMANDS = ['info', 'query', 'path', 'history', 'check', 'doctor', 'materialize', 'seek', 'verify-audit', 'verify-index', 'reindex', 'trust', 'patch', 'tree', 'bisect', 'install-hooks', 'serve', 'view'];
 
 const BASE_OPTIONS = {
   repo:   { type: 'string', short: 'r' },
