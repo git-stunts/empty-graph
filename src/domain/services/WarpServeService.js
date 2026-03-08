@@ -115,14 +115,12 @@ function validateMutateArgs(op, args) {
  */
 
 /**
- * Shape of a graph instance provided to WarpServeService.
- * @typedef {Object} GraphHandle
- * @property {string} graphName
- * @property {(opts?: { ceiling?: number }) => Promise<import('./JoinReducer.js').WarpStateV5>} materialize
- * @property {(opts: { onChange: (diff: unknown) => void }) => { unsubscribe: () => void }} subscribe
- * @property {(nodeId: string) => Promise<Record<string, unknown>>} getNodeProps
- * @property {() => Promise<{ addNode: (id: string) => Promise<void>, removeNode: (id: string) => Promise<void>, addEdge: (from: string, to: string, label: string) => Promise<void>, removeEdge: (from: string, to: string, label: string) => Promise<void>, setProperty: (nodeId: string, key: string, value: unknown) => Promise<void>, setEdgeProperty: (from: string, to: string, label: string, key: string, value: unknown) => Promise<void>, attachContent: (nodeId: string, content: string) => Promise<void>, attachEdgeContent: (from: string, to: string, label: string, content: string) => Promise<void>, commit: () => Promise<string>, [key: string]: (...args: unknown[]) => Promise<unknown> }>} createPatch
- * @property {(opts?: unknown) => Promise<unknown>} query
+ * Minimal duck-typed shape of a WarpGraph instance as consumed by
+ * WarpServeService.  Uses the `import()` type directly so tsc can
+ * structurally match WarpGraph without re-declaring its overloaded
+ * signatures.
+ *
+ * @typedef {import('../WarpGraph.js').default} GraphHandle
  */
 
 /**
@@ -359,6 +357,7 @@ export default class WarpServeService {
     conn.onMessage((raw) => {
       // Extract correlation ID before the async call so the catch handler
       // can correlate the error without re-parsing the raw message.
+      /** @type {string|undefined} */
       let id;
       try { id = JSON.parse(raw).id; } catch { /* unparseable — no id */ }
 
@@ -519,7 +518,7 @@ export default class WarpServeService {
     try {
       const patch = await graph.createPatch();
       for (const { op, args } of ops) {
-        await patch[op](...args);
+        await /** @type {Record<string, (...a: unknown[]) => Promise<unknown>>} */ (/** @type {unknown} */ (patch))[op](...args);
       }
       const sha = await patch.commit();
       session.conn.send(envelope('ack', { sha }, msg.id));
