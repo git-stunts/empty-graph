@@ -24,6 +24,7 @@ import defaultCodec from '../utils/defaultCodec.js';
 import ProvenancePayload from './ProvenancePayload.js';
 import WormholeError from '../errors/WormholeError.js';
 import EncryptionError from '../errors/EncryptionError.js';
+import PersistenceError from '../errors/PersistenceError.js';
 import { detectMessageKind, decodePatchMessage } from './WarpMessageCodec.js';
 
 /**
@@ -108,6 +109,13 @@ async function processCommit({ persistence, sha, graphName, expectedWriter, code
     patchBuffer = await patchBlobStorage.retrieve(patchMeta.patchOid);
   } else {
     patchBuffer = await persistence.readBlob(patchMeta.patchOid);
+  }
+  if (!patchBuffer) {
+    throw new PersistenceError(
+      `Patch blob not found: ${patchMeta.patchOid}`,
+      PersistenceError.E_MISSING_OBJECT,
+      { context: { oid: patchMeta.patchOid } },
+    );
   }
   const patch = /** @type {import('../types/WarpTypesV2.js').PatchV2} */ (codec.decode(patchBuffer));
 

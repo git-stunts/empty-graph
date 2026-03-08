@@ -13,6 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`jsr.json` missing `browser.js` in publish.include** — JSR consumers importing `@git-stunts/git-warp/browser` now receive the file.
 - **`git warp serve` help text missing `--port`, `--host`, `--expose` flags** — All serve-specific options now appear in `--help` output.
 
+- **`WarpServeService` non-integer seek ceiling** — Fractional ceilings (e.g. `3.5`) are now rejected with `E_INVALID_PAYLOAD`. `Infinity` is intentionally accepted (treated as head).
+- **`WarpServeService` oversized message guard** — Messages exceeding 1 MiB are rejected with `E_MESSAGE_TOO_LARGE` before `JSON.parse`, preventing OOM on malicious payloads.
+- **`WarpServeService` oversized property value guard** — Wildcard-typed mutation args exceeding 64 KiB are rejected with `E_INVALID_ARGS`.
+- **`SyncProtocol` / `WormholeService` null blob guard** — `readBlob()` / `retrieve()` results are now null-checked, throwing `PersistenceError(E_MISSING_OBJECT)` instead of passing `null` to the codec.
+- **`hexDecode` regex replaced with charCode loop** — Direct character code validation avoids regex backtracking on large inputs.
 - **WS adapter pre-handler message buffering** — Messages arriving before `onMessage(handler)` is called are now buffered and flushed when the handler is set. Prevents message loss in Bun and Deno adapters when connection setup is asynchronous.
 - **NodeWsAdapter `onError` callback** — Constructor now accepts an optional `onError` callback that surfaces runtime server errors instead of silently swallowing them.
 - **`wsAdapterUtils.messageToString()` TextDecoder reuse** — Hoisted `TextDecoder` to module level, avoiding per-call allocation.

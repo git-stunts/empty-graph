@@ -53,6 +53,27 @@ const MUTATE_OP_SIGNATURES = {
   attachEdgeContent: ['string', 'string', 'string', 'string'],
 };
 
+/** Maximum serialized size for wildcard property values (64 KiB). */
+const MAX_WILDCARD_SIZE = 65_536;
+
+/**
+ * Validates a single wildcard-typed argument against size limits.
+ *
+ * @param {string} op
+ * @param {number} i
+ * @param {unknown} arg
+ * @returns {string|null}
+ */
+function validateWildcardArg(op, i, arg) {
+  if (typeof arg === 'string' && arg.length > MAX_WILDCARD_SIZE) {
+    return `${op}: arg[${i}] exceeds 64 KiB string limit`;
+  }
+  if (typeof arg === 'object' && arg !== null && JSON.stringify(arg).length > MAX_WILDCARD_SIZE) {
+    return `${op}: arg[${i}] exceeds 64 KiB serialized limit`;
+  }
+  return null;
+}
+
 /**
  * Validates that args match the expected signature for an op.
  *
@@ -72,7 +93,10 @@ function validateMutateArgs(op, args) {
     return `${op}: expected ${sig.length} args, got ${args.length}`;
   }
   for (let i = 0; i < sig.length; i++) {
-    if (sig[i] !== '*' && typeof args[i] !== sig[i]) {
+    if (sig[i] === '*') {
+      const err = validateWildcardArg(op, i, args[i]);
+      if (err) { return err; }
+    } else if (typeof args[i] !== sig[i]) {
       return `${op}: arg[${i}] must be ${sig[i]}, got ${typeof args[i]}`;
     }
   }
@@ -327,6 +351,8 @@ export default class WarpServeService {
         // This catch prevents unhandled rejection for truly unexpected failures.
         // Send a generic message to avoid leaking internal details (file paths,
         // stack traces, etc.) to untrusted WebSocket clients.
+        // Best-effort extract correlation ID. The message was already size-checked
+        // (≤1 MiB) and parsed once in _onMessage, so re-parsing is bounded.
         let id;
         try { id = JSON.parse(raw).id; } catch { /* unparseable — no id */ }
         session.conn.send(errorEnvelope(
@@ -347,6 +373,11 @@ export default class WarpServeService {
    * @private
    */
   async _onMessage(session, raw) {
+    if (raw.length > 1_048_576) {
+      session.conn.send(errorEnvelope('E_MESSAGE_TOO_LARGE', 'Message exceeds 1 MiB limit'));
+      return;
+    }
+
     /** @type {Envelope} */
     let msg;
     try {
@@ -394,6 +425,9 @@ export default class WarpServeService {
 
   /**
    * Handle 'open' — client subscribes to a graph.
+   *
+   * `materialize()` is called without `receipts: true`, so the return is
+   * always a plain `WarpStateV5` (not a `MaterializeResult` with receipts).
    *
    * @param {ClientSession} session
    * @param {Envelope} msg
@@ -516,6 +550,24 @@ export default class WarpServeService {
   }
 
   /**
+   * Validates a seek ceiling value. Returns an error message or null.
+   * Infinity is intentionally accepted (treated as "materialize at head").
+   *
+   * @param {unknown} ceiling
+   * @returns {string|null}
+   * @private
+   */
+  _validateCeiling(ceiling) {
+    if (typeof ceiling !== 'number' || ceiling < 0 || Number.isNaN(ceiling)) {
+      return 'seek: ceiling must be a non-negative number';
+    }
+    if (Number.isFinite(ceiling) && !Number.isInteger(ceiling)) {
+      return 'seek: ceiling must be an integer';
+    }
+    return null;
+  }
+
+  /**
    * Handle 'seek' — client requests time-travel materialization.
    *
    * @param {ClientSession} session
@@ -526,8 +578,9 @@ export default class WarpServeService {
     const { payload } = msg;
     const ceiling = /** @type {number} */ (/** @type {Record<string, unknown>} */ (payload)?.ceiling);
 
-    if (typeof ceiling !== 'number' || ceiling < 0 || Number.isNaN(ceiling)) {
-      session.conn.send(errorEnvelope('E_INVALID_PAYLOAD', 'seek: ceiling must be a number', msg.id));
+    const ceilingError = this._validateCeiling(ceiling);
+    if (ceilingError) {
+      session.conn.send(errorEnvelope('E_INVALID_PAYLOAD', ceilingError, msg.id));
       return;
     }
 

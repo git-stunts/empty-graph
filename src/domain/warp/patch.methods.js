@@ -425,7 +425,7 @@ export async function _ensureFreshState() {
  * Reads a patch blob, using patchBlobStorage for encrypted patches
  * and falling back to persistence.readBlob() for plain patches.
  *
- * @this {import('../WarpGraph.js').default}
+ * @this {import('./_internal.js').WarpGraphWithMixins}
  * @param {{ patchOid: string, encrypted: boolean }} patchMeta
  * @returns {Promise<Uint8Array>}
  */

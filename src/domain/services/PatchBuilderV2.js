@@ -750,6 +750,9 @@ export class PatchBuilderV2 {
         lamport,
         patchOid: patchBlobOid,
         schema,
+        // "encrypted" is a legacy wire name meaning "patch blob stored externally
+        // via patchBlobStorage" (see ADR-0002). The flag tells readers to retrieve
+        // the blob via BlobStoragePort instead of reading it directly from Git.
         encrypted: !!this._patchBlobStorage,
       });
       const parents = parentCommit ? [parentCommit] : [];

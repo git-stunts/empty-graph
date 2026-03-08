@@ -253,6 +253,8 @@ export default tseslint.config(
       "src/domain/services/LogicalBitmapIndexBuilder.js",
       "src/domain/services/LogicalIndexBuildService.js",
       "src/domain/services/IncrementalIndexUpdater.js",
+      "src/domain/services/WormholeService.js",
+      "src/domain/services/WarpServeService.js",
     ],
     rules: {
       "complexity": ["error", 35],

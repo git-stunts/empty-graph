@@ -42,6 +42,7 @@ import { decodePatchMessage, assertOpsCompatible, SCHEMA_V3 } from './WarpMessag
 import { join, cloneStateV5, isKnownRawOp } from './JoinReducer.js';
 import SchemaUnsupportedError from '../errors/SchemaUnsupportedError.js';
 import EncryptionError from '../errors/EncryptionError.js';
+import PersistenceError from '../errors/PersistenceError.js';
 import { cloneFrontier, updateFrontier } from './Frontier.js';
 import { vvDeserialize } from '../crdt/VersionVector.js';
 
@@ -157,6 +158,13 @@ async function loadPatchFromCommit(persistence, sha, { codec: codecOpt, patchBlo
     patchBuffer = await patchBlobStorage.retrieve(decoded.patchOid);
   } else {
     patchBuffer = await persistence.readBlob(decoded.patchOid);
+  }
+  if (!patchBuffer) {
+    throw new PersistenceError(
+      `Patch blob not found: ${decoded.patchOid}`,
+      PersistenceError.E_MISSING_OBJECT,
+      { context: { oid: decoded.patchOid } },
+    );
   }
   const patch = /** @type {DecodedPatch} */ (codec.decode(patchBuffer));
 

@@ -765,6 +765,29 @@ describe('WarpServeService', () => {
       // Infinity should NOT be passed as ceiling — materialize at head
       expect(graph.materialize).toHaveBeenCalledWith({});
     });
+
+    it('rejects non-integer ceiling with E_INVALID_PAYLOAD', async () => {
+      const client = ws.simulateConnection();
+      client.sendFromClient(JSON.stringify({
+        v: 1, type: 'open', id: 'o1',
+        payload: { graph: 'test-graph', writerId: 'w1' },
+      }));
+      await vi.waitFor(() => { expect(client.sent.length).toBeGreaterThanOrEqual(2); });
+      client.sent.length = 0;
+
+      client.sendFromClient(JSON.stringify({
+        v: 1, type: 'seek', id: 'sk-frac',
+        payload: { graph: 'test-graph', ceiling: 3.5 },
+      }));
+
+      await vi.waitFor(() => expect(client.sent.length).toBeGreaterThan(0));
+
+      const msg = JSON.parse(client.sent[0]);
+      expect(msg.type).toBe('error');
+      expect(msg.id).toBe('sk-frac');
+      expect(msg.payload.code).toBe('E_INVALID_PAYLOAD');
+      expect(msg.payload.message).toContain('integer');
+    });
   });
 
   // ── Live diff push ──────────────────────────────────────────────────
@@ -1316,6 +1339,60 @@ describe('WarpServeService', () => {
       const msg = JSON.parse(client.sent[0]);
       expect(msg.type).toBe('ack');
       expect(mockPatch.attachEdgeContent).toHaveBeenCalledWith('n1', 'n2', 'knows', 'blob-data');
+    });
+  });
+
+  // ── Message size limits ──────────────────────────────────────────────
+
+  describe('message size limits', () => {
+    it('rejects oversized WebSocket messages', async () => {
+      const ws = createMockWsPort();
+      const graph = createMockGraph();
+      const service = new WarpServeService({ wsPort: ws.port, graphs: [graph] });
+      await service.listen(0);
+
+      const client = ws.simulateConnection();
+      client.sent.length = 0;
+
+      // Send a message larger than 1 MiB
+      const oversized = 'x'.repeat(1_048_577);
+      client.sendFromClient(oversized);
+
+      await vi.waitFor(() => expect(client.sent.length).toBeGreaterThan(0));
+      const msg = JSON.parse(client.sent[0]);
+      expect(msg.type).toBe('error');
+      expect(msg.payload.code).toBe('E_MESSAGE_TOO_LARGE');
+    });
+
+    it('rejects oversized property values in mutate', async () => {
+      const ws = createMockWsPort();
+      const graph = createMockGraph();
+      const service = new WarpServeService({ wsPort: ws.port, graphs: [graph] });
+      await service.listen(0);
+
+      const client = ws.simulateConnection();
+      client.sendFromClient(JSON.stringify({
+        v: 1, type: 'open', id: 'o1',
+        payload: { graph: 'test-graph', writerId: 'w1' },
+      }));
+      await vi.waitFor(() => { expect(client.sent.length).toBeGreaterThanOrEqual(2); });
+      client.sent.length = 0;
+
+      // A 100KB property value exceeds the 64 KiB limit
+      const bigValue = 'x'.repeat(100_000);
+      client.sendFromClient(JSON.stringify({
+        v: 1, type: 'mutate', id: 'mut-big',
+        payload: {
+          graph: 'test-graph',
+          ops: [{ op: 'setProperty', args: ['node:a', 'key', bigValue] }],
+        },
+      }));
+
+      await vi.waitFor(() => expect(client.sent.length).toBeGreaterThan(0));
+      const msg = JSON.parse(client.sent[0]);
+      expect(msg.type).toBe('error');
+      expect(msg.payload.code).toBe('E_INVALID_ARGS');
+      expect(msg.payload.message).toContain('64 KiB');
     });
   });
 });

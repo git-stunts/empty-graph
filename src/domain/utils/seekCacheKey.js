@@ -18,6 +18,9 @@ const KEY_VERSION = 'v1';
  * Builds a deterministic, collision-resistant cache key from a ceiling tick
  * and writer frontier snapshot.
  *
+ * This function is intentionally async — WebCrypto's `digest()` is async-only,
+ * and `defaultCrypto.hash()` uses it. Both call sites are already async.
+ *
  * @param {number} ceiling - Lamport ceiling tick
  * @param {Map<string, string>} frontier - Map of writerId → tip SHA
  * @returns {Promise<string>} Cache key, e.g. `v1:t42-a1b2c3d4...` (32+ hex chars in hash)

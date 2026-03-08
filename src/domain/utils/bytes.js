@@ -31,19 +31,40 @@ export function hexEncode(bytes) {
 }
 
 /**
+ * Returns the numeric value of a hex character code, or -1 if invalid.
+ *
+ * @param {number} cc - Character code
+ * @returns {number} 0–15 or -1
+ */
+function hexCharValue(cc) {
+  // 0-9: 0x30–0x39
+  if (cc >= 0x30 && cc <= 0x39) { return cc - 0x30; }
+  // A-F: 0x41–0x46
+  if (cc >= 0x41 && cc <= 0x46) { return cc - 0x41 + 10; }
+  // a-f: 0x61–0x66
+  if (cc >= 0x61 && cc <= 0x66) { return cc - 0x61 + 10; }
+  return -1;
+}
+
+/**
  * Decodes a hex string to a Uint8Array.
  *
  * @param {string} hex - Even-length hex string
  * @returns {Uint8Array}
  */
 export function hexDecode(hex) {
-  if (hex.length % 2 !== 0 || !/^[\da-fA-F]*$/.test(hex)) {
-    throw new RangeError(`Invalid hex string (length ${hex.length}): ${hex.length > 20 ? `${hex.slice(0, 20)}…` : hex}`);
+  if (hex.length % 2 !== 0) {
+    throw new RangeError(`Invalid hex string (odd length ${hex.length}): ${hex.length > 20 ? `${hex.slice(0, 20)}…` : hex}`);
   }
   const len = hex.length >>> 1;
   const bytes = new Uint8Array(len);
   for (let i = 0; i < len; i++) {
-    bytes[i] = parseInt(hex.substring(i * 2, i * 2 + 2), 16);
+    const hi = hexCharValue(hex.charCodeAt(i * 2));
+    const lo = hexCharValue(hex.charCodeAt(i * 2 + 1));
+    if (hi === -1 || lo === -1) {
+      throw new RangeError(`Invalid hex string (length ${hex.length}): ${hex.length > 20 ? `${hex.slice(0, 20)}…` : hex}`);
+    }
+    bytes[i] = (hi << 4) | lo;
   }
   return bytes;
 }
