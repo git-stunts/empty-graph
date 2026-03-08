@@ -281,7 +281,7 @@ describe('CasSeekCacheAdapter', () => {
       // Verify index was written back with lastAccessedAt
       expect(persistence.writeBlob).toHaveBeenCalled();
       const writtenJson = JSON.parse(
-        persistence.writeBlob.mock.calls[0][0].toString('utf8')
+        new TextDecoder().decode(persistence.writeBlob.mock.calls[0][0])
       );
       expect(writtenJson.entries[SAMPLE_KEY].lastAccessedAt).toBeDefined();
       expect(writtenJson.entries[SAMPLE_KEY].createdAt).toBe('2025-01-01T00:00:00Z');
@@ -449,7 +449,7 @@ describe('CasSeekCacheAdapter', () => {
       // Index updated
       expect(persistence.writeBlob).toHaveBeenCalled();
       const writtenJson = JSON.parse(
-        persistence.writeBlob.mock.calls[0][0].toString('utf8')
+        new TextDecoder().decode(persistence.writeBlob.mock.calls[0][0])
       );
       const entry = writtenJson.entries[SAMPLE_KEY];
       expect(entry.treeOid).toBe(treeOid);
@@ -483,7 +483,7 @@ describe('CasSeekCacheAdapter', () => {
       await adapter.set(SAMPLE_KEY, SAMPLE_BUFFER);
 
       const writtenJson = JSON.parse(
-        persistence.writeBlob.mock.calls[0][0].toString('utf8')
+        new TextDecoder().decode(persistence.writeBlob.mock.calls[0][0])
       );
       expect(writtenJson.entries[existingKey]).toEqual(existingEntry);
       expect(writtenJson.entries[SAMPLE_KEY]).toBeDefined();
@@ -589,7 +589,7 @@ describe('CasSeekCacheAdapter', () => {
 
       // Verify the written index no longer contains the key
       const writtenJson = JSON.parse(
-        persistence.writeBlob.mock.calls[0][0].toString('utf8')
+        new TextDecoder().decode(persistence.writeBlob.mock.calls[0][0])
       );
       expect(writtenJson.entries[SAMPLE_KEY]).toBeUndefined();
     });
@@ -614,7 +614,7 @@ describe('CasSeekCacheAdapter', () => {
       await adapter.delete(SAMPLE_KEY);
 
       const writtenJson = JSON.parse(
-        persistence.writeBlob.mock.calls[0][0].toString('utf8')
+        new TextDecoder().decode(persistence.writeBlob.mock.calls[0][0])
       );
       expect(writtenJson.entries[otherKey]).toBeDefined();
       expect(writtenJson.entries[SAMPLE_KEY]).toBeUndefined();
@@ -796,7 +796,7 @@ describe('CasSeekCacheAdapter', () => {
       await tinyAdapter.set('v1:t99-newhash', Buffer.from('new'));
 
       const writtenJson = JSON.parse(
-        persistence.writeBlob.mock.calls[0][0].toString('utf8')
+        new TextDecoder().decode(persistence.writeBlob.mock.calls[0][0])
       );
       expect(Object.keys(writtenJson.entries)).toHaveLength(1);
       expect(writtenJson.entries['v1:t99-newhash']).toBeDefined();
@@ -919,7 +919,7 @@ describe('CasSeekCacheAdapter', () => {
 
       expect(persistence.writeBlob).toHaveBeenCalledTimes(1);
       const buf = persistence.writeBlob.mock.calls[0][0];
-      expect(JSON.parse(buf.toString('utf8'))).toEqual(index);
+      expect(JSON.parse(new TextDecoder().decode(buf))).toEqual(index);
       expect(persistence.updateRef).toHaveBeenCalledWith(EXPECTED_REF, 'written-oid');
     });
   });

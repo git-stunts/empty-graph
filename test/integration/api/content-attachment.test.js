@@ -25,7 +25,7 @@ describe('API: Content Attachment', () => {
     await graph.materialize();
     const content = await graph.getContent('doc:1');
     expect(content).not.toBeNull();
-    expect(content.toString('utf8')).toBe('# Hello World\n\nThis is content.');
+    expect(new TextDecoder().decode(content)).toBe('# Hello World\n\nThis is content.');
   });
 
   it('getContentOid returns hex OID', async () => {
