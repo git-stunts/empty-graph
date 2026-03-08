@@ -39,10 +39,12 @@
       "default": "./src/visualization/index.js"
     },
     "./browser": {
+      "types": "./browser.d.ts",
       "import": "./browser.js",
       "default": "./browser.js"
     },
     "./sha1sync": {
+      "types": "./sha1sync.d.ts",
       "import": "./src/infrastructure/adapters/sha1sync.js",
       "default": "./src/infrastructure/adapters/sha1sync.js"
     },

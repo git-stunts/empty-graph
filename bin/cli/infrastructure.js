@@ -51,6 +51,9 @@ Commands:
   tree             ASCII tree traversal from root nodes
   bisect           Binary search for first bad patch in writer history
   serve            Start WebSocket server for browser-based graph viewer
+                     --port <n>          Port to bind (default: 3000, 0 = OS-assigned)
+                     --host <addr>       Bind address (default: 127.0.0.1)
+                     --expose            Allow binding to non-loopback addresses
                      --static <dir>      Serve static files (SPA) on the same port
                      --writer-id <id>    Explicit writer identity (default: derived from host:port)
   view             Interactive TUI graph browser (requires @git-stunts/git-warp-tui)

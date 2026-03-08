@@ -6,9 +6,9 @@
  * the infrastructure layer. This follows the same pattern as
  * defaultCodec.js and defaultClock.js.
  *
- * In Node/Bun/Deno, node:crypto loads normally. In browsers,
- * the import fails silently and callers must inject a CryptoPort
- * explicitly.
+ * In Node/Bun/Deno, node:crypto loads normally. When the import
+ * fails (e.g., Vite stubs `node:crypto` in browser bundles),
+ * callers must inject a CryptoPort explicitly.
  *
  * @module domain/utils/defaultCrypto
  */
@@ -26,7 +26,8 @@ try {
   _createHmac = nodeCrypto.createHmac;
   _timingSafeEqual = nodeCrypto.timingSafeEqual;
 } catch {
-  // Browser — caller must inject a CryptoPort explicitly
+  // Import failed (bundler stub, unsupported runtime, etc.) —
+  // caller must inject a CryptoPort explicitly.
 }
 
 /** @type {import('../../ports/CryptoPort.js').default} */

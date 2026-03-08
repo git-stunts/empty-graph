@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Browser and sha1sync subpath exports missing `types` field** — `package.json` `"./browser"` and `"./sha1sync"` exports now include `"types"` entries pointing to `browser.d.ts` and `sha1sync.d.ts`, enabling TypeScript resolution for subpath consumers.
+- **`jsr.json` missing `browser.js` in publish.include** — JSR consumers importing `@git-stunts/git-warp/browser` now receive the file.
+- **`git warp serve` help text missing `--port`, `--host`, `--expose` flags** — All serve-specific options now appear in `--help` output.
+
 - **`_broadcastDiff` Set mutation during iteration** — Deleting dead clients from `this._clients` mid-`for...of` could skip the next entry. Dead connections are now collected and evicted after the loop completes.
 - **Double-SIGINT re-entrancy in `serve` shutdown** — Rapid Ctrl+C fired `shutdown()` concurrently twice, racing `close()` and `process.exit()`. Added a `closing` guard.
 - **Catch-all error envelope missing correlation ID** — The last-resort `.catch()` on `_onMessage` now best-effort extracts the request `id` from the raw JSON for client-side correlation.

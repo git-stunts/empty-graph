@@ -15,6 +15,9 @@
     "include": [
       "index.js",
       "index.d.ts",
+      "browser.js",
+      "browser.d.ts",
+      "sha1sync.d.ts",
       "src/**/*.js",
       "src/**/*.d.ts",
       "README.md",
