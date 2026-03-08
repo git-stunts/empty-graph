@@ -3,8 +3,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // Mock @git-stunts/git-cas (dynamic import used by _initCas)
 const mockReadManifest = vi.fn();
 const mockRestore = vi.fn();
+const mockRestoreStream = vi.fn();
 const mockStore = vi.fn();
 const mockCreateTree = vi.fn();
+
+/** When true, the mock CAS exposes restoreStream. */
+let exposeRestoreStream = false;
 
 /** Captures constructor args for assertion. */
 let lastConstructorArgs = {};
@@ -16,6 +20,9 @@ class MockContentAddressableStore {
     this.restore = mockRestore;
     this.store = mockStore;
     this.createTree = mockCreateTree;
+    if (exposeRestoreStream) {
+      this.restoreStream = mockRestoreStream;
+    }
   }
 }
 
@@ -77,6 +84,7 @@ describe('CasSeekCacheAdapter', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    exposeRestoreStream = false;
     persistence = makePersistence();
     plumbing = makePlumbing();
     adapter = new CasSeekCacheAdapter({
@@ -353,6 +361,67 @@ describe('CasSeekCacheAdapter', () => {
       await adapter.get(SAMPLE_KEY);
 
       expect(mockRestore).toHaveBeenCalledWith({ manifest });
+    });
+
+    it('uses restoreStream() when available, concatenating chunks', async () => {
+      // Create adapter from CAS that exposes restoreStream
+      exposeRestoreStream = true;
+      const streamAdapter = new CasSeekCacheAdapter({
+        persistence,
+        plumbing,
+        graphName: GRAPH_NAME,
+      });
+
+      const treeOid = 'tree-stream';
+      const manifest = { chunks: ['c1', 'c2'] };
+      const chunk1 = Buffer.from('hello-');
+      const chunk2 = Buffer.from('world');
+
+      persistence.readRef.mockResolvedValue('index-oid');
+      persistence.readBlob.mockResolvedValue(
+        indexBuffer({ [SAMPLE_KEY]: { treeOid, createdAt: new Date().toISOString() } })
+      );
+      mockReadManifest.mockResolvedValue(manifest);
+      // restoreStream returns an async iterable of chunks
+      mockRestoreStream.mockReturnValue((async function* () {
+        yield chunk1;
+        yield chunk2;
+      })());
+
+      const result = await streamAdapter.get(SAMPLE_KEY);
+
+      expect(result).not.toBeNull();
+      expect(Buffer.from(/** @type {any} */ (result).buffer).toString()).toBe('hello-world');
+      expect(mockRestoreStream).toHaveBeenCalledWith({ manifest });
+      // Should NOT fall back to cas.restore()
+      expect(mockRestore).not.toHaveBeenCalled();
+    });
+
+    it('falls back to cas.restore() when restoreStream is not available', async () => {
+      // Create adapter from a CAS without restoreStream
+      exposeRestoreStream = false;
+      const fallbackAdapter = new CasSeekCacheAdapter({
+        persistence,
+        plumbing,
+        graphName: GRAPH_NAME,
+      });
+
+      const treeOid = 'tree-fallback';
+      const manifest = { chunks: ['c1'] };
+      const stateBuffer = Buffer.from('fallback-state');
+
+      persistence.readRef.mockResolvedValue('index-oid');
+      persistence.readBlob.mockResolvedValue(
+        indexBuffer({ [SAMPLE_KEY]: { treeOid, createdAt: new Date().toISOString() } })
+      );
+      mockReadManifest.mockResolvedValue(manifest);
+      mockRestore.mockResolvedValue({ buffer: stateBuffer });
+
+      const result = await fallbackAdapter.get(SAMPLE_KEY);
+
+      expect(result).toEqual({ buffer: stateBuffer });
+      expect(mockRestore).toHaveBeenCalledWith({ manifest });
+      expect(mockRestoreStream).not.toHaveBeenCalled();
     });
   });
 

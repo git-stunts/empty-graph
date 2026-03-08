@@ -18,7 +18,7 @@
 
 /**
  * Minimal interface for the ContentAddressableStore from @git-stunts/git-cas.
- * @typedef {{ readManifest: Function, restore: Function, store: Function, createTree: Function }} CasStore
+ * @typedef {{ readManifest: Function, restore: Function, restoreStream?: Function, store: Function, createTree: Function }} CasStore
  */
 
 import SeekCachePort from '../../ports/SeekCachePort.js';
@@ -214,6 +214,47 @@ export default class CasSeekCacheAdapter extends SeekCachePort {
   }
 
   // ---------------------------------------------------------------------------
+  // Restore helpers
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Restores a CAS asset into a single buffer.
+   *
+   * Prefers `cas.restoreStream()` (git-cas v4+) for I/O pipelining —
+   * chunk reads overlap with buffer accumulation. Falls back to
+   * `cas.restore()` for older git-cas versions or when streaming is
+   * unavailable (e.g. encrypted assets that require full buffering).
+   *
+   * @private
+   * @param {CasStore} cas - ContentAddressableStore instance
+   * @param {{ manifest: *, encryptionKey?: Buffer|Uint8Array }} restoreOpts
+   * @returns {Promise<Buffer|Uint8Array>}
+   */
+  async _restoreBuffer(cas, restoreOpts) {
+    if (typeof cas.restoreStream === 'function') {
+      const stream = cas.restoreStream(restoreOpts);
+      const chunks = [];
+      let totalLength = 0;
+      for await (const chunk of stream) {
+        chunks.push(chunk);
+        totalLength += chunk.length;
+      }
+      if (chunks.length === 1) {
+        return chunks[0];
+      }
+      const merged = Buffer.alloc(totalLength);
+      let offset = 0;
+      for (const chunk of chunks) {
+        merged.set(chunk, offset);
+        offset += chunk.length;
+      }
+      return merged;
+    }
+    const { buffer } = await cas.restore(restoreOpts);
+    return buffer;
+  }
+
+  // ---------------------------------------------------------------------------
   // SeekCachePort implementation
   // ---------------------------------------------------------------------------
 
@@ -246,7 +287,7 @@ export default class CasSeekCacheAdapter extends SeekCachePort {
       if (this._encryptionKey) {
         restoreOpts.encryptionKey = this._encryptionKey;
       }
-      const { buffer } = await cas.restore(restoreOpts);
+      const buffer = await this._restoreBuffer(cas, restoreOpts);
       // Update lastAccessedAt for LRU eviction ordering
       await this._mutateIndex((idx) => {
         if (idx.entries[key]) {
