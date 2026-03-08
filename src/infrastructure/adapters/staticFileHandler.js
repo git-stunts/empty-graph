@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, realpath } from 'node:fs/promises';
 import { resolve, extname, sep, normalize } from 'node:path';
 
 /**
@@ -62,14 +62,24 @@ function safePath(root, urlPath) {
 
 /**
  * Reads a file and returns a static response with the correct MIME type.
+ * Resolves symlinks before reading and re-checks the real path against
+ * the root directory to prevent symlink-based traversal attacks.
  *
+ * @param {string} root - Absolute path to the static directory root
  * @param {string} filePath - Absolute path to the file
  * @param {string} [mimeOverride] - Optional MIME type override
  * @returns {Promise<{ status: number, headers: Record<string, string>, body: Uint8Array }|null>}
  */
-async function tryReadFile(filePath, mimeOverride) {
+async function tryReadFile(root, filePath, mimeOverride) {
   try {
-    const body = await readFile(filePath);
+    // Resolve symlinks to prevent traversal via symlinks pointing outside root.
+    // Both root and filePath must be resolved — on macOS, /var → /private/var.
+    const realRoot = await realpath(root);
+    const real = await realpath(filePath);
+    if (!real.startsWith(`${realRoot}${sep}`) && real !== realRoot) {
+      return null;
+    }
+    const body = await readFile(real);
     const contentType = mimeOverride || MIME_TYPES[extname(filePath).toLowerCase()] || 'application/octet-stream';
     return {
       status: 200,
@@ -104,7 +114,7 @@ export async function handleStaticRequest(staticDir, urlPath) {
     return FORBIDDEN;
   }
 
-  const result = await tryReadFile(filePath);
+  const result = await tryReadFile(staticDir, filePath);
   if (result) {
     return result;
   }
@@ -113,7 +123,7 @@ export async function handleStaticRequest(staticDir, urlPath) {
   if (!extname(cleanPath)) {
     const indexPath = safePath(staticDir, '/index.html');
     if (indexPath) {
-      const indexResult = await tryReadFile(indexPath, 'text/html; charset=utf-8');
+      const indexResult = await tryReadFile(staticDir, indexPath, 'text/html; charset=utf-8');
       if (indexResult) {
         return indexResult;
       }

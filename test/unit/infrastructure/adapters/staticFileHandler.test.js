@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { mkdtemp, writeFile, mkdir, rm } from 'node:fs/promises';
+import { mkdtemp, writeFile, mkdir, rm, symlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { handleStaticRequest } from '../../../../src/infrastructure/adapters/staticFileHandler.js';
@@ -111,6 +111,32 @@ describe('handleStaticRequest', () => {
   it('contains encoded traversal inside root', async () => {
     const result = await handleStaticRequest(root, '/%2e%2e/%2e%2e/etc/passwd.js');
     expect(result.status).toBe(404);
+  });
+
+  it('blocks symlinks pointing outside the static root', async () => {
+    // Create a temp file outside the static root
+    const outsideDir = await mkdtemp(join(tmpdir(), 'outside-'));
+    await writeFile(join(outsideDir, 'secret.txt'), 'sensitive data');
+    // Create a symlink inside the static root pointing to the outside file
+    await symlink(join(outsideDir, 'secret.txt'), join(root, 'escape.txt'));
+
+    const result = await handleStaticRequest(root, '/escape.txt');
+    // The symlink target is outside root — must not serve it
+    expect(result.status).not.toBe(200);
+
+    await rm(join(root, 'escape.txt'));
+    await rm(outsideDir, { recursive: true, force: true });
+  });
+
+  it('allows symlinks that resolve within the static root', async () => {
+    // Symlink from link.html → index.html (both inside root)
+    await symlink(join(root, 'index.html'), join(root, 'link.html'));
+
+    const result = await handleStaticRequest(root, '/link.html');
+    expect(result.status).toBe(200);
+    expect(new TextDecoder().decode(/** @type {Uint8Array} */ (result.body))).toContain('Hello');
+
+    await rm(join(root, 'link.html'));
   });
 
   it('uses application/octet-stream for unknown extensions', async () => {
