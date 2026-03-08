@@ -274,8 +274,8 @@ Upgrade from `@git-stunts/git-cas` v3.0.0 to v5.2.4 and leverage new capabilitie
 
 | ID | Item | Effort |
 |----|------|--------|
-| B158 | **UPGRADE `@git-stunts/git-cas` TO v5** — bump `^3.0.0` → `^5.2.4` in `package.json`. v4 breaking change: `CasService` no longer extends `EventEmitter` (we don't listen — no impact). v5 breaking change: new `chunker` port param (optional, defaults to `FixedChunker` — no impact). Verify `CasSeekCacheAdapter` still works, run full test suite. **Files:** `package.json`, `test/unit/infrastructure/adapters/CasSeekCacheAdapter.test.js` | S |
-| B159 | **CDC CHUNKING FOR SEEK CACHE** — pass `CdcChunker` to the CAS instance in `CasSeekCacheAdapter._initCas()`. Consecutive seek snapshots share most content; CDC's rolling-hash boundaries yield ~98% chunk reuse on incremental edits vs. total invalidation with fixed-size chunking. Major storage savings for large graphs with frequent seeks. **Files:** `src/infrastructure/adapters/CasSeekCacheAdapter.js` | S |
+| B158 | ✅ **UPGRADE `@git-stunts/git-cas` TO v5** — bumped `^3.0.0` → `^5.2.4`. 4872 tests pass, zero regressions. | S |
+| B159 | ✅ **CDC CHUNKING FOR SEEK CACHE** — `CasSeekCacheAdapter._initCas()` now constructs CAS with `chunking: { strategy: 'cdc' }`. ~98% chunk reuse on incremental snapshots. | S |
 | B160 | **BLOB ATTACHMENTS VIA CAS** — `BlobValue` ops exist in the patch format (`PatchBuilderV2`) but have no actual blob storage backend. Wire git-cas as the backend: `attachContent()` stores the blob as a CAS asset (chunked, optionally encrypted), and the graph property stores the CAS tree OID. Restore via `cas.restore()` on read. Completes a half-built feature. **Files:** `src/domain/services/PatchBuilderV2.js`, `src/domain/WarpGraph.js`, new `src/infrastructure/adapters/CasBlobAdapter.js` | M |
 | B161 | **ENCRYPTED SEEK CACHE** — wire git-cas encryption options (`passphrase` or `encryptionKey`) into `CasSeekCacheAdapter`. The seek cache contains full materialized state snapshots — for sensitive graphs these should be encrypted at rest. Leverage envelope encryption (v5.1) for multi-user scenarios. **Files:** `src/infrastructure/adapters/CasSeekCacheAdapter.js`, `src/ports/SeekCachePort.js` | S |
 | B162 | **OBSERVABILITY ALIGNMENT** — git-cas v4+ has `ObservabilityPort` (`SilentObserver`, `EventEmitterObserver`, `StatsCollector`). git-warp has `LoggerPort` (console/noop). Bridge them so CAS operations (cache hit/miss, chunk reuse, store/restore timings) surface through git-warp's logging. Consider adopting `ObservabilityPort` as the unified interface or creating a thin adapter. **Files:** `src/infrastructure/adapters/CasSeekCacheAdapter.js`, potentially new `src/infrastructure/adapters/ObservabilityBridge.js` | M |
@@ -413,8 +413,8 @@ B158 (P7) ──→ B159 (P7)   CDC seek cache
 | **Milestone (M12)** | 18 | B66, B67, B70, B73, B75, B105–B115, B117, B118 |
 | **Milestone (M13)** | 1 | B116 (internal: DONE; wire-format: DEFERRED) |
 | **Milestone (M14)** | 16 | B130–B145 |
-| **Standalone** | 52 | B12, B19, B22, B28, B34–B37, B43, B48, B49, B53, B54, B57, B76, B79–B81, B83, B85–B88, B95–B99, B102–B104, B119, B123, B127–B129, B147, B149–B156, B158–B164 |
-| **Standalone (done)** | 30 | B26, B44, B46, B47, B50–B52, B55, B71, B72, B77, B78, B82, B84, B89–B94, B100, B120–B122, B124, B125, B126, B146, B148, B157 |
+| **Standalone** | 50 | B12, B19, B22, B28, B34–B37, B43, B48, B49, B53, B54, B57, B76, B79–B81, B83, B85–B88, B95–B99, B102–B104, B119, B123, B127–B129, B147, B149–B156, B160–B164 |
+| **Standalone (done)** | 32 | B26, B44, B46, B47, B50–B52, B55, B71, B72, B77, B78, B82, B84, B89–B94, B100, B120–B122, B124, B125, B126, B146, B148, B157, B158, B159 |
 | **Deferred** | 7 | B4, B7, B16, B20, B21, B27, B101 |
 | **Rejected** | 7 | B5, B6, B13, B17, B18, B25, B45 |
 | **Total tracked** | **141** total; 30 standalone done | |

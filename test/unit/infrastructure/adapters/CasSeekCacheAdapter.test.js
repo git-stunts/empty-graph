@@ -5,17 +5,25 @@ const mockReadManifest = vi.fn();
 const mockRestore = vi.fn();
 const mockStore = vi.fn();
 const mockCreateTree = vi.fn();
-const mockCreateCbor = vi.fn(() => ({
-  readManifest: mockReadManifest,
-  restore: mockRestore,
-  store: mockStore,
-  createTree: mockCreateTree,
-}));
+
+/** Captures constructor args for assertion. */
+let lastConstructorArgs = {};
+
+class MockContentAddressableStore {
+  constructor(opts) {
+    lastConstructorArgs = opts;
+    this.readManifest = mockReadManifest;
+    this.restore = mockRestore;
+    this.store = mockStore;
+    this.createTree = mockCreateTree;
+  }
+}
+
+class MockCborCodec {}
 
 vi.mock('@git-stunts/git-cas', () => ({
-  default: {
-    createCbor: mockCreateCbor,
-  },
+  default: MockContentAddressableStore,
+  CborCodec: MockCborCodec,
 }));
 
 // Import after mock setup
@@ -115,33 +123,46 @@ describe('CasSeekCacheAdapter', () => {
   // -------------------------------------------------------------------------
 
   describe('_getCas()', () => {
-    it('creates CAS instance on first call', async () => {
+    it('creates CAS instance with CDC chunking on first call', async () => {
       await adapter._getCas();
-      expect(mockCreateCbor).toHaveBeenCalledWith({ plumbing });
+      expect(lastConstructorArgs.plumbing).toBe(plumbing);
+      expect(lastConstructorArgs.codec).toBeInstanceOf(MockCborCodec);
+      expect(lastConstructorArgs.chunking).toEqual({ strategy: 'cdc' });
     });
 
     it('caches the CAS promise across multiple calls', async () => {
-      await adapter._getCas();
-      await adapter._getCas();
-      expect(mockCreateCbor).toHaveBeenCalledTimes(1);
+      const first = await adapter._getCas();
+      const second = await adapter._getCas();
+      expect(first).toBe(second);
     });
 
     it('resets cached promise on init error so next call retries', async () => {
-      mockCreateCbor.mockImplementationOnce(() => {
-        throw new Error('init failure');
-      });
+      // Temporarily break the mock module to force an init failure
+      const origDefault = (await import('@git-stunts/git-cas')).default;
+      const { default: CASModule } = await import('@git-stunts/git-cas');
 
-      await expect(adapter._getCas()).rejects.toThrow('init failure');
-      expect(adapter._casPromise).toBeNull();
+      // Create a fresh adapter whose _initCas will throw
+      const badAdapter = new CasSeekCacheAdapter({
+        persistence,
+        plumbing,
+        graphName: GRAPH_NAME,
+      });
+      // Override _initCas to throw once
+      let throwOnce = true;
+      const origInit = badAdapter._initCas.bind(badAdapter);
+      badAdapter._initCas = async () => {
+        if (throwOnce) {
+          throwOnce = false;
+          throw new Error('init failure');
+        }
+        return origInit();
+      };
+
+      await expect(badAdapter._getCas()).rejects.toThrow('init failure');
+      expect(badAdapter._casPromise).toBeNull();
 
       // Second call should retry and succeed
-      mockCreateCbor.mockReturnValueOnce({
-        readManifest: mockReadManifest,
-        restore: mockRestore,
-        store: mockStore,
-        createTree: mockCreateTree,
-      });
-      await expect(adapter._getCas()).resolves.toBeDefined();
+      await expect(badAdapter._getCas()).resolves.toBeDefined();
     });
   });
 
