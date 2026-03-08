@@ -669,9 +669,9 @@ export class GitGraphAdapter extends GraphPersistencePort implements IndexStorag
  */
 export class NodeCryptoAdapter extends CryptoPort {
   constructor();
-  hash(algorithm: string, data: string | Buffer | Uint8Array): Promise<string>;
-  hmac(algorithm: string, key: string | Buffer | Uint8Array, data: string | Buffer | Uint8Array): Promise<Buffer | Uint8Array>;
-  timingSafeEqual(a: Buffer | Uint8Array, b: Buffer | Uint8Array): boolean;
+  hash(algorithm: string, data: string | Uint8Array): Promise<string>;
+  hmac(algorithm: string, key: string | Uint8Array, data: string | Uint8Array): Promise<Uint8Array>;
+  timingSafeEqual(a: Uint8Array, b: Uint8Array): boolean;
 }
 
 /**
@@ -682,9 +682,9 @@ export class NodeCryptoAdapter extends CryptoPort {
  */
 export class WebCryptoAdapter extends CryptoPort {
   constructor(options?: { subtle?: SubtleCrypto });
-  hash(algorithm: string, data: string | Buffer | Uint8Array): Promise<string>;
-  hmac(algorithm: string, key: string | Buffer | Uint8Array, data: string | Buffer | Uint8Array): Promise<Buffer | Uint8Array>;
-  timingSafeEqual(a: Buffer | Uint8Array, b: Buffer | Uint8Array): boolean;
+  hash(algorithm: string, data: string | Uint8Array): Promise<string>;
+  hmac(algorithm: string, key: string | Uint8Array, data: string | Uint8Array): Promise<Uint8Array>;
+  timingSafeEqual(a: Uint8Array, b: Uint8Array): boolean;
 }
 
 /**
@@ -696,7 +696,7 @@ export abstract class HttpServerPort {
     method: string;
     url: string;
     headers: Record<string, string>;
-    body?: Buffer | Uint8Array;
+    body?: Uint8Array;
   }) => Promise<{ status?: number; headers?: Record<string, string>; body?: string | Uint8Array }>): {
     listen(port: number, callback?: (err?: Error | null) => void): void;
     listen(port: number, host: string, callback?: (err?: Error | null) => void): void;
@@ -716,7 +716,7 @@ export class BunHttpAdapter extends HttpServerPort {
     method: string;
     url: string;
     headers: Record<string, string>;
-    body?: Buffer | Uint8Array;
+    body?: Uint8Array;
   }) => Promise<{ status?: number; headers?: Record<string, string>; body?: string | Uint8Array }>): {
     listen(port: number, callback?: (err?: Error | null) => void): void;
     listen(port: number, host: string, callback?: (err?: Error | null) => void): void;
@@ -736,7 +736,7 @@ export class DenoHttpAdapter extends HttpServerPort {
     method: string;
     url: string;
     headers: Record<string, string>;
-    body?: Buffer | Uint8Array;
+    body?: Uint8Array;
   }) => Promise<{ status?: number; headers?: Record<string, string>; body?: string | Uint8Array }>): {
     listen(port: number, callback?: (err?: Error | null) => void): void;
     listen(port: number, host: string, callback?: (err?: Error | null) => void): void;
@@ -765,7 +765,7 @@ export class BitmapIndexBuilder {
   addEdge(srcSha: string, tgtSha: string): void;
 
   /** Serializes the index to a tree structure of buffers */
-  serialize(options?: { frontier?: Map<string, string> }): Promise<Record<string, Buffer>>;
+  serialize(options?: { frontier?: Map<string, string> }): Promise<Record<string, Uint8Array>>;
 }
 
 /**
@@ -785,7 +785,7 @@ export class WarpStateIndexBuilder {
   /**
    * Serializes the index to a tree structure of buffers.
    */
-  serialize(): Promise<Record<string, Buffer>>;
+  serialize(): Promise<Record<string, Uint8Array>>;
 }
 
 /**
@@ -794,7 +794,7 @@ export class WarpStateIndexBuilder {
  * Convenience function that creates a WarpStateIndexBuilder, builds from state,
  * and returns the serialized tree and stats.
  */
-export function buildWarpStateIndex(state: WarpStateV5, options?: { crypto?: CryptoPort }): Promise<{ tree: Record<string, Buffer>; stats: { nodes: number; edges: number } }>;
+export function buildWarpStateIndex(state: WarpStateV5, options?: { crypto?: CryptoPort }): Promise<{ tree: Record<string, Uint8Array>; stats: { nodes: number; edges: number } }>;
 
 /**
  * Computes a deterministic hash of a WarpStateV5 state.
@@ -1450,9 +1450,9 @@ export class PatchBuilderV2 {
   /** Sets a property on an edge. */
   setEdgeProperty(from: string, to: string, label: string, key: string, value: unknown): PatchBuilderV2;
   /** Attaches content to a node (writes blob + sets _content property). */
-  attachContent(nodeId: string, content: Buffer | string): Promise<PatchBuilderV2>;
+  attachContent(nodeId: string, content: Uint8Array | string): Promise<PatchBuilderV2>;
   /** Attaches content to an edge (writes blob + sets _content edge property). */
-  attachEdgeContent(from: string, to: string, label: string, content: Buffer | string): Promise<PatchBuilderV2>;
+  attachEdgeContent(from: string, to: string, label: string, content: Uint8Array | string): Promise<PatchBuilderV2>;
   /** Builds the PatchV2 object without committing. */
   build(): PatchV2;
   /** Commits the patch to the graph and returns the commit SHA. */
@@ -1484,9 +1484,9 @@ export class PatchSession {
   /** Sets a property on an edge. */
   setEdgeProperty(from: string, to: string, label: string, key: string, value: unknown): this;
   /** Attaches content to a node (writes blob + sets _content property). */
-  attachContent(nodeId: string, content: Buffer | string): Promise<this>;
+  attachContent(nodeId: string, content: Uint8Array | string): Promise<this>;
   /** Attaches content to an edge (writes blob + sets _content edge property). */
-  attachEdgeContent(from: string, to: string, label: string, content: Buffer | string): Promise<this>;
+  attachEdgeContent(from: string, to: string, label: string, content: Uint8Array | string): Promise<this>;
   /** Builds the PatchV2 object without committing. */
   build(): PatchV2;
   /** Commits the patch with CAS protection. */
@@ -1791,9 +1791,9 @@ export default class WarpGraph {
 
   /**
    * Gets the content blob for a node, or null if none is attached.
-   * Returns raw Buffer; call `.toString('utf8')` for text.
+   * Returns raw bytes; use `new TextDecoder().decode(result)` for text.
    */
-  getContent(nodeId: string): Promise<Buffer | null>;
+  getContent(nodeId: string): Promise<Uint8Array | null>;
 
   /**
    * Gets the content blob OID for an edge, or null if none is attached.
@@ -1802,9 +1802,9 @@ export default class WarpGraph {
 
   /**
    * Gets the content blob for an edge, or null if none is attached.
-   * Returns raw Buffer; call `.toString('utf8')` for text.
+   * Returns raw bytes; use `new TextDecoder().decode(result)` for text.
    */
-  getEdgeContent(from: string, to: string, label: string): Promise<Buffer | null>;
+  getEdgeContent(from: string, to: string, label: string): Promise<Uint8Array | null>;
 
   /**
    * Checks if a node exists in the materialized state.
@@ -2127,14 +2127,14 @@ export class ProvenanceIndex {
   /**
    * Serializes the index to CBOR format for checkpoint storage.
    */
-  serialize(): Buffer;
+  serialize(): Uint8Array;
 
   /**
    * Deserializes an index from CBOR format.
    *
    * @throws Error if the buffer contains an unsupported version
    */
-  static deserialize(buffer: Buffer): ProvenanceIndex;
+  static deserialize(buffer: Uint8Array): ProvenanceIndex;
 
   /**
    * Returns a JSON-serializable representation of this index.

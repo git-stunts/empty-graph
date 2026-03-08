@@ -175,9 +175,9 @@ export class TrustRecordService {
    * - First record has prev=null
    *
    * @param {Array<Record<string, unknown>>} records - Records in chain order (oldest first)
-   * @returns {{valid: boolean, errors: Array<{index: number, error: string}>}}
+   * @returns {Promise<{valid: boolean, errors: Array<{index: number, error: string}>}>}
    */
-  verifyChain(records) {
+  async verifyChain(records) {
     /** @type {Array<{index: number, error: string}>} */
     const errors = [];
     const seenIds = new Set();
