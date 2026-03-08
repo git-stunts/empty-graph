@@ -18,22 +18,41 @@ import { Readable } from 'node:stream';
 /** @typedef {{ readManifest: Function, restore: Function, store: Function, createTree: Function }} CasStore */
 
 /**
+ * Error codes from `@git-stunts/git-cas` that indicate the OID is not
+ * a CAS manifest (i.e. it's a legacy raw Git blob written before the
+ * CAS migration).
+ *
+ * - `MANIFEST_NOT_FOUND` — tree exists but contains no manifest entry
+ * - `GIT_ERROR` — Git couldn't read the tree at all (wrong object type)
+ *
+ * @type {ReadonlySet<string>}
+ */
+const LEGACY_BLOB_CODES = new Set(['MANIFEST_NOT_FOUND', 'GIT_ERROR']);
+
+/**
  * Returns true when the error indicates the OID is not a CAS manifest
  * (i.e. it's a legacy raw Git blob). All other errors are considered
  * real failures and should be rethrown.
+ *
+ * Checks `err.code` (the machine-readable `CasError` code) first.
+ * Falls back to message-based matching for non-CasError exceptions
+ * thrown by lower-level Git operations.
  *
  * @param {unknown} err
  * @returns {boolean}
  */
 function isLegacyBlobError(err) {
+  if (err instanceof Error && 'code' in err) {
+    /** @type {{ code: unknown }} */
+    const coded = /** @type {Error & { code: unknown }} */ (err);
+    if (typeof coded.code === 'string') {
+      return LEGACY_BLOB_CODES.has(coded.code);
+    }
+  }
   const msg = err instanceof Error ? err.message : '';
   return msg.includes('not a tree')
-    || msg.includes('not a CAS')
     || msg.includes('bad object')
-    || msg.includes('unknown object')
-    || msg.includes('could not find')
-    || msg.includes('does not exist')
-    || msg.includes('corrupt manifest');
+    || msg.includes('does not exist');
 }
 
 export default class CasBlobAdapter extends BlobStoragePort {

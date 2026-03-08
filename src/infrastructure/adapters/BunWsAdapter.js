@@ -1,4 +1,5 @@
 import WebSocketServerPort from '../../ports/WebSocketServerPort.js';
+import { normalizeHost, assertNotListening, messageToString } from './wsAdapterUtils.js';
 
 /**
  * Wraps a Bun ServerWebSocket into a port-compliant WsConnection.
@@ -74,10 +75,8 @@ export default class BunWsAdapter extends WebSocketServerPort {
 
     return {
       listen: (/** @type {number} */ port, /** @type {string} [host] */ host = '127.0.0.1') => {
-        if (server) {
-          throw new Error('Server already listening. Call close() before listening again.');
-        }
-        const bindHost = host || '127.0.0.1';
+        assertNotListening(server);
+        const bindHost = normalizeHost(host);
         server = globalThis.Bun.serve({
           port,
           hostname: bindHost,
@@ -86,7 +85,7 @@ export default class BunWsAdapter extends WebSocketServerPort {
             open(ws) { onConnection(wrapBunWs(ws)); },
             message(ws, msg) {
               if (ws.data.messageHandler) {
-                ws.data.messageHandler(typeof msg === 'string' ? msg : new TextDecoder().decode(msg));
+                ws.data.messageHandler(messageToString(msg));
               }
             },
             close(ws, code, reason) {

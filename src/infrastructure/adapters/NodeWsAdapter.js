@@ -2,6 +2,7 @@ import { createServer as createHttpServer } from 'node:http';
 import { WebSocketServer } from 'ws';
 import WebSocketServerPort from '../../ports/WebSocketServerPort.js';
 import { handleStaticRequest } from './staticFileHandler.js';
+import { normalizeHost, assertNotListening, messageToString } from './wsAdapterUtils.js';
 
 /**
  * Wraps a raw `ws` WebSocket into a port-compliant WsConnection.
@@ -17,15 +18,7 @@ function wrapConnection(ws) {
 
   ws.on('message', (/** @type {import('ws').RawData} */ data) => {
     if (messageHandler) {
-      /** @type {string} */
-      const text = typeof data === 'string'
-        ? data
-        : ArrayBuffer.isView(data)
-          ? Buffer.from(data.buffer, data.byteOffset, data.byteLength).toString('utf8')
-          : data instanceof ArrayBuffer
-            ? Buffer.from(data).toString('utf8')
-            : Buffer.concat(/** @type {Buffer[]} */ (data)).toString('utf8');
-      messageHandler(text);
+      messageHandler(messageToString(data));
     }
   });
 
@@ -156,7 +149,8 @@ export default class NodeWsAdapter extends WebSocketServerPort {
 
     return {
       listen(/** @type {number} */ port, /** @type {string} [host] */ host = '127.0.0.1') {
-        const bindHost = host || '127.0.0.1';
+        assertNotListening(state.wss);
+        const bindHost = normalizeHost(host);
         const opts = { onConnection, port, bindHost, state };
         if (staticDir) {
           return listenWithHttp(staticDir, opts);

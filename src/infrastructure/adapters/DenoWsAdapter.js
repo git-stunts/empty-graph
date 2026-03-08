@@ -1,4 +1,5 @@
 import WebSocketServerPort from '../../ports/WebSocketServerPort.js';
+import { normalizeHost, assertNotListening, messageToString } from './wsAdapterUtils.js';
 
 /**
  * Wraps a Deno WebSocket (standard browser-like API) into a
@@ -19,10 +20,7 @@ function wrapDenoWs(socket) {
 
   socket.onmessage = (e) => {
     if (messageHandler) {
-      const text = typeof e.data === 'string'
-        ? e.data
-        : new TextDecoder().decode(e.data);
-      messageHandler(text);
+      messageHandler(messageToString(e.data));
     }
   };
 
@@ -76,7 +74,8 @@ export default class DenoWsAdapter extends WebSocketServerPort {
 
     return {
       listen(/** @type {number} */ port, /** @type {string} [host] */ host = '127.0.0.1') {
-        const bindHost = host || '127.0.0.1';
+        assertNotListening(server);
+        const bindHost = normalizeHost(host);
         return new Promise((resolve) => {
           server = globalThis.Deno.serve(
             {

@@ -196,11 +196,12 @@ describe('CasBlobAdapter', () => {
       expect(mockRestore).toHaveBeenCalledWith({ manifest, encryptionKey: encKey });
     });
 
-    it('falls back to raw Git blob when CAS readManifest fails', async () => {
+    it('falls back to raw Git blob when CAS readManifest throws MANIFEST_NOT_FOUND', async () => {
       const rawBuf = Buffer.from('legacy raw blob');
       const persistence = makePersistence();
       persistence.readBlob.mockResolvedValue(rawBuf);
-      mockReadManifest.mockRejectedValue(new Error('not a CAS tree'));
+      const casErr = Object.assign(new Error('No manifest entry'), { code: 'MANIFEST_NOT_FOUND' });
+      mockReadManifest.mockRejectedValue(casErr);
 
       const adapter = new CasBlobAdapter({
         plumbing: makePlumbing(),
@@ -213,12 +214,30 @@ describe('CasBlobAdapter', () => {
       expect(persistence.readBlob).toHaveBeenCalledWith('raw-blob-oid');
     });
 
-    it('falls back to raw Git blob when CAS restore fails', async () => {
+    it('falls back to raw Git blob when CAS readManifest throws GIT_ERROR', async () => {
+      const rawBuf = Buffer.from('legacy raw blob');
+      const persistence = makePersistence();
+      persistence.readBlob.mockResolvedValue(rawBuf);
+      const casErr = Object.assign(new Error('Failed to read tree'), { code: 'GIT_ERROR' });
+      mockReadManifest.mockRejectedValue(casErr);
+
+      const adapter = new CasBlobAdapter({
+        plumbing: makePlumbing(),
+        persistence,
+      });
+
+      const result = await adapter.retrieve('raw-blob-oid');
+
+      expect(result).toBe(rawBuf);
+      expect(persistence.readBlob).toHaveBeenCalledWith('raw-blob-oid');
+    });
+
+    it('falls back to raw Git blob on message-based legacy errors (no .code)', async () => {
       const rawBuf = Buffer.from('legacy raw blob');
       const persistence = makePersistence();
       persistence.readBlob.mockResolvedValue(rawBuf);
       mockReadManifest.mockResolvedValue({ chunks: [] });
-      mockRestore.mockRejectedValue(new Error('corrupt manifest'));
+      mockRestore.mockRejectedValue(new Error('not a tree object'));
 
       const adapter = new CasBlobAdapter({
         plumbing: makePlumbing(),
@@ -229,6 +248,20 @@ describe('CasBlobAdapter', () => {
 
       expect(result).toBe(rawBuf);
       expect(persistence.readBlob).toHaveBeenCalledWith('bad-tree-oid');
+    });
+
+    it('rethrows non-legacy CAS errors', async () => {
+      const persistence = makePersistence();
+      const casErr = Object.assign(new Error('decryption failed'), { code: 'INTEGRITY_ERROR' });
+      mockReadManifest.mockRejectedValue(casErr);
+
+      const adapter = new CasBlobAdapter({
+        plumbing: makePlumbing(),
+        persistence,
+      });
+
+      await expect(adapter.retrieve('enc-oid')).rejects.toThrow('decryption failed');
+      expect(persistence.readBlob).not.toHaveBeenCalled();
     });
   });
 
