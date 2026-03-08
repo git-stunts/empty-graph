@@ -281,7 +281,7 @@ export async function _materializeWithCeiling(ceiling, collectReceipts, t0) {
   // Persistent cache check — skip when collectReceipts is requested
   let cacheKey;
   if (this._seekCache && !collectReceipts) {
-    cacheKey = buildSeekCacheKey(ceiling, frontier);
+    cacheKey = await buildSeekCacheKey(ceiling, frontier);
     try {
       const cached = await this._seekCache.get(cacheKey);
       if (cached) {
@@ -348,7 +348,7 @@ export async function _materializeWithCeiling(ceiling, collectReceipts, t0) {
   // Store to persistent cache (fire-and-forget — failure is non-fatal)
   if (this._seekCache && !collectReceipts && allPatches.length > 0) {
     if (!cacheKey) {
-      cacheKey = buildSeekCacheKey(ceiling, frontier);
+      cacheKey = await buildSeekCacheKey(ceiling, frontier);
     }
     const buf = serializeFullStateV5(state, { codec: this._codec });
     this._persistSeekCacheEntry(cacheKey, buf, state)
