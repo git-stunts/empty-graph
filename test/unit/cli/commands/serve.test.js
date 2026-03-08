@@ -14,17 +14,27 @@ vi.mock('../../../../src/infrastructure/adapters/WebCryptoAdapter.js', () => ({
   default: class MockWebCryptoAdapter {},
 }));
 
+class MockWsAdapter {
+  createServer(/** @type {Function} */ _onConnection) {
+    return {
+      async listen(/** @type {number} */ port, /** @type {string} */ host) {
+        return { port: port || 3000, host: host || '127.0.0.1' };
+      },
+      async close() {},
+    };
+  }
+}
+
 vi.mock('../../../../src/infrastructure/adapters/NodeWsAdapter.js', () => ({
-  default: class MockNodeWsAdapter {
-    createServer(/** @type {Function} */ onConnection) {
-      return {
-        async listen(/** @type {number} */ port, /** @type {string} */ host) {
-          return { port: port || 3000, host: host || '127.0.0.1' };
-        },
-        async close() {},
-      };
-    }
-  },
+  default: MockWsAdapter,
+}));
+
+vi.mock('../../../../src/infrastructure/adapters/BunWsAdapter.js', () => ({
+  default: MockWsAdapter,
+}));
+
+vi.mock('../../../../src/infrastructure/adapters/DenoWsAdapter.js', () => ({
+  default: MockWsAdapter,
 }));
 
 vi.mock('../../../../src/domain/services/WarpServeService.js', () => {

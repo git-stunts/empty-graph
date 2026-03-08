@@ -296,23 +296,18 @@ const props = await ws.inspect({ graph: 'default', nodeId: 'user:alice' });
 
 ---
 
-### T10 — Deferred: Bun + Deno WebSocket Adapters
+### T10 — Bun + Deno WebSocket Adapters ✅ DONE
 
-**Status:** DEFERRED
+**Status:** DONE
 
-**Goal:** Implement `WebSocketServerPort` for Bun and Deno so `git warp serve` works on all runtimes.
-
-**Bun adapter:**
-- `Bun.serve({ websocket: { open, message, close } })` — native WS support
-- File: `src/infrastructure/adapters/BunWsAdapter.js`
-
-**Deno adapter:**
-- `Deno.serve()` + `Deno.upgradeWebSocket(req)` — native WS support
-- File: `src/infrastructure/adapters/DenoWsAdapter.js`
-
-**Runtime detection:**
-- `serve` CLI command detects runtime (`globalThis.Bun`, `globalThis.Deno`, or Node) and picks the appropriate adapter
-- Or: use dynamic import with try/catch
+**What was built:**
+- `src/infrastructure/adapters/BunWsAdapter.js` — Bun WebSocket adapter using `Bun.serve()` with `websocket` handler option. Stores per-connection handler refs on `ws.data`.
+- `src/infrastructure/adapters/DenoWsAdapter.js` — Deno WebSocket adapter using `Deno.serve()` + `Deno.upgradeWebSocket()`. Wraps standard browser-like `WebSocket` into port-compliant connection.
+- `bin/cli/commands/serve.js` — runtime detection via `createWsAdapter()`: checks `globalThis.Bun` → `globalThis.Deno` → Node fallback. Dynamic imports ensure only the relevant adapter and its deps are loaded.
+- `src/globals.d.ts` — added `BunServerWebSocket`, `BunWsData`, `BunWebSocketHandlers`, `BunServer.upgrade()`, and `Deno.upgradeWebSocket()` type declarations.
+- `test/unit/infrastructure/adapters/BunWsAdapter.test.js` — 13 tests with mock `Bun.serve()`.
+- `test/unit/infrastructure/adapters/DenoWsAdapter.test.js` — 13 tests with mock `Deno.serve()`/`Deno.upgradeWebSocket()`.
+- ESLint test globals updated: added `Headers`, `ReadableStream`, `Request`, `Response`, `WebSocket`, `queueMicrotask`. Removed redundant `/* global */` comments from `BunHttpAdapter.test.js` and `DenoHttpAdapter.test.js`.
 
 ---
 

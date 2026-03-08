@@ -4,8 +4,31 @@ import { serveSchema } from '../schemas.js';
 import { createPersistence, listGraphNames } from '../shared.js';
 import WarpGraph from '../../../src/domain/WarpGraph.js';
 import WebCryptoAdapter from '../../../src/infrastructure/adapters/WebCryptoAdapter.js';
-import NodeWsAdapter from '../../../src/infrastructure/adapters/NodeWsAdapter.js';
 import WarpServeService from '../../../src/domain/services/WarpServeService.js';
+
+/**
+ * Creates the appropriate WebSocket adapter for the current runtime.
+ *
+ * @returns {Promise<import('../../../src/ports/WebSocketServerPort.js').default>}
+ */
+async function createWsAdapter() {
+  if (globalThis.Bun) {
+    const { default: BunWsAdapter } = await import(
+      '../../../src/infrastructure/adapters/BunWsAdapter.js'
+    );
+    return new BunWsAdapter();
+  }
+  if (globalThis.Deno) {
+    const { default: DenoWsAdapter } = await import(
+      '../../../src/infrastructure/adapters/DenoWsAdapter.js'
+    );
+    return new DenoWsAdapter();
+  }
+  const { default: NodeWsAdapter } = await import(
+    '../../../src/infrastructure/adapters/NodeWsAdapter.js'
+  );
+  return new NodeWsAdapter();
+}
 
 /** @typedef {import('../types.js').CliOptions} CliOptions */
 
@@ -60,7 +83,7 @@ export default async function handleServe({ options, args }) {
   const targetGraphs = options.graph ? [options.graph] : graphNames;
   const graphs = await openGraphs(persistence, targetGraphs, `serve:${host}:${port}`);
 
-  const wsPort = new NodeWsAdapter();
+  const wsPort = await createWsAdapter();
   const service = new WarpServeService({ wsPort, graphs });
   const addr = await service.listen(port, host);
 
