@@ -87,7 +87,7 @@ async function tryReadFile(root, filePath, mimeOverride) {
         'content-type': contentType,
         'content-length': String(body.byteLength),
       },
-      body: new Uint8Array(body.buffer, body.byteOffset, body.byteLength),
+      body: new Uint8Array(body),
     };
   } catch {
     return null;
