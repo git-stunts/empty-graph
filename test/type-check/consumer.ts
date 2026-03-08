@@ -180,11 +180,11 @@ const edges: Array<{ from: string; to: string; label: string; props: Record<stri
 
 // ---- content attachment ----
 const contentOid: string | null = await graph.getContentOid('n1');
-const contentBuf: Buffer | null = await graph.getContent('n1');
+const contentBuf: Uint8Array | null = await graph.getContent('n1');
 const edgeContentOid: string | null = await graph.getEdgeContentOid('n1', 'n2', 'knows');
-const edgeContentBuf: Buffer | null = await graph.getEdgeContent('n1', 'n2', 'knows');
+const edgeContentBuf: Uint8Array | null = await graph.getEdgeContent('n1', 'n2', 'knows');
 const _attachResult: PatchBuilderV2 = await pb.attachContent('n1', 'hello');
-const _attachEdgeResult: PatchBuilderV2 = await pb.attachEdgeContent('n1', 'n2', 'knows', Buffer.from('data'));
+const _attachEdgeResult: PatchBuilderV2 = await pb.attachEdgeContent('n1', 'n2', 'knows', new TextEncoder().encode('data'));
 const _contentKey: '_content' = CONTENT_PROPERTY_KEY;
 
 // ---- query builder ----
@@ -386,7 +386,7 @@ const gitEmptyTree: string = gitAdapter.emptyTree;
 const builder = new BitmapIndexBuilder();
 const nodeId: number = builder.registerNode('sha1');
 builder.addEdge('sha1', 'sha2');
-const serialized: Promise<Record<string, Buffer>> = builder.serialize();
+const serialized: Promise<Record<string, Uint8Array>> = builder.serialize();
 
 const reader = new BitmapIndexReader({ storage: gitAdapter, strict: true, logger, crypto });
 reader.setup({ 'meta_ab.json': 'oid1', 'shards_fwd_ab.json': 'oid2' });
@@ -430,6 +430,19 @@ const sig: AbortSignal = createTimeoutSignal(1000);
 const encoded: string = encodeEdgePropKey('a', 'b', 'c', 'd');
 const decoded = decodeEdgePropKey(encoded);
 const isEdge: boolean = isEdgePropKey(encoded);
+
+// ---------------------------------------------------------------------------
+// Browser entry point — verify missing exports (#1)
+// ---------------------------------------------------------------------------
+import {
+  WarpError as BrowserWarpError,
+  createVersionVector as browserCreateVV,
+  generateWriterId as browserGenWriterId,
+} from '../../browser.js';
+
+const _browserErr: BrowserWarpError = new BrowserWarpError('test', { code: 'TEST' });
+const _browserVV: Map<string, number> = browserCreateVV();
+const _browserWriterId: string = browserGenWriterId();
 
 // ---------------------------------------------------------------------------
 // Negative tests -- must FAIL compilation (verified via @ts-expect-error)

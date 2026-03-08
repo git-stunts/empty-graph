@@ -7,10 +7,121 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`_readPatchBlob` null-guard** — `readBlob()` returning null (corrupt/missing blob) now throws `PersistenceError` with `E_MISSING_OBJECT` instead of passing null to the CBOR decoder.
+- **`browser.d.ts` missing exports** — Added `WarpError`, `createVersionVector`, and `generateWriterId` type declarations to match `browser.js` runtime exports. Fixed `WarpGraph` re-export from default to named.
+- **`package.json` files array missing type declarations** — Added `browser.d.ts` and `sha1sync.d.ts` to the `files` array so npm consumers receive browser/sha1sync type definitions.
+- **`isLoopback()` wildcard address documentation** — Added JSDoc and test coverage to explicitly document that wildcard bind addresses (`0.0.0.0`, `::`, `0:0:0:0:0:0:0:0`) are not treated as loopback and require `--expose`.
+- **Browser and sha1sync subpath exports missing `types` field** — `package.json` `"./browser"` and `"./sha1sync"` exports now include `"types"` entries pointing to `browser.d.ts` and `sha1sync.d.ts`, enabling TypeScript resolution for subpath consumers.
+- **`jsr.json` missing `browser.js` in publish.include** — JSR consumers importing `@git-stunts/git-warp/browser` now receive the file.
+- **`git warp serve` help text missing `--port`, `--host`, `--expose` flags** — All serve-specific options now appear in `--help` output.
+- **`WarpServeService` non-integer seek ceiling** — Fractional ceilings (e.g. `3.5`) are now rejected with `E_INVALID_PAYLOAD`. `Infinity` is intentionally accepted (treated as head).
+- **`WarpServeService` oversized message guard** — Messages exceeding 1 MiB are rejected with `E_MESSAGE_TOO_LARGE` before `JSON.parse`, preventing OOM on malicious payloads.
+- **`WarpServeService` oversized property value guard** — Wildcard-typed mutation args exceeding 64 KiB are rejected with `E_INVALID_ARGS`.
+- **`SyncProtocol` / `WormholeService` null blob guard** — `readBlob()` / `retrieve()` results are now null-checked, throwing `PersistenceError(E_MISSING_OBJECT)` instead of passing `null` to the codec.
+- **`hexDecode` regex replaced with charCode loop** — Direct character code validation avoids regex backtracking on large inputs.
+- **WS adapter pre-handler message buffering** — Messages arriving before `onMessage(handler)` is called are now buffered and flushed when the handler is set. Prevents message loss in all WS adapters (Node, Bun, Deno) when connection setup is asynchronous.
+- **NodeWsAdapter `onError` callback** — Constructor now accepts an optional `onError` callback that surfaces runtime server errors instead of silently swallowing them.
+- **`wsAdapterUtils.messageToString()` TextDecoder reuse** — Hoisted `TextDecoder` to module level, avoiding per-call allocation.
+- **Static file handler response objects frozen** — `FORBIDDEN` and `NOT_FOUND` response constants are now `Object.freeze()`d to prevent accidental mutation.
+- **`sha1sync` comment clarification** — Updated misleading comment about the `>= 0x20000000` guard to explain it ensures `msg.length * 8` fits in uint32.
+- **`_broadcastDiff` Set mutation during iteration** — Deleting dead clients from `this._clients` mid-`for...of` could skip the next entry. Dead connections are now collected and evicted after the loop completes.
+- **Double-SIGINT re-entrancy in `serve` shutdown** — Rapid Ctrl+C fired `shutdown()` concurrently twice, racing `close()` and `process.exit()`. Added a `closing` guard.
+- **Catch-all error envelope double-parsing** — The last-resort `.catch()` on `_onMessage` re-parsed the raw JSON to extract the correlation `id`. The ID is now extracted before the async call, avoiding double-parse and ensuring availability even if the raw message was consumed.
+- **`WarpServeService` bare `Function` types** — Replaced loose `Function` JSDoc types in `resolveGraph`, constructor, and `_applyMutateOps` with a typed `GraphHandle` typedef carrying specific method signatures.
+- **`jsr.json` missing `./browser` and `./sha1sync` exports** — Subpath exports added to `package.json` were not mirrored in `jsr.json`. JSR consumers can now import both.
+- **`CasBlobAdapter` JSDoc `Buffer|Uint8Array`** — Narrowed `encryptionKey` type to `Uint8Array` per project convention.
+- **`WarpServeService.listen()` double-call guard** — Calling `listen()` twice no longer silently creates duplicate subscriptions. Second call throws `"Server is already listening"`.
+- **`WarpServeService.close()` dangling sockets** — Active WebSocket connections are now closed during shutdown instead of being silently abandoned.
+- **`WarpServeService._handleOpen()` premature openGraphs add** — Graph is now marked as open only after materialization succeeds, preventing stale entries on failure.
+- **`WarpServeService._applyMutateOps()` interleaved validation** — All ops in a batch are validated before `createPatch()` is called, avoiding wasted patch allocations on invalid input.
+- **`base64Decode` silent garbage acceptance** — Malformed base64 input now throws `RangeError` instead of silently decoding to wrong output.
+- **`NodeWsAdapter` state leak on failed start** — `listen()` failures now reset internal state (`_wss`, `_httpServer`), unblocking subsequent retry attempts.
+- **`isLoopback()` incomplete range** — Now recognizes the full `127.0.0.0/8` range, not just `127.0.0.1`.
+- **`buildSeekCacheKey` outside try/catch** — Cache key generation failure (e.g., crypto unavailable) is now caught and treated as a cache miss instead of breaking materialization.
+- **`BunWsAdapter` test `globalThis.Bun` leak** — Tests now save and restore the original `globalThis.Bun` instead of deleting it unconditionally.
+- **`vi.waitFor()` boolean callbacks in serve tests** — Replaced 22 boolean-returning callbacks with assertion-based ones to prevent premature resolution.
+- **`WarpServeService.listen()` leaked subscriptions on bind failure** — If `server.listen()` rejected (e.g., EADDRINUSE), graph subscriptions were already registered and never cleaned up, causing ghost broadcast handlers. `listen()` now defers `_server` assignment and subscription registration until bind succeeds, and cleans up on failure.
+- **`_onConnection` catch leaked internal error details** — The last-resort catch handler sent raw `err.message` (which could contain file paths, stack traces, etc.) to untrusted WebSocket clients. Now sends a generic `"Internal error"` message.
+- **`git warp serve` silent blob data loss** — Mutation ops like `attachContent` and `attachEdgeContent` are async (they write blobs), but `_applyMutateOps` was not awaiting them. `patch.commit()` could fire before the blob write completed. Now all ops are awaited.
+- **DenoWsAdapter port-0 resolution** — When binding to port 0 (OS-assigned), `onListen` resolved with the requested port (0) instead of the actual assigned port. Now reads `server.addr.port`, matching Node and Bun adapter behavior.
+- **Static file handler symlink traversal** — A symlink inside `staticDir` pointing outside the root could bypass `safePath()` and serve arbitrary files. `tryReadFile` now resolves symlinks with `realpath()` and re-checks the prefix before reading.
+- **`base64Encode` / `base64Decode` memory overhead** — Replaced intermediate binary string approach (`String.fromCharCode` / `charCodeAt` via `btoa`/`atob`) with direct table-based base64 encoding/decoding, eliminating memory spikes on large buffers (e.g., StreamingBitmapIndexBuilder shards).
+- **Static file handler null-byte bypass** — `safePath()` now re-checks for `\0` after `decodeURIComponent()` (prevents `%00` bypass) and catches malformed percent-encoding (e.g., `%ZZ`) instead of throwing.
+- **`git warp serve` writerId validation** — The auto-generated writerId (`serve:host:port`) contained colons, which are not allowed by `validateWriterId`. Now sanitizes to `serve-host-port` by replacing invalid characters with dashes.
+- **`git warp serve` port-0 writerId collision** — When binding to port 0 (OS-assigned ephemeral port), every invocation produced the same writerId `serve-127.0.0.1-0`. Now includes a timestamp and PID component (`ephemeral-<base36>-<pid>`) to prevent collisions even across concurrent invocations in the same millisecond.
+- **`git warp serve` IPv6 URL bracketing** — IPv6 addresses like `::1` are now bracketed in WebSocket and HTTP URLs (`ws://[::1]:3000`) per RFC 3986.
+- **Inspector WebSocket default URL** — Hardcoded `ws://localhost:3000` replaced with `window.location`-derived URL, so `--static` serving on any port connects correctly without needing `?server=` param.
+- **JSDoc type annotations** — Resolved 39 pre-existing `tsc --noEmit` strict-mode errors across 17 source files. Added missing `encrypted`, `blobStorage`, and `patchBlobStorage` fields to JSDoc `@param`/`@typedef` types; created `WarpGraphWithMixins` typedef for mixin methods calling `_readPatchBlob`; installed `@types/ws` for Node WebSocket adapter; fixed `Uint8Array<ArrayBufferLike>` assignability issues; narrowed `chunking.strategy` literal types for CAS adapters; added type annotations to callback parameters in WS adapters.
+- **Inspector: "Go live" after time-travel** — `setCeiling(Infinity)` now calls `socket.open()` to re-materialize at head instead of sending `seek` with no ceiling. The server also now accepts `Infinity` as a ceiling value (treating it as "materialize at head") for robustness.
+- **Inspector: localStorage persistence timing** — Server URL is now persisted to `localStorage` only after a successful connection, preventing a bad URL from locking users into a reconnect loop on reload.
+- **CasBlobAdapter error propagation** — `retrieve()` now uses `CasError.code` (`MANIFEST_NOT_FOUND`, `GIT_ERROR`) from `@git-stunts/git-cas` to identify legacy blob fallback cases, with message-based matching as a fallback for non-CasError exceptions. Previously used brittle string matching on all error messages.
+- **Dead `writerIds` code removed** — `WarpServeService` no longer stores per-session `writerIds` from `open` messages. The field was populated but never consumed — all mutations use the server's writer identity.
+- **`_broadcastDiff` dead-client resilience** — A single dead WebSocket connection in `_broadcastDiff` could abort the loop, preventing remaining subscribed clients from receiving the diff. Each `send()` is now wrapped in try/catch; dead connections are evicted.
+- **`attachContent`/`attachEdgeContent` wire validation** — Mutation arg validation now requires string content for `attachContent` and `attachEdgeContent` over WebSocket JSON. Previously accepted any type via wildcard (`*`), but `Uint8Array` cannot survive JSON serialization.
+- **BunWsAdapter `close()` fire-and-forget** — `BunWsAdapter.close()` used `void server.stop()` and returned immediately. Now awaits the `stop()` promise, ensuring graceful shutdown.
+- **EncryptionError unused `code` option** — Removed `code` from the constructor options typedef. The error code is always `E_ENCRYPTED_PATCH`; the option was dead.
+- **CasBlobAdapter `Buffer.from` → `TextEncoder`** — Replaced `Buffer.from(content, 'utf8')` with `new TextEncoder().encode(content)` for consistency with the Uint8Array domain boundary.
+- **Crypto adapter hmac wrapping** — Replaced `new Uint8Array(result.buffer, result.byteOffset, result.byteLength)` with `new Uint8Array(result)` in both `defaultCrypto` and `NodeCryptoAdapter.hmac()`, preventing shared ArrayBuffer pool aliasing.
+- **Test `Buffer` usage cleanup** — Replaced `Buffer.from()` in type-check consumer test and `Buffer.from(result.buffer)` in CasSeekCacheAdapter test with `TextEncoder`/`TextDecoder`.
+- **Duplicate `open()` in encryption test** — Consolidated redundant second `WarpGraph.open()` call in `WarpGraph.encryption.test.js` into a second assertion on the same promise.
+
+### Changed
+
+- **BREAKING: Uint8Array migration** — All domain-layer and port contract types narrowed from `Buffer|Uint8Array` to `Uint8Array`. Return types of `readBlob()`, `hmac()`, `serialize()`, `getContent()`, `getEdgeContent()`, and all bitmap index methods now return `Uint8Array` instead of `Buffer`. Downstream TypeScript consumers using Buffer-specific APIs (`.toString('hex')`, `.equals()`) on return values must migrate to `hexEncode()`/`textDecode()` from `domain/utils/bytes.js` and standard comparison operators. Buffer is now confined to infrastructure adapters only.
+- **`TrustCrypto` re-export shim deleted** — `src/domain/trust/TrustCrypto.js` (which re-exported from infrastructure) has been removed. Import directly from `src/infrastructure/adapters/TrustCryptoAdapter.js`. The domain layer no longer contains any infrastructure imports.
+- **`buildSeekCacheKey` is now async** — Replaced direct `node:crypto` import with domain-local `defaultCrypto.hash()`, eliminating a hexagonal boundary violation. Both call sites were already async.
+- **`process.stdout.columns` removed from visualization layer** — Terminal width is now injected from the CLI presenter (composition root). The visualization layer no longer references Node-only globals.
+- **HTTP adapter DRY cleanup** — Shared `toPortRequest()`, error body constants, and pre-encoded byte arrays extracted into `httpAdapterUtils.js`. BunHttpAdapter and DenoHttpAdapter now import from the shared module.
+- **Lazy CAS init extracted** — The duplicated lazy-promise-with-error-reset pattern in `CasBlobAdapter._getCas()` and `CasSeekCacheAdapter._getCas()` replaced with shared `createLazyCas()` factory in `lazyCasInit.js`.
+- **`computeRecordId()` and `verifyRecordId()` are now async** — These functions in `TrustCanonical.js` now use the injected `CryptoPort` instead of importing `node:crypto` directly. Callers must `await` the result.
+- **`hmac()` returns `Uint8Array`** — `NodeCryptoAdapter.hmac()`, `WebCryptoAdapter.hmac()`, and `defaultCrypto.hmac()` now return `Uint8Array` instead of `Buffer`. The raw HMAC digest bytes are identical; only the wrapper type changed.
+- **`@git-stunts/git-cas` v3.0.0 → v5.2.4** — Two major version jump. New capabilities now available: `ObservabilityPort` (replaces EventEmitter), streaming restore, CDC chunking (98.4% chunk reuse), envelope encryption (DEK/KEK), key rotation. No breaking changes for git-warp's usage — `CasSeekCacheAdapter` continues to work as-is.
+- **CDC chunking for seek cache** — `CasSeekCacheAdapter` now uses content-defined chunking (`CdcChunker`) instead of fixed-size chunking. Consecutive seek snapshots share most content; CDC's rolling-hash boundaries yield ~98.4% chunk reuse on incremental edits, significantly reducing Git object storage for the seek cache.
+- **Encrypted seek cache** — `CasSeekCacheAdapter` accepts an optional `encryptionKey` constructor param. When set, cached state snapshots are encrypted at rest using AES-256-GCM via git-cas.
+- **CAS observability bridge** — New `LoggerObservabilityBridge` adapter translates git-cas `ObservabilityPort` calls (metric, log, span) into git-warp `LoggerPort` calls. `CasSeekCacheAdapter` accepts an optional `logger` param to surface CAS operations through git-warp's structured logging.
+- **Blob attachments via CAS (B160)** — New `BlobStoragePort` and `CasBlobAdapter` provide a hexagonal abstraction for content blob storage. When `blobStorage` is injected, `attachContent()`/`attachEdgeContent()` store blobs via git-cas (CDC-chunked, optionally encrypted) instead of raw Git blobs. `getContent()`/`getEdgeContent()` retrieve via CAS with automatic fallback to raw Git blobs for backward compatibility with pre-CAS content.
+- **Streaming seek cache restore (B163)** — `CasSeekCacheAdapter.get()` now prefers `cas.restoreStream()` (git-cas v4+) for I/O pipelining — chunk reads overlap with buffer accumulation. Falls back to `cas.restore()` for older git-cas versions.
+- **Graph encryption at rest (B164)** — New `patchBlobStorage` option on `WarpGraph.open()`. When a `BlobStoragePort` (e.g. `CasBlobAdapter` with encryption key) is injected, patch CBOR is encrypted before writing to Git and decrypted on read. An `eg-encrypted: true` commit trailer marks encrypted patches. All 6 patch read sites and the write path are threaded. `EncryptionError` is thrown when attempting to read encrypted patches without a key. Mixed encrypted and unencrypted patches are fully supported — plain patches read via `persistence.readBlob()`, encrypted via `patchBlobStorage.retrieve()`.
+
 ### Added
 
+- **`--writer-id` flag for `git warp serve`** — Allows setting an explicit, stable writer identity instead of the auto-derived `serve-<host>-<port>` value. Useful for reproducible testing and multi-instance orchestration where deterministic writer identities are needed.
+- **`src/domain/utils/bytes.js`** — Portable byte-manipulation utilities replacing Node.js Buffer methods: `hexEncode`, `hexDecode`, `base64Encode`, `base64Decode`, `concatBytes`, `textEncode`, `textDecode`. Works identically on Node, Bun, Deno, and browsers.
+- **ESLint `no-restricted-globals` for Buffer** — `Buffer` is now banned in `src/domain/**/*.js` via ESLint. Future regressions are caught at lint time.
+- **`git warp serve --expose` flag** — Binding to a non-loopback address now requires `--expose` to prevent accidental network exposure. Without the flag, the command exits with a usage error.
+- **`wsAdapterUtils.js`** — Shared utilities for WebSocket adapters (`normalizeHost`, `assertNotListening`, `messageToString`), following the `httpAdapterUtils.js` pattern. All three WS adapters (Bun, Deno, Node) now use these instead of duplicating host normalization, listen guards, and message decoding.
+- **Inspector: architecture pivot to WebSocket** — Rewired the Vue app from in-memory `WarpGraph` instances to a live WebSocket connection via `WarpSocket`. The browser now connects to `git warp serve` and views/edits a real Git-backed graph. Replaced the 4-viewport multi-writer demo with a single-viewport, single-connection model. All mutations go through `socket.mutate()` and state updates arrive via server-pushed diffs.
+- **Bun + Deno WebSocket adapters** — `git warp serve` now auto-detects the runtime and uses native WebSocket APIs on all three platforms. `BunWsAdapter` uses `Bun.serve()` with the `websocket` handler option; `DenoWsAdapter` uses `Deno.serve()` + `Deno.upgradeWebSocket()`. The `serve` CLI command dynamically imports only the relevant adapter via `createWsAdapter()`, so the `ws` npm package is never loaded on Bun/Deno.
+- **Static file serving** — `git warp serve --static <dir>` serves a built SPA (or any static directory) over HTTP on the same port as the WebSocket server. Supports SPA client-side routing fallback, correct MIME types for common web assets, and path traversal protection.
+- **Browser-compatible `InMemoryGraphAdapter`** — Replaced hard `node:crypto` and `node:stream` imports with lazy-loaded fallbacks. A new `hash` constructor option lets callers inject a synchronous SHA-1 function for environments where `node:crypto` is unavailable (e.g. browsers). `node:stream` is now dynamically imported only in `logNodesStream()`.
+- **Browser-safe `defaultCrypto`** — The domain-level crypto default now lazy-loads `node:crypto` via top-level `await import()` with a try/catch, so importing `WarpGraph` in a browser no longer crashes at module evaluation time. Callers must inject a CryptoPort explicitly when `node:crypto` is unavailable.
+- **`sha1sync` utility** (`@git-stunts/git-warp/sha1sync`) — Minimal synchronous SHA-1 implementation (~110 LOC) for browser content addressing with `InMemoryGraphAdapter`. Not for security — only for Git object ID computation.
+- **`browser.js` entry point** (`@git-stunts/git-warp/browser`) — Curated re-export of browser-safe code: `WarpGraph`, `InMemoryGraphAdapter`, `WebCryptoAdapter`, CRDT primitives, errors, and `generateWriterId`. No `node:` imports in the critical path.
 - **Documentation enhancements in README.md** — Added a high-level Documentation Map, a detailed Graph Traversal Directory, an expanded Time-Travel (Seek) guide, and updated Runtime Compatibility information (Node.js, Bun, Deno).
 - **Local-First Applications use-case** — Added git-warp as a backend for LoFi software.
+
+### Removed
+
+- **Inspector extracted to standalone repo** — The Git WARP Inspector (formerly `demo/browsa/`) has been extracted to [git-stunts/git-warp-web-inspector](https://github.com/git-stunts/git-warp-web-inspector). The `demo/` directory, `test/unit/browsa/`, and `TASKS.md` have been removed from this repository.
+- **Inspector: scenario runner** — Removed `ScenarioPanel.vue` and all scenario infrastructure. Multi-writer scenarios don't apply to the single-connection WebSocket model.
+- **Inspector: in-memory sync** — Removed `InProcessSyncBus.js` and `InsecureCryptoAdapter.js`. No in-memory sync or browser-side crypto needed with the server-backed architecture.
+- **Inspector: multi-viewport grid** — Removed 4-viewport layout, sync buttons, and online/offline toggles. Multiple browser windows serve the multi-writer use case instead.
+- **Inspector: Vite stubs** — Removed `src/stubs/` directory (empty.js, node-crypto.js, node-stream.js, node-module.js), `trailerCodecBufferShim()` plugin, and all resolve aliases. The browser no longer imports git-warp — it communicates via WebSocket only.
+
+### Security
+
+- **WebSocket mutation op allowlist** — `WarpServeService._handleMutate` now validates mutation ops against `ALLOWED_MUTATE_OPS` (`addNode`, `removeNode`, `addEdge`, `removeEdge`, `setProperty`, `setEdgeProperty`, `attachContent`, `attachEdgeContent`). Previously, any method on the `PatchBuilderV2` prototype could be invoked by a WebSocket client, including internal methods.
+- **WebSocket mutation arg validation** — `WarpServeService._applyMutateOps` now validates argument count and types per-op before calling `patch[op](...args)`. Untrusted JSON args with wrong types or counts are rejected with `E_INVALID_ARGS`.
+- **Protocol payload validation** — All `WarpServeService` message handlers (`open`, `mutate`, `inspect`, `seek`) now validate incoming payloads for required fields and correct types before processing. Invalid payloads receive `E_INVALID_PAYLOAD` error envelopes.
+- **`hexDecode` input validation** — `hexDecode()` now throws `RangeError` on odd-length or non-hex input instead of silently coercing invalid characters to `0x00`.
+- **WarpSocket request timeout** — `WarpSocket._request()` now enforces a configurable timeout (default 30s). Pending requests that receive no server response reject with a timeout error instead of leaking forever.
+- **Vite `allowedHosts` scoped** — Inspector dev server no longer sets `allowedHosts: true`. Restricted to `localhost` and `127.0.0.1` to prevent DNS rebinding.
+
+### Documentation
+
+- **README `git warp serve` flags** — Added `--expose` and `--writer-id` to the CLI usage example.
 
 ## [13.1.0] - 2026-03-04
 

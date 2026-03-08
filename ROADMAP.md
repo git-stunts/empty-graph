@@ -1,6 +1,6 @@
 # ROADMAP — @git-stunts/git-warp
 
-> **Current version:** v13.0.0
+> **Current version:** v14.0.0
 > **Last reconciled:** 2026-03-04 (priority triage: 45 standalone items sorted into P0–P6 tiers, wave-based execution order, dependency chains mapped)
 > **Completed milestones:** [docs/ROADMAP/COMPLETED.md](docs/ROADMAP/COMPLETED.md)
 
@@ -189,10 +189,13 @@ No dependencies. Do these first.
 
 ### P1 — Correctness & Test Infrastructure
 
-B36 and B37 improve velocity for all future test work — do them early. B19 + B22 batch as one PR (Conformance Property Pack).
+B36 and B37 improve velocity for all future test work — do them early. B19 + B22 batch as one PR (Conformance Property Pack). B165 and B167 completed (Defensive Hardening Sprint); B166 remains.
 
 | ID | Item | Effort |
 |----|------|--------|
+| B165 | ✅ **WARPSERVESERVICE `listen()` DEFERRED STATE MUTATION** — `listen()` now defers `_server` assignment and subscription registration until bind succeeds; on failure, cleans up subscriptions. `_onConnection` catch now sends generic `"Internal error"` instead of raw `err.message`. **File:** `src/domain/services/WarpServeService.js` | S |
+| B166 | **ADAPTER CLEANUP CONTRACTS** — `NodeWsAdapter.close()` doesn't reset `state.wss`/`state.httpServer`/remove listeners after shutdown; `listenWithHttp` error path leaks partial state. **File:** `src/infrastructure/adapters/NodeWsAdapter.js` | M |
+| B167 | ✅ **SERVE TEST COVERAGE GAPS** — Added tests for: listen-failure cleanup (leaked subscriptions), double-listen guard, error sanitization (no internal detail leakage), `attachContent`/`attachEdgeContent` smoke tests through mutation pipeline. **File:** `test/unit/domain/services/WarpServeService.test.js` | S |
 | B36 | **FLUENT STATE BUILDER FOR TESTS** — `StateBuilder` helper replacing manual `WarpStateV5` literals | M |
 | B37 | **SHARED MOCK PERSISTENCE FIXTURE** — dedup `createMockPersistence()` across trust test files | S |
 | B48 | **ESLINT BAN `= {}` CONSTRUCTOR DEFAULTS WITH REQUIRED PARAMS** — catches the pattern where `= {}` silently makes required options optional at the type level (found in CommitDagTraversalService, DagTraversal, DagPathFinding, DagTopology, BitmapIndexReader) | S |
@@ -250,6 +253,7 @@ No hard dependencies. Pick up opportunistically after P2.
 |----|------|--------|
 | B155 | **`levels()` AS LIGHTWEIGHT `--view` LAYOUT** — `levels()` is exactly the Y-axis assignment a layered DAG layout needs. For simple DAGs, `levels()` + left-to-right X sweep could produce clean layouts without the 2.5MB ELK import. Offer `--view --layout=levels` as an instant rendering mode, reserving ELK for complex graphs. **Files:** `src/visualization/layouts/`, `bin/cli/commands/view.js` | M |
 | B156 | **STRUCTURAL DIFF VIA TRANSITIVE REDUCTION** — compute `transitiveReduction(stateA)` vs `transitiveReduction(stateB)` to produce a compact structural diff that strips implied edges and shows only "load-bearing" changes. Natural fit for H1 (Time-Travel Delta Engine) as `warp diff --mode=structural`. | L |
+| B157 | ✅ **BROWSER COMPATIBILITY (Phase 1-3)** — Make `InMemoryGraphAdapter` and `defaultCrypto` browser-safe by lazy-loading `node:crypto`/`node:stream`. New `sha1sync` utility for browser content addressing. New `browser.js` entry point and `./browser`+`./sha1sync` package exports. | M |
 
 ### P6 — Documentation & Process
 
@@ -266,6 +270,20 @@ Low urgency. Fold into PRs that already touch related files.
 | B104 | **MERMAID DIAGRAM CONTENT CHECKLIST** — for diagram migrations: count annotations in source/target, verify edge labels survive, check complexity annotations preserved. From B-DIAG-1. | XS |
 | B129 | **CONTRIBUTOR REVIEW-LOOP HYGIENE GUIDE** — add section to `CONTRIBUTING.md` covering commit sizing, CodeRabbit cooldown strategy, and when to request bot review. From BACKLOG 2026-02-27. | S |
 | B147 | **RFC FIELD COUNT DRIFT DETECTOR** — script that counts WarpGraph instance fields (grep `this._` in constructor) and warns if design RFC field counts diverge. Prevents stale numbers in `warpgraph-decomposition.md`. From B145 PR review. **Depends on:** B143 RFC (exists) | S |
+
+### P7 — git-cas Modernization
+
+Upgrade from `@git-stunts/git-cas` v3.0.0 to v5.2.4 and leverage new capabilities. Currently git-warp only uses git-cas for the seek cache (`CasSeekCacheAdapter`). The v4.x/v5.x releases add ObservabilityPort, streaming restore, CDC chunking (98.4% chunk reuse on edits), envelope encryption (DEK/KEK), and key rotation.
+
+| ID | Item | Effort |
+|----|------|--------|
+| B158 | ✅ **UPGRADE `@git-stunts/git-cas` TO v5** — bumped `^3.0.0` → `^5.2.4`. 4872 tests pass, zero regressions. | S |
+| B159 | ✅ **CDC CHUNKING FOR SEEK CACHE** — `CasSeekCacheAdapter._initCas()` now constructs CAS with `chunking: { strategy: 'cdc' }`. ~98% chunk reuse on incremental snapshots. | S |
+| B160 | ✅ **BLOB ATTACHMENTS VIA CAS** — New `BlobStoragePort` + `CasBlobAdapter` provide a hexagonal abstraction for content blob storage. `PatchBuilderV2.attachContent()`/`attachEdgeContent()` use CAS (chunked, CDC-deduped, optionally encrypted) when `blobStorage` is injected; fall back to raw `persistence.writeBlob()` without it. `getContent()`/`getEdgeContent()` retrieve via `blobStorage.retrieve()` with automatic fallback to raw Git blobs for pre-CAS content. Wired through `WarpGraph`, `Writer`, and all patch creation paths. 16 new tests (4909 total). | M |
+| B161 | ✅ **ENCRYPTED SEEK CACHE** — `CasSeekCacheAdapter` now accepts optional `encryptionKey` constructor param. When set, all `store()` and `restore()` calls pass the key to git-cas for AES-256-GCM encryption/decryption. 6 new tests (52 total). | S |
+| B162 | ✅ **OBSERVABILITY ALIGNMENT** — new `LoggerObservabilityBridge` adapter translates git-cas `ObservabilityPort` calls (metric, log, span) into git-warp `LoggerPort` calls. `CasSeekCacheAdapter` accepts optional `logger` param; when provided, CAS operations surface through git-warp's structured logging. 7 new bridge tests + 2 adapter tests. | M |
+| B163 | ✅ **STREAMING RESTORE FOR LARGE STATES** — `CasSeekCacheAdapter.get()` now prefers `cas.restoreStream()` (git-cas v4+) for I/O pipelining, accumulating chunks via async iterator. Falls back to `cas.restore()` for older git-cas. 2 new tests (58 total). | M |
+| B164 | ✅ **GRAPH ENCRYPTION AT REST** — New `patchBlobStorage` option on `WarpGraph.open()`. When a `BlobStoragePort` (e.g. `CasBlobAdapter` with encryption key) is injected, patch CBOR is written/read via CAS instead of raw Git blobs. `eg-encrypted: true` trailer marks encrypted commits. All 6 read sites + write path threaded. `EncryptionError` thrown when reading encrypted patches without key. Mixed encrypted/plain patches supported via backward-compatible fallback. 14 new tests (4969 total). | L |
 
 ### Uncategorized / Platform
 
@@ -352,6 +370,16 @@ Internal chain: B97 (P0, Wave 1) → B85 → B57. B123 is the largest — may sp
 18. **B156** — structural diff (if H1 is in play)
 19. Docs/process items (B34, B35, B76, B79, B102–B104, B129, B147) folded into related PRs
 
+#### Wave 7: git-cas Modernization (P7)
+
+20. **B158** — upgrade `@git-stunts/git-cas` to v5 (unblocks all P7 items)
+21. **B159** — CDC chunking for seek cache (quick win after B158)
+22. **B161** — encrypted seek cache
+23. **B160** — blob attachments via CAS
+24. **B162** — observability alignment
+25. **B163** — streaming restore for large states
+26. **B164** — graph encryption at rest (largest, last)
+
 ### Dependency Chains
 
 ```text
@@ -366,6 +394,13 @@ B154 (P0) ─────┘           adjList dedup (quick fix)
 B151 (P4) ──→ B152 (P4)   closure streaming → full async generator API
 
 B36 (P1) ──→ (improves velocity for B99, B19, B22, future tests)
+
+B158 (P7) ──→ B159 (P7)   CDC seek cache
+          ├──→ B160 (P7)   blob attachments
+          ├──→ B161 (P7)   encrypted seek cache
+          ├──→ B162 (P7)   observability alignment
+          ├──→ B163 (P7)   streaming restore
+          └──→ B164 (P7)   graph encryption at rest
 ```
 
 ---
@@ -381,11 +416,11 @@ B36 (P1) ──→ (improves velocity for B99, B19, B22, future tests)
 | **Milestone (M12)** | 18 | B66, B67, B70, B73, B75, B105–B115, B117, B118 |
 | **Milestone (M13)** | 1 | B116 (internal: DONE; wire-format: DEFERRED) |
 | **Milestone (M14)** | 16 | B130–B145 |
-| **Standalone** | 45 | B12, B19, B22, B28, B34–B37, B43, B48, B49, B53, B54, B57, B76, B79–B81, B83, B85–B88, B95–B99, B102–B104, B119, B123, B127–B129, B147, B149–B156 |
-| **Standalone (done)** | 29 | B26, B44, B46, B47, B50–B52, B55, B71, B72, B77, B78, B82, B84, B89–B94, B100, B120–B122, B124, B125, B126, B146, B148 |
+| **Standalone** | 46 | B12, B19, B22, B28, B34–B37, B43, B48, B49, B53, B54, B57, B76, B79–B81, B83, B85–B88, B95–B99, B102–B104, B119, B123, B127–B129, B147, B149–B156, B166 |
+| **Standalone (done)** | 39 | B26, B44, B46, B47, B50–B52, B55, B71, B72, B77, B78, B82, B84, B89–B94, B100, B120–B122, B124, B125, B126, B146, B148, B157, B158, B159, B160, B161, B162, B163, B164, B165, B167 |
 | **Deferred** | 7 | B4, B7, B16, B20, B21, B27, B101 |
 | **Rejected** | 7 | B5, B6, B13, B17, B18, B25, B45 |
-| **Total tracked** | **133** total; 29 standalone done | |
+| **Total tracked** | **144** total; 39 standalone done | |
 
 ### STANK.md Cross-Reference
 

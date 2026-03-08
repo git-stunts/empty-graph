@@ -49,6 +49,7 @@ export default tseslint.config(
         AbortSignal: "readonly",
         performance: "readonly",
         global: "readonly",
+        WebSocket: "readonly",
       },
     },
     plugins: {
@@ -253,6 +254,8 @@ export default tseslint.config(
       "src/domain/services/LogicalBitmapIndexBuilder.js",
       "src/domain/services/LogicalIndexBuildService.js",
       "src/domain/services/IncrementalIndexUpdater.js",
+      "src/domain/services/WormholeService.js",
+      "src/domain/services/WarpServeService.js",
     ],
     rules: {
       "complexity": ["error", 35],
@@ -267,6 +270,28 @@ export default tseslint.config(
     files: ["src/ports/**/*.js"],
     rules: {
       "@typescript-eslint/require-await": "off",
+    },
+  },
+
+  // ── Domain purity: ban Buffer — use Uint8Array + helpers from domain/utils/bytes.js ──
+  {
+    files: ["src/domain/**/*.js"],
+    rules: {
+      "no-restricted-globals": ["error",
+        { "name": "Buffer", "message": "Use Uint8Array + helpers from domain/utils/bytes.js. Buffer is confined to infrastructure adapters." },
+      ],
+      "no-restricted-imports": ["error", {
+        "paths": [
+          {
+            "name": "node:buffer",
+            "message": "Use Uint8Array + helpers from domain/utils/bytes.js. Buffer is confined to infrastructure adapters.",
+          },
+          {
+            "name": "buffer",
+            "message": "Use Uint8Array + helpers from domain/utils/bytes.js. Buffer is confined to infrastructure adapters.",
+          },
+        ],
+      }],
     },
   },
 
@@ -323,6 +348,12 @@ export default tseslint.config(
         TextEncoder: "readonly",
         performance: "readonly",
         global: "readonly",
+        Headers: "readonly",
+        ReadableStream: "readonly",
+        Request: "readonly",
+        Response: "readonly",
+        WebSocket: "readonly",
+        queueMicrotask: "readonly",
         describe: "readonly",
         it: "readonly",
         expect: "readonly",
