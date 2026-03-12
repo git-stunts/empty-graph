@@ -38,6 +38,8 @@ function createMockState() {
 describe('PatchBuilderV2 content attachment', () => {
   describe('attachContent()', () => {
     it('writes blob and sets _content property', async () => {
+      const state = createMockState();
+      orsetAdd(state.nodeAlive, 'node:1', createDot('w1', 1));
       const persistence = createMockPersistence({
         writeBlob: vi.fn().mockResolvedValue('abc123'),
       });
@@ -46,7 +48,7 @@ describe('PatchBuilderV2 content attachment', () => {
         writerId: 'w1',
         lamport: 1,
         versionVector: createVersionVector(),
-        getCurrentState: () => null,
+        getCurrentState: () => state,
       }));
 
       await builder.attachContent('node:1', 'hello world');
@@ -63,6 +65,8 @@ describe('PatchBuilderV2 content attachment', () => {
     });
 
     it('tracks blob OID in _contentBlobs', async () => {
+      const state = createMockState();
+      orsetAdd(state.nodeAlive, 'node:1', createDot('w1', 1));
       const persistence = createMockPersistence({
         writeBlob: vi.fn().mockResolvedValue('abc123'),
       });
@@ -71,7 +75,7 @@ describe('PatchBuilderV2 content attachment', () => {
         writerId: 'w1',
         lamport: 1,
         versionVector: createVersionVector(),
-        getCurrentState: () => null,
+        getCurrentState: () => state,
       }));
 
       await builder.attachContent('node:1', 'content');
@@ -80,13 +84,15 @@ describe('PatchBuilderV2 content attachment', () => {
     });
 
     it('returns the builder for chaining', async () => {
+      const state = createMockState();
+      orsetAdd(state.nodeAlive, 'node:1', createDot('w1', 1));
       const persistence = createMockPersistence();
       const builder = new PatchBuilderV2(/** @type {any} */ ({
         persistence,
         writerId: 'w1',
         lamport: 1,
         versionVector: createVersionVector(),
-        getCurrentState: () => null,
+        getCurrentState: () => state,
       }));
 
       const result = await builder.attachContent('node:1', 'content');
@@ -94,6 +100,8 @@ describe('PatchBuilderV2 content attachment', () => {
     });
 
     it('propagates writeBlob errors', async () => {
+      const state = createMockState();
+      orsetAdd(state.nodeAlive, 'node:1', createDot('w1', 1));
       const persistence = createMockPersistence({
         writeBlob: vi.fn().mockRejectedValue(new Error('disk full')),
       });
@@ -102,10 +110,26 @@ describe('PatchBuilderV2 content attachment', () => {
         writerId: 'w1',
         lamport: 1,
         versionVector: createVersionVector(),
-        getCurrentState: () => null,
+        getCurrentState: () => state,
       }));
 
       await expect(builder.attachContent('node:1', 'x')).rejects.toThrow('disk full');
+    });
+
+    it('does not write blobs for unknown nodes', async () => {
+      const persistence = createMockPersistence();
+      const builder = new PatchBuilderV2(/** @type {any} */ ({
+        persistence,
+        writerId: 'w1',
+        lamport: 1,
+        versionVector: createVersionVector(),
+        getCurrentState: () => createMockState(),
+      }));
+
+      await expect(builder.attachContent('missing:node', 'content'))
+        .rejects.toThrow("Cannot attach content to unknown node 'missing:node': add the node first");
+      expect(persistence.writeBlob).not.toHaveBeenCalled();
+      expect(builder._contentBlobs).toEqual([]);
     });
   });
 
@@ -192,12 +216,16 @@ describe('PatchBuilderV2 content attachment', () => {
       await expect(
         builder.attachEdgeContent('no', 'such', 'edge', 'content')
       ).rejects.toThrow();
+      expect(persistence.writeBlob).not.toHaveBeenCalled();
       expect(builder._contentBlobs).toEqual([]);
     });
   });
 
   describe('multiple attachments in one patch', () => {
     it('tracks multiple blob OIDs', async () => {
+      const state = createMockState();
+      orsetAdd(state.nodeAlive, 'node:1', createDot('w1', 1));
+      orsetAdd(state.nodeAlive, 'node:2', createDot('w1', 2));
       let callCount = 0;
       const persistence = createMockPersistence({
         writeBlob: vi.fn().mockImplementation(() => {
@@ -210,7 +238,7 @@ describe('PatchBuilderV2 content attachment', () => {
         writerId: 'w1',
         lamport: 1,
         versionVector: createVersionVector(),
-        getCurrentState: () => null,
+        getCurrentState: () => state,
       }));
 
       await builder.attachContent('node:1', 'first');
@@ -223,6 +251,8 @@ describe('PatchBuilderV2 content attachment', () => {
 
   describe('attachContent() with blobStorage', () => {
     it('uses blobStorage.store() when blobStorage is provided', async () => {
+      const state = createMockState();
+      orsetAdd(state.nodeAlive, 'node:1', createDot('w1', 1));
       const blobStorage = {
         store: vi.fn().mockResolvedValue('cas-tree-oid'),
         retrieve: vi.fn(),
@@ -234,7 +264,7 @@ describe('PatchBuilderV2 content attachment', () => {
         writerId: 'w1',
         lamport: 1,
         versionVector: createVersionVector(),
-        getCurrentState: () => null,
+        getCurrentState: () => state,
         blobStorage,
       }));
 
@@ -252,6 +282,8 @@ describe('PatchBuilderV2 content attachment', () => {
     });
 
     it('falls back to persistence.writeBlob() when blobStorage is not provided', async () => {
+      const state = createMockState();
+      orsetAdd(state.nodeAlive, 'node:1', createDot('w1', 1));
       const persistence = createMockPersistence({
         writeBlob: vi.fn().mockResolvedValue('raw-blob-oid'),
       });
@@ -260,7 +292,7 @@ describe('PatchBuilderV2 content attachment', () => {
         writerId: 'w1',
         lamport: 1,
         versionVector: createVersionVector(),
-        getCurrentState: () => null,
+        getCurrentState: () => state,
       }));
 
       await builder.attachContent('node:1', 'hello');

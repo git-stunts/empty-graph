@@ -19,6 +19,8 @@ import defaultClock from './utils/defaultClock.js';
 import LogicalTraversal from './services/LogicalTraversal.js';
 import LRUCache from './utils/LRUCache.js';
 import SyncController from './services/SyncController.js';
+import SyncTrustGate from './services/SyncTrustGate.js';
+import { AuditVerifierService } from './services/AuditVerifierService.js';
 import MaterializedViewService from './services/MaterializedViewService.js';
 import { wireWarpMethods } from './warp/_wire.js';
 import * as queryMethods from './warp/query.methods.js';
@@ -35,6 +37,30 @@ import * as materializeAdvancedMethods from './warp/materializeAdvanced.methods.
 const DEFAULT_ADJACENCY_CACHE_SIZE = 3;
 
 /**
+ * @param {{ mode?: 'off'|'log-only'|'enforce', pin?: string|null }|undefined|null} trust
+ * @returns {{ mode: 'off'|'log-only'|'enforce', pin: string|null }}
+ */
+function normalizeTrustConfig(trust) {
+  if (!trust) {
+    return { mode: 'off', pin: null };
+  }
+  if (typeof trust !== 'object') {
+    throw new Error('trust must be an object');
+  }
+  const mode = trust.mode ?? 'off';
+  if (!['off', 'log-only', 'enforce'].includes(mode)) {
+    throw new Error('trust.mode must be one of: off, log-only, enforce');
+  }
+  if (trust.pin !== undefined && trust.pin !== null && typeof trust.pin !== 'string') {
+    throw new Error('trust.pin must be a string');
+  }
+  return {
+    mode,
+    pin: trust.pin ?? null,
+  };
+}
+
+/**
  * @typedef {Object} MaterializedGraph
  * @property {import('./services/JoinReducer.js').WarpStateV5} state
  * @property {string|null} stateHash
@@ -48,9 +74,9 @@ const DEFAULT_ADJACENCY_CACHE_SIZE = 3;
 export default class WarpGraph {
   /**
    * @private
-   * @param {{ persistence: CorePersistence, graphName: string, writerId: string, gcPolicy?: Record<string, unknown>, adjacencyCacheSize?: number, checkpointPolicy?: {every: number}, autoMaterialize?: boolean, onDeleteWithData?: 'reject'|'cascade'|'warn', logger?: import('../ports/LoggerPort.js').default, clock?: import('../ports/ClockPort.js').default, crypto?: import('../ports/CryptoPort.js').default, codec?: import('../ports/CodecPort.js').default, seekCache?: import('../ports/SeekCachePort.js').default, audit?: boolean, blobStorage?: import('../ports/BlobStoragePort.js').default, patchBlobStorage?: import('../ports/BlobStoragePort.js').default }} options
+   * @param {{ persistence: CorePersistence, graphName: string, writerId: string, gcPolicy?: Record<string, unknown>, adjacencyCacheSize?: number, checkpointPolicy?: {every: number}, autoMaterialize?: boolean, onDeleteWithData?: 'reject'|'cascade'|'warn', logger?: import('../ports/LoggerPort.js').default, clock?: import('../ports/ClockPort.js').default, crypto?: import('../ports/CryptoPort.js').default, codec?: import('../ports/CodecPort.js').default, seekCache?: import('../ports/SeekCachePort.js').default, audit?: boolean, blobStorage?: import('../ports/BlobStoragePort.js').default, patchBlobStorage?: import('../ports/BlobStoragePort.js').default, trust?: { mode?: 'off'|'log-only'|'enforce', pin?: string|null } }} options
    */
-  constructor({ persistence, graphName, writerId, gcPolicy = {}, adjacencyCacheSize = DEFAULT_ADJACENCY_CACHE_SIZE, checkpointPolicy, autoMaterialize = true, onDeleteWithData = 'warn', logger, clock, crypto, codec, seekCache, audit = false, blobStorage, patchBlobStorage }) {
+  constructor({ persistence, graphName, writerId, gcPolicy = {}, adjacencyCacheSize = DEFAULT_ADJACENCY_CACHE_SIZE, checkpointPolicy, autoMaterialize = true, onDeleteWithData = 'warn', logger, clock, crypto, codec, seekCache, audit = false, blobStorage, patchBlobStorage, trust }) {
     /** @type {CorePersistence} */
     this._persistence = /** @type {CorePersistence} */ (persistence);
 
@@ -165,8 +191,13 @@ export default class WarpGraph {
     /** @type {number} */
     this._auditSkipCount = 0;
 
+    /** @type {{ mode: 'off'|'log-only'|'enforce', pin: string|null }} */
+    this._trustConfig = normalizeTrustConfig(trust);
+
     /** @type {SyncController} */
-    this._syncController = new SyncController(this);
+    this._syncController = new SyncController(this, {
+      trustGate: this._createSyncTrustGate(),
+    });
 
     /** @type {MaterializedViewService} */
     this._viewService = new MaterializedViewService({
@@ -188,6 +219,46 @@ export default class WarpGraph {
 
     /** @type {boolean} */
     this._indexDegraded = false;
+  }
+
+  /**
+   * Builds a sync trust gate backed by the graph's trust record chain.
+   *
+   * @param {{ mode?: 'off'|'log-only'|'enforce', pin?: string|null }|undefined|null} [override]
+   * @returns {SyncTrustGate|null}
+   */
+  _createSyncTrustGate(override) {
+    const config = normalizeTrustConfig(override ?? this._trustConfig);
+    if (config.mode === 'off') {
+      return null;
+    }
+
+    const verifier = new AuditVerifierService({
+      persistence: this._persistence,
+      codec: this._codec,
+      logger: this._logger || undefined,
+    });
+
+    return new SyncTrustGate({
+      trustMode: config.mode,
+      logger: this._logger || undefined,
+      trustEvaluator: {
+        evaluateWriters: async (writerIds) => {
+          const assessment = await verifier.evaluateTrust(this._graphName, {
+            pin: config.pin || undefined,
+            mode: config.mode === 'enforce' ? 'enforce' : 'warn',
+            writerIds,
+          });
+          return {
+            trusted: new Set(
+              assessment.trust.explanations
+                .filter((explanation) => explanation.trusted)
+                .map((explanation) => explanation.writerId),
+            ),
+          };
+        },
+      },
+    });
   }
 
   /**
@@ -247,7 +318,7 @@ export default class WarpGraph {
   /**
    * Opens a multi-writer graph.
    *
-   * @param {{ persistence: CorePersistence, graphName: string, writerId: string, gcPolicy?: Record<string, unknown>, adjacencyCacheSize?: number, checkpointPolicy?: {every: number}, autoMaterialize?: boolean, onDeleteWithData?: 'reject'|'cascade'|'warn', logger?: import('../ports/LoggerPort.js').default, clock?: import('../ports/ClockPort.js').default, crypto?: import('../ports/CryptoPort.js').default, codec?: import('../ports/CodecPort.js').default, seekCache?: import('../ports/SeekCachePort.js').default, audit?: boolean, blobStorage?: import('../ports/BlobStoragePort.js').default, patchBlobStorage?: import('../ports/BlobStoragePort.js').default }} options
+   * @param {{ persistence: CorePersistence, graphName: string, writerId: string, gcPolicy?: Record<string, unknown>, adjacencyCacheSize?: number, checkpointPolicy?: {every: number}, autoMaterialize?: boolean, onDeleteWithData?: 'reject'|'cascade'|'warn', logger?: import('../ports/LoggerPort.js').default, clock?: import('../ports/ClockPort.js').default, crypto?: import('../ports/CryptoPort.js').default, codec?: import('../ports/CodecPort.js').default, seekCache?: import('../ports/SeekCachePort.js').default, audit?: boolean, blobStorage?: import('../ports/BlobStoragePort.js').default, patchBlobStorage?: import('../ports/BlobStoragePort.js').default, trust?: { mode?: 'off'|'log-only'|'enforce', pin?: string|null } }} options
    * @returns {Promise<WarpGraph>} The opened graph instance
    * @throws {Error} If graphName, writerId, checkpointPolicy, or onDeleteWithData is invalid
    *
@@ -258,7 +329,7 @@ export default class WarpGraph {
    *   writerId: 'node-1'
    * });
    */
-  static async open({ persistence, graphName, writerId, gcPolicy = {}, adjacencyCacheSize, checkpointPolicy, autoMaterialize, onDeleteWithData, logger, clock, crypto, codec, seekCache, audit, blobStorage, patchBlobStorage }) {
+  static async open({ persistence, graphName, writerId, gcPolicy = {}, adjacencyCacheSize, checkpointPolicy, autoMaterialize, onDeleteWithData, logger, clock, crypto, codec, seekCache, audit, blobStorage, patchBlobStorage, trust }) {
     // Validate inputs
     validateGraphName(graphName);
     validateWriterId(writerId);
@@ -287,6 +358,8 @@ export default class WarpGraph {
       throw new Error('audit must be a boolean');
     }
 
+    normalizeTrustConfig(trust);
+
     // Validate onDeleteWithData
     if (onDeleteWithData !== undefined) {
       const valid = ['reject', 'cascade', 'warn'];
@@ -295,7 +368,7 @@ export default class WarpGraph {
       }
     }
 
-    const graph = new WarpGraph({ persistence, graphName, writerId, gcPolicy, adjacencyCacheSize, checkpointPolicy, autoMaterialize, onDeleteWithData, logger, clock, crypto, codec, seekCache, audit, blobStorage, patchBlobStorage });
+    const graph = new WarpGraph({ persistence, graphName, writerId, gcPolicy, adjacencyCacheSize, checkpointPolicy, autoMaterialize, onDeleteWithData, logger, clock, crypto, codec, seekCache, audit, blobStorage, patchBlobStorage, trust });
 
     // Validate migration boundary
     await graph._validateMigrationBoundary();

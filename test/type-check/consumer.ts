@@ -146,6 +146,7 @@ const graph: WarpGraph = await WarpGraph.open({
   seekCache,
   autoMaterialize: true,
   onDeleteWithData: 'reject',
+  trust: { mode: 'off' },
 });
 
 // ---- createPatch -> PatchBuilderV2 ----
@@ -237,7 +238,7 @@ await graph.syncCoverage();
 
 // ---- syncWith ----
 const syncResult: { applied: number; attempts: number; state?: WarpStateV5 } =
-  await graph.syncWith('http://localhost:3000');
+  await graph.syncWith('http://localhost:3000', { trust: { mode: 'enforce', pin: 'abc123' } });
 const syncWithGraph: { applied: number; attempts: number; state?: WarpStateV5 } =
   await graph.syncWith(graph, { materialize: true });
 

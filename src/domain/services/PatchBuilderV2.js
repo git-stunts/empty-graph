@@ -138,6 +138,9 @@ export class PatchBuilderV2 {
     /** @type {import('../types/WarpTypesV2.js').OpV2[]} */
     this._ops = [];
 
+    /** @type {Set<string>} Node IDs added in this patch (for attachContent validation) */
+    this._nodesAdded = new Set();
+
     /** @type {Set<string>} Edge keys added in this patch (for setEdgeProperty validation) */
     this._edgesAdded = new Set();
 
@@ -256,6 +259,7 @@ export class PatchBuilderV2 {
     _assertNoReservedBytes(nodeId, 'nodeId');
     const dot = vvIncrement(this._vv, this._writerId);
     this._ops.push(createNodeAddV2(nodeId, dot));
+    this._nodesAdded.add(nodeId);
     // Provenance: NodeAdd writes the node
     this._writes.add(nodeId);
     return this;
@@ -504,14 +508,7 @@ export class PatchBuilderV2 {
     _assertNoReservedBytes(to, 'to node ID');
     _assertNoReservedBytes(label, 'edge label');
     _assertNoReservedBytes(key, 'property key');
-    // Validate edge exists in this patch or in current state
-    const ek = encodeEdgeKey(from, to, label);
-    if (!this._edgesAdded.has(ek)) {
-      const state = this._getSnapshotState();
-      if (!state || !orsetContains(state.edgeAlive, ek)) {
-        throw new Error(`Cannot set property on unknown edge (${from} → ${to} [${label}]): add the edge first`);
-      }
-    }
+    const ek = this._assertEdgeExists(from, to, label);
 
     // Canonical EdgePropSet — lowered to legacy raw PropSet at commit time
     this._ops.push(createEdgePropSetV2(from, to, label, key, value));
@@ -542,6 +539,7 @@ export class PatchBuilderV2 {
     // Validate identifiers before writing blob to avoid orphaned blobs
     _assertNoReservedBytes(nodeId, 'nodeId');
     _assertNoReservedBytes(CONTENT_PROPERTY_KEY, 'key');
+    this._assertNodeExistsForContent(nodeId);
     const oid = this._blobStorage
       ? await this._blobStorage.store(content, { slug: `${this._graphName}/${nodeId}` })
       : await this._persistence.writeBlob(content);
@@ -567,12 +565,46 @@ export class PatchBuilderV2 {
     _assertNoReservedBytes(to, 'to');
     _assertNoReservedBytes(label, 'label');
     _assertNoReservedBytes(CONTENT_PROPERTY_KEY, 'key');
+    this._assertEdgeExists(from, to, label);
     const oid = this._blobStorage
       ? await this._blobStorage.store(content, { slug: `${this._graphName}/${from}/${to}/${label}` })
       : await this._persistence.writeBlob(content);
     this.setEdgeProperty(from, to, label, CONTENT_PROPERTY_KEY, oid);
     this._contentBlobs.push(oid);
     return this;
+  }
+
+  /**
+   * @param {string} nodeId
+   * @returns {void}
+   * @private
+   */
+  _assertNodeExistsForContent(nodeId) {
+    if (this._nodesAdded.has(nodeId)) {
+      return;
+    }
+    const state = this._getSnapshotState();
+    if (!state || !orsetContains(state.nodeAlive, nodeId)) {
+      throw new Error(`Cannot attach content to unknown node '${nodeId}': add the node first`);
+    }
+  }
+
+  /**
+   * @param {string} from
+   * @param {string} to
+   * @param {string} label
+   * @returns {string}
+   * @private
+   */
+  _assertEdgeExists(from, to, label) {
+    const ek = encodeEdgeKey(from, to, label);
+    if (!this._edgesAdded.has(ek)) {
+      const state = this._getSnapshotState();
+      if (!state || !orsetContains(state.edgeAlive, ek)) {
+        throw new Error(`Cannot set property on unknown edge (${from} → ${to} [${label}]): add the edge first`);
+      }
+    }
+    return ek;
   }
 
   /**

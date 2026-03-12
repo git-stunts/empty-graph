@@ -21,7 +21,7 @@ function detectTrustWarning() {
   }
   return {
     code: 'TRUST_CONFIG_PRESENT_UNENFORCED',
-    message: 'Trust root configured but signature verification is not implemented in v1',
+    message: 'Deprecated WARP_TRUSTED_ROOT trust config detected; use signed trust records or --trust-pin',
     sources,
   };
 }

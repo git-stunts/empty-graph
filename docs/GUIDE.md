@@ -1802,6 +1802,7 @@ const result = await graph.syncWith('http://peer:3000/sync', {
   timeoutMs: 10000,
   signal: abortController.signal,
   onStatus: (event) => console.log(event.type, event.attempt),
+  trust: { mode: 'log-only' }, // optional signed trust evaluation of inbound writers
   materialize: true,  // auto-materialize after sync
 });
 // result = { applied: 5, attempts: 1, state: ... }

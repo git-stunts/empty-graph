@@ -31,10 +31,12 @@
 
 import { buildAuditPrefix, buildAuditRef } from '../utils/RefLayout.js';
 import { decodeAuditMessage } from './AuditMessageCodec.js';
+import { computeSignaturePayload } from '../trust/TrustCanonical.js';
 import { TrustRecordService } from '../trust/TrustRecordService.js';
 import { buildState } from '../trust/TrustStateBuilder.js';
 import { evaluateWriters } from '../trust/TrustEvaluator.js';
 import { TRUST_REASON_CODES } from '../trust/reasonCodes.js';
+import defaultTrustCrypto from '../utils/defaultTrustCrypto.js';
 
 // ============================================================================
 // Constants
@@ -209,14 +211,85 @@ function validateTrailerConsistency(receipt, decoded) {
  * @property {TrustWarning|null} trustWarning
  */
 
+/**
+ * Resolves source metadata for trust evaluations.
+ *
+ * @param {{ status?: string, source?: string, sourceDetail?: string|null, pin?: string }} options
+ * @returns {{ status: string, source: string, sourceDetail: string|null }}
+ */
+function resolveTrustSource(options) {
+  return {
+    status: options.status || (options.pin ? 'pinned' : 'configured'),
+    source: options.source || (options.pin ? 'pinned' : 'ref'),
+    sourceDetail: options.sourceDetail ?? options.pin ?? null,
+  };
+}
+
+/**
+ * Builds a fail-closed trust assessment for invalid evidence.
+ *
+ * @param {{ status: string, source: string, sourceDetail: string|null, writerIds?: string[], recordsScanned?: number, activeKeys?: number, revokedKeys?: number, activeBindings?: number, revokedBindings?: number, reasonCode: string, reason: string }} params
+ * @returns {import('../trust/TrustEvaluator.js').TrustAssessment}
+ */
+function buildTrustFailureAssessment({
+  status,
+  source,
+  sourceDetail,
+  writerIds = [],
+  recordsScanned = 0,
+  activeKeys = 0,
+  revokedKeys = 0,
+  activeBindings = 0,
+  revokedBindings = 0,
+  reasonCode,
+  reason,
+}) {
+  const evaluatedWriters = [...writerIds].sort();
+  const explanations = evaluatedWriters.length > 0
+    ? evaluatedWriters.map((writerId) => ({
+      writerId,
+      trusted: false,
+      reasonCode,
+      reason,
+    }))
+    : [{
+      writerId: '*',
+      trusted: false,
+      reasonCode,
+      reason,
+    }];
+
+  return {
+    trustSchemaVersion: 1,
+    mode: 'signed_evidence_v1',
+    trustVerdict: 'fail',
+    trust: {
+      status,
+      source,
+      sourceDetail,
+      evaluatedWriters,
+      untrustedWriters: evaluatedWriters,
+      explanations,
+      evidenceSummary: {
+        recordsScanned,
+        activeKeys,
+        revokedKeys,
+        activeBindings,
+        revokedBindings,
+      },
+    },
+  };
+}
+
 export class AuditVerifierService {
   /**
-   * @param {{ persistence: import('../../ports/CommitPort.js').default & import('../../ports/RefPort.js').default & import('../../ports/BlobPort.js').default & import('../../ports/TreePort.js').default, codec: import('../../ports/CodecPort.js').default, logger?: import('../../ports/LoggerPort.js').default }} options
+   * @param {{ persistence: import('../../ports/CommitPort.js').default & import('../../ports/RefPort.js').default & import('../../ports/BlobPort.js').default & import('../../ports/TreePort.js').default, codec: import('../../ports/CodecPort.js').default, logger?: import('../../ports/LoggerPort.js').default, trustCrypto?: { verifySignature: (params: { algorithm: string, publicKeyBase64: string, signatureBase64: string, payload: Uint8Array }) => boolean, computeKeyFingerprint: (publicKeyBase64: string) => string } }} options
    */
-  constructor({ persistence, codec, logger }) {
+  constructor({ persistence, codec, logger, trustCrypto }) {
     this._persistence = persistence;
     this._codec = codec;
     this._logger = logger || null;
+    this._trustCrypto = trustCrypto || defaultTrustCrypto;
   }
 
   /**
@@ -655,10 +728,11 @@ export class AuditVerifierService {
    * and returns a TrustAssessment.
    *
    * @param {string} graphName
-   * @param {{ pin?: string, mode?: string }} [options]
+   * @param {{ pin?: string, mode?: string, writerIds?: string[], source?: string, sourceDetail?: string|null, status?: string }} [options]
    * @returns {Promise<import('../trust/TrustEvaluator.js').TrustAssessment>}
    */
   async evaluateTrust(graphName, options = {}) {
+    const { status, source, sourceDetail } = resolveTrustSource(options);
     const recordService = new TrustRecordService({
       persistence: this._persistence,
       codec: this._codec,
@@ -666,33 +740,13 @@ export class AuditVerifierService {
 
     const recordsResult = await recordService.readRecords(graphName, options.pin ? { tip: options.pin } : {});
     if (!recordsResult.ok) {
-      return {
-        trustSchemaVersion: 1,
-        mode: 'signed_evidence_v1',
-        trustVerdict: 'fail',
-        trust: {
-          status: 'error',
-          source: options.pin ? 'pinned' : 'ref',
-          sourceDetail: options.pin ?? null,
-          evaluatedWriters: [],
-          untrustedWriters: [],
-          explanations: [
-            {
-              writerId: '*',
-              trusted: false,
-              reasonCode: TRUST_REASON_CODES.TRUST_RECORD_CHAIN_INVALID,
-              reason: `Trust chain read failed: ${recordsResult.error.message}`,
-            },
-          ],
-          evidenceSummary: {
-            recordsScanned: 0,
-            activeKeys: 0,
-            revokedKeys: 0,
-            activeBindings: 0,
-            revokedBindings: 0,
-          },
-        },
-      };
+      return buildTrustFailureAssessment({
+        status: 'error',
+        source,
+        sourceDetail,
+        reasonCode: TRUST_REASON_CODES.TRUST_RECORD_CHAIN_INVALID,
+        reason: `Trust chain read failed: ${recordsResult.error.message}`,
+      });
     }
     const { records } = recordsResult;
 
@@ -719,8 +773,31 @@ export class AuditVerifierService {
       };
     }
 
-    const trustState = buildState(records);
-    const writerIds = await this._listWriterIds(graphName);
+    const chainResult = await recordService.verifyChain(records);
+    if (!chainResult.valid) {
+      return buildTrustFailureAssessment({
+        status: 'error',
+        source,
+        sourceDetail,
+        writerIds: options.writerIds || [],
+        recordsScanned: records.length,
+        reasonCode: TRUST_REASON_CODES.TRUST_RECORD_CHAIN_INVALID,
+        reason: `Trust chain invalid: ${chainResult.errors[0]?.error || 'unknown chain error'}`,
+      });
+    }
+
+    const trustState = buildState(records, {
+      signatureVerifier: (record, publicKeyBase64) =>
+        this._trustCrypto.verifySignature({
+          algorithm: record.signature.alg,
+          publicKeyBase64,
+          signatureBase64: record.signature.sig,
+          payload: computeSignaturePayload(record),
+        }),
+      computeKeyFingerprint: (publicKeyBase64) =>
+        this._trustCrypto.computeKeyFingerprint(publicKeyBase64),
+    });
+    const writerIds = options.writerIds ? [...options.writerIds] : await this._listWriterIds(graphName);
 
     const policy = {
       schemaVersion: 1,
@@ -728,6 +805,15 @@ export class AuditVerifierService {
       writerPolicy: 'all_writers_must_be_trusted',
     };
 
-    return evaluateWriters(writerIds, trustState, policy);
+    const assessment = evaluateWriters(writerIds, trustState, policy);
+    return {
+      ...assessment,
+      trust: {
+        ...assessment.trust,
+        status: assessment.trust.status === 'error' ? 'error' : status,
+        source,
+        sourceDetail,
+      },
+    };
   }
 }

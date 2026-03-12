@@ -3,6 +3,8 @@ import { WebSocketServer } from 'ws';
 import WebSocketServerPort from '../../ports/WebSocketServerPort.js';
 import { normalizeHost, assertNotListening, messageToString } from './wsAdapterUtils.js';
 
+const NOOP = () => undefined;
+
 /**
  * Wraps a raw `ws` WebSocket into a port-compliant WsConnection.
  *
@@ -82,7 +84,7 @@ function createStaticHandler(staticDir, onError) {
  * @property {(conn: import('../../ports/WebSocketServerPort.js').WsConnection) => void} onConnection
  * @property {number} port
  * @property {string} bindHost
- * @property {{ wss: WebSocketServer|null, httpServer: import('node:http').Server|null }} state
+ * @property {{ wss: WebSocketServer|null, httpServer: import('node:http').Server|null, wssErrorHandler: ((err: Error) => void)|null, httpServerErrorHandler: ((err: Error) => void)|null }} state
  * @property {((err: Error) => void)|undefined} [onError]
  */
 
@@ -96,20 +98,36 @@ function createStaticHandler(staticDir, onError) {
 function listenWithHttp(staticDir, opts) {
   const { onConnection, port, bindHost, state, onError } = opts;
   return new Promise((resolve, reject) => {
-    state.httpServer = createHttpServer(createStaticHandler(staticDir, onError));
-    state.wss = new WebSocketServer({ server: state.httpServer });
-    state.wss.on('connection', (/** @type {import('ws').WebSocket} */ ws) => onConnection(wrapConnection(ws)));
-    const onStartupError = (/** @type {Error} */ err) => {
-      state.wss = null;
-      state.httpServer = null;
+    const httpServer = createHttpServer(createStaticHandler(staticDir, onError));
+    const wss = new WebSocketServer({ server: httpServer });
+    const onConnectionInternal = (/** @type {import('ws').WebSocket} */ ws) => onConnection(wrapConnection(ws));
+
+    function cleanupStartupListeners() {
+      httpServer.removeListener('error', onStartupError);
+      wss.removeListener('error', onStartupError);
+    }
+
+    function onStartupError(/** @type {Error} */ err) {
+      cleanupStartupListeners();
+      wss.close();
+      httpServer.close(NOOP);
       reject(err);
-    };
-    state.httpServer.on('error', onStartupError);
-    state.httpServer.listen(port, bindHost, () => {
-      // Remove startup error listener — the promise is resolved.
-      state.httpServer?.removeListener('error', onStartupError);
-      state.httpServer?.on('error', (/** @type {Error} */ err) => { if (onError) { onError(err); } });
-      const addr = state.httpServer?.address();
+    }
+
+    httpServer.on('error', onStartupError);
+    wss.on('error', onStartupError);
+    wss.on('connection', onConnectionInternal);
+    httpServer.listen(port, bindHost, () => {
+      cleanupStartupListeners();
+      const httpRuntimeErrorHandler = (/** @type {Error} */ err) => { if (onError) { onError(err); } };
+      const wssRuntimeErrorHandler = (/** @type {Error} */ err) => { if (onError) { onError(err); } };
+      httpServer.on('error', httpRuntimeErrorHandler);
+      wss.on('error', wssRuntimeErrorHandler);
+      state.httpServer = httpServer;
+      state.wss = wss;
+      state.httpServerErrorHandler = httpRuntimeErrorHandler;
+      state.wssErrorHandler = wssRuntimeErrorHandler;
+      const addr = httpServer.address();
       const actualPort = typeof addr === 'object' && addr ? addr.port : port;
       resolve({ port: actualPort, host: bindHost });
     });
@@ -125,22 +143,93 @@ function listenWithHttp(staticDir, opts) {
 function listenWsOnly(opts) {
   const { onConnection, port, bindHost, state, onError } = opts;
   return new Promise((resolve, reject) => {
-    state.wss = new WebSocketServer({ port, host: bindHost });
-    const onStartupError = (/** @type {Error} */ err) => {
-      state.wss = null;
-      state.httpServer = null;
+    const wss = new WebSocketServer({ port, host: bindHost });
+    const onConnectionInternal = (/** @type {import('ws').WebSocket} */ ws) => onConnection(wrapConnection(ws));
+
+    function cleanupStartupListeners() {
+      wss.removeListener('error', onStartupError);
+      wss.removeListener('listening', onListening);
+    }
+
+    function onStartupError(/** @type {Error} */ err) {
+      cleanupStartupListeners();
+      wss.close();
       reject(err);
-    };
-    state.wss.on('listening', () => {
-      // Remove startup error listener — the promise is resolved.
-      state.wss?.removeListener('error', onStartupError);
-      state.wss?.on('error', (/** @type {Error} */ err) => { if (onError) { onError(err); } });
-      const addr = state.wss?.address();
+    }
+
+    function onListening() {
+      cleanupStartupListeners();
+      const wssRuntimeErrorHandler = (/** @type {Error} */ err) => { if (onError) { onError(err); } };
+      wss.on('error', wssRuntimeErrorHandler);
+      state.wss = wss;
+      state.httpServer = null;
+      state.wssErrorHandler = wssRuntimeErrorHandler;
+      state.httpServerErrorHandler = null;
+      const addr = wss.address();
       const actualPort = typeof addr === 'object' && addr ? addr.port : port;
       resolve({ port: actualPort, host: bindHost });
+    }
+
+    wss.on('listening', onListening);
+    wss.on('error', onStartupError);
+    wss.on('connection', onConnectionInternal);
+  });
+}
+
+/**
+ * Closes a server state and clears runtime listeners.
+ *
+ * @param {{ wss: WebSocketServer|null, httpServer: import('node:http').Server|null, wssErrorHandler: ((err: Error) => void)|null, httpServerErrorHandler: ((err: Error) => void)|null }} state
+ * @returns {Promise<void>}
+ */
+function closeServerState(state) {
+  return new Promise((resolve, reject) => {
+    const {
+      wss,
+      httpServer: httpSrv,
+      wssErrorHandler,
+      httpServerErrorHandler,
+    } = state;
+
+    state.wss = null;
+    state.httpServer = null;
+    state.wssErrorHandler = null;
+    state.httpServerErrorHandler = null;
+
+    if (!wss && !httpSrv) {
+      resolve();
+      return;
+    }
+
+    if (wss && wssErrorHandler) {
+      wss.removeListener('error', wssErrorHandler);
+    }
+    if (httpSrv && httpServerErrorHandler) {
+      httpSrv.removeListener('error', httpServerErrorHandler);
+    }
+
+    const finishHttpClose = (/** @type {Error|undefined} */ wssErr) => {
+      if (!httpSrv) {
+        if (wssErr) { reject(wssErr); } else { resolve(); }
+        return;
+      }
+      httpSrv.close((httpErr) => {
+        const err = wssErr || httpErr || undefined;
+        if (err) { reject(err); } else { resolve(); }
+      });
+    };
+
+    if (!wss) {
+      finishHttpClose(undefined);
+      return;
+    }
+
+    for (const client of wss.clients) {
+      client.close();
+    }
+    wss.close((/** @type {Error|undefined} */ wssErr) => {
+      finishHttpClose(wssErr);
     });
-    state.wss.on('error', onStartupError);
-    state.wss.on('connection', (/** @type {import('ws').WebSocket} */ ws) => onConnection(wrapConnection(ws)));
   });
 }
 
@@ -172,8 +261,8 @@ export default class NodeWsAdapter extends WebSocketServerPort {
    * @returns {import('../../ports/WebSocketServerPort.js').WsServerHandle}
    */
   createServer(onConnection) {
-    /** @type {{ wss: WebSocketServer|null, httpServer: import('node:http').Server|null }} */
-    const state = { wss: null, httpServer: null };
+    /** @type {{ wss: WebSocketServer|null, httpServer: import('node:http').Server|null, wssErrorHandler: ((err: Error) => void)|null, httpServerErrorHandler: ((err: Error) => void)|null }} */
+    const state = { wss: null, httpServer: null, wssErrorHandler: null, httpServerErrorHandler: null };
     const staticDir = this._staticDir;
     const onError = this._onError;
 
@@ -189,30 +278,7 @@ export default class NodeWsAdapter extends WebSocketServerPort {
       },
 
       close() {
-        return new Promise((resolve, reject) => {
-          if (!state.wss) {
-            resolve();
-            return;
-          }
-          for (const client of state.wss.clients) {
-            client.close();
-          }
-          const httpSrv = state.httpServer;
-          state.wss.close((/** @type {Error|undefined} */ wssErr) => {
-            state.wss = null;
-            state.httpServer = null;
-            if (httpSrv) {
-              httpSrv.close((httpErr) => {
-                const err = wssErr || httpErr;
-                if (err) { reject(err); } else { resolve(); }
-              });
-            } else if (wssErr) {
-              reject(wssErr);
-            } else {
-              resolve();
-            }
-          });
-        });
+        return closeServerState(state);
       },
     };
   }

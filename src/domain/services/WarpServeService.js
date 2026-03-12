@@ -14,7 +14,7 @@
 
 import { orsetElements } from '../crdt/ORSet.js';
 import { lwwValue } from '../crdt/LWW.js';
-import { decodePropKey, isEdgePropKey, decodeEdgeKey } from './KeyCodec.js';
+import { decodePropKey, isEdgePropKey, decodeEdgeKey, decodeEdgePropKey, encodeEdgeKey } from './KeyCodec.js';
 
 const PROTOCOL_VERSION = 1;
 
@@ -137,18 +137,27 @@ function validateMutateArgs(op, args) {
  *
  * @param {string} graphName
  * @param {import('./JoinReducer.js').WarpStateV5} state
- * @returns {{ graph: string, nodes: Array<{ id: string, props: Record<string, unknown> }>, edges: Array<{ from: string, to: string, label: string }>, frontier: Record<string, number> }}
+ * @returns {{ graph: string, nodes: Array<{ id: string, props: Record<string, unknown> }>, edges: Array<{ from: string, to: string, label: string, props: Record<string, unknown> }>, frontier: Record<string, number> }}
  */
 function serializeState(graphName, state) {
   // Build node-to-props index to avoid O(nodes × props) scan
   /** @type {Map<string, Record<string, unknown>>} */
   const nodePropsMap = new Map();
+  /** @type {Map<string, Record<string, unknown>>} */
+  const edgePropsMap = new Map();
   for (const [key, reg] of state.prop) {
-    // Edge properties are intentionally omitted in the MVP wire format.
-    // Edges are serialized as {from, to, label} only. A future protocol
-    // version should include edge props alongside node props.
-    // TODO: serialize edge properties when protocol supports them
-    if (isEdgePropKey(key)) { continue; }
+    if (isEdgePropKey(key)) {
+      const decoded = decodeEdgePropKey(key);
+      const edgeKey = encodeEdgeKey(decoded.from, decoded.to, decoded.label);
+      let props = edgePropsMap.get(edgeKey);
+      if (!props) {
+        props = {};
+        edgePropsMap.set(edgeKey, props);
+      }
+      props[decoded.propKey] = lwwValue(reg);
+      continue;
+    }
+
     const decoded = decodePropKey(key);
     let props = nodePropsMap.get(decoded.nodeId);
     if (!props) {
@@ -166,7 +175,12 @@ function serializeState(graphName, state) {
   const edges = [];
   for (const edgeKey of orsetElements(state.edgeAlive)) {
     const decoded = decodeEdgeKey(edgeKey);
-    edges.push({ from: decoded.from, to: decoded.to, label: decoded.label });
+    edges.push({
+      from: decoded.from,
+      to: decoded.to,
+      label: decoded.label,
+      props: edgePropsMap.get(edgeKey) || {},
+    });
   }
 
   /** @type {Record<string, number>} */

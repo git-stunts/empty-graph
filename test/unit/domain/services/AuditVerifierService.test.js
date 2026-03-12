@@ -12,6 +12,12 @@ import { AuditReceiptService } from '../../../../src/domain/services/AuditReceip
 import { AuditVerifierService } from '../../../../src/domain/services/AuditVerifierService.js';
 import defaultCodec from '../../../../src/domain/utils/defaultCodec.js';
 import { encodeAuditMessage } from '../../../../src/domain/services/AuditMessageCodec.js';
+import { TrustRecordService } from '../../../../src/domain/trust/TrustRecordService.js';
+import {
+  KEY_ADD_1,
+  KEY_ADD_2,
+  WRITER_BIND_ADD_ALICE,
+} from '../trust/fixtures/goldenRecords.js';
 
 // ── Test crypto adapter ──────────────────────────────────────────────────
 
@@ -72,6 +78,22 @@ function createVerifier(persistence) {
     persistence,
     codec: defaultCodec,
   });
+}
+
+/**
+ * Seeds a trust chain into the in-memory repo.
+ * @param {InMemoryGraphAdapter} persistence
+ * @param {string} graphName
+ * @param {Array<Record<string, unknown>>} records
+ */
+async function seedTrustChain(persistence, graphName, records) {
+  const service = new TrustRecordService({
+    persistence,
+    codec: defaultCodec,
+  });
+  for (const record of records) {
+    await service.appendRecord(graphName, record, { skipSignatureVerify: true });
+  }
 }
 
 // ============================================================================
@@ -790,7 +812,7 @@ describe('AuditVerifierService — trustWarning', () => {
 
     const warning = {
       code: 'TRUST_CONFIG_PRESENT_UNENFORCED',
-      message: 'Trust root configured but signature verification is not implemented in v1',
+      message: 'Deprecated WARP_TRUSTED_ROOT trust config detected; use signed trust records or --trust-pin',
       sources: ['env'],
     };
 
@@ -820,6 +842,57 @@ describe('AuditVerifierService — evaluateTrust', () => {
     expect(result.trust.explanations).toHaveLength(1);
     expect(result.trust.explanations[0].reasonCode).toBe('TRUST_RECORD_CHAIN_INVALID');
     expect(result.trust.explanations[0].reason).toContain('trust storage unavailable');
+  });
+
+  it('verifies signed trust records end-to-end', async () => {
+    const persistence = new InMemoryGraphAdapter();
+    await seedTrustChain(persistence, 'events', [
+      KEY_ADD_1,
+      KEY_ADD_2,
+      WRITER_BIND_ADD_ALICE,
+    ]);
+
+    const verifier = createVerifier(persistence);
+    const result = await verifier.evaluateTrust('events', {
+      mode: 'enforce',
+      writerIds: ['alice'],
+    });
+
+    expect(result.trustVerdict).toBe('pass');
+    expect(result.trust.explanations).toEqual([
+      expect.objectContaining({
+        writerId: 'alice',
+        trusted: true,
+        reasonCode: 'WRITER_BOUND_TO_ACTIVE_KEY',
+      }),
+    ]);
+  });
+
+  it('fails closed when a trust record signature is tampered', async () => {
+    const persistence = new InMemoryGraphAdapter();
+    const tampered = {
+      ...KEY_ADD_2,
+      signature: {
+        ...KEY_ADD_2.signature,
+        sig: Buffer.alloc(64, 0).toString('base64'),
+      },
+    };
+    await seedTrustChain(persistence, 'events', [
+      KEY_ADD_1,
+      tampered,
+      WRITER_BIND_ADD_ALICE,
+    ]);
+
+    const verifier = createVerifier(persistence);
+    const result = await verifier.evaluateTrust('events', {
+      mode: 'enforce',
+      writerIds: ['alice'],
+    });
+
+    expect(result.trustVerdict).toBe('fail');
+    expect(result.trust.status).toBe('error');
+    expect(result.trust.explanations[0].reasonCode).toBe('TRUST_RECORD_CHAIN_INVALID');
+    expect(result.trust.explanations[0].reason).toContain('Trust evidence invalid');
   });
 });
 

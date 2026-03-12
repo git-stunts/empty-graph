@@ -69,6 +69,11 @@ interface ApplySyncResult {
 /**
  * Sync options for syncWith().
  */
+interface SyncTrustOptions {
+  mode?: 'off' | 'log-only' | 'enforce';
+  pin?: string | null;
+}
+
 interface SyncWithOptions {
   path?: string;
   retries?: number;
@@ -84,6 +89,7 @@ interface SyncWithOptions {
     error?: Error;
   }) => void;
   auth?: { secret: string; keyId?: string };
+  trust?: SyncTrustOptions;
   /** Auto-materialize after sync; when true, result includes `state` */
   materialize?: boolean;
 }

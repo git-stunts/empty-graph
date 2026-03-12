@@ -705,6 +705,9 @@
     "SyncAuthServerOptions": {
       "kind": "interface"
     },
+    "SyncTrustOptions": {
+      "kind": "interface"
+    },
     "SyncError": {
       "kind": "class"
     },

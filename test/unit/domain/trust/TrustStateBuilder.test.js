@@ -7,6 +7,11 @@
 
 import { describe, it, expect } from 'vitest';
 import { buildState } from '../../../../src/domain/trust/TrustStateBuilder.js';
+import { computeSignaturePayload } from '../../../../src/domain/trust/TrustCanonical.js';
+import {
+  verifySignature,
+  computeKeyFingerprint,
+} from '../../../../src/infrastructure/adapters/TrustCryptoAdapter.js';
 import {
   KEY_ADD_1,
   KEY_ADD_2,
@@ -45,6 +50,51 @@ describe('buildState — key lifecycle', () => {
     expect(state.revokedKeys.size).toBe(1);
     expect(state.revokedKeys.has(KEY_ID_2)).toBe(true);
     expect(/** @type {*} */ (state.revokedKeys.get(KEY_ID_2)).reasonCode).toBe('KEY_ROLLOVER');
+  });
+});
+
+describe('buildState — signature verification', () => {
+  const cryptoOptions = {
+    signatureVerifier: (record, publicKeyBase64) => verifySignature({
+      algorithm: record.signature.alg,
+      publicKeyBase64,
+      signatureBase64: record.signature.sig,
+      payload: computeSignaturePayload(record),
+    }),
+    computeKeyFingerprint,
+  };
+
+  it('accepts the golden chain when real signatures are verified', () => {
+    const state = buildState([
+      KEY_ADD_1,
+      KEY_ADD_2,
+      WRITER_BIND_ADD_ALICE,
+    ], cryptoOptions);
+    expect(state.errors).toEqual([]);
+    expect(state.activeKeys.has(KEY_ID_1)).toBe(true);
+  });
+
+  it('fails closed on tampered signatures when verification is enabled', () => {
+    const tampered = {
+      ...KEY_ADD_2,
+      issuedAt: '2025-06-15T12:09:00Z',
+    };
+    const state = buildState([KEY_ADD_1, tampered], cryptoOptions);
+    expect(state.errors.some((e) => e.error.includes('Signature verification failed'))).toBe(true);
+    expect(state.activeKeys.has(KEY_ID_2)).toBe(false);
+  });
+
+  it('rejects KEY_ADD records with mismatched key fingerprints when verification is enabled', () => {
+    const mismatched = {
+      ...KEY_ADD_2,
+      subject: {
+        ...KEY_ADD_2.subject,
+        keyId: KEY_ID_1,
+      },
+    };
+    const state = buildState([KEY_ADD_1, mismatched], cryptoOptions);
+    expect(state.errors.some((e) => e.error.includes('fingerprint mismatch'))).toBe(true);
+    expect(state.activeKeys.has(KEY_ID_2)).toBe(false);
   });
 });
 

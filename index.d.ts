@@ -1637,6 +1637,14 @@ export interface SyncAuthClientOptions {
   keyId?: string;
 }
 
+/**
+ * Trust configuration for inbound patch evaluation during sync.
+ */
+export interface SyncTrustOptions {
+  mode?: 'off' | 'log-only' | 'enforce';
+  pin?: string | null;
+}
+
 // ============================================================================
 // Status snapshot
 // ============================================================================
@@ -1700,6 +1708,7 @@ export default class WarpGraph {
     crypto?: CryptoPort;
     codec?: unknown;
     seekCache?: SeekCachePort;
+    trust?: SyncTrustOptions;
     /** Content blob storage (for attachContent/attachEdgeContent). */
     blobStorage?: BlobStoragePort;
     /** Patch blob storage — when set, patch CBOR is encrypted via this port. */
@@ -1921,6 +1930,7 @@ export default class WarpGraph {
       error?: Error;
     }) => void;
     auth?: SyncAuthClientOptions;
+    trust?: SyncTrustOptions;
     /** Auto-materialize after sync; when true, result includes `state` */
     materialize?: boolean;
   }): Promise<{ applied: number; attempts: number; skippedWriters: Array<{ writerId: string; reason: string; localSha: string; remoteSha: string | null }>; state?: WarpStateV5 }>;

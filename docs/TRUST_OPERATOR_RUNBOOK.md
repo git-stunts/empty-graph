@@ -36,7 +36,7 @@ The first trust record must be:
 
 Records form an append-only chain. Each record's `prev` field points to the previous record's `recordId`. Records are stored as Git commits under `refs/warp/<graph>/trust/records`.
 
-> **Note:** The append path validates record schema, recordId integrity, prev-link consistency, and signature envelope structure (presence of `alg` + `sig` fields). It does **not** perform cryptographic Ed25519 signature verification at append time — full crypto verification occurs during trust state evaluation (`buildState`).
+> **Note:** The append path validates record schema, recordId integrity, prev-link consistency, and signature envelope structure (presence of `alg` + `sig` fields). Full cryptographic Ed25519 signature verification occurs during trust state evaluation, which fails closed on invalid signatures, invalid key fingerprints, or unknown issuers.
 
 ## Verify: Check Trust State
 

@@ -83,7 +83,7 @@ Trust evaluation is purely advisory in warn mode. No data is modified or blocked
 `WARP_TRUSTED_ROOT` is deprecated. If set, `verify-audit` will emit a warning:
 
 ```text
-Trust: Trust root configured but signature verification is not implemented in v1
+Trust: Deprecated WARP_TRUSTED_ROOT trust config detected; use signed trust records or --trust-pin
 ```
 
-Migrate to the signed trust record chain for cryptographic evidence.
+Signed trust evaluation now validates record signatures during trust-state construction and fails closed on invalid evidence. Migrate to the signed trust record chain for cryptographic evidence.
