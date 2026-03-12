@@ -133,8 +133,12 @@ export function lintMarkdownCodeSample(sample) {
     true,
     scriptKind
   );
+  const diagnostics = /** @type {ReadonlyArray<ts.DiagnosticWithLocation>} */ (
+    /** @type {ts.SourceFile & { parseDiagnostics?: ReadonlyArray<ts.DiagnosticWithLocation> }} */ (sourceFile)
+      .parseDiagnostics || []
+  );
 
-  return sourceFile.parseDiagnostics.map((diagnostic) => {
+  return diagnostics.map((diagnostic) => {
     const start = diagnostic.start ?? 0;
     const location = ts.getLineAndCharacterOfPosition(sourceFile, start);
     const message = ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n');
