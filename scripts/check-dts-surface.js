@@ -124,6 +124,10 @@ export function extractDtsExports(src) {
   for (const m of src.matchAll(/export\s+(?:declare\s+)?(?:const|function)\s+(\w+)/g)) {
     names.add(m[1]);
   }
+  // export namespace Foo / export declare namespace Foo
+  for (const m of src.matchAll(/export\s+(?:declare\s+)?namespace\s+(\w+)/g)) {
+    names.add(m[1]);
+  }
   // export default class Foo / export default function Foo
   for (const m of src.matchAll(/export\s+(?:declare\s+)?default\s+(?:class|function)\s+(\w+)/g)) {
     names.add(m[1]);
@@ -139,6 +143,32 @@ export function extractDtsExports(src) {
   return names;
 }
 
+const TYPE_ONLY_KINDS = new Set(['interface', 'type']);
+
+/**
+ * Splits manifest exports into runtime-backed and type-only names based on kind.
+ * Unknown kinds fail closed into the runtime-backed set.
+ *
+ * @param {{ exports?: Record<string, { kind?: string }> }} manifest
+ * @returns {{ manifestNames: Set<string>, runtimeNames: Set<string>, typeOnlyNames: Set<string> }}
+ */
+export function classifyManifestExports(manifest) {
+  const manifestNames = new Set();
+  const runtimeNames = new Set();
+  const typeOnlyNames = new Set();
+
+  for (const [name, meta] of Object.entries(manifest.exports || {})) {
+    manifestNames.add(name);
+    if (TYPE_ONLY_KINDS.has(meta?.kind || '')) {
+      typeOnlyNames.add(name);
+    } else {
+      runtimeNames.add(name);
+    }
+  }
+
+  return { manifestNames, runtimeNames, typeOnlyNames };
+}
+
 // ---------------------------------------------------------------------------
 // Main — runs only when executed directly
 // ---------------------------------------------------------------------------
@@ -151,7 +181,7 @@ if (isMain) {
   // 1. Load the manifest
   const manifestPath = resolve(root, 'contracts/type-surface.m8.json');
   const manifest = JSON.parse(readRequired(manifestPath));
-  const manifestNames = new Set(Object.keys(manifest.exports));
+  const { manifestNames, runtimeNames, typeOnlyNames } = classifyManifestExports(manifest);
 
   // 2. Parse index.js — extract named exports
   const indexJs = readRequired(resolve(root, 'index.js'));
@@ -181,22 +211,42 @@ if (isMain) {
     }
   }
 
-  // Check C: Warn about index.d.ts exports not in manifest (type-only exports are valid)
+  // Check C: Every runtime-backed manifest export must exist in index.js
+  for (const name of runtimeNames) {
+    if (!jsExports.has(name)) {
+      process.stderr.write(`ERROR: manifest runtime export "${name}" missing from index.js\n`);
+      errors++;
+    }
+  }
+
+  // Check D: Runtime exports must not be marked type-only in the manifest
+  for (const name of jsExports) {
+    if (typeOnlyNames.has(name)) {
+      process.stderr.write(`ERROR: runtime export "${name}" is marked type-only in type-surface.m8.json\n`);
+      errors++;
+    }
+  }
+
+  // Check E: Warn about index.d.ts exports not in manifest
   for (const name of dtsExports) {
     if (!manifestNames.has(name)) {
-      process.stderr.write(`WARN: index.d.ts export "${name}" not in manifest (type-only?)\n`);
+      process.stderr.write(`WARN: index.d.ts export "${name}" not in manifest\n`);
       warnings++;
     }
   }
 
   // 5. Report
   const total = manifestNames.size;
+  const runtimeCount = runtimeNames.size;
+  const typeOnlyCount = typeOnlyNames.size;
   const jsCount = jsExports.size;
   const dtsCount = dtsExports.size;
 
   if (!quiet) {
     process.stdout.write(`\nDeclaration surface check:\n`);
     process.stdout.write(`  Manifest entries:   ${total}\n`);
+    process.stdout.write(`    Runtime-backed:   ${runtimeCount}\n`);
+    process.stdout.write(`    Type-only:        ${typeOnlyCount}\n`);
     process.stdout.write(`  index.js exports:   ${jsCount}\n`);
     process.stdout.write(`  index.d.ts exports: ${dtsCount}\n`);
     process.stdout.write(`  Errors:   ${errors}\n`);

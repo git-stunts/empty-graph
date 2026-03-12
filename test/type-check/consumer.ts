@@ -15,6 +15,7 @@ import WarpGraph, {
   CryptoPort,
   SeekCachePort,
   HttpServerPort,
+  WebSocketServerPort,
   QueryBuilder,
   ObserverView,
   PatchBuilderV2,
@@ -49,6 +50,7 @@ import WarpGraph, {
   StorageError,
   checkAborted,
   createTimeoutSignal,
+  WarpServeService,
   createNodeAdd,
   createNodeTombstone,
   createEdgeAdd,
@@ -83,7 +85,11 @@ import type {
   WarpStateV5,
   TickReceipt,
   ObserverConfig,
+  PingResult,
+  RepositoryHealth,
+  IndexHealth,
   TranslationCostResult,
+  TranslationCostBreakdown,
   StateDiffResult,
   WarpGraphStatus,
   SyncRequest,
@@ -99,19 +105,34 @@ import type {
   WormholeEdge,
   PatchEntry,
   LogicalTraversal,
+  TraversalDirection,
+  TraversalNode,
+  TraversalOptions,
+  PathOptions,
+  PathResult,
+  QueryNodeSnapshot,
+  QueryResultV1,
   TemporalQuery,
   SyncAuthServerOptions,
   SyncAuthClientOptions,
+  RebuildOptions,
   OpNodeAdd,
   OpNodeTombstone,
   OpEdgeAdd,
   OpEdgeTombstone,
   OpPropSet,
+  PropSet,
+  PropRemoved,
   ValueRefInline,
   ValueRefBlob,
+  ValueRef,
   EventId,
   CreateWormholeOptions,
   ComposeWormholesOptions,
+  VerifyBTROptions,
+  WeightedCostSelector,
+  WsConnection,
+  WsServerHandle,
   TickReceiptOpType,
   TickReceiptResult,
 } from '../../index.js';
@@ -126,6 +147,7 @@ declare const logger: LoggerPort;
 declare const clock: ClockPort;
 declare const crypto: CryptoPort;
 declare const seekCache: SeekCachePort;
+declare const wsPort: WebSocketServerPort;
 
 // Verify imported classes/ports are usable as types
 declare const _idxStorage: IndexStoragePort;
@@ -148,6 +170,69 @@ const graph: WarpGraph = await WarpGraph.open({
   onDeleteWithData: 'reject',
   trust: { mode: 'off' },
 });
+
+// ---- additional type-only surface coverage ----
+const ping: PingResult = { ok: true, latencyMs: 1 };
+const repoHealth: RepositoryHealth = { status: 'healthy', latencyMs: ping.latencyMs };
+const indexHealth: IndexHealth = { status: 'healthy', loaded: true, shardCount: 1 };
+const rebuildOptions: RebuildOptions = {
+  limit: 10,
+  maxMemoryBytes: 1024,
+  onFlush: ({ flushedBytes, totalFlushedBytes, flushCount }) => {
+    const _: [number, number, number] = [flushedBytes, totalFlushedBytes, flushCount];
+    return _;
+  },
+  onProgress: ({ processedNodes, currentMemoryBytes }) => {
+    const _: [number, number | null] = [processedNodes, currentMemoryBytes];
+    return _;
+  },
+};
+const traversalDirection: TraversalDirection = 'forward';
+const traversalNode: TraversalNode = { sha: 'abc123', depth: 0, parent: null };
+const traversalOptions: TraversalOptions = { start: traversalNode.sha, direction: traversalDirection, maxDepth: 2 };
+const pathOptions: PathOptions = { from: 'a', to: 'b', maxDepth: 4, maxNodes: 100 };
+const pathResult: PathResult = { found: true, path: ['a', 'b'], length: 1 };
+const queryNodeSnapshot: QueryNodeSnapshot = {
+  id: 'user:alice',
+  props: { name: 'Alice' },
+  edgesOut: [{ label: 'follows', to: 'user:bob' }],
+  edgesIn: [],
+};
+const queryResultV1: QueryResultV1 = {
+  stateHash: 'deadbeef',
+  nodes: [{ id: queryNodeSnapshot.id, props: queryNodeSnapshot.props }],
+};
+const weightedCostSelector: WeightedCostSelector = { weightFn: (_from, _to, _label) => 1 };
+const translationCostBreakdown: TranslationCostBreakdown = { nodeLoss: 0, edgeLoss: 0, propLoss: 0 };
+const propSet: PropSet = { key: 'node\0name', nodeId: 'user:alice', propKey: 'name', oldValue: 'A', newValue: 'B' };
+const propRemoved: PropRemoved = { key: 'node\0age', nodeId: 'user:alice', propKey: 'age', oldValue: 42 };
+const valueRef: ValueRef = Math.random() > -1 ? { type: 'inline', value: 'x' } : { type: 'blob', oid: 'abc123' };
+const verifyBTROptions: VerifyBTROptions = { verifyReplay: true, crypto };
+const _typeCoverageTuple: [
+  RebuildOptions,
+  TraversalOptions,
+  PathOptions,
+  PathResult,
+  QueryResultV1,
+  WeightedCostSelector,
+  TranslationCostBreakdown,
+  PropSet,
+  PropRemoved,
+  ValueRef,
+  VerifyBTROptions,
+] = [
+  rebuildOptions,
+  traversalOptions,
+  pathOptions,
+  pathResult,
+  queryResultV1,
+  weightedCostSelector,
+  translationCostBreakdown,
+  propSet,
+  propRemoved,
+  valueRef,
+  verifyBTROptions,
+];
 
 // ---- createPatch -> PatchBuilderV2 ----
 const pb: PatchBuilderV2 = await graph.createPatch();
@@ -247,6 +332,29 @@ declare const httpPort: HttpServerPort;
 const server = await graph.serve({ port: 3000, httpPort });
 const serverUrl: string = server.url;
 await server.close();
+
+// ---- WarpServeService + WebSocketServerPort ----
+declare const wsConnection: WsConnection;
+declare const wsServerHandle: WsServerHandle;
+wsConnection.send('ping');
+wsConnection.onMessage((message: string) => { const _: string = message; return _; });
+wsConnection.onClose((code?: number, reason?: string) => { const _: [number | undefined, string | undefined] = [code, reason]; return _; });
+wsConnection.close();
+const wsListen: Promise<{ port: number; host: string }> = wsServerHandle.listen(0, '127.0.0.1');
+const wsClose: Promise<void> = wsServerHandle.close();
+const serveBridge = new WarpServeService({
+  wsPort,
+  graphs: [{
+    graphName: graph.graphName,
+    materialize: graph.materialize.bind(graph),
+    subscribe: graph.subscribe.bind(graph),
+    getNodeProps: graph.getNodeProps.bind(graph),
+    createPatch: graph.createPatch.bind(graph),
+    query: graph.query.bind(graph),
+  }],
+});
+const bridgeListen: Promise<{ port: number; host: string }> = serveBridge.listen(9999);
+const bridgeClose: Promise<void> = serveBridge.close();
 
 // ---- discoverWriters / getWriterPatches ----
 const writers: string[] = await graph.discoverWriters();
