@@ -119,6 +119,8 @@ Folds should be exposed as explicit view operations, not implicit traversal surp
 
 #### 3.1 View API
 
+_Proposed API sketch: `graph.view()`, `view.traverse()`, and `view.renderAscii()` are not implemented yet._
+
 ```ts
 const view = graph.view({ fold: { mode: 'shallow', maxDepth: 1 } });
 
