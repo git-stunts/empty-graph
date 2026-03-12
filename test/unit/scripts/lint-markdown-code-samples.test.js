@@ -104,6 +104,16 @@ describe('extractMarkdownCodeSamples', () => {
       },
     ]);
   });
+
+  it('rejects mixed fence markers instead of parsing them as samples', () => {
+    const markdown = [
+      '``~ts',
+      'export const bad = 1;',
+      '``~',
+    ].join('\n');
+
+    expect(extractMarkdownCodeSamples(markdown, 'MIXED.md')).toEqual([]);
+  });
 });
 
 describe('resolveRepoScriptTarget', () => {
@@ -204,6 +214,40 @@ describe('lintMarkdownCodeSamples', () => {
         column: 22,
         language: 'ts',
         message: 'Type expected.',
+      },
+    ]);
+  });
+
+  it('reports unterminated JavaScript and TypeScript fences', () => {
+    const root = createTempDir();
+    const badDoc = join(root, 'docs', 'unterminated.md');
+    mkdirSync(join(root, 'docs'));
+    writeFileSync(badDoc, '```ts\nexport const broken = 1;\n');
+
+    expect(lintMarkdownCodeSamples([badDoc])).toEqual([
+      {
+        filePath: badDoc,
+        line: 1,
+        column: 1,
+        language: 'ts',
+        message: 'Unterminated Markdown code fence.',
+      },
+    ]);
+  });
+
+  it('reports malformed mixed-marker JavaScript and TypeScript fences', () => {
+    const root = createTempDir();
+    const badDoc = join(root, 'docs', 'mixed-marker.md');
+    mkdirSync(join(root, 'docs'));
+    writeFileSync(badDoc, '``~ts\nexport const broken = 1;\n``~\n');
+
+    expect(lintMarkdownCodeSamples([badDoc])).toEqual([
+      {
+        filePath: badDoc,
+        line: 1,
+        column: 1,
+        language: 'ts',
+        message: 'Malformed Markdown fence marker; use only backticks or only tildes.',
       },
     ]);
   });

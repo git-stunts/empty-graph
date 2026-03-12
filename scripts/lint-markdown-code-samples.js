@@ -11,6 +11,8 @@ const repoTsconfigPath = resolve(root, 'tsconfig.base.json');
 
 const IGNORED_DIRS = new Set(['.git', 'node_modules', 'coverage']);
 const CODE_SAMPLE_LANGUAGES = new Set(['js', 'javascript', 'ts', 'typescript']);
+const ANY_FENCE_PATTERN = /^ {0,3}([`~]{3,})(.*)$/;
+const OPENING_FENCE_PATTERN = /^ {0,3}((?:`{3,}|~{3,}))(.*)$/;
 
 /**
  * @typedef {{
@@ -63,22 +65,56 @@ export function resolveRepoScriptTarget() {
 const repoScriptTarget = resolveRepoScriptTarget();
 
 /**
+ * @param {string} filePath
+ * @param {number} line
+ * @param {string} language
+ * @param {string} message
+ * @returns {MarkdownCodeSampleIssue}
+ */
+function createMarkdownCodeSampleIssue(filePath, line, language, message) {
+  return {
+    filePath,
+    line,
+    column: 1,
+    language,
+    message,
+  };
+}
+
+/**
  * @param {string} markdown
  * @param {string} filePath
- * @returns {MarkdownCodeSample[]}
+ * @returns {{ samples: MarkdownCodeSample[], issues: MarkdownCodeSampleIssue[] }}
  */
-export function extractMarkdownCodeSamples(markdown, filePath) {
+function extractMarkdownCodeSamplesWithIssues(markdown, filePath) {
   const lines = markdown.split('\n');
   /** @type {MarkdownCodeSample[]} */
   const samples = [];
+  /** @type {MarkdownCodeSampleIssue[]} */
+  const issues = [];
   /** @type {{ marker: string, markerLength: number, language: string|null, fenceLine: number, codeLines: string[] } | null} */
   let activeFence = null;
 
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index];
-    const fenceMatch = line.match(/^ {0,3}([`~]{3,})(.*)$/);
+    const anyFenceMatch = line.match(ANY_FENCE_PATTERN);
+    const fenceMatch = line.match(OPENING_FENCE_PATTERN);
     if (!activeFence) {
+      if (!anyFenceMatch) {
+        continue;
+      }
       if (!fenceMatch) {
+        const language = parseFenceLanguage(anyFenceMatch[2]);
+        if (language) {
+          issues.push(
+            createMarkdownCodeSampleIssue(
+              filePath,
+              index + 1,
+              language,
+              'Malformed Markdown fence marker; use only backticks or only tildes.'
+            )
+          );
+        }
         continue;
       }
       activeFence = {
@@ -109,7 +145,27 @@ export function extractMarkdownCodeSamples(markdown, filePath) {
     activeFence.codeLines.push(line);
   }
 
-  return samples;
+  if (activeFence?.language) {
+    issues.push(
+      createMarkdownCodeSampleIssue(
+        filePath,
+        activeFence.fenceLine,
+        activeFence.language,
+        'Unterminated Markdown code fence.'
+      )
+    );
+  }
+
+  return { samples, issues };
+}
+
+/**
+ * @param {string} markdown
+ * @param {string} filePath
+ * @returns {MarkdownCodeSample[]}
+ */
+export function extractMarkdownCodeSamples(markdown, filePath) {
+  return extractMarkdownCodeSamplesWithIssues(markdown, filePath).samples;
 }
 
 /**
@@ -185,7 +241,8 @@ export function lintMarkdownCodeSamples(markdownFiles) {
   const issues = [];
   for (const filePath of markdownFiles) {
     const markdown = readFileSync(filePath, 'utf8');
-    const samples = extractMarkdownCodeSamples(markdown, filePath);
+    const { samples, issues: extractionIssues } = extractMarkdownCodeSamplesWithIssues(markdown, filePath);
+    issues.push(...extractionIssues);
     for (const sample of samples) {
       issues.push(...lintMarkdownCodeSample(sample));
     }
