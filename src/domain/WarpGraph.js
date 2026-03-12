@@ -194,6 +194,41 @@ export default class WarpGraph {
     /** @type {{ mode: 'off'|'log-only'|'enforce', pin: string|null }} */
     this._trustConfig = normalizeTrustConfig(trust);
 
+    /** @type {((override?: { mode?: 'off'|'log-only'|'enforce', pin?: string|null }|undefined|null) => SyncTrustGate|null)} */
+    this._createSyncTrustGate = (override) => {
+      const config = normalizeTrustConfig(override ?? this._trustConfig);
+      if (config.mode === 'off') {
+        return null;
+      }
+
+      const verifier = new AuditVerifierService({
+        persistence: this._persistence,
+        codec: this._codec,
+        logger: this._logger || undefined,
+      });
+
+      return new SyncTrustGate({
+        trustMode: config.mode,
+        logger: this._logger || undefined,
+        trustEvaluator: {
+          evaluateWriters: async (writerIds) => {
+            const assessment = await verifier.evaluateTrust(this._graphName, {
+              pin: config.pin || undefined,
+              mode: config.mode === 'enforce' ? 'enforce' : 'warn',
+              writerIds,
+            });
+            return {
+              trusted: new Set(
+                assessment.trust.explanations
+                  .filter((explanation) => explanation.trusted)
+                  .map((explanation) => explanation.writerId),
+              ),
+            };
+          },
+        },
+      });
+    };
+
     const trustGate = this._createSyncTrustGate() || undefined;
     /** @type {SyncController} */
     this._syncController = new SyncController(this, {
@@ -220,46 +255,6 @@ export default class WarpGraph {
 
     /** @type {boolean} */
     this._indexDegraded = false;
-  }
-
-  /**
-   * Builds a sync trust gate backed by the graph's trust record chain.
-   *
-   * @param {{ mode?: 'off'|'log-only'|'enforce', pin?: string|null }|undefined|null} [override]
-   * @returns {SyncTrustGate|null}
-   */
-  _createSyncTrustGate(override) {
-    const config = normalizeTrustConfig(override ?? this._trustConfig);
-    if (config.mode === 'off') {
-      return null;
-    }
-
-    const verifier = new AuditVerifierService({
-      persistence: this._persistence,
-      codec: this._codec,
-      logger: this._logger || undefined,
-    });
-
-    return new SyncTrustGate({
-      trustMode: config.mode,
-      logger: this._logger || undefined,
-      trustEvaluator: {
-        evaluateWriters: async (writerIds) => {
-          const assessment = await verifier.evaluateTrust(this._graphName, {
-            pin: config.pin || undefined,
-            mode: config.mode === 'enforce' ? 'enforce' : 'warn',
-            writerIds,
-          });
-          return {
-            trusted: new Set(
-              assessment.trust.explanations
-                .filter((explanation) => explanation.trusted)
-                .map((explanation) => explanation.writerId),
-            ),
-          };
-        },
-      },
-    });
   }
 
   /**

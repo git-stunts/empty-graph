@@ -560,7 +560,9 @@ export default class SyncController {
         emit('materialized');
       }
 
-      const result = await this._applySyncResponseWithGate(response, trustGate);
+      const result = trustGate === this._trustGate
+        ? await this.applySyncResponse(response)
+        : await this._applySyncResponseWithGate(response, trustGate);
       emit('applied', { applied: result.applied });
 
       const durationMs = this._host._clock.now() - attemptStart;
