@@ -18,7 +18,7 @@ cd "$ROOT"
 QUICK=0
 if [ "$WARP_QUICK_PUSH" = "1" ] || [ "$WARP_QUICK_PUSH" = "true" ]; then
   QUICK=1
-  echo "WARP_QUICK_PUSH: quick mode active — Gate 6 (unit tests) will be skipped"
+  echo "WARP_QUICK_PUSH: quick mode active — Gate 8 (unit tests) will be skipped"
 fi
 
 echo "══════════════════════════════════════════════════════════"
