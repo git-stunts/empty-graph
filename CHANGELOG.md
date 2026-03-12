@@ -11,11 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Streaming transitive closure traversal** — Added `transitiveClosureStream()` to the traversal stack so callers can consume reachability edges lazily as an `AsyncGenerator<{ from, to }>` without materializing the full closure array. The existing `transitiveClosure()` API remains and now collects from the stream for backward compatibility.
 - **First-class sync trust configuration** — `WarpGraph.open({ trust })` and `graph.syncWith(..., { trust })` now expose an explicit public trust-config surface for sync evaluation instead of relying on hidden controller wiring alone.
+- **Fluent `WarpStateV5` test builder** — Added `createStateBuilder()` in `test/helpers/stateBuilder.js` so state-heavy tests can seed nodes, edges, removals, properties, frontier state, and graph materialization through one fluent helper instead of ad hoc OR-Set/LWW mutation.
 
 ### Changed
 
 - **Large-graph traversal memory profile** — `topologicalSort()` now has a lightweight mode that avoids retaining discovery adjacency when callers do not need it. `levels()` and `transitiveReduction()` were refactored to re-fetch neighbors on demand instead of pinning full topo adjacency in memory, reducing steady-state large-graph working sets.
 - **Surface validation accounting** — The declaration surface checker now distinguishes runtime-backed exports from type-only manifest entries and understands namespace declarations, which makes the type-surface contract tighter without forcing runtime exports for pure types.
+- **Trust test infrastructure deduplicated** — The TrustRecordService suites now share a single in-memory ref/blob/tree/commit fixture and JSON codec via `test/helpers/trustTestUtils.js`, eliminating the four forked mock implementations that had started to drift.
 
 ### Fixed
 

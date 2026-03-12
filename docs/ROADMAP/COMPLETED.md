@@ -385,6 +385,8 @@ Investigation revealed the correct approach is a two-phase split:
 |----|------|
 | B19 | ~~**CANONICAL SERIALIZATION PROPERTY TESTS**~~ — **DONE (`v15`).** Added seeded property-based coverage for `canonicalStringify()` idempotency and determinism. |
 | B22 | ~~**CANONICAL PARSE DETERMINISM TEST**~~ — **DONE (`v15`).** Added property-based tests for stable canonical output across repeated `TrustRecordSchema.parse()` calls. |
+| B36 | ~~**FLUENT STATE BUILDER FOR TESTS**~~ — **DONE (`v15`).** Added `createStateBuilder()` for fluent WarpStateV5 seeding and adopted it in the state-heavy graph/GC/snapshot suites. |
+| B37 | ~~**SHARED MOCK PERSISTENCE FIXTURE**~~ — **DONE (`v15`).** Consolidated the TrustRecordService suites onto `test/helpers/trustTestUtils.js` instead of four forked mock persistence definitions. |
 | B49 | ~~**TIGHTEN `checkDeclarations` INLINE COMMENT STRIPPING**~~ — **DONE (`v15`).** `ts-policy-check` now strips inline declaration comments before checking for `any`. |
 | B81 | ~~**`attachContent` ORPHAN BLOB GUARD**~~ — **DONE (`v15`).** Content attachment now validates the target node/edge before writing blob content. |
 | B95 | ~~**NAMESPACE EXPORT SUPPORT**~~ — **DONE (`v15`).** The declaration surface validator now handles namespace exports in `.d.ts` parsing. |

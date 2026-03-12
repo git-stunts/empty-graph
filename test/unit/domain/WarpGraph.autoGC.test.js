@@ -1,8 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import WarpGraph from '../../../src/domain/WarpGraph.js';
-import { createEmptyStateV5 } from '../../../src/domain/services/JoinReducer.js';
-import { orsetAdd } from '../../../src/domain/crdt/ORSet.js';
-import { createVersionVector } from '../../../src/domain/crdt/VersionVector.js';
+import { createStateBuilder } from '../../helpers/stateBuilder.js';
 import { createMockPersistence, createMockLogger } from '../../helpers/warpGraphTestUtils.js';
 
 /**
@@ -17,20 +15,13 @@ import { createMockPersistence, createMockLogger } from '../../helpers/warpGraph
  * Adds nodes and then removes them, leaving tombstone entries.
  */
 function createHighTombstoneState() {
-  const state = createEmptyStateV5();
-  const vv = createVersionVector();
-
-  // Add many nodes then tombstone them to create high tombstone ratio
+  const builder = createStateBuilder();
   for (let i = 0; i < 100; i++) {
-    orsetAdd(state.nodeAlive, `node-${i}`, { writerId: 'writer-1', counter: i + 1 });
+    builder
+      .node(`node-${i}`, { writerId: 'writer-1', counter: i + 1 })
+      .removeNode(`node-${i}`);
   }
-  // Remove them all (add tombstones for each encoded dot)
-  for (let i = 0; i < 100; i++) {
-    state.nodeAlive.tombstones.add(`writer-1:${i + 1}`);
-  }
-
-  state.observedFrontier = vv;
-  return state;
+  return builder.vv('writer-1', 100).build();
 }
 
 describe('WarpGraph auto-GC after materialize (GK/GC/1)', () => {
@@ -126,7 +117,7 @@ describe('WarpGraph auto-GC after materialize (GK/GC/1)', () => {
     logger.info.mockClear();
 
     // Empty state → no tombstones → no GC needed
-    /** @type {any} */ (graph)._maybeRunGC(createEmptyStateV5());
+    /** @type {any} */ (graph)._maybeRunGC(createStateBuilder().build());
 
     expect(logger.warn).not.toHaveBeenCalled();
     expect(logger.info).not.toHaveBeenCalled();

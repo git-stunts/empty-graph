@@ -1,7 +1,7 @@
 # ROADMAP — @git-stunts/git-warp
 
 > **Current version:** v14.0.0
-> **Last reconciled:** 2026-03-12 (v15 backlog + changelog reconciliation; 34 active standalone items remain after trust/serve hardening, type-surface cleanup, and large-graph traversal work)
+> **Last reconciled:** 2026-03-12 (v15 backlog + changelog reconciliation; 32 active standalone items remain after trust/serve hardening, type-surface cleanup, large-graph traversal work, and test-infra extraction)
 > **Completed milestones:** [docs/ROADMAP/COMPLETED.md](docs/ROADMAP/COMPLETED.md)
 
 ---
@@ -173,7 +173,7 @@ Archived to [COMPLETED.md](docs/ROADMAP/COMPLETED.md#milestone-11--compass-ii).
 
 ## Standalone Lane (Ongoing)
 
-34 active items sorted into priority tiers. Guiding principles: (1) harden first — correctness, memory safety, test infra, CI gates before features; (2) large-graph support is forward-looking — medium priority; (3) CI & Tooling items batch into one PR.
+32 active items sorted into priority tiers. Guiding principles: (1) harden first — correctness, memory safety, test infra, CI gates before features; (2) large-graph support is forward-looking — medium priority; (3) CI & Tooling items batch into one PR.
 
 > Completed standalone items archived in [COMPLETED.md](docs/ROADMAP/COMPLETED.md#standalone-lane--completed-items).
 
@@ -187,15 +187,15 @@ All P0 items are complete on `v15`:
 
 ### P1 — Correctness & Test Infrastructure
 
-B36 and B37 improve velocity for all future test work — do them early. B165, B166, and B167 are complete; B19 + B22 landed as the canonical determinism property pack.
+B36 and B37 landed on `v15` as the shared test-foundation pass. Remaining P1 work is B48, B80, and B99. B165, B166, and B167 are complete; B19 + B22 landed as the canonical determinism property pack.
 
 | ID | Item | Effort |
 |----|------|--------|
 | B165 | ✅ **WARPSERVESERVICE `listen()` DEFERRED STATE MUTATION** — `listen()` now defers `_server` assignment and subscription registration until bind succeeds; on failure, cleans up subscriptions. `_onConnection` catch now sends generic `"Internal error"` instead of raw `err.message`. **File:** `src/domain/services/WarpServeService.js` | S |
 | B166 | ✅ **ADAPTER CLEANUP CONTRACTS** — `NodeWsAdapter` now cleans up partial startup state, resets internal handles on shutdown, and closes idempotently. **File:** `src/infrastructure/adapters/NodeWsAdapter.js` | M |
 | B167 | ✅ **SERVE TEST COVERAGE GAPS** — Added tests for: listen-failure cleanup (leaked subscriptions), double-listen guard, error sanitization (no internal detail leakage), `attachContent`/`attachEdgeContent` smoke tests through mutation pipeline. **File:** `test/unit/domain/services/WarpServeService.test.js` | S |
-| B36 | **FLUENT STATE BUILDER FOR TESTS** — `StateBuilder` helper replacing manual `WarpStateV5` literals | M |
-| B37 | **SHARED MOCK PERSISTENCE FIXTURE** — dedup `createMockPersistence()` across trust test files | S |
+| B36 | ✅ **FLUENT STATE BUILDER FOR TESTS** — Added `createStateBuilder()` and adopted it in the state-heavy graph/GC/snapshot suites, replacing the manual OR-Set/LWW seeding patterns that had started to sprawl across tests. | M |
+| B37 | ✅ **SHARED MOCK PERSISTENCE FIXTURE** — Consolidated the TrustRecordService suites onto `test/helpers/trustTestUtils.js`, removing the duplicated in-memory ref/blob/tree/commit mocks and codec stubs. | S |
 | B48 | **ESLINT BAN `= {}` CONSTRUCTOR DEFAULTS WITH REQUIRED PARAMS** — catches the pattern where `= {}` silently makes required options optional at the type level (found in CommitDagTraversalService, DagTraversal, DagPathFinding, DagTopology, BitmapIndexReader) | S |
 | B80 | **CHECKPOINTSERVICE CONTENT BLOB UNBOUNDED MEMORY** — iterates all properties into single `Set` before tree serialization. Stream content OIDs in batches. From B-AUDIT-10 (JANK). **File:** `src/domain/services/CheckpointService.js:224-226` | M |
 | B99 | **DETERMINISM FUZZER FOR TREE CONSTRUCTION** — property-based test randomizing content blob insertion order in `PatchBuilderV2` and content OID iteration order in `CheckpointService.createV5()`, verifying identical tree OID. From B-FEAT-2. **File:** new test in `test/unit/domain/services/` | M |
@@ -329,47 +329,42 @@ B5, B6, B13, B17, B18, B25, B45 — rejected 2026-02-17 with cause recorded in `
 
 Guiding principles: (1) harden first — correctness, memory safety, test infra, CI gates before features; (2) large-graph support is forward-looking — medium priority; (3) CI & Tooling items batch into one PR.
 
-#### Wave 1: Remaining Correctness Foundation (P1 start)
+#### Wave 1: Correctness (P1 finish)
 
-1. **B36** — Fluent StateBuilder (M, test DX)
-2. **B37** — Shared mock persistence (S, test DRY)
+1. **B48** — ESLint `= {}` defaults rule (S)
+2. **B80** — CheckpointService memory streaming (M)
+3. **B99** — Determinism fuzzer (M)
 
-#### Wave 2: Correctness (P1 finish)
+#### Wave 2: CI & Tooling (P2, one batch PR)
 
-3. **B48** — ESLint `= {}` defaults rule (S)
-4. **B80** — CheckpointService memory streaming (M)
-5. **B99** — Determinism fuzzer (M)
-
-#### Wave 3: CI & Tooling (P2, one batch PR)
-
-6. **B83, B85, B57, B86, B87, B88, B119, B123, B128, B12, B43**
+4. **B83, B85, B57, B86, B87, B88, B119, B123, B128, B12, B43**
 
 Internal chain: **B97 already resolved on v15** → B85 → B57. B123 is the largest — may split out.
 
-#### Wave 4: Type Surface (P3)
+#### Wave 3: Type Surface (P3)
 
-7. **B96, B98, B54** — batch or cherry-pick
-8. **B28** — TypeScript example app
+5. **B96, B98, B54** — batch or cherry-pick
+6. **B28** — TypeScript example app
 
-#### Wave 5: Large-Graph (P4)
+#### Wave 4: Large-Graph (P4)
 
-9. **B152** — full async generator API (B151 prerequisite is complete)
+7. **B152** — full async generator API (B151 prerequisite is complete)
 
-#### Wave 6: Features + Docs (P5 + P6)
+#### Wave 5: Features + Docs (P5 + P6)
 
-10. **B155** — levels() as --view layout
-11. **B156** — structural diff (if H1 is in play)
-12. Docs/process items (B34, B35, B76, B79, B102–B104, B129, B147) folded into related PRs
+8. **B155** — levels() as --view layout
+9. **B156** — structural diff (if H1 is in play)
+10. Docs/process items (B34, B35, B76, B79, B102–B104, B129, B147) folded into related PRs
 
-#### Wave 7: git-cas Modernization (P7)
+#### Wave 6: git-cas Modernization (P7)
 
-13. **B158** — upgrade `@git-stunts/git-cas` to v5 (unblocks all P7 items)
-14. **B159** — CDC chunking for seek cache (quick win after B158)
-15. **B161** — encrypted seek cache
-16. **B160** — blob attachments via CAS
-17. **B162** — observability alignment
-18. **B163** — streaming restore for large states
-19. **B164** — graph encryption at rest (largest, last)
+11. **B158** — upgrade `@git-stunts/git-cas` to v5 (unblocks all P7 items)
+12. **B159** — CDC chunking for seek cache (quick win after B158)
+13. **B161** — encrypted seek cache
+14. **B160** — blob attachments via CAS
+15. **B162** — observability alignment
+16. **B163** — streaming restore for large states
+17. **B164** — graph encryption at rest (largest, last)
 
 ### Dependency Chains
 
@@ -379,7 +374,7 @@ B97 (done) ──→ B85 (P2) ──→ B57 (P2)
 
 B151 (done) ──→ B152 (P4)   closure streaming → full async generator API
 
-B36 (P1) ──→ (improves velocity for B99 and future tests)
+B36 (done) ──→ (improves velocity for B99 and future tests)
 
 B158 (P7) ──→ B159 (P7)   CDC seek cache
           ├──→ B160 (P7)   blob attachments
@@ -402,11 +397,11 @@ B158 (P7) ──→ B159 (P7)   CDC seek cache
 | **Milestone (M12)** | 18 | B66, B67, B70, B73, B75, B105–B115, B117, B118 |
 | **Milestone (M13)** | 1 | B116 (internal: DONE; wire-format: DEFERRED) |
 | **Milestone (M14)** | 16 | B130–B145 |
-| **Standalone** | 34 | B12, B28, B34–B37, B43, B48, B53, B54, B57, B76, B79–B80, B83, B85–B88, B96, B98–B99, B102–B104, B119, B123, B127–B129, B147, B152, B155–B156 |
-| **Standalone (done)** | 51 | B19, B22, B26, B44, B46, B47, B49–B52, B55, B71, B72, B77, B78, B81–B82, B84, B89–B95, B97, B100, B120–B122, B124, B125, B126, B146, B148–B151, B153, B154, B157–B165, B167 |
+| **Standalone** | 32 | B12, B28, B34–B35, B43, B48, B53, B54, B57, B76, B79–B80, B83, B85–B88, B96, B98–B99, B102–B104, B119, B123, B127–B129, B147, B152, B155–B156 |
+| **Standalone (done)** | 53 | B19, B22, B26, B36–B37, B44, B46, B47, B49–B52, B55, B71, B72, B77, B78, B81–B82, B84, B89–B95, B97, B100, B120–B122, B124, B125, B126, B146, B148–B151, B153, B154, B157–B165, B167 |
 | **Deferred** | 7 | B4, B7, B16, B20, B21, B27, B101 |
 | **Rejected** | 7 | B5, B6, B13, B17, B18, B25, B45 |
-| **Total tracked** | **144** total; 51 standalone done | |
+| **Total tracked** | **144** total; 53 standalone done | |
 
 ### STANK.md Cross-Reference
 

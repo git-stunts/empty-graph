@@ -9,102 +9,20 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { TrustRecordService } from '../../../../src/domain/trust/TrustRecordService.js';
+import { createJsonCodec, createTrustRecordPersistence } from '../../../helpers/trustTestUtils.js';
 import { KEY_ADD_1, KEY_ADD_2 } from './fixtures/goldenRecords.js';
 
-function createMockPersistence() {
-  const refs = new Map();
-  const blobs = new Map();
-  const trees = new Map();
-  const commits = new Map();
-  let blobCounter = 0;
-  let treeCounter = 0;
-  let commitCounter = 0;
-
-  return {
-    refs,
-    /** @param {*} ref */
-    async readRef(ref) {
-      return refs.get(ref) ?? null;
-    },
-    /** @param {*} ref @param {*} newOid @param {*} expectedOid */
-    async compareAndSwapRef(ref, newOid, expectedOid) {
-      const current = refs.get(ref) ?? null;
-      if (current !== expectedOid) {
-        throw new Error(`CAS failure: expected ${expectedOid}, found ${current}`);
-      }
-      refs.set(ref, newOid);
-    },
-    /** @param {*} data */
-    async writeBlob(data) {
-      const oid = `blob-${++blobCounter}`;
-      blobs.set(oid, data);
-      return oid;
-    },
-    /** @param {*} oid */
-    async readBlob(oid) {
-      const data = blobs.get(oid);
-      if (!data) { throw new Error(`Blob not found: ${oid}`); }
-      return data;
-    },
-    /** @param {string[]} entries */
-    async writeTree(entries) {
-      const oid = `tree-${++treeCounter}`;
-      /** @type {Record<string, string>} */
-      const parsed = {};
-      for (const line of entries) {
-        const match = line.match(/^\d+ blob ([^\t]+)\t(.+)$/);
-        if (match) { parsed[match[2]] = match[1]; }
-      }
-      trees.set(oid, parsed);
-      return oid;
-    },
-    /** @param {*} oid */
-    async readTreeOids(oid) {
-      const tree = trees.get(oid);
-      if (!tree) { throw new Error(`Tree not found: ${oid}`); }
-      return tree;
-    },
-    /** @param {*} sha */
-    async getCommitTree(sha) {
-      const commit = commits.get(sha);
-      if (!commit) { throw new Error(`Commit not found: ${sha}`); }
-      return commit.tree;
-    },
-    /** @param {*} sha */
-    async getNodeInfo(sha) {
-      const commit = commits.get(sha);
-      if (!commit) { throw new Error(`Commit not found: ${sha}`); }
-      return { parents: commit.parents, message: commit.message, date: null };
-    },
-    /** @param {{ treeOid: string, parents?: string[], message: string }} opts */
-    async commitNodeWithTree({ treeOid, parents = [], message }) {
-      const oid = `commit-${++commitCounter}`;
-      commits.set(oid, { tree: treeOid, parents, message });
-      return oid;
-    },
-  };
-}
-
-function createMockCodec() {
-  return {
-    /** @param {*} value */
-    encode(value) { return Buffer.from(JSON.stringify(value)); },
-    /** @param {*} buf */
-    decode(buf) { return JSON.parse(buf.toString()); },
-  };
-}
-
 describe('B39 — Trust CAS retry', () => {
-  /** @type {ReturnType<typeof createMockPersistence>} */
+  /** @type {ReturnType<typeof createTrustRecordPersistence>} */
   let persistence;
   /** @type {TrustRecordService} */
   let service;
 
   beforeEach(() => {
-    persistence = createMockPersistence();
+    persistence = createTrustRecordPersistence();
     service = new TrustRecordService({
       persistence: /** @type {*} */ (persistence),
-      codec: createMockCodec(),
+      codec: createJsonCodec(),
     });
   });
 
@@ -173,6 +91,10 @@ describe('B39 — Trust CAS retry', () => {
       if (casCallCount === 1) {
         // Simulate a concurrent append: advance the ref to a new commit
         // before the CAS check runs
+        const currentTip = persistence.refs.get(ref);
+        if (!currentTip) {
+          throw new Error('expected trust ref to be present before concurrent append simulation');
+        }
         const concurrentBlob = await persistence.writeBlob(
           Buffer.from(JSON.stringify({ recordId: 'concurrent-record-id', prev: KEY_ADD_1.recordId })),
         );
@@ -181,7 +103,7 @@ describe('B39 — Trust CAS retry', () => {
         ]);
         const concurrentCommit = await persistence.commitNodeWithTree({
           treeOid: concurrentTree,
-          parents: [persistence.refs.get(ref)],
+          parents: [currentTip],
           message: 'trust: concurrent',
         });
         persistence.refs.set(ref, concurrentCommit);
