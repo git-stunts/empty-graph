@@ -1,56 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import WarpGraph from '../../../src/domain/WarpGraph.js';
-import {
-  createEmptyStateV5,
-  encodeEdgeKey,
-  encodeEdgePropKey,
-} from '../../../src/domain/services/JoinReducer.js';
-import { compareEventIds } from '../../../src/domain/utils/EventId.js';
-import { orsetAdd, orsetRemove } from '../../../src/domain/crdt/ORSet.js';
-import { createDot, encodeDot } from '../../../src/domain/crdt/Dot.js';
-
-/**
- * Seeds a WarpGraph instance with a fresh empty V5 state and runs seedFn to populate it.
- * Replaces materialize with a no-op mock so tests exercise query methods directly.
- */
-function setupGraphState(/** @type {any} */ graph, /** @type {any} */ seedFn) {
-  const state = createEmptyStateV5();
-  /** @type {any} */ (graph)._cachedState = state;
-  graph.materialize = vi.fn().mockResolvedValue(state);
-  seedFn(state);
-}
-
-/** Adds a node to the ORSet with a dot at the given counter. */
-function addNode(/** @type {any} */ state, /** @type {any} */ nodeId, /** @type {any} */ writerId, /** @type {any} */ counter) {
-  orsetAdd(state.nodeAlive, nodeId, createDot(writerId, counter));
-}
-
-/** Adds an edge to the ORSet and records its birth event. */
-function addEdge(/** @type {any} */ state, /** @type {any} */ from, /** @type {any} */ to, /** @type {any} */ label, /** @type {any} */ writerId, /** @type {any} */ counter, /** @type {any} */ lamport) {
-  const edgeKey = encodeEdgeKey(from, to, label);
-  orsetAdd(state.edgeAlive, edgeKey, createDot(writerId, counter));
-  // Record birth event using full EventId comparison (same as applyOpV2)
-  const newEvent = { lamport, writerId, patchSha: 'aabbccdd', opIndex: 0 };
-  const prev = state.edgeBirthEvent.get(edgeKey);
-  if (!prev || compareEventIds(newEvent, prev) > 0) {
-    state.edgeBirthEvent.set(edgeKey, newEvent);
-  }
-}
-
-/** Removes an edge by tombstoning its observed dots. */
-function removeEdge(/** @type {any} */ state, /** @type {any} */ from, /** @type {any} */ to, /** @type {any} */ label, /** @type {any} */ writerId, /** @type {any} */ counter) {
-  const dot = encodeDot(createDot(writerId, counter));
-  orsetRemove(state.edgeAlive, new Set([dot]));
-}
-
-/** Sets an edge property with a proper LWW register (eventId + value). */
-function setEdgeProp(/** @type {any} */ state, /** @type {any} */ from, /** @type {any} */ to, /** @type {any} */ label, /** @type {any} */ key, /** @type {any} */ value, /** @type {any} */ lamport, /** @type {any} */ writerId, /** @type {any} */ patchSha = undefined, /** @type {any} */ opIndex = undefined) {
-  const propKey = encodeEdgePropKey(from, to, label, key);
-  state.prop.set(propKey, {
-    eventId: { lamport, writerId, patchSha: patchSha || 'aabbccdd', opIndex: opIndex || 0 },
-    value,
-  });
-}
+import { encodeEdgePropKey } from '../../../src/domain/services/JoinReducer.js';
+import { createStateBuilder } from '../../helpers/stateBuilder.js';
 
 // =============================================================================
 
@@ -81,16 +32,13 @@ describe('WarpGraph edge property visibility (WT/VIS/1)', () => {
   // ===========================================================================
 
   it('add edge with props -> remove edge -> props invisible via getEdges()', async () => {
-    setupGraphState(graph, (/** @type {any} */ state) => {
-      addNode(state, 'a', 'w1', 1);
-      addNode(state, 'b', 'w1', 2);
-      // Edge added at lamport 1, counter 3
-      addEdge(state, 'a', 'b', 'rel', 'w1', 3, 1);
-      // Prop set at lamport 1
-      setEdgeProp(state, 'a', 'b', 'rel', 'weight', 42, 1, 'w1');
-      // Remove the edge (tombstone the dot)
-      removeEdge(state, 'a', 'b', 'rel', 'w1', 3);
-    });
+    createStateBuilder()
+      .node('a', { counter: 1 })
+      .node('b', { counter: 2 })
+      .edge('a', 'b', 'rel', { counter: 3, lamport: 1 })
+      .edgeProp('a', 'b', 'rel', 'weight', 42, { lamport: 1 })
+      .removeEdge('a', 'b', 'rel', { observed: [{ writerId: 'w1', counter: 3 }] })
+      .seedGraph(graph);
 
     const edges = await graph.getEdges();
     // Edge is dead, so it should not appear at all
@@ -98,13 +46,13 @@ describe('WarpGraph edge property visibility (WT/VIS/1)', () => {
   });
 
   it('add edge with props -> remove edge -> getEdgeProps returns null', async () => {
-    setupGraphState(graph, (/** @type {any} */ state) => {
-      addNode(state, 'a', 'w1', 1);
-      addNode(state, 'b', 'w1', 2);
-      addEdge(state, 'a', 'b', 'rel', 'w1', 3, 1);
-      setEdgeProp(state, 'a', 'b', 'rel', 'weight', 42, 1, 'w1');
-      removeEdge(state, 'a', 'b', 'rel', 'w1', 3);
-    });
+    createStateBuilder()
+      .node('a', { counter: 1 })
+      .node('b', { counter: 2 })
+      .edge('a', 'b', 'rel', { counter: 3, lamport: 1 })
+      .edgeProp('a', 'b', 'rel', 'weight', 42, { lamport: 1 })
+      .removeEdge('a', 'b', 'rel', { observed: [{ writerId: 'w1', counter: 3 }] })
+      .seedGraph(graph);
 
     const props = await graph.getEdgeProps('a', 'b', 'rel');
     expect(props).toBeNull();
@@ -115,18 +63,14 @@ describe('WarpGraph edge property visibility (WT/VIS/1)', () => {
   // ===========================================================================
 
   it('add edge with props -> remove edge -> re-add edge -> props are empty (clean slate)', async () => {
-    setupGraphState(graph, (/** @type {any} */ state) => {
-      addNode(state, 'a', 'w1', 1);
-      addNode(state, 'b', 'w1', 2);
-      // First incarnation: add at lamport 1
-      addEdge(state, 'a', 'b', 'rel', 'w1', 3, 1);
-      // Set prop during first incarnation (lamport 1)
-      setEdgeProp(state, 'a', 'b', 'rel', 'weight', 42, 1, 'w1');
-      // Remove edge (tombstone dot w1:3)
-      removeEdge(state, 'a', 'b', 'rel', 'w1', 3);
-      // Re-add edge at lamport 3 (later), new dot w1:4
-      addEdge(state, 'a', 'b', 'rel', 'w1', 4, 3);
-    });
+    createStateBuilder()
+      .node('a', { counter: 1 })
+      .node('b', { counter: 2 })
+      .edge('a', 'b', 'rel', { counter: 3, lamport: 1 })
+      .edgeProp('a', 'b', 'rel', 'weight', 42, { lamport: 1 })
+      .removeEdge('a', 'b', 'rel', { observed: [{ writerId: 'w1', counter: 3 }] })
+      .edge('a', 'b', 'rel', { counter: 4, lamport: 3 })
+      .seedGraph(graph);
 
     // getEdgeProps should return empty object (clean slate — old prop is stale)
     const props = await graph.getEdgeProps('a', 'b', 'rel');
@@ -139,19 +83,15 @@ describe('WarpGraph edge property visibility (WT/VIS/1)', () => {
   });
 
   it('add edge with props -> remove -> re-add -> set new props -> new props visible', async () => {
-    setupGraphState(graph, (/** @type {any} */ state) => {
-      addNode(state, 'a', 'w1', 1);
-      addNode(state, 'b', 'w1', 2);
-      // First incarnation at lamport 1
-      addEdge(state, 'a', 'b', 'rel', 'w1', 3, 1);
-      setEdgeProp(state, 'a', 'b', 'rel', 'weight', 42, 1, 'w1');
-      // Remove
-      removeEdge(state, 'a', 'b', 'rel', 'w1', 3);
-      // Re-add at lamport 3
-      addEdge(state, 'a', 'b', 'rel', 'w1', 4, 3);
-      // Set NEW prop at lamport 3 (during new incarnation)
-      setEdgeProp(state, 'a', 'b', 'rel', 'color', 'red', 3, 'w1');
-    });
+    createStateBuilder()
+      .node('a', { counter: 1 })
+      .node('b', { counter: 2 })
+      .edge('a', 'b', 'rel', { counter: 3, lamport: 1 })
+      .edgeProp('a', 'b', 'rel', 'weight', 42, { lamport: 1 })
+      .removeEdge('a', 'b', 'rel', { observed: [{ writerId: 'w1', counter: 3 }] })
+      .edge('a', 'b', 'rel', { counter: 4, lamport: 3 })
+      .edgeProp('a', 'b', 'rel', 'color', 'red', { lamport: 3 })
+      .seedGraph(graph);
 
     const props = await graph.getEdgeProps('a', 'b', 'rel');
     // Old prop "weight" is filtered out (lamport 1 < birthLamport 3)
@@ -168,17 +108,14 @@ describe('WarpGraph edge property visibility (WT/VIS/1)', () => {
   // ===========================================================================
 
   it('concurrent add and remove with props (two writers)', async () => {
-    setupGraphState(graph, (/** @type {any} */ state) => {
-      addNode(state, 'a', 'w1', 1);
-      addNode(state, 'b', 'w1', 2);
-      // Writer 1 adds edge at lamport 1
-      addEdge(state, 'a', 'b', 'rel', 'w1', 3, 1);
-      setEdgeProp(state, 'a', 'b', 'rel', 'weight', 42, 1, 'w1');
-      // Writer 2 concurrently adds the same edge at lamport 1
-      addEdge(state, 'a', 'b', 'rel', 'w2', 1, 1);
-      // Writer 1 removes (only tombstones w1:3, NOT w2:1)
-      removeEdge(state, 'a', 'b', 'rel', 'w1', 3);
-    });
+    createStateBuilder()
+      .node('a', { counter: 1 })
+      .node('b', { counter: 2 })
+      .edge('a', 'b', 'rel', { writerId: 'w1', counter: 3, lamport: 1 })
+      .edgeProp('a', 'b', 'rel', 'weight', 42, { writerId: 'w1', lamport: 1 })
+      .edge('a', 'b', 'rel', { writerId: 'w2', counter: 1, lamport: 1 })
+      .removeEdge('a', 'b', 'rel', { observed: [{ writerId: 'w1', counter: 3 }] })
+      .seedGraph(graph);
 
     // Edge is still alive because w2's dot is not tombstoned (OR-set add wins)
     const props = await graph.getEdgeProps('a', 'b', 'rel');
@@ -190,19 +127,15 @@ describe('WarpGraph edge property visibility (WT/VIS/1)', () => {
   });
 
   it('concurrent add+props from two writers, one removes, re-adds -> clean slate for old props', async () => {
-    setupGraphState(graph, (/** @type {any} */ state) => {
-      addNode(state, 'a', 'w1', 1);
-      addNode(state, 'b', 'w1', 2);
-      // Writer 1 adds edge at lamport 1
-      addEdge(state, 'a', 'b', 'rel', 'w1', 3, 1);
-      setEdgeProp(state, 'a', 'b', 'rel', 'weight', 42, 1, 'w1');
-      // Writer 1 removes (tombstone w1:3)
-      removeEdge(state, 'a', 'b', 'rel', 'w1', 3);
-      // Writer 1 re-adds at lamport 5
-      addEdge(state, 'a', 'b', 'rel', 'w1', 4, 5);
-      // Writer 2 sets a new prop at lamport 6 (after the re-add)
-      setEdgeProp(state, 'a', 'b', 'rel', 'color', 'blue', 6, 'w2');
-    });
+    createStateBuilder()
+      .node('a', { counter: 1 })
+      .node('b', { counter: 2 })
+      .edge('a', 'b', 'rel', { writerId: 'w1', counter: 3, lamport: 1 })
+      .edgeProp('a', 'b', 'rel', 'weight', 42, { writerId: 'w1', lamport: 1 })
+      .removeEdge('a', 'b', 'rel', { observed: [{ writerId: 'w1', counter: 3 }] })
+      .edge('a', 'b', 'rel', { writerId: 'w1', counter: 4, lamport: 5 })
+      .edgeProp('a', 'b', 'rel', 'color', 'blue', { writerId: 'w2', lamport: 6 })
+      .seedGraph(graph);
 
     const props = await graph.getEdgeProps('a', 'b', 'rel');
     // "weight" was set at lamport 1, birthLamport is 5 → filtered out
@@ -215,16 +148,13 @@ describe('WarpGraph edge property visibility (WT/VIS/1)', () => {
   // ===========================================================================
 
   it('edge without props -> remove -> re-add -> still no props', async () => {
-    setupGraphState(graph, (/** @type {any} */ state) => {
-      addNode(state, 'a', 'w1', 1);
-      addNode(state, 'b', 'w1', 2);
-      // Add edge without props
-      addEdge(state, 'a', 'b', 'rel', 'w1', 3, 1);
-      // Remove
-      removeEdge(state, 'a', 'b', 'rel', 'w1', 3);
-      // Re-add
-      addEdge(state, 'a', 'b', 'rel', 'w1', 4, 2);
-    });
+    createStateBuilder()
+      .node('a', { counter: 1 })
+      .node('b', { counter: 2 })
+      .edge('a', 'b', 'rel', { counter: 3, lamport: 1 })
+      .removeEdge('a', 'b', 'rel', { observed: [{ writerId: 'w1', counter: 3 }] })
+      .edge('a', 'b', 'rel', { counter: 4, lamport: 2 })
+      .seedGraph(graph);
 
     const props = await graph.getEdgeProps('a', 'b', 'rel');
     expect(props).toEqual({});
@@ -239,15 +169,14 @@ describe('WarpGraph edge property visibility (WT/VIS/1)', () => {
   // ===========================================================================
 
   it('stale props remain in the prop map but are not surfaced', async () => {
-    setupGraphState(graph, (/** @type {any} */ state) => {
-      addNode(state, 'a', 'w1', 1);
-      addNode(state, 'b', 'w1', 2);
-      // Add edge, set prop, remove, re-add
-      addEdge(state, 'a', 'b', 'rel', 'w1', 3, 1);
-      setEdgeProp(state, 'a', 'b', 'rel', 'weight', 42, 1, 'w1');
-      removeEdge(state, 'a', 'b', 'rel', 'w1', 3);
-      addEdge(state, 'a', 'b', 'rel', 'w1', 4, 3);
-    });
+    createStateBuilder()
+      .node('a', { counter: 1 })
+      .node('b', { counter: 2 })
+      .edge('a', 'b', 'rel', { counter: 3, lamport: 1 })
+      .edgeProp('a', 'b', 'rel', 'weight', 42, { lamport: 1 })
+      .removeEdge('a', 'b', 'rel', { observed: [{ writerId: 'w1', counter: 3 }] })
+      .edge('a', 'b', 'rel', { counter: 4, lamport: 3 })
+      .seedGraph(graph);
 
     // The prop is still in the map (not physically deleted)
     const propKey = encodeEdgePropKey('a', 'b', 'rel', 'weight');
@@ -263,13 +192,12 @@ describe('WarpGraph edge property visibility (WT/VIS/1)', () => {
   // ===========================================================================
 
   it('props on a live edge with matching lamport are visible', async () => {
-    setupGraphState(graph, (/** @type {any} */ state) => {
-      addNode(state, 'a', 'w1', 1);
-      addNode(state, 'b', 'w1', 2);
-      addEdge(state, 'a', 'b', 'rel', 'w1', 3, 5);
-      // Prop set at same lamport as edge birth
-      setEdgeProp(state, 'a', 'b', 'rel', 'weight', 99, 5, 'w1');
-    });
+    createStateBuilder()
+      .node('a', { counter: 1 })
+      .node('b', { counter: 2 })
+      .edge('a', 'b', 'rel', { counter: 3, lamport: 5 })
+      .edgeProp('a', 'b', 'rel', 'weight', 99, { lamport: 5 })
+      .seedGraph(graph);
 
     const props = await graph.getEdgeProps('a', 'b', 'rel');
     expect(props).toEqual({ weight: 99 });
@@ -279,13 +207,12 @@ describe('WarpGraph edge property visibility (WT/VIS/1)', () => {
   });
 
   it('props on a live edge with higher lamport are visible', async () => {
-    setupGraphState(graph, (/** @type {any} */ state) => {
-      addNode(state, 'a', 'w1', 1);
-      addNode(state, 'b', 'w1', 2);
-      addEdge(state, 'a', 'b', 'rel', 'w1', 3, 1);
-      // Prop set at lamport 5, greater than birth lamport 1
-      setEdgeProp(state, 'a', 'b', 'rel', 'weight', 99, 5, 'w1');
-    });
+    createStateBuilder()
+      .node('a', { counter: 1 })
+      .node('b', { counter: 2 })
+      .edge('a', 'b', 'rel', { counter: 3, lamport: 1 })
+      .edgeProp('a', 'b', 'rel', 'weight', 99, { lamport: 5 })
+      .seedGraph(graph);
 
     const props = await graph.getEdgeProps('a', 'b', 'rel');
     expect(props).toEqual({ weight: 99 });

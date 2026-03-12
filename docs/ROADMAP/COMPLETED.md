@@ -6,29 +6,29 @@
 
 ## Early Milestones (v7.x–v12.0.0)
 
-| # | Codename | Version | Theme |
-|---|----------|---------|-------|
-| 1 | AUTOPILOT | v7.1.0 | Kill the Materialize Tax |
-| 2 | GROUNDSKEEPER | v7.2.0 | Self-Managing Infrastructure |
-| 3 | WEIGHTED | v7.3.0 | Edge Properties |
-| 4 | HANDSHAKE | v7.4.0 | Multi-Writer Ergonomics |
-| 5 | COMPASS | v7.5.0 | Advanced Query Language |
-| 6 | LIGHTHOUSE | v7.6.0 | Observability |
-| 7 | PULSE | v7.7.0 | Subscriptions & Reactivity |
-| 8 | HOLOGRAM | v8.0.0 | Provenance & Holography |
-| 9 | ECHO | v9.0.0 | Observer Geometry |
-| 10 | BULKHEAD | v10.0.0 | Hexagonal Purity & Structural Integrity |
-| 11 | RECALL | v10.4.0 | Seek Materialization Cache |
-| 12 | SEEKDIFF | v10.5.0 | Structural Seek Diff |
-| M1 | IRON DOME | v11.0.0 | Security & Protocol Hardening |
-| M2 | FOUNDATION LIFT | v11.1.0 | Developer Velocity for Correctness |
-| M3 | GHOST PROTOCOL | v11.1.0 | Immutable Audit Trail |
-| M4 | VERIFY OR IT DIDN'T HAPPEN | v11.1.0 | Cryptographic Verification |
-| M5 | CLI DECOMPOSITION | v11.1.0 | Maintainability |
-| M6 | SAFE ERGONOMICS | v11.1.0 | Single-Await API |
-| M7 | TRUST V1 | v11.1.0 | Cryptographic Identity-Backed Trust |
-| M8 | IRONCLAD | v11.x | Type Safety |
-| M9 | PARTITION | v12.0.0 | Architectural Decomposition |
+| #   | Codename                   | Version | Theme                                   |
+| --- | -------------------------- | ------- | --------------------------------------- |
+| 1   | AUTOPILOT                  | v7.1.0  | Kill the Materialize Tax                |
+| 2   | GROUNDSKEEPER              | v7.2.0  | Self-Managing Infrastructure            |
+| 3   | WEIGHTED                   | v7.3.0  | Edge Properties                         |
+| 4   | HANDSHAKE                  | v7.4.0  | Multi-Writer Ergonomics                 |
+| 5   | COMPASS                    | v7.5.0  | Advanced Query Language                 |
+| 6   | LIGHTHOUSE                 | v7.6.0  | Observability                           |
+| 7   | PULSE                      | v7.7.0  | Subscriptions & Reactivity              |
+| 8   | HOLOGRAM                   | v8.0.0  | Provenance & Holography                 |
+| 9   | ECHO                       | v9.0.0  | Observer Geometry                       |
+| 10  | BULKHEAD                   | v10.0.0 | Hexagonal Purity & Structural Integrity |
+| 11  | RECALL                     | v10.4.0 | Seek Materialization Cache              |
+| 12  | SEEKDIFF                   | v10.5.0 | Structural Seek Diff                    |
+| M1  | IRON DOME                  | v11.0.0 | Security & Protocol Hardening           |
+| M2  | FOUNDATION LIFT            | v11.1.0 | Developer Velocity for Correctness      |
+| M3  | GHOST PROTOCOL             | v11.1.0 | Immutable Audit Trail                   |
+| M4  | VERIFY OR IT DIDN'T HAPPEN | v11.1.0 | Cryptographic Verification              |
+| M5  | CLI DECOMPOSITION          | v11.1.0 | Maintainability                         |
+| M6  | SAFE ERGONOMICS            | v11.1.0 | Single-Await API                        |
+| M7  | TRUST V1                   | v11.1.0 | Cryptographic Identity-Backed Trust     |
+| M8  | IRONCLAD                   | v11.x   | Type Safety                             |
+| M9  | PARTITION                  | v12.0.0 | Architectural Decomposition             |
 
 ---
 
@@ -111,19 +111,19 @@
 
 ### Already Fixed (M10 + prior M12 work)
 
-| STANK ID | B# | Fix |
-|----------|-----|-----|
-| C4 | — | `_snapshotState` lazy capture in PatchBuilderV2 |
-| C6 | — | `E_LAMPORT_CORRUPT` throw in Writer.js |
-| S4 | B72 | `'0'.repeat(40)` in compareAndSwapRef |
-| S9 | — | Fast-return guard in `_materializeGraph()` |
-| J1 | B68 | MinHeap topological sort in GraphTraversal |
-| J2 | B69 | `batchMap()` + propsMemo in QueryBuilder |
-| J5 | — | Dead `visible.cbor` write removed from CheckpointService |
-| J8 | — | Temp array pattern in `orsetCompact` |
-| J11 | — | `_indexDegraded` flag in WarpGraph |
-| C2 | — | `isKnownOp()` exists (tests added, sync-path wiring in M12.T1) |
-| C3 | — | Receipt validation tests added (runtime guards in M12.T3) |
+| STANK ID | B#  | Fix                                                            |
+| -------- | --- | -------------------------------------------------------------- |
+| C4       | —   | `_snapshotState` lazy capture in PatchBuilderV2                |
+| C6       | —   | `E_LAMPORT_CORRUPT` throw in Writer.js                         |
+| S4       | B72 | `'0'.repeat(40)` in compareAndSwapRef                          |
+| S9       | —   | Fast-return guard in `_materializeGraph()`                     |
+| J1       | B68 | MinHeap topological sort in GraphTraversal                     |
+| J2       | B69 | `batchMap()` + propsMemo in QueryBuilder                       |
+| J5       | —   | Dead `visible.cbor` write removed from CheckpointService       |
+| J8       | —   | Temp array pattern in `orsetCompact`                           |
+| J11      | —   | `_indexDegraded` flag in WarpGraph                             |
+| C2       | —   | `isKnownOp()` exists (tests added, sync-path wiring in M12.T1) |
+| C3       | —   | Receipt validation tests added (runtime guards in M12.T3)      |
 
 ### M12.T1 — Sync Safety (C1 + C2 + S3)
 
@@ -229,7 +229,7 @@
 
 **Items:**
 
-- **B67** ✅ (T1: JOINREDUCER RECEIPT O(N*M)) — `nodeRemoveOutcome`/`edgeRemoveOutcome` now use `buildDotToElement` reverse index.
+- **B67** ✅ (T1: JOINREDUCER RECEIPT O(N\*M)) — `nodeRemoveOutcome`/`edgeRemoveOutcome` now use `buildDotToElement` reverse index.
 - **B73** ✅ (T2: `orsetClone`) — Dedicated `orsetClone()` replacing `orsetJoin(x, empty)` pattern.
 - **B74** ✅ (T32: WRITER REENTRANCY COMMENT) — JSDoc documenting `_commitInProgress` guard.
 - **B75** ✅ (T9: VV COUNTER=0 ELISION) — JSDoc + debug assertion in `vvSerialize`.
@@ -260,6 +260,7 @@ T6 (EdgeProp) extracted → M13 SCALPEL II (internal: DONE, wire: DEFERRED)
 ### M12 Verification Protocol
 
 For every task:
+
 1. **Before starting:** Run `npm run test:local` and record pass count as baseline
 2. **After each file edit:** Run the file's specific test suite
 3. **Before committing:** Full `npm run test:local` — must match or exceed baseline
@@ -329,52 +330,78 @@ Investigation revealed the correct approach is a two-phase split:
 
 ### Immediate (all done)
 
-| ID | Item |
-|----|------|
-| B46 | ~~**ESLINT BAN `Date.now()` IN DOMAIN**~~ — **DONE.** `no-restricted-syntax` rule on `src/domain/**/*.js`. Legitimate wall-clock uses annotated with eslint-disable. |
-| B47 | ~~**`orsetAdd` DOT ARGUMENT VALIDATION**~~ — **DONE.** Runtime shape check before `encodeDot()`. |
-| B26 | ~~**DER SPKI PREFIX CONSTANT**~~ — **DONE.** `ED25519_SPKI_PREFIX` with RFC 8410 reference in TrustCrypto.js. |
-| B71 | ~~**PATCHBUILDER `console.warn` BYPASSES LOGGERPORT**~~ — **DONE.** Routes through `this._logger.warn()`. Writer now forwards logger to PatchBuilderV2. |
-| B126 | ~~**`no-empty-catch` ESLINT RULE**~~ — **DONE.** `no-empty` with `allowEmptyCatch: false`. |
+| ID   | Item                                                                                                                                                                 |
+| ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| B46  | ~~**ESLINT BAN `Date.now()` IN DOMAIN**~~ — **DONE.** `no-restricted-syntax` rule on `src/domain/**/*.js`. Legitimate wall-clock uses annotated with eslint-disable. |
+| B47  | ~~**`orsetAdd` DOT ARGUMENT VALIDATION**~~ — **DONE.** Runtime shape check before `encodeDot()`.                                                                     |
+| B26  | ~~**DER SPKI PREFIX CONSTANT**~~ — **DONE.** `ED25519_SPKI_PREFIX` with RFC 8410 reference in TrustCrypto.js.                                                        |
+| B71  | ~~**PATCHBUILDER `console.warn` BYPASSES LOGGERPORT**~~ — **DONE.** Routes through `this._logger.warn()`. Writer now forwards logger to PatchBuilderV2.              |
+| B126 | ~~**`no-empty-catch` ESLINT RULE**~~ — **DONE.** `no-empty` with `allowEmptyCatch: false`.                                                                           |
 
 ### Near-Term (completed)
 
-| ID | Item |
-|----|------|
+| ID   | Item                                                                                                                                                                                                                       |
+| ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | B120 | ~~**ADAPTER TYPED ERROR CODES**~~ — **DONE.** `PersistenceError` with `E_MISSING_OBJECT`, `E_REF_NOT_FOUND`, `E_REF_IO` codes. `wrapGitError()` classifier in GitGraphAdapter. TrustRecordService switched to typed catch. |
-| B121 | ~~**CIRCULAR/SHARED-REFERENCE TEST HELPER**~~ — **DONE.** `createCircular(n)` / `createDiamond()` in `test/helpers/topologyHelpers.js`. |
-| B122 | ~~**SCHEMA-4 CHECKPOINT VALIDATION COVERAGE**~~ — **DONE.** 21 edge-case tests covering schema mismatch, empty state, missing frontier. |
-| B50 | ~~**ALIGN `type-surface.m8.json` WITH `index.d.ts`**~~ — **DONE.** `skippedWriters` added to `syncWith` return type; 85 type/interface/class exports added to manifest (0 errors, 0 warnings). |
-| B51 | ~~**AUDIT REMAINING `= {}` CONSTRUCTOR DEFAULTS**~~ — **DONE.** Misleading `= {}` removed from DagTraversal, DagPathFinding, DagTopology, BitmapIndexReader constructors. |
-| B52 | ~~**FIX OUTSIDE-DIFF IRONCLAD REVIEW ITEMS**~~ — **DONE.** TickReceipt wildcards → `unknown`; SyncAuthService `keys` documented as required. |
-| B55 | ~~**UPGRADE `HttpServerPort` REQUEST/RESPONSE TYPES**~~ — **DONE.** `HttpRequest`, `HttpResponse`, `HttpServerHandle` typedefs in HttpServerPort. All three adapters upgraded. |
-| B77 | ~~**`listRefs` UPPER BOUND**~~ — **DONE.** Optional `{ limit }` options bag; GitGraphAdapter passes `--count=N`, InMemoryGraphAdapter slices. |
-| B78 | ~~**REFLAYOUT SLASH-IN-GRAPH-NAME AMBIGUITY**~~ — **DONE.** `RESERVED_GRAPH_NAME_SEGMENTS` set; `validateGraphName()` rejects ref-layout keywords as segments. |
-| B82 | ~~**PRE-PUSH HOOK `--quick` MODE**~~ — **DONE.** `WARP_QUICK_PUSH` env var skips Gate 5 (unit tests); type gates still run. |
+| B121 | ~~**CIRCULAR/SHARED-REFERENCE TEST HELPER**~~ — **DONE.** `createCircular(n)` / `createDiamond()` in `test/helpers/topologyHelpers.js`.                                                                                    |
+| B122 | ~~**SCHEMA-4 CHECKPOINT VALIDATION COVERAGE**~~ — **DONE.** 21 edge-case tests covering schema mismatch, empty state, missing frontier.                                                                                    |
+| B50  | ~~**ALIGN `type-surface.m8.json` WITH `index.d.ts`**~~ — **DONE.** `skippedWriters` added to `syncWith` return type; 85 type/interface/class exports added to manifest (0 errors, 0 warnings).                             |
+| B51  | ~~**AUDIT REMAINING `= {}` CONSTRUCTOR DEFAULTS**~~ — **DONE.** Misleading `= {}` removed from DagTraversal, DagPathFinding, DagTopology, BitmapIndexReader constructors.                                                  |
+| B52  | ~~**FIX OUTSIDE-DIFF IRONCLAD REVIEW ITEMS**~~ — **DONE.** TickReceipt wildcards → `unknown`; SyncAuthService `keys` documented as required.                                                                               |
+| B55  | ~~**UPGRADE `HttpServerPort` REQUEST/RESPONSE TYPES**~~ — **DONE.** `HttpRequest`, `HttpResponse`, `HttpServerHandle` typedefs in HttpServerPort. All three adapters upgraded.                                             |
+| B77  | ~~**`listRefs` UPPER BOUND**~~ — **DONE.** Optional `{ limit }` options bag; GitGraphAdapter passes `--count=N`, InMemoryGraphAdapter slices.                                                                              |
+| B78  | ~~**REFLAYOUT SLASH-IN-GRAPH-NAME AMBIGUITY**~~ — **DONE.** `RESERVED_GRAPH_NAME_SEGMENTS` set; `validateGraphName()` rejects ref-layout keywords as segments.                                                             |
+| B82  | ~~**PRE-PUSH HOOK `--quick` MODE**~~ — **DONE.** `WARP_QUICK_PUSH` env var skips Gate 5 (unit tests); type gates still run.                                                                                                |
 
 ### CI & Tooling (completed)
 
-| ID | Item |
-|----|------|
-| B84 | ~~**SURFACE VALIDATOR QUIET MODE**~~ — **DONE.** `--quiet` flag suppresses stdout; stderr (errors/warnings) always flows. |
+| ID  | Item                                                                                                                                                                                                                                  |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| B84 | ~~**SURFACE VALIDATOR QUIET MODE**~~ — **DONE.** `--quiet` flag suppresses stdout; stderr (errors/warnings) always flows.                                                                                                             |
 | B89 | ~~**VERSION CONSISTENCY GATE**~~ — **DONE (v12.1.0).** `scripts/release-preflight.sh` checks package.json == jsr.json; `release.yml` verify job enforces tag == package.json == jsr.json + CHANGELOG dated entry + README What's New. |
-| B90 | ~~**PREFLIGHT BOT CHANGELOG CHECK**~~ — **DONE (v12.1.0).** `release.yml` verify job checks CHANGELOG heading for tag version. `release-pr.yml` already runs lint+typecheck+test+pack dry-runs on PRs. |
+| B90 | ~~**PREFLIGHT BOT CHANGELOG CHECK**~~ — **DONE (v12.1.0).** `release.yml` verify job checks CHANGELOG heading for tag version. `release-pr.yml` already runs lint+typecheck+test+pack dry-runs on PRs.                                |
 
 ### Surface Validator (completed)
 
-| ID | Item |
-|----|------|
+| ID  | Item                                                                                                                                               |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
 | B91 | ~~**MISSING `declare` FOR `interface`/`type` REGEXES**~~ — **DONE.** Added `(?:declare\s+)?` to interface and type regexes in `extractDtsExports`. |
-| B92 | ~~**SURFACE VALIDATOR UNIT TESTS**~~ — **DONE.** 34 tests for `parseExportBlock`, `extractJsExports`, `extractDtsExports`. |
-| B93 | ~~**DEDUP EXPORT PARSING LOGIC**~~ — **DONE.** `parseExportBlock()` extracted as shared helper; `collectExportBlocks()` internal. |
-| B94 | ~~**STANDALONE EXPORT DECLARATIONS**~~ — **DONE.** `extractJsExports` now handles `export const/function/class`. |
+| B92 | ~~**SURFACE VALIDATOR UNIT TESTS**~~ — **DONE.** 34 tests for `parseExportBlock`, `extractJsExports`, `extractDtsExports`.                         |
+| B93 | ~~**DEDUP EXPORT PARSING LOGIC**~~ — **DONE.** `parseExportBlock()` extracted as shared helper; `collectExportBlocks()` internal.                  |
+| B94 | ~~**STANDALONE EXPORT DECLARATIONS**~~ — **DONE.** `extractJsExports` now handles `export const/function/class`.                                   |
 
 ### v13.0.0 Standalone Items (completed)
 
-| ID | Item |
-|----|------|
-| B44 | ~~**SUBSCRIBER UNSUBSCRIBE-DURING-CALLBACK E2E**~~ — **DONE (v13.0.0).** 3 edge-case tests (cross-unsubscribe, subscribe-during-callback, unsubscribe-in-onError). |
-| B124 | ~~**TRUST PAYLOAD PARITY TESTS**~~ — **DONE (v13.0.0).** 22 tests verifying CLI vs service shape parity. |
-| B125 | ~~**`CachedValue` NULL-PAYLOAD SEMANTIC TESTS**~~ — **DONE (v13.0.0).** 3 tests documenting null = "no value" sentinel. |
-| B146 | ~~**UNIFY `CorePersistence` / `FullPersistence` TYPEDEFS**~~ — **DONE (v13.0.0).** Replaced `FullPersistence` with imported `CorePersistence`. |
+| ID   | Item                                                                                                                                                                     |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| B44  | ~~**SUBSCRIBER UNSUBSCRIBE-DURING-CALLBACK E2E**~~ — **DONE (v13.0.0).** 3 edge-case tests (cross-unsubscribe, subscribe-during-callback, unsubscribe-in-onError).       |
+| B124 | ~~**TRUST PAYLOAD PARITY TESTS**~~ — **DONE (v13.0.0).** 22 tests verifying CLI vs service shape parity.                                                                 |
+| B125 | ~~**`CachedValue` NULL-PAYLOAD SEMANTIC TESTS**~~ — **DONE (v13.0.0).** 3 tests documenting null = "no value" sentinel.                                                  |
+| B146 | ~~**UNIFY `CorePersistence` / `FullPersistence` TYPEDEFS**~~ — **DONE (v13.0.0).** Replaced `FullPersistence` with imported `CorePersistence`.                           |
 | B148 | ~~**REVIEW NITS + INVENTORY RECONCILIATION**~~ — **DONE (v13.0.0).** Fix inventory counts, COMPLETED.md ordering, stale Deno test name, BisectService invariant comment. |
+
+### v15 Branch Standalone Items (completed)
+
+| ID   | Item                                                                                                                                                                                                                                                                                                                                                            |
+| ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| B19  | ~~**CANONICAL SERIALIZATION PROPERTY TESTS**~~ — **DONE (`v15`).** Added seeded property-based coverage for `canonicalStringify()` idempotency and determinism.                                                                                                                                                                                                 |
+| B22  | ~~**CANONICAL PARSE DETERMINISM TEST**~~ — **DONE (`v15`).** Added property-based tests for stable canonical output across repeated `TrustRecordSchema.parse()` calls.                                                                                                                                                                                          |
+| B36  | ~~**FLUENT STATE BUILDER FOR TESTS**~~ — **DONE (`v15`).** Added `createStateBuilder()` for fluent WarpStateV5 seeding and adopted it in the state-heavy graph/GC/snapshot suites.                                                                                                                                                                              |
+| B37  | ~~**SHARED MOCK PERSISTENCE FIXTURE**~~ — **DONE (`v15`).** Consolidated the TrustRecordService suites onto `test/helpers/trustTestUtils.js` instead of four forked mock persistence definitions.                                                                                                                                                               |
+| B48  | ~~**ESLINT BAN `= {}` CONSTRUCTOR DEFAULTS WITH REQUIRED PARAMS**~~ — **DONE (`v15`).** Added a repo-wide rule banning `constructor({ ... } = {})` in source files and normalized the remaining constructors to explicit option-bag destructuring inside the constructor body.                                                                                  |
+| B49  | ~~**TIGHTEN `checkDeclarations` INLINE COMMENT STRIPPING**~~ — **DONE (`v15`).** `ts-policy-check` now strips inline declaration comments before checking for `any`.                                                                                                                                                                                            |
+| B57  | ~~**AUTO-VALIDATE `type-surface.m8.json` AGAINST `index.d.ts`**~~ — **DONE (`v15`).** `typecheck:surface` now runs in CI, release preflight, and the local `scripts/hooks/pre-push` firewall, so declaration-surface drift is blocked before push instead of surfacing only in CI.                                                                          |
+| B80  | ~~**CHECKPOINTSERVICE CONTENT BLOB UNBOUNDED MEMORY**~~ — **DONE (`v15`).** `createV5()` now folds content blob OIDs into sorted anchor entries in batches instead of accumulating one monolithic `Set` before tree serialization. Added checkpoint tests for dedupe, deterministic anchor ordering, and load-path indifference to `_content_*` anchor entries. |
+| B81  | ~~**`attachContent` ORPHAN BLOB GUARD**~~ — **DONE (`v15`).** Content attachment now validates the target node/edge before writing blob content.                                                                                                                                                                                                                |
+| B83  | ~~**DEDUP CI `type-firewall` AND `lint` JOBS**~~ — **DONE (`v15`).** Folded the duplicate `lint` workflow job into `type-firewall` and carried forward the advisory runtime `npm audit` step there so CI exposes one authoritative lint/type gate.                                                                                                              |
+| B85  | ~~**TYPE-ONLY EXPORT MANIFEST SECTION**~~ — **DONE (`v15`).** Added explicit `typeExports` to `type-surface.m8.json` and taught `check-dts-surface` to fail on misplaced or duplicate entries across `exports` and `typeExports`.                                                                                                                               |
+| B86  | ~~**MARKDOWNLINT CI GATE**~~ — **DONE (`v15`).** Added `npm run lint:md` with focused `MD040` enforcement and wired it into CI, then labeled the repo’s bare fenced code blocks so Markdown docs/examples pass the new gate immediately.                                                                                                                      |
+| B95  | ~~**NAMESPACE EXPORT SUPPORT**~~ — **DONE (`v15`).** The declaration surface validator now handles namespace exports in `.d.ts` parsing.                                                                                                                                                                                                                        |
+| B97  | ~~**AUDIT MANIFEST vs `index.js` DRIFT**~~ — **DONE (`v15`).** Runtime exports were reconciled with the public surface, and the surface checker now distinguishes runtime-backed vs type-only manifest entries.                                                                                                                                                 |
+| B99  | ~~**DETERMINISM FUZZER FOR TREE CONSTRUCTION**~~ — **DONE (`v15`).** Added seeded property tests that prove stable tree OIDs when `PatchBuilderV2` content anchor order is permuted internally and when `CheckpointService.createV5()` sees the same content properties in different insertion orders.                                                          |
+| B149 | ~~**LARGE-GRAPH `levels()` — TWO-PASS STREAMING**~~ — **DONE (`v15`).** `levels()` now re-fetches neighbors during the DP pass instead of pinning topo adjacency.                                                                                                                                                                                               |
+| B150 | ~~**LARGE-GRAPH `transitiveReduction()` — ON-DEMAND NEIGHBOR FETCH**~~ — **DONE (`v15`).** Reduction now uses on-demand successor fetches rather than retaining full topo adjacency plus a second adjacency copy.                                                                                                                                               |
+| B151 | ~~**LARGE-GRAPH `transitiveClosure()` — STREAMING OUTPUT**~~ — **DONE (`v15`).** Added `transitiveClosureStream()` and rewired `transitiveClosure()` to collect from the stream for compatibility.                                                                                                                                                              |
+| B153 | ~~**`topologicalSort` LIGHTWEIGHT MODE**~~ — **DONE (`v15`).** Topological discovery now skips full adjacency retention when callers do not request it.                                                                                                                                                                                                         |
+| B154 | ~~**`transitiveReduction` REDUNDANT ADJLIST COPY**~~ — **DONE (`v15`).** Removed the extra adjacency-only copy from reduction.                                                                                                                                                                                                                                  |
+| B166 | ~~**ADAPTER CLEANUP CONTRACTS**~~ — **DONE (`v15`).** `NodeWsAdapter` now cleans up partial startup state and shuts down idempotently.                                                                                                                                                                                                                          |

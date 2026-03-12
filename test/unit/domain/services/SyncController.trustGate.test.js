@@ -281,6 +281,31 @@ describe('SyncController — trust gate integration (Invariant 2)', () => {
     expect(applySyncResponseMock).toHaveBeenCalledOnce();
   });
 
+  it('syncWith() can use a per-call trust override via the public host hook', async () => {
+    const host = createMockHost({
+      _cachedState: createEmptyStateV5(),
+      _lastFrontier: createFrontier(),
+      _createSyncTrustGate: vi.fn((trust) => new SyncTrustGate({
+        trustEvaluator: /** @type {*} */ (createTrustEvaluator([])),
+        trustMode: trust?.mode || 'off',
+      })),
+    });
+    const ctrl = new SyncController(/** @type {*} */ (host));
+    const remotePeer = {
+      processSyncRequest: vi.fn().mockResolvedValue(buildSyncResponse(['mallory'])),
+    };
+
+    await expect(ctrl.syncWith(/** @type {*} */ (remotePeer), {
+      trust: { mode: 'enforce', pin: 'abc123' },
+    })).rejects.toMatchObject({ code: 'E_SYNC_UNTRUSTED_WRITER' });
+
+    expect(host._createSyncTrustGate).toHaveBeenCalledWith({
+      mode: 'enforce',
+      pin: 'abc123',
+    });
+    expect(applySyncResponseMock).not.toHaveBeenCalled();
+  });
+
   // ── Test 9: Derived caches rebuilt after successful sync (B105) ───────────
   it('rebuilds derived caches via _setMaterializedState after successful applySyncResponse', async () => {
     const host = createMockHost({

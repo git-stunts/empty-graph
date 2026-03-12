@@ -143,6 +143,60 @@ export default class GraphTraversal {
   }
 
   /**
+   * Loads neighbor IDs for topological processing and tracks traversal stats.
+   *
+   * @param {string} nodeId
+   * @param {Direction} direction
+   * @param {RunStats} rs
+   * @param {NeighborOptions} [options]
+   * @returns {Promise<string[]>}
+   * @private
+   */
+  async _loadTopoNeighborIds(nodeId, direction, rs, options) {
+    const neighbors = await this._getNeighbors(nodeId, direction, rs, options);
+    rs.edgesTraversed += neighbors.length;
+    return neighbors.map(({ neighborId }) => neighborId);
+  }
+
+  /**
+   * Creates a neighbor-ID reader for topological phases.
+   *
+   * @param {Map<string, string[]> | null} adjList
+   * @param {Direction} direction
+   * @param {RunStats} rs
+   * @param {NeighborOptions} [options]
+   * @returns {(nodeId: string) => Promise<string[]>}
+   * @private
+   */
+  _createTopoNeighborIdReader(adjList, direction, rs, options) {
+    if (adjList) {
+      return (nodeId) => Promise.resolve(adjList.get(nodeId) || []);
+    }
+    return (nodeId) => this._loadTopoNeighborIds(nodeId, direction, rs, options);
+  }
+
+  /**
+   * Finds a cycle witness among nodes left unsorted by Kahn's algorithm.
+   *
+   * @param {{ discovered: Set<string>, sorted: string[], getNeighborIds: (nodeId: string) => Promise<string[]> }} params
+   * @returns {Promise<{ from?: string, to?: string }>}
+   * @private
+   */
+  async _findTopoCycleWitness({ discovered, sorted, getNeighborIds }) {
+    const inSorted = new Set(sorted);
+    for (const nodeId of discovered) {
+      if (inSorted.has(nodeId)) { continue; }
+      const neighbors = await getNeighborIds(nodeId);
+      for (const neighborId of neighbors) {
+        if (!inSorted.has(neighborId)) {
+          return { from: nodeId, to: neighborId };
+        }
+      }
+    }
+    return {};
+  }
+
+  /**
    * Gets neighbors with optional LRU memoization.
    *
    * @param {string} nodeId
@@ -686,7 +740,7 @@ export default class GraphTraversal {
    *
    * Deterministic: zero-indegree nodes dequeued in lexicographic nodeId order.
    *
-   * @param {{ start: string | string[], direction?: Direction, options?: NeighborOptions, maxNodes?: number, throwOnCycle?: boolean, signal?: AbortSignal, _returnAdjList?: boolean }} params
+   * @param {{ start: string | string[], direction?: Direction, options?: NeighborOptions, maxNodes?: number, throwOnCycle?: boolean, signal?: AbortSignal, _returnAdjList?: boolean, _lightweight?: boolean }} params
    * @returns {Promise<{sorted: string[], hasCycle: boolean, stats: TraversalStats, _neighborEdgeMap?: Map<string, NeighborEdge[]>}>}
    * @throws {TraversalError} code 'ERR_GRAPH_HAS_CYCLES' if throwOnCycle is true and cycle found
    */
@@ -696,16 +750,18 @@ export default class GraphTraversal {
     throwOnCycle = false,
     signal,
     _returnAdjList = false,
+    _lightweight = !_returnAdjList,
   }) {
     const rs = this._newRunStats();
     const starts = [...new Set(Array.isArray(start) ? start : [start])];
     for (const s of starts) {
       await this._validateStart(s);
     }
+    const lightweight = _lightweight && !_returnAdjList;
 
     // Phase 1: Discover all reachable nodes + compute in-degrees
-    /** @type {Map<string, string[]>} */
-    const adjList = new Map();
+    /** @type {Map<string, string[]> | null} */
+    const adjList = lightweight ? null : new Map();
     /** @type {Map<string, NeighborEdge[]>} — populated when _returnAdjList is true */
     const neighborEdgeMap = new Map();
     /** @type {Map<string, number>} */
@@ -724,18 +780,19 @@ export default class GraphTraversal {
       const neighbors = await this._getNeighbors(nodeId, direction, rs, options);
       rs.edgesTraversed += neighbors.length;
 
-      /** @type {string[]} */
-      const neighborIds = [];
       for (const { neighborId } of neighbors) {
-        neighborIds.push(neighborId);
         inDegree.set(neighborId, (inDegree.get(neighborId) || 0) + 1);
         if (!discovered.has(neighborId)) {
           discovered.add(neighborId);
           queue.push(neighborId);
         }
       }
-      adjList.set(nodeId, neighborIds);
-      neighborEdgeMap.set(nodeId, neighbors);
+      if (adjList) {
+        adjList.set(nodeId, neighbors.map(({ neighborId }) => neighborId));
+      }
+      if (_returnAdjList) {
+        neighborEdgeMap.set(nodeId, neighbors);
+      }
     }
 
     // Ensure starts have in-degree entries
@@ -744,6 +801,8 @@ export default class GraphTraversal {
         inDegree.set(s, 0);
       }
     }
+
+    const getNeighborIds = this._createTopoNeighborIdReader(adjList, direction, rs, options);
 
     // Phase 2: Kahn's — MinHeap for O(N log N) zero-indegree processing
     const ready = new MinHeap({ tieBreaker: lexTieBreaker });
@@ -762,7 +821,7 @@ export default class GraphTraversal {
       const nodeId = /** @type {string} */ (ready.extractMin());
       sorted.push(nodeId);
 
-      const neighbors = adjList.get(nodeId) || [];
+      const neighbors = await getNeighborIds(nodeId);
       for (const neighborId of neighbors) {
         const deg = /** @type {number} */ (inDegree.get(neighborId)) - 1;
         inDegree.set(neighborId, deg);
@@ -779,29 +838,17 @@ export default class GraphTraversal {
       readyRemaining: !ready.isEmpty(),
     });
     if (hasCycle && throwOnCycle) {
-      // Find a back-edge as witness
-      const inSorted = new Set(sorted);
-      /** @type {string|undefined} */
-      let cycleWitnessFrom;
-      /** @type {string|undefined} */
-      let cycleWitnessTo;
-      for (const [nodeId, neighbors] of adjList) {
-        if (inSorted.has(nodeId)) { continue; }
-        for (const neighborId of neighbors) {
-          if (!inSorted.has(neighborId)) {
-            cycleWitnessFrom = nodeId;
-            cycleWitnessTo = neighborId;
-            break;
-          }
-        }
-        if (cycleWitnessFrom) { break; }
-      }
+      const cycleWitness = await this._findTopoCycleWitness({
+        discovered,
+        sorted,
+        getNeighborIds,
+      });
 
       throw new TraversalError('Graph contains a cycle', {
         code: 'ERR_GRAPH_HAS_CYCLES',
         context: {
           nodesInCycle: discovered.size - sorted.length,
-          cycleWitness: cycleWitnessFrom ? { from: cycleWitnessFrom, to: cycleWitnessTo } : undefined,
+          cycleWitness: cycleWitness.from ? cycleWitness : undefined,
         },
       });
     }
@@ -973,15 +1020,15 @@ export default class GraphTraversal {
     maxNodes = DEFAULT_MAX_NODES,
     signal,
   }) {
-    // Topo sort with cycle detection + neighbor edge map reuse
-    const { sorted, _neighborEdgeMap } = await this.topologicalSort({
+    // Topo sort with cycle detection. The DP pass re-fetches neighbors
+    // instead of holding the full reachable edge set in memory.
+    const { sorted } = await this.topologicalSort({
       start,
       direction,
       options,
       maxNodes,
       throwOnCycle: true,
       signal,
-      _returnAdjList: true,
     });
 
     const rs = this._newRunStats();
@@ -999,9 +1046,7 @@ export default class GraphTraversal {
     for (const nodeId of sorted) {
       checkAborted(signal, 'levels');
       const currentLevel = /** @type {number} */ (levelMap.get(nodeId));
-      const neighbors = _neighborEdgeMap
-        ? (_neighborEdgeMap.get(nodeId) || [])
-        : await this._getNeighbors(nodeId, direction, rs, options);
+      const neighbors = await this._getNeighbors(nodeId, direction, rs, options);
       rs.edgesTraversed += neighbors.length;
 
       for (const { neighborId } of neighbors) {
@@ -1089,28 +1134,31 @@ export default class GraphTraversal {
     maxNodes = DEFAULT_MAX_NODES,
     signal,
   }) {
-    // Topo sort with cycle detection + neighbor edge map reuse
-    const { sorted, _neighborEdgeMap } = await this.topologicalSort({
+    // Topo sort with cycle detection. Successor edges are fetched on demand
+    // and memoized locally instead of retaining the full topo discovery cache.
+    const { sorted } = await this.topologicalSort({
       start,
       direction,
       options,
       maxNodes,
       throwOnCycle: true,
       signal,
-      _returnAdjList: true,
     });
 
     const rs = this._newRunStats();
-    /** @type {Map<string, string[]>} */
-    const adjList = new Map();
-
-    // Build adjacency list from topo sort data
-    for (const nodeId of sorted) {
-      const neighbors = _neighborEdgeMap
-        ? (_neighborEdgeMap.get(nodeId) || [])
-        : await this._getNeighbors(nodeId, direction, rs, options);
-      adjList.set(nodeId, neighbors.map((n) => n.neighborId));
-    }
+    /** @type {Map<string, NeighborEdge[]>} */
+    const fetchedSuccessors = new Map();
+    /** @param {string} nodeId */
+    const getSuccessorEdges = async (nodeId) => {
+      const cached = fetchedSuccessors.get(nodeId);
+      if (cached !== undefined) {
+        return cached;
+      }
+      const neighbors = await this._getNeighbors(nodeId, direction, rs, options);
+      rs.edgesTraversed += neighbors.length;
+      fetchedSuccessors.set(nodeId, neighbors);
+      return neighbors;
+    };
 
     // For each node, find redundant edges via DFS/BFS from grandchildren
     /** @type {Set<string>} — keys are "from\0to" */
@@ -1118,12 +1166,13 @@ export default class GraphTraversal {
 
     for (const u of sorted) {
       checkAborted(signal, 'transitiveReduction');
-      const directSuccessors = adjList.get(u) || [];
-      if (directSuccessors.length <= 1) {
+      const directEdges = await getSuccessorEdges(u);
+      if (directEdges.length <= 1) {
         continue; // Cannot have redundant edges with 0 or 1 successor
       }
 
-      const directSet = new Set(directSuccessors);
+      /** @type {Set<string>} */
+      const directSet = new Set();
 
       // BFS from all grandchildren (successors-of-successors)
       // Any direct successor reachable from a grandchild is redundant
@@ -1132,9 +1181,10 @@ export default class GraphTraversal {
       /** @type {string[]} */
       let frontier = [];
 
-      for (const s of directSuccessors) {
-        const sSuccessors = adjList.get(s) || [];
-        for (const gc of sSuccessors) {
+      for (const { neighborId: successorId } of directEdges) {
+        directSet.add(successorId);
+        const successorEdges = await getSuccessorEdges(successorId);
+        for (const { neighborId: gc } of successorEdges) {
           if (!visited.has(gc)) {
             visited.add(gc);
             frontier.push(gc);
@@ -1150,11 +1200,11 @@ export default class GraphTraversal {
           if (directSet.has(nodeId)) {
             redundant.add(`${u}\0${nodeId}`);
           }
-          const successors = adjList.get(nodeId) || [];
-          for (const s of successors) {
-            if (!visited.has(s)) {
-              visited.add(s);
-              nextFrontier.push(s);
+          const successors = await getSuccessorEdges(nodeId);
+          for (const { neighborId: successorId } of successors) {
+            if (!visited.has(successorId)) {
+              visited.add(successorId);
+              nextFrontier.push(successorId);
             }
           }
         }
@@ -1168,9 +1218,7 @@ export default class GraphTraversal {
     let removed = 0;
 
     for (const nodeId of sorted) {
-      const neighbors = _neighborEdgeMap
-        ? (_neighborEdgeMap.get(nodeId) || [])
-        : [];
+      const neighbors = await getSuccessorEdges(nodeId);
       for (const { neighborId, label } of neighbors) {
         if (redundant.has(`${nodeId}\0${neighborId}`)) {
           removed++;
@@ -1195,29 +1243,26 @@ export default class GraphTraversal {
   }
 
   /**
-   * Transitive closure — all implied reachability edges.
+   * Discovers the reachable node set used by transitive closure variants.
    *
-   * For each node, BFS to find all reachable nodes and emit an edge
-   * for each pair. Works on cyclic graphs.
-   *
-   * @param {{ start: string | string[], direction?: Direction, options?: NeighborOptions, maxNodes?: number, maxEdges?: number, signal?: AbortSignal }} params
-   * @returns {Promise<{edges: Array<{from: string, to: string}>, stats: TraversalStats}>}
-   * @throws {TraversalError} code 'INVALID_START' if start node missing
-   * @throws {TraversalError} code 'E_MAX_EDGES_EXCEEDED' if closure exceeds maxEdges
+   * @param {{ start: string | string[], direction: Direction, options?: NeighborOptions, maxNodes: number, signal?: AbortSignal, rs: RunStats, opName: string }} params
+   * @returns {Promise<{ nodeList: string[], nodesVisited: number }>}
+   * @private
    */
-  async transitiveClosure({
-    start, direction = 'out', options,
-    maxNodes = DEFAULT_MAX_NODES,
-    maxEdges = 1000000,
+  async _prepareTransitiveClosure({
+    start,
+    direction,
+    options,
+    maxNodes,
     signal,
+    rs,
+    opName,
   }) {
-    const rs = this._newRunStats();
     const starts = [...new Set(Array.isArray(start) ? start : [start])];
     for (const s of starts) {
       await this._validateStart(s);
     }
 
-    // Phase 1: Discover all reachable nodes via BFS from all starts
     const allVisited = new Set();
     /** @type {string[]} */
     const queue = [...starts];
@@ -1228,7 +1273,7 @@ export default class GraphTraversal {
 
     while (qHead < queue.length) {
       if (allVisited.size % 1000 === 0) {
-        checkAborted(signal, 'transitiveClosure');
+        checkAborted(signal, opName);
       }
       if (allVisited.size >= maxNodes) {
         break;
@@ -1244,20 +1289,42 @@ export default class GraphTraversal {
       }
     }
 
-    // Phase 2: For each node, BFS to collect all reachable nodes
-    /** @type {Array<{from: string, to: string}>} */
-    const edges = [];
+    return {
+      nodeList: [...allVisited].sort(),
+      nodesVisited: allVisited.size,
+    };
+  }
+
+  /**
+   * Streams transitive-closure edges in deterministic lexicographic order.
+   *
+   * Uses O(V) working memory per source node by collecting only that node's
+   * reachable targets before yielding them in sorted order.
+   *
+   * @param {{ nodeList: string[], direction: Direction, options?: NeighborOptions, maxEdges: number, signal?: AbortSignal, rs: RunStats, opName: string }} params
+   * @yields {{from: string, to: string}}
+   * @throws {TraversalError} code 'E_MAX_EDGES_EXCEEDED' if closure exceeds maxEdges
+   * @private
+   */
+  async *_streamTransitiveClosureEdges({
+    nodeList,
+    direction,
+    options,
+    maxEdges,
+    signal,
+    rs,
+    opName,
+  }) {
     let edgeCount = 0;
 
-    const nodeList = [...allVisited].sort();
-
     for (const fromNode of nodeList) {
-      checkAborted(signal, 'transitiveClosure');
+      checkAborted(signal, opName);
 
-      // BFS from fromNode
       const visited = new Set([fromNode]);
       /** @type {string[]} */
       let frontier = [fromNode];
+      /** @type {string[]} */
+      const reachable = [];
 
       while (frontier.length > 0) {
         /** @type {string[]} */
@@ -1269,6 +1336,7 @@ export default class GraphTraversal {
             if (!visited.has(neighborId)) {
               visited.add(neighborId);
               nextFrontier.push(neighborId);
+              reachable.push(neighborId);
               edgeCount++;
               if (edgeCount > maxEdges) {
                 throw new TraversalError(
@@ -1276,24 +1344,103 @@ export default class GraphTraversal {
                   { code: 'E_MAX_EDGES_EXCEEDED', context: { maxEdges, edgesSoFar: edgeCount } },
                 );
               }
-              edges.push({ from: fromNode, to: neighborId });
             }
           }
         }
         frontier = nextFrontier;
       }
-    }
 
-    // Sort edges for determinism
-    edges.sort((a, b) => {
-      if (a.from < b.from) { return -1; }
-      if (a.from > b.from) { return 1; }
-      if (a.to < b.to) { return -1; }
-      if (a.to > b.to) { return 1; }
-      return 0;
+      reachable.sort();
+      for (const toNode of reachable) {
+        yield { from: fromNode, to: toNode };
+      }
+    }
+  }
+
+  /**
+   * Transitive closure stream — yields implied reachability edges lazily.
+   *
+   * Works on cyclic graphs. Output order is deterministic: sorted by `from`
+   * node, then by `to` node within each source.
+   *
+   * @param {{ start: string | string[], direction?: Direction, options?: NeighborOptions, maxNodes?: number, maxEdges?: number, signal?: AbortSignal }} params
+   * @yields {{from: string, to: string}}
+   * @throws {TraversalError} code 'INVALID_START' if start node missing
+   * @throws {TraversalError} code 'E_MAX_EDGES_EXCEEDED' if closure exceeds maxEdges
+   */
+  async *transitiveClosureStream({
+    start,
+    direction = 'out',
+    options,
+    maxNodes = DEFAULT_MAX_NODES,
+    maxEdges = 1000000,
+    signal,
+  }) {
+    const rs = this._newRunStats();
+    const prepared = await this._prepareTransitiveClosure({
+      start,
+      direction,
+      options,
+      maxNodes,
+      signal,
+      rs,
+      opName: 'transitiveClosureStream',
     });
 
-    return { edges, stats: this._stats(allVisited.size, rs) };
+    yield* this._streamTransitiveClosureEdges({
+      nodeList: prepared.nodeList,
+      direction,
+      options,
+      maxEdges,
+      signal,
+      rs,
+      opName: 'transitiveClosureStream',
+    });
+  }
+
+  /**
+   * Transitive closure — all implied reachability edges.
+   *
+   * For each node, BFS finds all reachable nodes and emits an edge for
+   * each pair. Works on cyclic graphs.
+   *
+   * @param {{ start: string | string[], direction?: Direction, options?: NeighborOptions, maxNodes?: number, maxEdges?: number, signal?: AbortSignal }} params
+   * @returns {Promise<{edges: Array<{from: string, to: string}>, stats: TraversalStats}>}
+   * @throws {TraversalError} code 'INVALID_START' if start node missing
+   * @throws {TraversalError} code 'E_MAX_EDGES_EXCEEDED' if closure exceeds maxEdges
+   */
+  async transitiveClosure({
+    start, direction = 'out', options,
+    maxNodes = DEFAULT_MAX_NODES,
+    maxEdges = 1000000,
+    signal,
+  }) {
+    const rs = this._newRunStats();
+    const { nodeList, nodesVisited } = await this._prepareTransitiveClosure({
+      start,
+      direction,
+      options,
+      maxNodes,
+      signal,
+      rs,
+      opName: 'transitiveClosure',
+    });
+
+    /** @type {Array<{from: string, to: string}>} */
+    const edges = [];
+    for await (const edge of this._streamTransitiveClosureEdges({
+      nodeList,
+      direction,
+      options,
+      maxEdges,
+      signal,
+      rs,
+      opName: 'transitiveClosure',
+    })) {
+      edges.push(edge);
+    }
+
+    return { edges, stats: this._stats(nodesVisited, rs) };
   }
 
   // ==== Private Helpers ====

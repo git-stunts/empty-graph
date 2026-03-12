@@ -54,6 +54,7 @@ import SyncTrustGate from './SyncTrustGate.js';
  * @property {(options?: Record<string, unknown>) => Promise<unknown>} materialize
  * @property {(state: import('../services/JoinReducer.js').WarpStateV5) => Promise<unknown>} _setMaterializedState
  * @property {() => Promise<string[]>} discoverWriters
+ * @property {((trust: { mode?: 'off'|'log-only'|'enforce', pin?: string|null }|undefined|null) => SyncTrustGate|null)} [_createSyncTrustGate]
  */
 
 // ── Constants ───────────────────────────────────────────────────────────────
@@ -94,6 +95,63 @@ function normalizeSyncPath(path) {
     return '/sync';
   }
   return path.startsWith('/') ? path : `/${path}`;
+}
+
+/**
+ * Resolves a sync remote into either a direct peer or an HTTP URL target.
+ *
+ * @param {string|import('../WarpGraph.js').default} remote
+ * @param {string} path
+ * @param {boolean} hasPathOverride
+ * @returns {{ isDirectPeer: boolean, targetUrl: URL|null }}
+ */
+function resolveSyncTarget(remote, path, hasPathOverride) {
+  const isDirectPeer = remote && typeof remote === 'object' &&
+    typeof remote.processSyncRequest === 'function';
+  if (isDirectPeer) {
+    return { isDirectPeer: true, targetUrl: null };
+  }
+
+  let targetUrl;
+  try {
+    targetUrl = remote instanceof URL ? new URL(remote.toString()) : new URL(/** @type {string} */ (remote));
+  } catch {
+    throw new SyncError('Invalid remote URL', {
+      code: 'E_SYNC_REMOTE_URL',
+      context: { remote },
+    });
+  }
+
+  if (!['http:', 'https:'].includes(targetUrl.protocol)) {
+    throw new SyncError('Unsupported remote URL protocol', {
+      code: 'E_SYNC_REMOTE_URL',
+      context: { protocol: targetUrl.protocol },
+    });
+  }
+
+  const normalizedPath = normalizeSyncPath(path);
+  if (!targetUrl.pathname || targetUrl.pathname === '/') {
+    targetUrl.pathname = normalizedPath;
+  } else if (hasPathOverride) {
+    targetUrl.pathname = normalizedPath;
+  }
+  targetUrl.hash = '';
+
+  return { isDirectPeer: false, targetUrl };
+}
+
+/**
+ * @param {SyncHost} host
+ * @param {SyncTrustGate|null} defaultGate
+ * @param {{ trust?: { mode?: 'off'|'log-only'|'enforce', pin?: string|null } }} options
+ * @returns {SyncTrustGate|null}
+ */
+function resolveSyncTrustGate(host, defaultGate, options) {
+  if (!Object.prototype.hasOwnProperty.call(options, 'trust') ||
+    typeof host._createSyncTrustGate !== 'function') {
+    return defaultGate;
+  }
+  return host._createSyncTrustGate(options.trust);
 }
 
 /**
@@ -296,11 +354,24 @@ export default class SyncController {
    * **Requires a cached state.**
    *
    * @param {import('./SyncProtocol.js').SyncResponse} response - The sync response
-   * @returns {Promise<{state: import('./JoinReducer.js').WarpStateV5, frontier: Map<string, string>, applied: number, trustVerdict?: string, writersApplied?: string[], skippedWriters: Array<{writerId: string, reason: string, localSha: string, remoteSha: string|null}>}>} Result with updated state and frontier
+  * @returns {Promise<{state: import('./JoinReducer.js').WarpStateV5, frontier: Map<string, string>, applied: number, trustVerdict?: string, writersApplied?: string[], skippedWriters: Array<{writerId: string, reason: string, localSha: string, remoteSha: string|null}>}>} Result with updated state and frontier
    * @throws {import('../errors/QueryError.js').default} If no cached state exists (code: `E_NO_STATE`)
    * @throws {SyncError} If trust gate rejects untrusted writers (code: `E_SYNC_UNTRUSTED_WRITER`)
    */
   async applySyncResponse(response) {
+    return await this._applySyncResponseWithGate(response, this._trustGate);
+  }
+
+  /**
+   * Applies a sync response using an explicit trust gate, allowing per-call
+   * trust overrides without mutating controller state.
+   *
+   * @param {import('./SyncProtocol.js').SyncResponse} response
+   * @param {SyncTrustGate|null} trustGate
+   * @returns {Promise<{state: import('./JoinReducer.js').WarpStateV5, frontier: Map<string, string>, applied: number, trustVerdict?: string, writersApplied?: string[], skippedWriters: Array<{writerId: string, reason: string, localSha: string, remoteSha: string|null}>}>}
+   * @private
+   */
+  async _applySyncResponseWithGate(response, trustGate) {
     if (!this._host._cachedState) {
       throw new QueryError(E_NO_STATE_MSG, {
         code: 'E_NO_STATE',
@@ -311,8 +382,8 @@ export default class SyncController {
     const writersApplied = SyncTrustGate.extractWritersFromPatches(response.patches || []);
 
     // Evaluate trust BEFORE applying any patches
-    if (this._trustGate && writersApplied.length > 0) {
-      const verdict = await this._trustGate.evaluate(writersApplied, {
+    if (trustGate && writersApplied.length > 0) {
+      const verdict = await trustGate.evaluate(writersApplied, {
         graphName: this._host._graphName,
       });
       if (!verdict.allowed) {
@@ -363,7 +434,7 @@ export default class SyncController {
    * Syncs with a remote peer (HTTP or direct graph instance).
    *
    * @param {string|import('../WarpGraph.js').default} remote - URL or peer graph instance
-   * @param {{ path?: string, retries?: number, baseDelayMs?: number, maxDelayMs?: number, timeoutMs?: number, signal?: AbortSignal, onStatus?: (event: {type: string, attempt: number, durationMs?: number, status?: number, error?: Error}) => void, materialize?: boolean, auth?: { secret: string, keyId?: string } }} [options]
+   * @param {{ path?: string, retries?: number, baseDelayMs?: number, maxDelayMs?: number, timeoutMs?: number, signal?: AbortSignal, onStatus?: (event: {type: string, attempt: number, durationMs?: number, status?: number, error?: Error}) => void, materialize?: boolean, auth?: { secret: string, keyId?: string }, trust?: { mode?: 'off'|'log-only'|'enforce', pin?: string|null } }} [options]
    * @returns {Promise<{applied: number, attempts: number, skippedWriters: Array<{writerId: string, reason: string, localSha: string, remoteSha: string|null}>, state?: import('./JoinReducer.js').WarpStateV5}>}
    */
   async syncWith(remote, options = {}) {
@@ -378,38 +449,13 @@ export default class SyncController {
       onStatus,
       materialize: materializeAfterSync = false,
       auth,
+      trust,
     } = options;
 
     const hasPathOverride = Object.prototype.hasOwnProperty.call(options, 'path');
-    const isDirectPeer = remote && typeof remote === 'object' &&
-      typeof remote.processSyncRequest === 'function';
-    let targetUrl = null;
-    if (!isDirectPeer) {
-      try {
-        targetUrl = remote instanceof URL ? new URL(remote.toString()) : new URL(/** @type {string} */ (remote));
-      } catch {
-        throw new SyncError('Invalid remote URL', {
-          code: 'E_SYNC_REMOTE_URL',
-          context: { remote },
-        });
-      }
-
-      if (!['http:', 'https:'].includes(targetUrl.protocol)) {
-        throw new SyncError('Unsupported remote URL protocol', {
-          code: 'E_SYNC_REMOTE_URL',
-          context: { protocol: targetUrl.protocol },
-        });
-      }
-
-      const normalizedPath = normalizeSyncPath(path);
-      if (!targetUrl.pathname || targetUrl.pathname === '/') {
-        targetUrl.pathname = normalizedPath;
-      } else if (hasPathOverride) {
-        targetUrl.pathname = normalizedPath;
-      }
-      targetUrl.hash = '';
-    }
+    const { isDirectPeer, targetUrl } = resolveSyncTarget(remote, path, hasPathOverride);
     let attempt = 0;
+    const trustGate = resolveSyncTrustGate(this._host, this._trustGate, { trust });
     const emit = (/** @type {string} */ type, /** @type {Record<string, unknown>} */ payload = {}) => {
       if (typeof onStatus === 'function') {
         onStatus(/** @type {{type: string, attempt: number}} */ ({ type, attempt, ...payload }));
@@ -431,8 +477,9 @@ export default class SyncController {
       emit('requestBuilt');
       let response;
       if (isDirectPeer) {
+        const peer = /** @type {import('../WarpGraph.js').default} */ (remote);
         emit('requestSent');
-        response = await remote.processSyncRequest(request);
+        response = await peer.processSyncRequest(request);
         emit('responseReceived');
       } else {
         emit('requestSent');
@@ -513,7 +560,9 @@ export default class SyncController {
         emit('materialized');
       }
 
-      const result = await this.applySyncResponse(response);
+      const result = trustGate === this._trustGate
+        ? await this.applySyncResponse(response)
+        : await this._applySyncResponseWithGate(response, trustGate);
       emit('applied', { applied: result.applied });
 
       const durationMs = this._host._clock.now() - attemptStart;

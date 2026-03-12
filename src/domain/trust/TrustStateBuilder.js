@@ -36,6 +36,22 @@ import { TrustRecordSchema } from './schemas.js';
  */
 
 /**
+ * @typedef {Object} TrustBuildOptions
+ * @property {(record: TrustRecord, publicKeyBase64: string) => boolean} [signatureVerifier] - Optional cryptographic verifier
+ * @property {(publicKeyBase64: string) => string} [computeKeyFingerprint] - Optional key fingerprint function for KEY_ADD validation
+ */
+
+/**
+ * @typedef {Object} TrustBuildContext
+ * @property {Map<string, {publicKey: string, addedAt: string}>} activeKeys
+ * @property {Map<string, {publicKey: string, revokedAt: string, reasonCode: string}>} revokedKeys
+ * @property {Map<string, {keyId: string, boundAt: string}>} writerBindings
+ * @property {Map<string, {keyId: string, revokedAt: string, reasonCode: string}>} revokedBindings
+ * @property {Array<{recordId: string, error: string}>} errors
+ * @property {TrustBuildOptions} options
+ */
+
+/**
  * Builds trust state from an ordered sequence of trust records.
  *
  * Records MUST be in chain order (oldest first). The builder enforces:
@@ -44,24 +60,24 @@ import { TrustRecordSchema } from './schemas.js';
  * - Schema validation: each record is validated against TrustRecordSchema
  *
  * @param {Array<Record<string, unknown>>} records - Trust records in chain order
+ * @param {TrustBuildOptions} [options]
  * @returns {TrustState} Frozen trust state
  */
-export function buildState(records) {
-  /** @type {Map<string, {publicKey: string, addedAt: string}>} */
-  const activeKeys = new Map();
-  /** @type {Map<string, {publicKey: string, revokedAt: string, reasonCode: string}>} */
-  const revokedKeys = new Map();
-  /** @type {Map<string, {keyId: string, boundAt: string}>} */
-  const writerBindings = new Map();
-  /** @type {Map<string, {keyId: string, revokedAt: string, reasonCode: string}>} */
-  const revokedBindings = new Map();
-  /** @type {Array<{recordId: string, error: string}>} */
-  const errors = [];
+export function buildState(records, options = {}) {
+  /** @type {TrustBuildContext} */
+  const ctx = {
+    activeKeys: new Map(),
+    revokedKeys: new Map(),
+    writerBindings: new Map(),
+    revokedBindings: new Map(),
+    errors: [],
+    options,
+  };
 
   for (const record of records) {
     const parsed = TrustRecordSchema.safeParse(record);
     if (!parsed.success) {
-      errors.push({
+      ctx.errors.push({
         recordId: typeof record.recordId === 'string' ? record.recordId : '(unknown)',
         error: `Schema validation failed: ${parsed.error.message}`,
       });
@@ -69,37 +85,101 @@ export function buildState(records) {
     }
 
     const rec = /** @type {TrustRecord} */ (parsed.data);
-    processRecord(rec, activeKeys, revokedKeys, writerBindings, revokedBindings, errors);
+    processRecord(rec, ctx);
   }
 
-  return Object.freeze({ activeKeys, revokedKeys, writerBindings, revokedBindings, errors, recordsProcessed: records.length });
+  return Object.freeze({
+    activeKeys: ctx.activeKeys,
+    revokedKeys: ctx.revokedKeys,
+    writerBindings: ctx.writerBindings,
+    revokedBindings: ctx.revokedBindings,
+    errors: ctx.errors,
+    recordsProcessed: records.length,
+  });
 }
 
 /**
  * @param {TrustRecord} rec
- * @param {Map<string, {publicKey: string, addedAt: string}>} activeKeys
- * @param {Map<string, {publicKey: string, revokedAt: string, reasonCode: string}>} revokedKeys
- * @param {Map<string, {keyId: string, boundAt: string}>} writerBindings
- * @param {Map<string, {keyId: string, revokedAt: string, reasonCode: string}>} revokedBindings
- * @param {Array<{recordId: string, error: string}>} errors
+ * @param {TrustBuildContext} ctx
  */
-function processRecord(rec, activeKeys, revokedKeys, writerBindings, revokedBindings, errors) {
+function processRecord(rec, ctx) {
+  const cryptoError = validateRecordCryptography(rec, ctx.activeKeys, ctx.options);
+  if (cryptoError) {
+    ctx.errors.push({ recordId: rec.recordId, error: cryptoError });
+    return;
+  }
+
   switch (rec.recordType) {
     case 'KEY_ADD':
-      handleKeyAdd(rec, activeKeys, revokedKeys, errors);
+      handleKeyAdd(rec, ctx.activeKeys, ctx.revokedKeys, ctx.errors);
       break;
     case 'KEY_REVOKE':
-      handleKeyRevoke(rec, activeKeys, revokedKeys, errors);
+      handleKeyRevoke(rec, ctx.activeKeys, ctx.revokedKeys, ctx.errors);
       break;
     case 'WRITER_BIND_ADD':
-      handleBindAdd(rec, activeKeys, revokedKeys, writerBindings, errors);
+      handleBindAdd(rec, ctx.activeKeys, ctx.revokedKeys, ctx.writerBindings, ctx.errors);
       break;
     case 'WRITER_BIND_REVOKE':
-      handleBindRevoke(rec, writerBindings, revokedBindings, errors);
+      handleBindRevoke(rec, ctx.writerBindings, ctx.revokedBindings, ctx.errors);
       break;
     default:
-      errors.push({ recordId: rec.recordId, error: `Unknown recordType: ${rec.recordType}` });
+      ctx.errors.push({ recordId: rec.recordId, error: `Unknown recordType: ${rec.recordType}` });
   }
+}
+
+/**
+ * Validates the cryptographic integrity of a trust record when crypto helpers
+ * are supplied by the caller.
+ *
+ * The builder stays pure: all crypto is injected as callbacks.
+ *
+ * @param {TrustRecord} rec
+ * @param {Map<string, {publicKey: string, addedAt: string}>} activeKeys
+ * @param {TrustBuildOptions} options
+ * @returns {string|null}
+ */
+function validateRecordCryptography(rec, activeKeys, options) {
+  const { signatureVerifier, computeKeyFingerprint } = options;
+
+  if (computeKeyFingerprint && rec.recordType === 'KEY_ADD') {
+    try {
+      const expected = computeKeyFingerprint(rec.subject.publicKey);
+      if (expected !== rec.subject.keyId) {
+        return `KEY_ADD fingerprint mismatch: declared ${rec.subject.keyId}, computed ${expected}`;
+      }
+    } catch (err) {
+      return `KEY_ADD fingerprint validation failed: ${err instanceof Error ? err.message : String(err)}`;
+    }
+  }
+
+  if (!signatureVerifier) {
+    return null;
+  }
+
+  let issuerPublicKey = null;
+  if (
+    rec.recordType === 'KEY_ADD' &&
+    rec.issuerKeyId === rec.subject.keyId &&
+    typeof rec.subject.publicKey === 'string'
+  ) {
+    issuerPublicKey = rec.subject.publicKey;
+  } else {
+    issuerPublicKey = activeKeys.get(rec.issuerKeyId)?.publicKey || null;
+  }
+
+  if (!issuerPublicKey) {
+    return `Unknown issuer key for signature verification: ${rec.issuerKeyId}`;
+  }
+
+  try {
+    if (!signatureVerifier(rec, issuerPublicKey)) {
+      return `Signature verification failed for issuer key ${rec.issuerKeyId}`;
+    }
+  } catch (err) {
+    return `Signature verification failed: ${err instanceof Error ? err.message : String(err)}`;
+  }
+
+  return null;
 }
 
 /**

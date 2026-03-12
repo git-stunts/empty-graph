@@ -8,9 +8,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { PatchBuilderV2 } from '../../../../src/domain/services/PatchBuilderV2.js';
 import { createVersionVector } from '../../../../src/domain/crdt/VersionVector.js';
-import { createEmptyStateV5 } from '../../../../src/domain/services/JoinReducer.js';
-import { orsetAdd } from '../../../../src/domain/crdt/ORSet.js';
-import { createDot } from '../../../../src/domain/crdt/Dot.js';
+import { createStateBuilder } from '../../../helpers/stateBuilder.js';
 
 /**
  * Creates a builder with a controllable getCurrentState mock.
@@ -28,8 +26,7 @@ function makeBuilder(getCurrentState) {
 
 describe('PatchBuilderV2 snapshot (C4)', () => {
   it('calls getCurrentState exactly once on first snapshot access', () => {
-    const state = createEmptyStateV5();
-    orsetAdd(state.nodeAlive, 'node:a', createDot('w1', 1));
+    const state = createStateBuilder().node('node:a', { counter: 1 }).build();
     const spy = vi.fn(() => state);
 
     const builder = makeBuilder(spy);
@@ -44,9 +41,8 @@ describe('PatchBuilderV2 snapshot (C4)', () => {
   });
 
   it('snapshot is stable after underlying state mutation', () => {
-    const state = createEmptyStateV5();
-    const dot = createDot('w1', 1);
-    orsetAdd(state.nodeAlive, 'node:a', dot);
+    const stateBuilder = createStateBuilder().node('node:a', { counter: 1 });
+    const state = stateBuilder.build();
 
     const spy = vi.fn(() => state);
     const builder = makeBuilder(spy);
@@ -56,7 +52,7 @@ describe('PatchBuilderV2 snapshot (C4)', () => {
     expect(spy).toHaveBeenCalledTimes(1);
 
     // Mutate the original state after snapshot capture
-    orsetAdd(state.nodeAlive, 'node:b', createDot('w1', 2));
+    stateBuilder.node('node:b', { counter: 2 });
 
     // Second remove reuses the cached snapshot (spy not called again)
     builder.removeNode('node:a');
@@ -79,7 +75,7 @@ describe('PatchBuilderV2 snapshot (C4)', () => {
   });
 
   it('does not capture snapshot for addNode (only removes need it)', () => {
-    const spy = vi.fn(() => createEmptyStateV5());
+    const spy = vi.fn(() => createStateBuilder().build());
     const builder = makeBuilder(spy);
 
     builder.addNode('node:x');

@@ -128,32 +128,61 @@ async function checkSourceFiles() {
   return { hard, ratcheted };
 }
 
-async function checkDeclarations() {
+/**
+ * Strips inline `//` and same-line block comments before token scanning.
+ *
+ * @param {string} line
+ * @returns {string}
+ */
+export function stripInlineComments(line) {
+  return line
+    .replace(/\/\*.*?\*\//g, '')
+    .replace(/\/\/.*$/, '');
+}
+
+/**
+ * Finds `any` violations in public declarations after removing inline comments.
+ *
+ * @param {string} content
+ * @param {string} [fileName]
+ * @returns {string[]}
+ */
+export function findDeclarationAnyViolations(content, fileName = 'index.d.ts') {
   /** @type {string[]} */
   const violations = [];
+  const lines = content.split('\n');
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = stripInlineComments(lines[i]);
+    const trimmed = line.trim();
+    if (
+      trimmed.startsWith('*') ||
+      trimmed.startsWith('//') ||
+      trimmed.startsWith('/**') ||
+      trimmed.startsWith('/*') ||
+      trimmed === '*/'
+    ) {
+      continue;
+    }
+    if (/\bany\b/.test(line)) {
+      violations.push(`${fileName}:${i + 1}: 'any' in type declaration`);
+    }
+  }
+
+  return violations;
+}
+
+async function checkDeclarations() {
   const dtsPath = join(ROOT, 'index.d.ts');
 
   try {
     await stat(dtsPath);
   } catch {
-    return violations;
+    return [];
   }
 
   const content = await readFile(dtsPath, 'utf8');
-  const lines = content.split('\n');
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const trimmed = line.trim();
-    if (trimmed.startsWith('*') || trimmed.startsWith('//') || trimmed.startsWith('/**')) {
-      continue;
-    }
-    if (/\bany\b/.test(line)) {
-      violations.push(`index.d.ts:${i + 1}: 'any' in type declaration`);
-    }
-  }
-
-  return violations;
+  return findDeclarationAnyViolations(content, 'index.d.ts');
 }
 
 // ── Main ───────────────────────────────────────────────────────────────────

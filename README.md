@@ -177,6 +177,11 @@ const server = await graphB.serve({ port: 3000 });
 // Sync from another instance
 await graphA.syncWith('http://localhost:3000/sync');
 
+// Optional signed trust evaluation for inbound patches
+await graphA.syncWith('http://localhost:3000/sync', {
+  trust: { mode: 'enforce', pin: 'abc123def456' },
+});
+
 await server.close();
 ```
 

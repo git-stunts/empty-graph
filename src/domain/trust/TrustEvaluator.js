@@ -42,6 +42,10 @@ export function evaluateWriters(writerIds, trustState, policy) {
     return buildErrorAssessment(writerIds, TRUST_REASON_CODES.TRUST_POLICY_INVALID);
   }
 
+  if (trustState.errors.length > 0) {
+    return buildTrustStateErrorAssessment(writerIds, trustState);
+  }
+
   const sortedWriters = [...writerIds].sort();
   const explanations = sortedWriters.map((writerId) =>
     evaluateSingleWriter(writerId, trustState),
@@ -67,6 +71,47 @@ export function evaluateWriters(writerIds, trustState, policy) {
     trustSchemaVersion: 1,
     mode: 'signed_evidence_v1',
     trustVerdict,
+    trust: Object.freeze(trust),
+  });
+}
+
+/**
+ * Builds an error assessment when trust evidence is structurally or
+ * cryptographically invalid.
+ *
+ * @param {string[]} writerIds
+ * @param {TrustState} trustState
+ * @returns {TrustAssessment}
+ */
+function buildTrustStateErrorAssessment(writerIds, trustState) {
+  const sortedWriters = [...writerIds].sort();
+  const firstError = trustState.errors[0]?.error || 'Invalid trust evidence';
+  const trust = {
+    status: /** @type {'configured'|'pinned'|'error'|'not_configured'} */ ('error'),
+    source: 'ref',
+    sourceDetail: null,
+    evaluatedWriters: sortedWriters,
+    untrustedWriters: sortedWriters,
+    explanations: sortedWriters.length > 0
+      ? sortedWriters.map((writerId) => Object.freeze({
+        writerId,
+        trusted: false,
+        reasonCode: TRUST_REASON_CODES.TRUST_RECORD_CHAIN_INVALID,
+        reason: `Trust evidence invalid: ${firstError}`,
+      }))
+      : [Object.freeze({
+        writerId: '*',
+        trusted: false,
+        reasonCode: TRUST_REASON_CODES.TRUST_RECORD_CHAIN_INVALID,
+        reason: `Trust evidence invalid: ${firstError}`,
+      })],
+    evidenceSummary: buildEvidenceSummary(trustState),
+  };
+
+  return Object.freeze({
+    trustSchemaVersion: 1,
+    mode: 'signed_evidence_v1',
+    trustVerdict: deriveTrustVerdict(trust),
     trust: Object.freeze(trust),
   });
 }

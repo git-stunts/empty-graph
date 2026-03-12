@@ -264,6 +264,8 @@ describe('WarpServeService', () => {
         },
         prop: new Map([
           ['user:alice\0name', { eventId: { writerId: 'w1', counter: 1 }, value: 'Alice' }],
+          ['\x01user:alice\0user:bob\0knows\0since', { eventId: { writerId: 'w1', counter: 2 }, value: '2025-01-01' }],
+          ['\x01user:alice\0user:bob\0knows\0weight', { eventId: { writerId: 'w1', counter: 3 }, value: 2 }],
         ]),
         observedFrontier: new Map([['w1', 3]]),
       });
@@ -286,7 +288,12 @@ describe('WarpServeService', () => {
         expect.objectContaining({ id: 'user:bob', props: {} }),
       ]));
       expect(msg.payload.edges).toEqual([
-        { from: 'user:alice', to: 'user:bob', label: 'knows' },
+        {
+          from: 'user:alice',
+          to: 'user:bob',
+          label: 'knows',
+          props: { since: '2025-01-01', weight: 2 },
+        },
       ]);
       expect(msg.payload.frontier).toEqual({ w1: 3 });
     });
@@ -749,6 +756,32 @@ describe('WarpServeService', () => {
     });
 
     it('re-materializes with ceiling and sends state', async () => {
+      const dot = { writerId: 'w1', counter: 1 };
+      graph.materialize
+        .mockResolvedValueOnce({
+          nodeAlive: { entries: new Map(), tombstones: new Set() },
+          edgeAlive: { entries: new Map(), tombstones: new Set() },
+          prop: new Map(),
+          observedFrontier: new Map(),
+        })
+        .mockResolvedValueOnce({
+          nodeAlive: {
+            entries: new Map([['user:alice', new Set([dot])], ['user:bob', new Set([dot])]]),
+            tombstones: new Set(),
+          },
+          edgeAlive: {
+            entries: new Map([
+              ['user:alice\0user:bob\0knows', new Set([dot])],
+              ['user:bob\0user:carol\0works_with', new Set([dot])],
+            ]),
+            tombstones: new Set(),
+          },
+          prop: new Map([
+            ['\x01user:alice\0user:bob\0knows\0since', { eventId: { writerId: 'w1', counter: 2 }, value: '2025-01-01' }],
+          ]),
+          observedFrontier: new Map([['w1', 5]]),
+        });
+
       const client = ws.simulateConnection();
       client.sendFromClient(JSON.stringify({
         v: 1, type: 'open', id: 'o1',
@@ -767,6 +800,20 @@ describe('WarpServeService', () => {
       const msg = JSON.parse(client.sent[0]);
       expect(msg.type).toBe('state');
       expect(msg.id).toBe('sk-1');
+      expect(msg.payload.edges).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          from: 'user:alice',
+          to: 'user:bob',
+          label: 'knows',
+          props: { since: '2025-01-01' },
+        }),
+        expect.objectContaining({
+          from: 'user:bob',
+          to: 'user:carol',
+          label: 'works_with',
+          props: {},
+        }),
+      ]));
       expect(graph.materialize).toHaveBeenCalledWith(
         expect.objectContaining({ ceiling: 5 }),
       );

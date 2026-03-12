@@ -203,6 +203,50 @@ describe('NodeWsAdapter', () => {
     expect(addr.port).toBeGreaterThan(0);
   });
 
+  it('can listen again after a ws-only startup failure', async () => {
+    const blockerAdapter = new NodeWsAdapter();
+    const blocker = blockerAdapter.createServer(() => {});
+    const blockerAddr = await blocker.listen(0);
+
+    const adapter = new NodeWsAdapter();
+    server = adapter.createServer(() => {});
+
+    try {
+      await expect(server.listen(blockerAddr.port)).rejects.toThrow();
+      const recovered = await server.listen(0);
+      expect(recovered.port).toBeGreaterThan(0);
+    } finally {
+      await blocker.close();
+    }
+  });
+
+  it('close() is idempotent', async () => {
+    const adapter = new NodeWsAdapter();
+    server = adapter.createServer(() => {});
+    await server.listen(0);
+
+    await expect(server.close()).resolves.toBeUndefined();
+    await expect(server.close()).resolves.toBeUndefined();
+    server = null;
+  });
+
+  it('close() after failed listen resolves cleanly', async () => {
+    const blockerAdapter = new NodeWsAdapter();
+    const blocker = blockerAdapter.createServer(() => {});
+    const blockerAddr = await blocker.listen(0);
+
+    const adapter = new NodeWsAdapter();
+    server = adapter.createServer(() => {});
+
+    try {
+      await expect(server.listen(blockerAddr.port)).rejects.toThrow();
+      await expect(server.close()).resolves.toBeUndefined();
+      server = null;
+    } finally {
+      await blocker.close();
+    }
+  });
+
   it('buffers messages arriving before onMessage handler is set', async () => {
     const adapter = new NodeWsAdapter();
     /** @type {import('../../../../src/ports/WebSocketServerPort.js').WsConnection|null} */
@@ -310,6 +354,23 @@ describe('NodeWsAdapter', () => {
 
       const res = await fetch(`http://127.0.0.1:${addr.port}/missing.css`);
       expect(res.status).toBe(404);
+    });
+
+    it('can listen again after an HTTP+WS startup failure', async () => {
+      const blockerAdapter = new NodeWsAdapter({ staticDir });
+      const blocker = blockerAdapter.createServer(() => {});
+      const blockerAddr = await blocker.listen(0);
+
+      const adapter = new NodeWsAdapter({ staticDir });
+      server = adapter.createServer(() => {});
+
+      try {
+        await expect(server.listen(blockerAddr.port)).rejects.toThrow();
+        const recovered = await server.listen(0);
+        expect(recovered.port).toBeGreaterThan(0);
+      } finally {
+        await blocker.close();
+      }
     });
   });
 });
