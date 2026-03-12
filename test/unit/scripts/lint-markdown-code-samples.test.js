@@ -107,6 +107,24 @@ describe('lintMarkdownCodeSample', () => {
     expect(lintMarkdownCodeSample(tsSample)).toEqual([]);
   });
 
+  it('accepts documentation-style top-level await TypeScript snippets', () => {
+    const sample = {
+      filePath: 'docs/ADR-001-Folds.md',
+      language: /** @type {'ts'} */ ('ts'),
+      code: [
+        "const view = graph.view({ fold: { mode: 'shallow', maxDepth: 1 } });",
+        '',
+        'await view.traverse(startNodeId);',
+        "await view.query().match('doc:*').run();",
+        'await view.renderAscii();',
+      ].join('\n'),
+      fenceLine: 122,
+      startLine: 123,
+    };
+
+    expect(lintMarkdownCodeSample(sample)).toEqual([]);
+  });
+
   it('reports syntax errors with Markdown-relative locations', () => {
     const sample = {
       filePath: 'README.md',

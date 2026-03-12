@@ -119,12 +119,12 @@ Folds should be exposed as explicit view operations, not implicit traversal surp
 
 #### 3.1 View API
 
-```text
-const view = graph.view({ fold: { mode: "shallow", maxDepth: 1 } });
+```ts
+const view = graph.view({ fold: { mode: 'shallow', maxDepth: 1 } });
 
 await view.traverse(startNodeId);
-await view.query(...);
-await view.renderAscii(...);
+await view.query().match('doc:*').run();
+await view.renderAscii();
 ```
 
 `graph.view()` returns a wrapper that:

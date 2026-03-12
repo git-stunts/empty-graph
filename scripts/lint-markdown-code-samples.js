@@ -133,6 +133,8 @@ export function lintMarkdownCodeSample(sample) {
     true,
     scriptKind
   );
+  // `parseDiagnostics` is an internal SourceFile property; we read it here so
+  // the linter can report parse-only syntax errors without building a Program.
   const diagnostics = /** @type {ReadonlyArray<ts.DiagnosticWithLocation>} */ (
     /** @type {ts.SourceFile & { parseDiagnostics?: ReadonlyArray<ts.DiagnosticWithLocation> }} */ (sourceFile)
       .parseDiagnostics || []
