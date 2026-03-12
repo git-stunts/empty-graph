@@ -393,6 +393,7 @@ Investigation revealed the correct approach is a two-phase split:
 | B81 | ~~**`attachContent` ORPHAN BLOB GUARD**~~ — **DONE (`v15`).** Content attachment now validates the target node/edge before writing blob content. |
 | B95 | ~~**NAMESPACE EXPORT SUPPORT**~~ — **DONE (`v15`).** The declaration surface validator now handles namespace exports in `.d.ts` parsing. |
 | B97 | ~~**AUDIT MANIFEST vs `index.js` DRIFT**~~ — **DONE (`v15`).** Runtime exports were reconciled with the public surface, and the surface checker now distinguishes runtime-backed vs type-only manifest entries. |
+| B99 | ~~**DETERMINISM FUZZER FOR TREE CONSTRUCTION**~~ — **DONE (`v15`).** Added seeded property tests that prove stable tree OIDs when `PatchBuilderV2` content anchor order is permuted internally and when `CheckpointService.createV5()` sees the same content properties in different insertion orders. |
 | B149 | ~~**LARGE-GRAPH `levels()` — TWO-PASS STREAMING**~~ — **DONE (`v15`).** `levels()` now re-fetches neighbors during the DP pass instead of pinning topo adjacency. |
 | B150 | ~~**LARGE-GRAPH `transitiveReduction()` — ON-DEMAND NEIGHBOR FETCH**~~ — **DONE (`v15`).** Reduction now uses on-demand successor fetches rather than retaining full topo adjacency plus a second adjacency copy. |
 | B151 | ~~**LARGE-GRAPH `transitiveClosure()` — STREAMING OUTPUT**~~ — **DONE (`v15`).** Added `transitiveClosureStream()` and rewired `transitiveClosure()` to collect from the stream for compatibility. |

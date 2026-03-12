@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Streaming transitive closure traversal** — Added `transitiveClosureStream()` to the traversal stack so callers can consume reachability edges lazily as an `AsyncGenerator<{ from, to }>` without materializing the full closure array. The existing `transitiveClosure()` API remains and now collects from the stream for backward compatibility.
 - **First-class sync trust configuration** — `WarpGraph.open({ trust })` and `graph.syncWith(..., { trust })` now expose an explicit public trust-config surface for sync evaluation instead of relying on hidden controller wiring alone.
 - **Fluent `WarpStateV5` test builder** — Added `createStateBuilder()` in `test/helpers/stateBuilder.js` so state-heavy tests can seed nodes, edges, removals, properties, frontier state, and graph materialization through one fluent helper instead of ad hoc OR-Set/LWW mutation.
+- **Seeded tree-construction determinism fuzzer** — Added property-based coverage for patch and checkpoint tree construction, proving stable tree OIDs across internal content-anchor permutations in `PatchBuilderV2` and shuffled content-property insertion order in `CheckpointService.createV5()`.
 
 ### Changed
 
