@@ -243,4 +243,24 @@ describe('API: Content Attachment', () => {
     await expect(graph.getContent('doc:1'))
       .rejects.toThrow(/Missing Git object|Blob not found|bad object/i);
   });
+
+  it('throws when edge _content points at a missing blob OID', async () => {
+    const graph = await repo.openGraph('test', 'alice');
+
+    const patch = await graph.createPatch();
+    patch.addNode('a').addNode('b').addEdge('a', 'b', 'rel');
+    await patch.attachEdgeContent('a', 'b', 'rel', 'edge payload');
+    await patch.commit();
+
+    await graph.materialize();
+
+    const patch2 = await graph.createPatch();
+    patch2.setEdgeProperty('a', 'b', 'rel', '_content', 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef');
+    await patch2.commit();
+
+    await graph.materialize();
+
+    await expect(graph.getEdgeContent('a', 'b', 'rel'))
+      .rejects.toThrow(/Missing Git object|Blob not found|bad object/i);
+  });
 });
