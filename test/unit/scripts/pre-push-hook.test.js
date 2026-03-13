@@ -56,11 +56,13 @@ function readLog(filePath) {
 function runPrePushHook(options = {}) {
   const { quick = false, failCommand = null } = options;
   const binDir = createTempDir();
+  const npmBin = join(binDir, 'npm');
   const npmLog = join(binDir, 'npm.log');
   const lycheeLog = join(binDir, 'lychee.log');
+  const linkcheckBin = join(binDir, 'warp-linkcheck-stub');
 
   writeExecutable(
-    join(binDir, 'npm'),
+    npmBin,
     [
       '#!/bin/sh',
       'set -eu',
@@ -79,7 +81,7 @@ function runPrePushHook(options = {}) {
   );
 
   writeExecutable(
-    join(binDir, 'lychee'),
+    linkcheckBin,
     [
       '#!/bin/sh',
       'set -eu',
@@ -92,9 +94,12 @@ function runPrePushHook(options = {}) {
   /** @type {Record<string, string | undefined>} */
   const env = {
     ...process.env,
-    PATH: `${binDir}:${process.env.PATH}`,
     WARP_NPM_LOG: npmLog,
     WARP_LYCHEE_LOG: lycheeLog,
+    WARP_NPM_BIN: npmBin,
+    WARP_NPM_LAUNCHER: 'sh',
+    WARP_LINKCHECK_BIN: linkcheckBin,
+    WARP_LINKCHECK_LAUNCHER: 'sh',
   };
 
   if (quick) {
