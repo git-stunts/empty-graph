@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { execSync } from 'node:child_process';
 import { createTestRepo } from './helpers/setup.js';
+import PersistenceError from '../../../src/domain/errors/PersistenceError.js';
 
 describe('API: Content Attachment', () => {
   /** @type {any} */
@@ -241,7 +242,7 @@ describe('API: Content Attachment', () => {
     await graph.materialize();
 
     await expect(graph.getContent('doc:1'))
-      .rejects.toThrow(/Missing Git object|Blob not found|bad object/i);
+      .rejects.toMatchObject({ code: PersistenceError.E_MISSING_OBJECT });
   });
 
   it('throws when edge _content points at a missing blob OID', async () => {
@@ -261,6 +262,6 @@ describe('API: Content Attachment', () => {
     await graph.materialize();
 
     await expect(graph.getEdgeContent('a', 'b', 'rel'))
-      .rejects.toThrow(/Missing Git object|Blob not found|bad object/i);
+      .rejects.toMatchObject({ code: PersistenceError.E_MISSING_OBJECT });
   });
 });

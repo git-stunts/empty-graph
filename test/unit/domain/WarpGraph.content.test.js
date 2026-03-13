@@ -205,6 +205,34 @@ describe('WarpGraph content attachment (query methods)', () => {
       expect(blobStorage.retrieve).toHaveBeenCalledWith('cas-edge-oid');
       expect(mockPersistence.readBlob).not.toHaveBeenCalled();
     });
+
+    it('preserves E_MISSING_OBJECT from blobStorage.retrieve()', async () => {
+      const blobStorage = {
+        store: vi.fn(),
+        retrieve: vi.fn().mockRejectedValue(
+          new PersistenceError(
+            'Missing Git object: cas-edge-oid',
+            PersistenceError.E_MISSING_OBJECT,
+            { context: { oid: 'cas-edge-oid' } },
+          ),
+        ),
+      };
+      /** @type {any} */ (graph)._blobStorage = blobStorage;
+
+      setupGraphState(graph, (/** @type {any} */ state) => {
+        addNode(state, 'a', 1);
+        addNode(state, 'b', 2);
+        addEdge(state, 'a', 'b', 'rel', 3);
+        const propKey = encodeEdgePropKey('a', 'b', 'rel', '_content');
+        state.prop.set(propKey, {
+          eventId: { lamport: 2, writerId: 'w1', patchSha: 'aabbccdd', opIndex: 0 },
+          value: 'cas-edge-oid',
+        });
+      });
+
+      await expect(graph.getEdgeContent('a', 'b', 'rel'))
+        .rejects.toMatchObject({ code: PersistenceError.E_MISSING_OBJECT });
+    });
   });
 
   describe('getEdgeContentOid()', () => {
