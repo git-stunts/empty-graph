@@ -114,6 +114,7 @@ const edgeOid = await graph.getEdgeContentOid('a', 'b', 'rel');
 
 `getContent()` returns raw `Uint8Array` bytes. Consumers wanting text should decode with `new TextDecoder().decode(buffer)`.
 If `_content` points at a missing blob OID, `getContent()` throws instead of silently returning empty bytes.
+`getEdgeContent()` has the same byte-decoding and missing-blob semantics for edge `_content` references.
 
 #### Constant
 

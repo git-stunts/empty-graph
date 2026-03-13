@@ -36,6 +36,18 @@ describe('GitGraphAdapter', () => {
       });
     });
 
+    it('rethrows unrelated exit-128 errors from the existence check', async () => {
+      mockPlumbing.executeStream.mockResolvedValue({
+        collect: vi.fn().mockResolvedValue(Buffer.alloc(0)),
+      });
+      const err = /** @type {any} */ (new Error('fatal: not a git repository'));
+      err.details = { code: 128, stderr: 'fatal: not a git repository (or any of the parent directories): .git' };
+      mockPlumbing.execute.mockRejectedValue(err);
+
+      await expect(adapter.readBlob('deadbeef'))
+        .rejects.toBe(err);
+    });
+
     it('returns empty blob bytes when the object exists', async () => {
       mockPlumbing.executeStream.mockResolvedValue({
         collect: vi.fn().mockResolvedValue(Buffer.alloc(0)),

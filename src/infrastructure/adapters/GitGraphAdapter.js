@@ -373,7 +373,10 @@ export default class GitGraphAdapter extends GraphPersistencePort {
     } catch (err) {
       const gitErr = /** @type {GitError} */ (err);
       const wrapped = wrapGitError(gitErr, { oid });
-      if (wrapped === gitErr && (getExitCode(gitErr) === 1 || getExitCode(gitErr) === 128)) {
+      const exitCode = getExitCode(gitErr);
+      const text = errorSearchText(gitErr);
+      const ambiguousMissingObject = exitCode === 1 && text.trim() === '';
+      if (wrapped === gitErr && ambiguousMissingObject) {
         throw new PersistenceError(
           `Missing Git object: ${oid}`,
           PersistenceError.E_MISSING_OBJECT,
