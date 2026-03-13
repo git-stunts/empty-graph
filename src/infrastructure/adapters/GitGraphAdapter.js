@@ -265,6 +265,32 @@ function wrapGitError(err, hint = {}) {
 }
 
 /**
+ * Distinguishes a legitimate zero-byte blob from a missing object when a blob
+ * stream returns no bytes. Some plumbing implementations surface the missing
+ * object case as an empty collect result instead of throwing.
+ *
+ * @param {GitGraphAdapter} adapter
+ * @param {string} oid
+ * @returns {Promise<void>}
+ */
+async function assertBlobExistsForEmptyRead(adapter, oid) {
+  try {
+    await adapter._executeWithRetry({ args: ['cat-file', '-e', oid] });
+  } catch (err) {
+    const gitErr = /** @type {GitError} */ (err);
+    const wrapped = wrapGitError(gitErr, { oid });
+    if (wrapped === gitErr && (getExitCode(gitErr) === 1 || getExitCode(gitErr) === 128)) {
+      throw new PersistenceError(
+        `Missing Git object: ${oid}`,
+        PersistenceError.E_MISSING_OBJECT,
+        { cause: /** @type {Error} */ (gitErr), context: { oid } },
+      );
+    }
+    throw wrapped;
+  }
+}
+
+/**
  * Concrete implementation of {@link GraphPersistencePort} using Git plumbing commands.
  *
  * This adapter translates abstract graph persistence operations into Git plumbing
@@ -651,6 +677,12 @@ export default class GitGraphAdapter extends GraphPersistencePort {
         args: ['cat-file', 'blob', oid]
       });
       const raw = await stream.collect({ asString: false });
+      // Some executeStream implementations can surface a missing object as an
+      // empty collect result instead of throwing. Distinguish that from a real
+      // zero-byte blob with an explicit existence check.
+      if (raw.length === 0) {
+        await assertBlobExistsForEmptyRead(this, oid);
+      }
       // Return as-is — plumbing returns Buffer (which IS-A Uint8Array)
       return /** @type {Uint8Array} */ (raw);
     } catch (err) {

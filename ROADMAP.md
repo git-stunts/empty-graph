@@ -173,7 +173,9 @@ Archived to [COMPLETED.md](docs/ROADMAP/COMPLETED.md#milestone-11--compass-ii).
 
 ## Standalone Lane (Ongoing)
 
-32 active items sorted into priority tiers. Guiding principles: (1) harden first — correctness, memory safety, test infra, CI gates before features; (2) large-graph support is forward-looking — medium priority; (3) CI & Tooling items batch into one PR.
+26 active items sorted into priority tiers. Guiding principles: (1) harden first — correctness, memory safety, test infra, CI gates before features; (2) large-graph support is forward-looking — medium priority; (3) CI & Tooling items batch into one PR.
+
+Small GitHub issues may also land as issue-sourced slices without a numbered `B` item when the GitHub issue itself is the backlog record. In those cases, `CHANGELOG.md` and the issue state are the canonical progress markers until the work merges.
 
 > Completed standalone items archived in [COMPLETED.md](docs/ROADMAP/COMPLETED.md#standalone-lane--completed-items).
 
