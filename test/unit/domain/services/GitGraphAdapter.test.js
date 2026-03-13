@@ -40,8 +40,9 @@ describe('GitGraphAdapter', () => {
       mockPlumbing.executeStream.mockResolvedValue({
         collect: vi.fn().mockResolvedValue(Buffer.alloc(0)),
       });
-      const err = /** @type {any} */ (new Error(''));
-      err.details = { code: 1, stderr: '' };
+      const err = /** @type {any} */ (new Error('Git command failed with code 1'));
+      err.name = 'GitPlumbingError';
+      err.details = { code: 1, stderr: '', stdout: '' };
       mockPlumbing.execute.mockRejectedValue(err);
 
       await expect(adapter.readBlob('deadbeef'))

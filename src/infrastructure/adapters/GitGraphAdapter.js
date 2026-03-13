@@ -186,6 +186,19 @@ function errorSearchText(err) {
 }
 
 /**
+ * Returns stderr/stdout diagnostic text from a Git error, ignoring wrapper
+ * messages like "Git command failed with code 1" that do not carry object
+ * lookup semantics on their own.
+ * @param {GitError} err
+ * @returns {string}
+ */
+function gitDiagnosticText(err) {
+  const stderr = String(err?.details?.stderr || '');
+  const stdout = String(err?.details?.stdout || '');
+  return `${stderr} ${stdout}`.trim().toLowerCase();
+}
+
+/**
  * Checks if a Git error indicates a missing object (commit, blob, tree).
  * Covers exit code 128 with object-related stderr patterns.
  * @param {GitError} err
@@ -374,8 +387,8 @@ export default class GitGraphAdapter extends GraphPersistencePort {
       const gitErr = /** @type {GitError} */ (err);
       const wrapped = wrapGitError(gitErr, { oid });
       const exitCode = getExitCode(gitErr);
-      const text = errorSearchText(gitErr);
-      const ambiguousMissingObject = exitCode === 1 && text.trim() === '';
+      const diagnostics = gitDiagnosticText(gitErr);
+      const ambiguousMissingObject = exitCode === 1 && diagnostics === '';
       if (wrapped === gitErr && ambiguousMissingObject) {
         throw new PersistenceError(
           `Missing Git object: ${oid}`,
