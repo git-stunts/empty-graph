@@ -173,7 +173,7 @@ Archived to [COMPLETED.md](docs/ROADMAP/COMPLETED.md#milestone-11--compass-ii).
 
 ## Standalone Lane (Ongoing)
 
-26 active items sorted into priority tiers. Guiding principles: (1) harden first — correctness, memory safety, test infra, CI gates before features; (2) large-graph support is forward-looking — medium priority; (3) CI & Tooling items batch into one PR.
+32 active items sorted into priority tiers. Guiding principles: (1) harden first — correctness, memory safety, test infra, CI gates before features; (2) large-graph support is forward-looking — medium priority; (3) CI & Tooling items batch into one PR.
 
 > Completed standalone items archived in [COMPLETED.md](docs/ROADMAP/COMPLETED.md#standalone-lane--completed-items).
 
