@@ -32,6 +32,8 @@ import WarpGraph, {
   IndexRebuildService,
   HealthCheckService,
   CommitDagTraversalService,
+  ContentAttachmentOptions,
+  ContentMeta,
   NoOpLogger,
   ConsoleLogger,
   ClockAdapter,
@@ -266,13 +268,14 @@ const edges: Array<{ from: string; to: string; label: string; props: Record<stri
 
 // ---- content attachment ----
 const contentOid: string | null = await graph.getContentOid('n1');
-const contentMeta: { oid: string; mime: string | null; size: number | null } | null = await graph.getContentMeta('n1');
+const contentMeta: ContentMeta | null = await graph.getContentMeta('n1');
 const contentBuf: Uint8Array | null = await graph.getContent('n1');
 const edgeContentOid: string | null = await graph.getEdgeContentOid('n1', 'n2', 'knows');
-const edgeContentMeta: { oid: string; mime: string | null; size: number | null } | null =
+const edgeContentMeta: ContentMeta | null =
   await graph.getEdgeContentMeta('n1', 'n2', 'knows');
 const edgeContentBuf: Uint8Array | null = await graph.getEdgeContent('n1', 'n2', 'knows');
-const _attachResult: PatchBuilderV2 = await pb.attachContent('n1', 'hello', { mime: 'text/plain', size: 5 });
+const contentOptions: ContentAttachmentOptions = { mime: 'text/plain', size: 5 };
+const _attachResult: PatchBuilderV2 = await pb.attachContent('n1', 'hello', contentOptions);
 const _attachEdgeResult: PatchBuilderV2 = await pb.attachEdgeContent('n1', 'n2', 'knows', new TextEncoder().encode('data'));
 const _contentKey: '_content' = CONTENT_PROPERTY_KEY;
 

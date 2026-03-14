@@ -1416,12 +1416,12 @@ export interface TemporalQuery {
   ): Promise<boolean>;
 }
 
-interface ContentAttachmentOptions {
+export interface ContentAttachmentOptions {
   mime?: string | null;
   size?: number | null;
 }
 
-interface ContentMeta {
+export interface ContentMeta {
   oid: string;
   mime: string | null;
   size: number | null;
