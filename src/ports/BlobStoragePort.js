@@ -12,7 +12,7 @@ export default class BlobStoragePort {
    * Stores content and returns a storage identifier (e.g. CAS tree OID).
    *
    * @param {Uint8Array|string} _content - The content to store
-   * @param {{ slug?: string }} [_options] - Optional metadata
+   * @param {{ slug?: string, mime?: string|null, size?: number|null }} [_options] - Optional storage metadata
    * @returns {Promise<string>} Storage identifier for retrieval
    * @abstract
    */

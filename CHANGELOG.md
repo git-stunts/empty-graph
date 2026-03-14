@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Content attachment metadata API** — `attachContent()` and `attachEdgeContent()` now accept optional `{ mime, size }` metadata hints, persist byte size alongside the `_content` OID, and expose `getContentMeta()` / `getEdgeContentMeta()` for structured `{ oid, mime, size }` reads without manual `_content.*` property handling.
 - **Streaming transitive closure traversal** — Added `transitiveClosureStream()` to the traversal stack so callers can consume reachability edges lazily as an `AsyncGenerator<{ from, to }>` without materializing the full closure array. The existing `transitiveClosure()` API remains and now collects from the stream for backward compatibility.
 - **First-class sync trust configuration** — `WarpGraph.open({ trust })` and `graph.syncWith(..., { trust })` now expose an explicit public trust-config surface for sync evaluation instead of relying on hidden controller wiring alone.
 - **Fluent `WarpStateV5` test builder** — Added `createStateBuilder()` in `test/helpers/stateBuilder.js` so state-heavy tests can seed nodes, edges, removals, properties, frontier state, and graph materialization through one fluent helper instead of ad hoc OR-Set/LWW mutation.
@@ -19,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Roadmap reconciled after PR #67 / #68 merges** — `ROADMAP.md` and `docs/ROADMAP/COMPLETED.md` now reflect the merged pre-push gate regression work (`B168`) and the current `main` baseline before the issue-45 slice branches off.
 - **Large-graph traversal memory profile** — `topologicalSort()` now has a lightweight mode that avoids retaining discovery adjacency when callers do not need it. `levels()` and `transitiveReduction()` were refactored to re-fetch neighbors on demand instead of pinning full topo adjacency in memory, reducing steady-state large-graph working sets.
 - **Roadmap reconciled after B87 merge** — `ROADMAP.md` now treats the Markdown code-sample linter as merged work on `main`, advances the CI/tooling wave to start at `B88`, and records the follow-up backlog items for pre-push gate-message regression coverage (`B168`) and archived-doc status guardrails (`B169`).
 - **Surface validation accounting** — The declaration surface checker now distinguishes runtime-backed exports from type-only manifest entries and understands namespace declarations, which makes the type-surface contract tighter without forcing runtime exports for pure types.

@@ -92,11 +92,15 @@ The hybrid approach was implemented: dedicated methods that encapsulate CAS deta
 ```javascript
 const patch = await graph.createPatch();
 patch.addNode('adr:0007');
-await patch.attachContent('adr:0007', '# ADR 0007\n\nDecision text...');
+await patch.attachContent('adr:0007', '# ADR 0007\n\nDecision text...', {
+  mime: 'text/markdown',
+});
 await patch.commit();
 
 // Edge content
-await patch.attachEdgeContent('a', 'b', 'rel', 'edge payload');
+await patch.attachEdgeContent('a', 'b', 'rel', 'edge payload', {
+  mime: 'text/plain',
+});
 ```
 
 Both methods are async (they call `writeBlob()` internally) and return the builder for chaining.
@@ -106,15 +110,18 @@ Both methods are async (they call `writeBlob()` internally) and return the build
 ```javascript
 const buffer = await graph.getContent('adr:0007');   // Uint8Array | null
 const oid    = await graph.getContentOid('adr:0007'); // string | null
+const meta   = await graph.getContentMeta('adr:0007');
 
 // Edge content
 const edgeBuf = await graph.getEdgeContent('a', 'b', 'rel');
 const edgeOid = await graph.getEdgeContentOid('a', 'b', 'rel');
+const edgeMeta = await graph.getEdgeContentMeta('a', 'b', 'rel');
 ```
 
 `getContent()` returns raw `Uint8Array` bytes. Consumers wanting text should decode with `new TextDecoder().decode(buffer)`.
 If `_content` points at a missing blob OID, `getContent()` throws instead of silently returning empty bytes.
 `getEdgeContent()` has the same byte-decoding and missing-blob semantics for edge `_content` references.
+`getContentMeta()` / `getEdgeContentMeta()` return `{ oid, mime, size }` when metadata exists, or `null` when no attachment exists. Historical attachments created before metadata support may still surface `mime: null` / `size: null`.
 
 #### Constant
 
@@ -125,16 +132,15 @@ import { CONTENT_PROPERTY_KEY } from '@git-stunts/git-warp';
 
 ### 3.4 Content Metadata
 
-Optionally, additional system properties can store content metadata alongside the CAS reference:
+git-warp stores content metadata in sibling system properties alongside the `_content` reference:
 
 | Property | Purpose | Example |
 |---|---|---|
 | `_content` | CAS blob SHA (required) | `"a1b2c3d4..."` |
 | `_content.size` | Byte length | `4096` |
 | `_content.mime` | MIME type hint | `"text/markdown"` |
-| `_content.encoding` | Content encoding | `"utf-8"` |
 
-Whether git-warp stores metadata or leaves it to consumers is an implementation decision. A minimal v1 could store only the SHA and let consumers handle metadata.
+`attachContent()` / `attachEdgeContent()` always persist `_content.size` from the actual encoded byte length. If callers provide `{ mime }`, the MIME hint is stored in `_content.mime`; otherwise the metadata API returns `mime: null`.
 
 ---
 

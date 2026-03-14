@@ -24,7 +24,14 @@ import {
   createEdgePropSetV2,
   createPatchV2,
 } from '../types/WarpTypesV2.js';
-import { encodeEdgeKey, FIELD_SEPARATOR, EDGE_PROP_PREFIX, CONTENT_PROPERTY_KEY } from './KeyCodec.js';
+import {
+  encodeEdgeKey,
+  FIELD_SEPARATOR,
+  EDGE_PROP_PREFIX,
+  CONTENT_PROPERTY_KEY,
+  CONTENT_MIME_PROPERTY_KEY,
+  CONTENT_SIZE_PROPERTY_KEY,
+} from './KeyCodec.js';
 import { lowerCanonicalOp } from './OpNormalizer.js';
 import { encodePatchMessage, decodePatchMessage, detectMessageKind } from './WarpMessageCodec.js';
 import { buildWriterRef } from '../utils/RefLayout.js';
@@ -90,6 +97,60 @@ function _assertNoReservedBytes(value, label) {
   if (value.length > 0 && value[0] === EDGE_PROP_PREFIX) {
     throw new Error(`${label} must not start with reserved prefix \\x01: ${JSON.stringify(value)}`);
   }
+}
+
+/**
+ * Calculates the persisted byte length of attached content.
+ *
+ * String content is encoded as UTF-8 before hashing/storage, so metadata
+ * should reflect the encoded byte length rather than JavaScript code units.
+ *
+ * @param {Uint8Array|string} content
+ * @returns {number}
+ */
+function byteSizeOfContent(content) {
+  return typeof content === 'string'
+    ? new TextEncoder().encode(content).byteLength
+    : content.byteLength;
+}
+
+/**
+ * Validates and normalizes optional content metadata for attachment APIs.
+ *
+ * Size is always persisted, either computed from the content bytes or
+ * validated against the provided hint when callers pass `{ size }`.
+ *
+ * @param {Uint8Array|string} content
+ * @param {{ mime?: string|null, size?: number|null }|undefined} metadata
+ * @returns {{ mime: string|null, size: number }}
+ */
+function normalizeContentMetadata(content, metadata) {
+  if (metadata !== undefined && (metadata === null || typeof metadata !== 'object' || Array.isArray(metadata))) {
+    throw new Error('content metadata must be an object when provided');
+  }
+
+  const actualSize = byteSizeOfContent(content);
+  const providedSize = metadata?.size;
+  if (providedSize !== undefined && providedSize !== null) {
+    if (!Number.isInteger(providedSize) || providedSize < 0) {
+      throw new Error('content metadata size must be a non-negative integer');
+    }
+    if (providedSize !== actualSize) {
+      throw new Error(`content metadata size ${providedSize} does not match actual byte size ${actualSize}`);
+    }
+  }
+
+  const providedMime = metadata?.mime;
+  if (providedMime !== undefined && providedMime !== null) {
+    if (typeof providedMime !== 'string' || providedMime.trim() === '') {
+      throw new Error('content metadata mime must be a non-empty string when provided');
+    }
+  }
+
+  return {
+    mime: typeof providedMime === 'string' ? providedMime : null,
+    size: actualSize,
+  };
 }
 
 /**
@@ -532,18 +593,22 @@ export class PatchBuilderV2 {
    *
    * @param {string} nodeId - The node ID to attach content to
    * @param {Uint8Array|string} content - The content to attach
+   * @param {{ mime?: string|null, size?: number|null }} [metadata] - Optional metadata hint
    * @returns {Promise<PatchBuilderV2>} This builder instance for method chaining
    */
-  async attachContent(nodeId, content) {
+  async attachContent(nodeId, content, metadata = undefined) {
     this._assertNotCommitted();
     // Validate identifiers before writing blob to avoid orphaned blobs
     _assertNoReservedBytes(nodeId, 'nodeId');
     _assertNoReservedBytes(CONTENT_PROPERTY_KEY, 'key');
     this._assertNodeExistsForContent(nodeId);
+    const normalizedMeta = normalizeContentMetadata(content, metadata);
     const oid = this._blobStorage
-      ? await this._blobStorage.store(content, { slug: `${this._graphName}/${nodeId}` })
+      ? await this._blobStorage.store(content, { slug: `${this._graphName}/${nodeId}`, mime: normalizedMeta.mime, size: normalizedMeta.size })
       : await this._persistence.writeBlob(content);
     this.setProperty(nodeId, CONTENT_PROPERTY_KEY, oid);
+    this.setProperty(nodeId, CONTENT_SIZE_PROPERTY_KEY, normalizedMeta.size);
+    this.setProperty(nodeId, CONTENT_MIME_PROPERTY_KEY, normalizedMeta.mime);
     this._contentBlobs.push(oid);
     return this;
   }
@@ -556,9 +621,10 @@ export class PatchBuilderV2 {
    * @param {string} to - Target node ID
    * @param {string} label - Edge label
    * @param {Uint8Array|string} content - The content to attach
+   * @param {{ mime?: string|null, size?: number|null }} [metadata] - Optional metadata hint
    * @returns {Promise<PatchBuilderV2>} This builder instance for method chaining
    */
-  async attachEdgeContent(from, to, label, content) {
+  async attachEdgeContent(from, to, label, content, metadata = undefined) {
     this._assertNotCommitted();
     // Validate identifiers before writing blob to avoid orphaned blobs
     _assertNoReservedBytes(from, 'from');
@@ -566,10 +632,13 @@ export class PatchBuilderV2 {
     _assertNoReservedBytes(label, 'label');
     _assertNoReservedBytes(CONTENT_PROPERTY_KEY, 'key');
     this._assertEdgeExists(from, to, label);
+    const normalizedMeta = normalizeContentMetadata(content, metadata);
     const oid = this._blobStorage
-      ? await this._blobStorage.store(content, { slug: `${this._graphName}/${from}/${to}/${label}` })
+      ? await this._blobStorage.store(content, { slug: `${this._graphName}/${from}/${to}/${label}`, mime: normalizedMeta.mime, size: normalizedMeta.size })
       : await this._persistence.writeBlob(content);
     this.setEdgeProperty(from, to, label, CONTENT_PROPERTY_KEY, oid);
+    this.setEdgeProperty(from, to, label, CONTENT_SIZE_PROPERTY_KEY, normalizedMeta.size);
+    this.setEdgeProperty(from, to, label, CONTENT_MIME_PROPERTY_KEY, normalizedMeta.mime);
     this._contentBlobs.push(oid);
     return this;
   }

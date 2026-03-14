@@ -458,21 +458,28 @@ Attach content-addressed blobs to nodes and edges as first-class payloads (Paper
 ```javascript
 const patch = await graph.createPatch();
 patch.addNode('adr:0007');                                    // sync — queues a NodeAdd op
-await patch.attachContent('adr:0007', '# ADR 0007\n\nDecision text...'); // async — writes blob
+await patch.attachContent('adr:0007', '# ADR 0007\n\nDecision text...', {
+  mime: 'text/markdown',
+}); // async — writes blob + records metadata
 await patch.commit();
 
 // Read content back
 const buffer = await graph.getContent('adr:0007');   // Uint8Array | null
 const oid    = await graph.getContentOid('adr:0007'); // hex SHA or null
+const meta   = await graph.getContentMeta('adr:0007');
+// { oid: 'abc123...', mime: 'text/markdown', size: 26 }
 
 // Edge content works the same way (assumes nodes and edge already exist)
 const patch2 = await graph.createPatch();
-await patch2.attachEdgeContent('a', 'b', 'rel', 'edge payload');
+await patch2.attachEdgeContent('a', 'b', 'rel', 'edge payload', {
+  mime: 'text/plain',
+});
 await patch2.commit();
 const edgeBuf = await graph.getEdgeContent('a', 'b', 'rel');
+const edgeMeta = await graph.getEdgeContentMeta('a', 'b', 'rel');
 ```
 
-Content blobs survive `git gc` — their OIDs are embedded in the patch commit tree and checkpoint tree, keeping them reachable. If a live `_content` reference points at a missing blob anyway (for example due to manual corruption), `getContent()` / `getEdgeContent()` throw instead of silently returning empty bytes.
+Content blobs survive `git gc` — their OIDs are embedded in the patch commit tree and checkpoint tree, keeping them reachable. `attachContent()` / `attachEdgeContent()` also persist byte-size metadata automatically and will store a MIME hint when provided. Historical attachments created before metadata support may still return `mime: null` / `size: null` from the metadata APIs until they are rewritten. If a live `_content` reference points at a missing blob anyway (for example due to manual corruption), `getContent()` / `getEdgeContent()` throw instead of silently returning empty bytes.
 
 ### Writer API
 

@@ -86,6 +86,48 @@ describe('WarpGraph content attachment (query methods)', () => {
     });
   });
 
+  describe('getContentMeta()', () => {
+    it('returns structured metadata for a node attachment', async () => {
+      setupGraphState(graph, (/** @type {any} */ state) => {
+        addNode(state, 'doc:1', 1);
+        state.prop.set(encodePropKey('doc:1', '_content'), { eventId: null, value: 'abc123' });
+        state.prop.set(encodePropKey('doc:1', '_content.mime'), { eventId: null, value: 'text/markdown' });
+        state.prop.set(encodePropKey('doc:1', '_content.size'), { eventId: null, value: 42 });
+      });
+
+      const meta = await graph.getContentMeta('doc:1');
+
+      expect(meta).toEqual({
+        oid: 'abc123',
+        mime: 'text/markdown',
+        size: 42,
+      });
+    });
+
+    it('returns null metadata fields when only the oid exists', async () => {
+      setupGraphState(graph, (/** @type {any} */ state) => {
+        addNode(state, 'doc:1', 1);
+        state.prop.set(encodePropKey('doc:1', '_content'), { eventId: null, value: 'abc123' });
+      });
+
+      const meta = await graph.getContentMeta('doc:1');
+
+      expect(meta).toEqual({
+        oid: 'abc123',
+        mime: null,
+        size: null,
+      });
+    });
+
+    it('returns null when no content is attached', async () => {
+      setupGraphState(graph, (/** @type {any} */ state) => {
+        addNode(state, 'doc:1', 1);
+      });
+
+      expect(await graph.getContentMeta('doc:1')).toBeNull();
+    });
+  });
+
   describe('getContent()', () => {
     it('reads and returns the blob buffer', async () => {
       const buf = new TextEncoder().encode('# ADR 001\n\nSome content');
@@ -265,6 +307,46 @@ describe('WarpGraph content attachment (query methods)', () => {
 
       const oid = await graph.getEdgeContentOid('a', 'b', 'rel');
       expect(oid).toBeNull();
+    });
+  });
+
+  describe('getEdgeContentMeta()', () => {
+    it('returns structured metadata for an edge attachment', async () => {
+      setupGraphState(graph, (/** @type {any} */ state) => {
+        addNode(state, 'a', 1);
+        addNode(state, 'b', 2);
+        addEdge(state, 'a', 'b', 'rel', 3);
+        state.prop.set(encodeEdgePropKey('a', 'b', 'rel', '_content'), {
+          eventId: { lamport: 2, writerId: 'w1', patchSha: 'aabbccdd', opIndex: 0 },
+          value: 'def456',
+        });
+        state.prop.set(encodeEdgePropKey('a', 'b', 'rel', '_content.mime'), {
+          eventId: { lamport: 2, writerId: 'w1', patchSha: 'aabbccdd', opIndex: 1 },
+          value: 'application/octet-stream',
+        });
+        state.prop.set(encodeEdgePropKey('a', 'b', 'rel', '_content.size'), {
+          eventId: { lamport: 2, writerId: 'w1', patchSha: 'aabbccdd', opIndex: 2 },
+          value: 6,
+        });
+      });
+
+      const meta = await graph.getEdgeContentMeta('a', 'b', 'rel');
+
+      expect(meta).toEqual({
+        oid: 'def456',
+        mime: 'application/octet-stream',
+        size: 6,
+      });
+    });
+
+    it('returns null when no edge content is attached', async () => {
+      setupGraphState(graph, (/** @type {any} */ state) => {
+        addNode(state, 'a', 1);
+        addNode(state, 'b', 2);
+        addEdge(state, 'a', 'b', 'rel', 3);
+      });
+
+      expect(await graph.getEdgeContentMeta('a', 'b', 'rel')).toBeNull();
     });
   });
 

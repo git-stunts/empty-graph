@@ -96,7 +96,7 @@ export default class CasBlobAdapter extends BlobStoragePort {
    *
    * @override
    * @param {Uint8Array|string} content
-   * @param {{ slug?: string }} [options]
+   * @param {{ slug?: string, mime?: string|null, size?: number|null }} [options]
    * @returns {Promise<string>}
    */
   async store(content, options) {

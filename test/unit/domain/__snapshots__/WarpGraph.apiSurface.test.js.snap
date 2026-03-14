@@ -202,12 +202,22 @@ exports[`WarpGraph API surface > all prototype methods have correct property des
     "enumerable": false,
     "type": "method",
   },
+  "getContentMeta": {
+    "configurable": true,
+    "enumerable": false,
+    "type": "method",
+  },
   "getContentOid": {
     "configurable": true,
     "enumerable": false,
     "type": "method",
   },
   "getEdgeContent": {
+    "configurable": true,
+    "enumerable": false,
+    "type": "method",
+  },
+  "getEdgeContentMeta": {
     "configurable": true,
     "enumerable": false,
     "type": "method",
@@ -440,7 +450,7 @@ exports[`WarpGraph API surface > all prototype methods have correct property des
 }
 `;
 
-exports[`WarpGraph API surface > prototype method count matches snapshot 1`] = `87`;
+exports[`WarpGraph API surface > prototype method count matches snapshot 1`] = `89`;
 
 exports[`WarpGraph API surface > prototype methods match snapshot 1`] = `
 [
@@ -484,8 +494,10 @@ exports[`WarpGraph API surface > prototype methods match snapshot 1`] = `
   "fork",
   "gcPolicy",
   "getContent",
+  "getContentMeta",
   "getContentOid",
   "getEdgeContent",
+  "getEdgeContentMeta",
   "getEdgeContentOid",
   "getEdgeProps",
   "getEdges",

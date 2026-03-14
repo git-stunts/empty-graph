@@ -8,7 +8,16 @@
  */
 
 import { orsetContains, orsetElements } from '../crdt/ORSet.js';
-import { decodePropKey, isEdgePropKey, decodeEdgePropKey, encodeEdgeKey, decodeEdgeKey, CONTENT_PROPERTY_KEY } from '../services/KeyCodec.js';
+import {
+  decodePropKey,
+  isEdgePropKey,
+  decodeEdgePropKey,
+  encodeEdgeKey,
+  decodeEdgeKey,
+  CONTENT_PROPERTY_KEY,
+  CONTENT_MIME_PROPERTY_KEY,
+  CONTENT_SIZE_PROPERTY_KEY,
+} from '../services/KeyCodec.js';
 import { compareEventIds } from '../utils/EventId.js';
 import { cloneStateV5 } from '../services/JoinReducer.js';
 import QueryBuilder from '../services/QueryBuilder.js';
@@ -343,6 +352,36 @@ export async function translationCost(configA, configB) {
 }
 
 /**
+ * Extracts structured content metadata from a property bag.
+ *
+ * Historical graphs may only have `_content`, in which case `mime` and `size`
+ * return as null until the content is re-attached through the metadata-aware
+ * APIs.
+ *
+ * @param {Record<string, unknown>|null} props
+ * @returns {{ oid: string, mime: string|null, size: number|null }|null}
+ */
+function extractContentMeta(props) {
+  if (!props) {
+    return null;
+  }
+  const oid = props[CONTENT_PROPERTY_KEY];
+  if (typeof oid !== 'string') {
+    return null;
+  }
+  const mimeValue = props[CONTENT_MIME_PROPERTY_KEY];
+  const sizeValue = props[CONTENT_SIZE_PROPERTY_KEY];
+  const size = typeof sizeValue === 'number' && Number.isInteger(sizeValue) && sizeValue >= 0
+    ? sizeValue
+    : null;
+  return {
+    oid,
+    mime: typeof mimeValue === 'string' ? mimeValue : null,
+    size,
+  };
+}
+
+/**
  * Gets the content blob OID for a node, or null if none is attached.
  *
  * @this {import('../WarpGraph.js').default}
@@ -351,12 +390,21 @@ export async function translationCost(configA, configB) {
  * @throws {import('../errors/QueryError.js').default} If no cached state exists (code: `E_NO_STATE`)
  */
 export async function getContentOid(nodeId) {
+  const meta = await getContentMeta.call(this, nodeId);
+  return meta?.oid ?? null;
+}
+
+/**
+ * Gets structured content metadata for a node attachment, or null if none is attached.
+ *
+ * @this {import('../WarpGraph.js').default}
+ * @param {string} nodeId - The node ID to check
+ * @returns {Promise<{ oid: string, mime: string|null, size: number|null }|null>} Content metadata or null
+ * @throws {import('../errors/QueryError.js').default} If no cached state exists (code: `E_NO_STATE`)
+ */
+export async function getContentMeta(nodeId) {
   const props = await getNodeProps.call(this, nodeId);
-  if (!props) {
-    return null;
-  }
-  const oid = props[CONTENT_PROPERTY_KEY];
-  return (typeof oid === 'string') ? oid : null;
+  return extractContentMeta(props);
 }
 
 /**
@@ -374,10 +422,11 @@ export async function getContentOid(nodeId) {
  *   blob object.
  */
 export async function getContent(nodeId) {
-  const oid = await getContentOid.call(this, nodeId);
-  if (!oid) {
+  const meta = await getContentMeta.call(this, nodeId);
+  if (!meta) {
     return null;
   }
+  const { oid } = meta;
   if (this._blobStorage) {
     return await this._blobStorage.retrieve(oid);
   }
@@ -395,13 +444,23 @@ export async function getContent(nodeId) {
  * @throws {import('../errors/QueryError.js').default} If no cached state exists (code: `E_NO_STATE`)
  */
 export async function getEdgeContentOid(from, to, label) {
+  const meta = await getEdgeContentMeta.call(this, from, to, label);
+  return meta?.oid ?? null;
+}
+
+/**
+ * Gets structured content metadata for an edge attachment, or null if none is attached.
+ *
+ * @this {import('../WarpGraph.js').default}
+ * @param {string} from - Source node ID
+ * @param {string} to - Target node ID
+ * @param {string} label - Edge label
+ * @returns {Promise<{ oid: string, mime: string|null, size: number|null }|null>} Content metadata or null
+ * @throws {import('../errors/QueryError.js').default} If no cached state exists (code: `E_NO_STATE`)
+ */
+export async function getEdgeContentMeta(from, to, label) {
   const props = await getEdgeProps.call(this, from, to, label);
-  if (!props) {
-    return null;
-  }
-  // getEdgeProps returns a plain object — use bracket access
-  const oid = props[CONTENT_PROPERTY_KEY];
-  return (typeof oid === 'string') ? oid : null;
+  return extractContentMeta(props);
 }
 
 /**
@@ -421,10 +480,11 @@ export async function getEdgeContentOid(from, to, label) {
  *   blob object.
  */
 export async function getEdgeContent(from, to, label) {
-  const oid = await getEdgeContentOid.call(this, from, to, label);
-  if (!oid) {
+  const meta = await getEdgeContentMeta.call(this, from, to, label);
+  if (!meta) {
     return null;
   }
+  const { oid } = meta;
   if (this._blobStorage) {
     return await this._blobStorage.retrieve(oid);
   }

@@ -1416,6 +1416,17 @@ export interface TemporalQuery {
   ): Promise<boolean>;
 }
 
+interface ContentAttachmentOptions {
+  mime?: string | null;
+  size?: number | null;
+}
+
+interface ContentMeta {
+  oid: string;
+  mime: string | null;
+  size: number | null;
+}
+
 // ============================================================================
 // PatchV2 & PatchBuilderV2
 // ============================================================================
@@ -1460,9 +1471,9 @@ export class PatchBuilderV2 {
   /** Sets a property on an edge. */
   setEdgeProperty(from: string, to: string, label: string, key: string, value: unknown): PatchBuilderV2;
   /** Attaches content to a node (writes blob + sets _content property). */
-  attachContent(nodeId: string, content: Uint8Array | string): Promise<PatchBuilderV2>;
+  attachContent(nodeId: string, content: Uint8Array | string, metadata?: ContentAttachmentOptions): Promise<PatchBuilderV2>;
   /** Attaches content to an edge (writes blob + sets _content edge property). */
-  attachEdgeContent(from: string, to: string, label: string, content: Uint8Array | string): Promise<PatchBuilderV2>;
+  attachEdgeContent(from: string, to: string, label: string, content: Uint8Array | string, metadata?: ContentAttachmentOptions): Promise<PatchBuilderV2>;
   /** Builds the PatchV2 object without committing. */
   build(): PatchV2;
   /** Commits the patch to the graph and returns the commit SHA. */
@@ -1494,9 +1505,9 @@ export class PatchSession {
   /** Sets a property on an edge. */
   setEdgeProperty(from: string, to: string, label: string, key: string, value: unknown): this;
   /** Attaches content to a node (writes blob + sets _content property). */
-  attachContent(nodeId: string, content: Uint8Array | string): Promise<this>;
+  attachContent(nodeId: string, content: Uint8Array | string, metadata?: ContentAttachmentOptions): Promise<this>;
   /** Attaches content to an edge (writes blob + sets _content edge property). */
-  attachEdgeContent(from: string, to: string, label: string, content: Uint8Array | string): Promise<this>;
+  attachEdgeContent(from: string, to: string, label: string, content: Uint8Array | string, metadata?: ContentAttachmentOptions): Promise<this>;
   /** Builds the PatchV2 object without committing. */
   build(): PatchV2;
   /** Commits the patch with CAS protection. */
@@ -1809,6 +1820,11 @@ export default class WarpGraph {
   getContentOid(nodeId: string): Promise<string | null>;
 
   /**
+   * Gets structured content metadata for a node attachment, or null if none is attached.
+   */
+  getContentMeta(nodeId: string): Promise<ContentMeta | null>;
+
+  /**
    * Gets the content blob for a node, or null if none is attached.
    * Returns raw bytes; use `new TextDecoder().decode(result)` for text.
    */
@@ -1818,6 +1834,11 @@ export default class WarpGraph {
    * Gets the content blob OID for an edge, or null if none is attached.
    */
   getEdgeContentOid(from: string, to: string, label: string): Promise<string | null>;
+
+  /**
+   * Gets structured content metadata for an edge attachment, or null if none is attached.
+   */
+  getEdgeContentMeta(from: string, to: string, label: string): Promise<ContentMeta | null>;
 
   /**
    * Gets the content blob for an edge, or null if none is attached.
