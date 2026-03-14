@@ -148,12 +148,13 @@ export class PatchSession {
    *
    * @param {string} nodeId - The node ID to attach content to
    * @param {Uint8Array|string} content - The content to attach
+   * @param {{ mime?: string|null, size?: number|null }} [metadata] - Optional content metadata
    * @returns {Promise<this>} This session for chaining
    * @throws {WriterError} SESSION_COMMITTED if already committed
    */
-  async attachContent(nodeId, content) {
+  async attachContent(nodeId, content, metadata = undefined) {
     this._ensureNotCommitted();
-    await this._builder.attachContent(nodeId, content);
+    await this._builder.attachContent(nodeId, content, metadata);
     return this;
   }
 
@@ -164,13 +165,14 @@ export class PatchSession {
    * @param {string} to - Target node ID
    * @param {string} label - Edge label/type
    * @param {Uint8Array|string} content - The content to attach
+   * @param {{ mime?: string|null, size?: number|null }} [metadata] - Optional content metadata
    * @returns {Promise<this>} This session for chaining
    * @throws {WriterError} SESSION_COMMITTED if already committed
    */
   // eslint-disable-next-line max-params -- direct delegate matching PatchBuilderV2 signature
-  async attachEdgeContent(from, to, label, content) {
+  async attachEdgeContent(from, to, label, content, metadata = undefined) {
     this._ensureNotCommitted();
-    await this._builder.attachEdgeContent(from, to, label, content);
+    await this._builder.attachEdgeContent(from, to, label, content, metadata);
     return this;
   }
 

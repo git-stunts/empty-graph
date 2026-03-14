@@ -37,7 +37,7 @@ function createMockState() {
 
 describe('PatchBuilderV2 content attachment', () => {
   describe('attachContent()', () => {
-    it('writes blob and sets _content property', async () => {
+    it('writes blob and sets content reference metadata properties', async () => {
       const state = createMockState();
       orsetAdd(state.nodeAlive, 'node:1', createDot('w1', 1));
       const persistence = createMockPersistence({
@@ -55,13 +55,55 @@ describe('PatchBuilderV2 content attachment', () => {
 
       expect(persistence.writeBlob).toHaveBeenCalledWith('hello world');
       const patch = builder.build();
-      expect(patch.ops).toHaveLength(1);
-      expect(patch.ops[0]).toMatchObject({
+      expect(patch.ops).toHaveLength(3);
+      expect(patch.ops).toContainEqual(expect.objectContaining({
         type: 'PropSet',
         node: 'node:1',
         key: '_content',
         value: 'abc123',
+      }));
+      expect(patch.ops).toContainEqual(expect.objectContaining({
+        type: 'PropSet',
+        node: 'node:1',
+        key: '_content.size',
+        value: 11,
+      }));
+      expect(patch.ops).toContainEqual(expect.objectContaining({
+        type: 'PropSet',
+        node: 'node:1',
+        key: '_content.mime',
+        value: null,
+      }));
+    });
+
+    it('accepts optional content metadata and persists it alongside the blob oid', async () => {
+      const state = createMockState();
+      orsetAdd(state.nodeAlive, 'node:1', createDot('w1', 1));
+      const persistence = createMockPersistence({
+        writeBlob: vi.fn().mockResolvedValue('abc123'),
       });
+      const builder = new PatchBuilderV2(/** @type {any} */ ({
+        persistence,
+        writerId: 'w1',
+        lamport: 1,
+        versionVector: createVersionVector(),
+        getCurrentState: () => state,
+      }));
+
+      await builder.attachContent('node:1', 'hello world', {
+        mime: 'text/plain',
+        size: 11,
+      });
+
+      const patch = builder.build();
+      expect(patch.ops).toContainEqual(expect.objectContaining({
+        key: '_content.mime',
+        value: 'text/plain',
+      }));
+      expect(patch.ops).toContainEqual(expect.objectContaining({
+        key: '_content.size',
+        value: 11,
+      }));
     });
 
     it('tracks blob OID in _contentBlobs', async () => {
@@ -131,10 +173,28 @@ describe('PatchBuilderV2 content attachment', () => {
       expect(persistence.writeBlob).not.toHaveBeenCalled();
       expect(builder._contentBlobs).toEqual([]);
     });
+
+    it('rejects mismatched size metadata before writing the blob', async () => {
+      const state = createMockState();
+      orsetAdd(state.nodeAlive, 'node:1', createDot('w1', 1));
+      const persistence = createMockPersistence();
+      const builder = new PatchBuilderV2(/** @type {any} */ ({
+        persistence,
+        writerId: 'w1',
+        lamport: 1,
+        versionVector: createVersionVector(),
+        getCurrentState: () => state,
+      }));
+
+      await expect(builder.attachContent('node:1', 'hello', { size: 9 }))
+        .rejects.toThrow('content metadata size 9 does not match actual byte size 5');
+      expect(persistence.writeBlob).not.toHaveBeenCalled();
+      expect(builder._contentBlobs).toEqual([]);
+    });
   });
 
   describe('attachEdgeContent()', () => {
-    it('writes blob and sets _content edge property', async () => {
+    it('writes blob and sets content reference metadata on the edge', async () => {
       const state = createMockState();
       const edgeKey = encodeEdgeKey('a', 'b', 'rel');
       orsetAdd(state.edgeAlive, edgeKey, createDot('w1', 1));
@@ -154,12 +214,22 @@ describe('PatchBuilderV2 content attachment', () => {
 
       expect(persistence.writeBlob).toHaveBeenCalledWith(Buffer.from('binary'));
       const patch = builder.build();
-      expect(patch.ops).toHaveLength(1);
-      expect(patch.ops[0]).toMatchObject({
+      expect(patch.ops).toHaveLength(3);
+      expect(patch.ops).toContainEqual(expect.objectContaining({
         type: 'PropSet',
         key: '_content',
         value: 'def456',
-      });
+      }));
+      expect(patch.ops).toContainEqual(expect.objectContaining({
+        type: 'PropSet',
+        key: '_content.size',
+        value: 6,
+      }));
+      expect(patch.ops).toContainEqual(expect.objectContaining({
+        type: 'PropSet',
+        key: '_content.mime',
+        value: null,
+      }));
       // Schema should be 3 (edge properties present)
       expect(patch.schema).toBe(3);
     });
@@ -270,15 +340,19 @@ describe('PatchBuilderV2 content attachment', () => {
 
       await builder.attachContent('node:1', 'hello world');
 
-      expect(blobStorage.store).toHaveBeenCalledWith('hello world', { slug: 'g/node:1' });
+      expect(blobStorage.store).toHaveBeenCalledWith('hello world', {
+        slug: 'g/node:1',
+        mime: null,
+        size: 11,
+      });
       expect(persistence.writeBlob).not.toHaveBeenCalled();
       const patch = builder.build();
-      expect(patch.ops[0]).toMatchObject({
+      expect(patch.ops).toContainEqual(expect.objectContaining({
         type: 'PropSet',
         node: 'node:1',
         key: '_content',
         value: 'cas-tree-oid',
-      });
+      }));
     });
 
     it('falls back to persistence.writeBlob() when blobStorage is not provided', async () => {
@@ -323,7 +397,11 @@ describe('PatchBuilderV2 content attachment', () => {
 
       await builder.attachEdgeContent('a', 'b', 'rel', 'edge-data');
 
-      expect(blobStorage.store).toHaveBeenCalledWith('edge-data', { slug: 'g/a/b/rel' });
+      expect(blobStorage.store).toHaveBeenCalledWith('edge-data', {
+        slug: 'g/a/b/rel',
+        mime: null,
+        size: 9,
+      });
       expect(persistence.writeBlob).not.toHaveBeenCalled();
     });
   });

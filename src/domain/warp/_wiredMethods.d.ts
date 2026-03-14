@@ -29,6 +29,12 @@ interface TranslationCostResult {
   breakdown: { nodeLoss: number; edgeLoss: number; propLoss: number };
 }
 
+interface ContentMeta {
+  oid: string;
+  mime: string | null;
+  size: number | null;
+}
+
 /**
  * Lightweight status snapshot.
  */
@@ -168,6 +174,8 @@ declare module '../WarpGraph.js' {
     hasNode(nodeId: string): Promise<boolean>;
     getNodeProps(nodeId: string): Promise<Record<string, unknown> | null>;
     getEdgeProps(from: string, to: string, label: string): Promise<Record<string, unknown> | null>;
+    getContentMeta(nodeId: string): Promise<ContentMeta | null>;
+    getEdgeContentMeta(from: string, to: string, label: string): Promise<ContentMeta | null>;
     neighbors(nodeId: string, direction?: 'outgoing' | 'incoming' | 'both', edgeLabel?: string): Promise<Array<{ nodeId: string; label: string; direction: 'outgoing' | 'incoming' }>>;
     getStateSnapshot(): Promise<WarpStateV5 | null>;
     getNodes(): Promise<string[]>;

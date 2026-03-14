@@ -32,6 +32,8 @@ import WarpGraph, {
   IndexRebuildService,
   HealthCheckService,
   CommitDagTraversalService,
+  ContentAttachmentOptions,
+  ContentMeta,
   NoOpLogger,
   ConsoleLogger,
   ClockAdapter,
@@ -266,10 +268,14 @@ const edges: Array<{ from: string; to: string; label: string; props: Record<stri
 
 // ---- content attachment ----
 const contentOid: string | null = await graph.getContentOid('n1');
+const contentMeta: ContentMeta | null = await graph.getContentMeta('n1');
 const contentBuf: Uint8Array | null = await graph.getContent('n1');
 const edgeContentOid: string | null = await graph.getEdgeContentOid('n1', 'n2', 'knows');
+const edgeContentMeta: ContentMeta | null =
+  await graph.getEdgeContentMeta('n1', 'n2', 'knows');
 const edgeContentBuf: Uint8Array | null = await graph.getEdgeContent('n1', 'n2', 'knows');
-const _attachResult: PatchBuilderV2 = await pb.attachContent('n1', 'hello');
+const contentOptions: ContentAttachmentOptions = { mime: 'text/plain', size: 5 };
+const _attachResult: PatchBuilderV2 = await pb.attachContent('n1', 'hello', contentOptions);
 const _attachEdgeResult: PatchBuilderV2 = await pb.attachEdgeContent('n1', 'n2', 'knows', new TextEncoder().encode('data'));
 const _contentKey: '_content' = CONTENT_PROPERTY_KEY;
 
@@ -309,8 +315,8 @@ const ps3: PatchSession = ps.setProperty('x', 'k', 'v').setEdgeProperty('a', 'b'
 const psPatch: PatchV2 = ps.build();
 const psSha: string = await ps.commit();
 const psOpCount: number = ps.opCount;
-const psAttach: PatchSession = await ps.attachContent('x', 'content');
-const psAttachEdge: PatchSession = await ps.attachEdgeContent('a', 'b', 'c', 'content');
+const psAttach: PatchSession = await ps.attachContent('x', 'content', { mime: 'text/plain', size: 7 });
+const psAttachEdge: PatchSession = await ps.attachEdgeContent('a', 'b', 'c', 'content', { size: 7 });
 
 // ---- sync protocol ----
 const syncReq: SyncRequest = await graph.createSyncRequest();

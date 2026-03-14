@@ -8,7 +8,18 @@
  */
 
 import { orsetContains, orsetElements } from '../crdt/ORSet.js';
-import { decodePropKey, isEdgePropKey, decodeEdgePropKey, encodeEdgeKey, decodeEdgeKey, CONTENT_PROPERTY_KEY } from '../services/KeyCodec.js';
+import {
+  decodePropKey,
+  encodePropKey,
+  isEdgePropKey,
+  decodeEdgePropKey,
+  encodeEdgePropKey,
+  encodeEdgeKey,
+  decodeEdgeKey,
+  CONTENT_PROPERTY_KEY,
+  CONTENT_MIME_PROPERTY_KEY,
+  CONTENT_SIZE_PROPERTY_KEY,
+} from '../services/KeyCodec.js';
 import { compareEventIds } from '../utils/EventId.js';
 import { cloneStateV5 } from '../services/JoinReducer.js';
 import QueryBuilder from '../services/QueryBuilder.js';
@@ -343,6 +354,136 @@ export async function translationCost(configA, configB) {
 }
 
 /**
+ * Returns true when two registers were written in the same patch lineage.
+ *
+ * Content metadata is stored in sibling properties, so the read path only
+ * treats `_content.mime` / `_content.size` as current when they come from the
+ * same patch as the live `_content` reference. This prevents stale metadata
+ * from surviving a later manual `_content` rewrite.
+ *
+ * @param {import('../utils/EventId.js').EventId|null|undefined} contentEventId
+ * @param {import('../utils/EventId.js').EventId|null|undefined} candidateEventId
+ * @returns {boolean}
+ */
+function isSameAttachmentLineage(contentEventId, candidateEventId) {
+  return Boolean(
+    contentEventId
+      && candidateEventId
+      && contentEventId.lamport === candidateEventId.lamport
+      && contentEventId.writerId === candidateEventId.writerId
+      && contentEventId.patchSha === candidateEventId.patchSha
+  );
+}
+
+/**
+ * Filters an edge-property register against the edge birth event.
+ *
+ * @param {{ eventId: import('../utils/EventId.js').EventId|null, value: unknown }|undefined} register
+ * @param {import('../utils/EventId.js').EventId|undefined} birthEvent
+ * @returns {{ eventId: import('../utils/EventId.js').EventId|null, value: unknown }|null}
+ */
+function visibleEdgeRegister(register, birthEvent) {
+  if (!register) {
+    return null;
+  }
+  if (birthEvent && register.eventId && compareEventIds(register.eventId, birthEvent) < 0) {
+    return null;
+  }
+  return register;
+}
+
+/**
+ * Looks up the current node attachment registers directly from materialized state.
+ *
+ * @param {import('../services/JoinReducer.js').WarpStateV5} state
+ * @param {string} nodeId
+ * @returns {{ contentRegister: { eventId: import('../utils/EventId.js').EventId|null, value: string }, mimeRegister: { eventId: import('../utils/EventId.js').EventId|null, value: unknown }|null, sizeRegister: { eventId: import('../utils/EventId.js').EventId|null, value: unknown }|null }|null}
+ */
+function getNodeContentRegisters(state, nodeId) {
+  if (!orsetContains(state.nodeAlive, nodeId)) {
+    return null;
+  }
+  const contentRegister = state.prop.get(encodePropKey(nodeId, CONTENT_PROPERTY_KEY));
+  if (!contentRegister || typeof contentRegister.value !== 'string') {
+    return null;
+  }
+  return {
+    contentRegister: /** @type {{ eventId: import('../utils/EventId.js').EventId|null, value: string }} */ (contentRegister),
+    mimeRegister: state.prop.get(encodePropKey(nodeId, CONTENT_MIME_PROPERTY_KEY)) || null,
+    sizeRegister: state.prop.get(encodePropKey(nodeId, CONTENT_SIZE_PROPERTY_KEY)) || null,
+  };
+}
+
+/**
+ * Looks up the current edge attachment registers directly from materialized state.
+ *
+ * @param {import('../services/JoinReducer.js').WarpStateV5} state
+ * @param {string} from
+ * @param {string} to
+ * @param {string} label
+ * @returns {{ contentRegister: { eventId: import('../utils/EventId.js').EventId|null, value: string }, mimeRegister: { eventId: import('../utils/EventId.js').EventId|null, value: unknown }|null, sizeRegister: { eventId: import('../utils/EventId.js').EventId|null, value: unknown }|null }|null}
+ */
+function getEdgeContentRegisters(state, from, to, label) {
+  const edgeKey = encodeEdgeKey(from, to, label);
+  if (!orsetContains(state.edgeAlive, edgeKey)) {
+    return null;
+  }
+  if (!orsetContains(state.nodeAlive, from) || !orsetContains(state.nodeAlive, to)) {
+    return null;
+  }
+  const birthEvent = state.edgeBirthEvent?.get(edgeKey);
+  const contentRegister = visibleEdgeRegister(
+    state.prop.get(encodeEdgePropKey(from, to, label, CONTENT_PROPERTY_KEY)),
+    birthEvent,
+  );
+  if (!contentRegister || typeof contentRegister.value !== 'string') {
+    return null;
+  }
+  return {
+    contentRegister: /** @type {{ eventId: import('../utils/EventId.js').EventId|null, value: string }} */ (contentRegister),
+    mimeRegister: visibleEdgeRegister(
+      state.prop.get(encodeEdgePropKey(from, to, label, CONTENT_MIME_PROPERTY_KEY)),
+      birthEvent,
+    ),
+    sizeRegister: visibleEdgeRegister(
+      state.prop.get(encodeEdgePropKey(from, to, label, CONTENT_SIZE_PROPERTY_KEY)),
+      birthEvent,
+    ),
+  };
+}
+
+/**
+ * Extracts structured content metadata from a property bag.
+ *
+ * Historical graphs may only have `_content`, and manual `_content` rewrites
+ * can outlive older sibling metadata fields. In those cases `mime` and `size`
+ * return as null until the content is re-attached through the metadata-aware
+ * APIs.
+ *
+ * @param {{ eventId: import('../utils/EventId.js').EventId|null, value: string }} contentRegister
+ * @param {{ eventId: import('../utils/EventId.js').EventId|null, value: unknown }|null} mimeRegister
+ * @param {{ eventId: import('../utils/EventId.js').EventId|null, value: unknown }|null} sizeRegister
+ * @returns {{ oid: string, mime: string|null, size: number|null }|null}
+ */
+function extractContentMeta(contentRegister, mimeRegister, sizeRegister) {
+  const sizeValue = isSameAttachmentLineage(contentRegister.eventId, sizeRegister?.eventId)
+    ? sizeRegister?.value
+    : null;
+  const mimeValue = isSameAttachmentLineage(contentRegister.eventId, mimeRegister?.eventId)
+    ? mimeRegister?.value
+    : null;
+  const size =
+    typeof sizeValue === 'number' && Number.isInteger(sizeValue) && sizeValue >= 0
+      ? sizeValue
+      : null;
+  return {
+    oid: contentRegister.value,
+    mime: typeof mimeValue === 'string' ? mimeValue : null,
+    size,
+  };
+}
+
+/**
  * Gets the content blob OID for a node, or null if none is attached.
  *
  * @this {import('../WarpGraph.js').default}
@@ -351,12 +492,27 @@ export async function translationCost(configA, configB) {
  * @throws {import('../errors/QueryError.js').default} If no cached state exists (code: `E_NO_STATE`)
  */
 export async function getContentOid(nodeId) {
-  const props = await getNodeProps.call(this, nodeId);
-  if (!props) {
-    return null;
-  }
-  const oid = props[CONTENT_PROPERTY_KEY];
-  return (typeof oid === 'string') ? oid : null;
+  await this._ensureFreshState();
+  const s = /** @type {import('../services/JoinReducer.js').WarpStateV5} */ (this._cachedState);
+  const registers = getNodeContentRegisters(s, nodeId);
+  return registers?.contentRegister.value ?? null;
+}
+
+/**
+ * Gets structured content metadata for a node attachment, or null if none is attached.
+ *
+ * @this {import('../WarpGraph.js').default}
+ * @param {string} nodeId - The node ID to check
+ * @returns {Promise<{ oid: string, mime: string|null, size: number|null }|null>} Content metadata or null
+ * @throws {import('../errors/QueryError.js').default} If no cached state exists (code: `E_NO_STATE`)
+ */
+export async function getContentMeta(nodeId) {
+  await this._ensureFreshState();
+  const s = /** @type {import('../services/JoinReducer.js').WarpStateV5} */ (this._cachedState);
+  const registers = getNodeContentRegisters(s, nodeId);
+  return registers
+    ? extractContentMeta(registers.contentRegister, registers.mimeRegister, registers.sizeRegister)
+    : null;
 }
 
 /**
@@ -374,10 +530,13 @@ export async function getContentOid(nodeId) {
  *   blob object.
  */
 export async function getContent(nodeId) {
-  const oid = await getContentOid.call(this, nodeId);
-  if (!oid) {
+  await this._ensureFreshState();
+  const s = /** @type {import('../services/JoinReducer.js').WarpStateV5} */ (this._cachedState);
+  const registers = getNodeContentRegisters(s, nodeId);
+  if (!registers) {
     return null;
   }
+  const { value: oid } = registers.contentRegister;
   if (this._blobStorage) {
     return await this._blobStorage.retrieve(oid);
   }
@@ -395,13 +554,29 @@ export async function getContent(nodeId) {
  * @throws {import('../errors/QueryError.js').default} If no cached state exists (code: `E_NO_STATE`)
  */
 export async function getEdgeContentOid(from, to, label) {
-  const props = await getEdgeProps.call(this, from, to, label);
-  if (!props) {
-    return null;
-  }
-  // getEdgeProps returns a plain object — use bracket access
-  const oid = props[CONTENT_PROPERTY_KEY];
-  return (typeof oid === 'string') ? oid : null;
+  await this._ensureFreshState();
+  const s = /** @type {import('../services/JoinReducer.js').WarpStateV5} */ (this._cachedState);
+  const registers = getEdgeContentRegisters(s, from, to, label);
+  return registers?.contentRegister.value ?? null;
+}
+
+/**
+ * Gets structured content metadata for an edge attachment, or null if none is attached.
+ *
+ * @this {import('../WarpGraph.js').default}
+ * @param {string} from - Source node ID
+ * @param {string} to - Target node ID
+ * @param {string} label - Edge label
+ * @returns {Promise<{ oid: string, mime: string|null, size: number|null }|null>} Content metadata or null
+ * @throws {import('../errors/QueryError.js').default} If no cached state exists (code: `E_NO_STATE`)
+ */
+export async function getEdgeContentMeta(from, to, label) {
+  await this._ensureFreshState();
+  const s = /** @type {import('../services/JoinReducer.js').WarpStateV5} */ (this._cachedState);
+  const registers = getEdgeContentRegisters(s, from, to, label);
+  return registers
+    ? extractContentMeta(registers.contentRegister, registers.mimeRegister, registers.sizeRegister)
+    : null;
 }
 
 /**
@@ -421,10 +596,13 @@ export async function getEdgeContentOid(from, to, label) {
  *   blob object.
  */
 export async function getEdgeContent(from, to, label) {
-  const oid = await getEdgeContentOid.call(this, from, to, label);
-  if (!oid) {
+  await this._ensureFreshState();
+  const s = /** @type {import('../services/JoinReducer.js').WarpStateV5} */ (this._cachedState);
+  const registers = getEdgeContentRegisters(s, from, to, label);
+  if (!registers) {
     return null;
   }
+  const { value: oid } = registers.contentRegister;
   if (this._blobStorage) {
     return await this._blobStorage.retrieve(oid);
   }

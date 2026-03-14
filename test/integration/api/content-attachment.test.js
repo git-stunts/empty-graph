@@ -45,6 +45,28 @@ describe('API: Content Attachment', () => {
     expect(oid.length).toBeGreaterThanOrEqual(40);
   });
 
+  it('persists and reads content metadata for nodes', async () => {
+    const graph = await repo.openGraph('test', 'alice');
+
+    const patch = await graph.createPatch();
+    patch.addNode('doc:1');
+    await patch.attachContent('doc:1', '# Title\n', {
+      mime: 'text/markdown',
+      size: 8,
+    });
+    await patch.commit();
+
+    await graph.materialize();
+    const meta = await graph.getContentMeta('doc:1');
+
+    expect(meta).not.toBeNull();
+    expect(meta).toMatchObject({
+      mime: 'text/markdown',
+      size: 8,
+    });
+    expect(meta?.oid).toMatch(/^[0-9a-f]+$/);
+  });
+
   it('returns null when no content attached', async () => {
     const graph = await repo.openGraph('test', 'alice');
 
@@ -80,6 +102,25 @@ describe('API: Content Attachment', () => {
 
     const oid = await graph.getEdgeContentOid('a', 'b', 'rel');
     expect(oid).toMatch(/^[0-9a-f]+$/);
+  });
+
+  it('persists and reads content metadata for edges', async () => {
+    const graph = await repo.openGraph('test', 'alice');
+    const binary = new Uint8Array([0xde, 0xad, 0xbe, 0xef]);
+
+    const patch = await graph.createPatch();
+    patch.addNode('a').addNode('b').addEdge('a', 'b', 'rel');
+    await patch.attachEdgeContent('a', 'b', 'rel', binary);
+    await patch.commit();
+
+    await graph.materialize();
+    const meta = await graph.getEdgeContentMeta('a', 'b', 'rel');
+
+    expect(meta).toEqual({
+      oid: expect.stringMatching(/^[0-9a-f]+$/),
+      mime: null,
+      size: binary.byteLength,
+    });
   });
 
   it('multi-writer LWW: concurrent attachments resolve deterministically', async () => {
@@ -241,6 +282,12 @@ describe('API: Content Attachment', () => {
 
     await graph.materialize();
 
+    await expect(graph.getContentMeta('doc:1')).resolves.toEqual({
+      oid: 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef',
+      mime: null,
+      size: null,
+    });
+
     await expect(graph.getContent('doc:1'))
       .rejects.toMatchObject({ code: PersistenceError.E_MISSING_OBJECT });
   });
@@ -260,6 +307,12 @@ describe('API: Content Attachment', () => {
     await patch2.commit();
 
     await graph.materialize();
+
+    await expect(graph.getEdgeContentMeta('a', 'b', 'rel')).resolves.toEqual({
+      oid: 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef',
+      mime: null,
+      size: null,
+    });
 
     await expect(graph.getEdgeContent('a', 'b', 'rel'))
       .rejects.toMatchObject({ code: PersistenceError.E_MISSING_OBJECT });
